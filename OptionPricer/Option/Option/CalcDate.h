@@ -332,7 +332,7 @@ DLLEXPORT(long) DayPlus(long Cdate, long NDays)
             else
             {
                 Year += 1;
-                DayPlus(Year * 10000 + 1 * 100 + 1, NDayCountFromJan01 - 366 - 1);
+                return DayPlus(Year * 10000 + 1 * 100 + 1, NDayCountFromJan01 - 366 - 1);
             }
         }
         else
@@ -365,7 +365,7 @@ DLLEXPORT(long) DayPlus(long Cdate, long NDays)
             else
             {
                 Year += 1;
-                DayPlus(Year * 10000 + 1 * 100 + 1, NDayCountFromJan01 - 365 - 1);
+                return DayPlus(Year * 10000 + 1 * 100 + 1, NDayCountFromJan01 - 365 - 1);
             }
         }
     }

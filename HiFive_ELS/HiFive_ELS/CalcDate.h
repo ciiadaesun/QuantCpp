@@ -3,10 +3,8 @@
 
 #ifndef DLLEXPORT(A)
 #ifdef WIN32
-#include <crtdbg.h>
 #define DLLEXPORT(A) extern "C" __declspec(dllexport) A _stdcall
 #elif _WIN64
-#include <crtdbg.h>
 #define DLLEXPORT(A) extern "C" __declspec(dllexport) A _stdcall
 #elif __linux__
 #define DLLEXPORT(A) extern "C" A
@@ -334,7 +332,7 @@ DLLEXPORT(long) DayPlus(long Cdate, long NDays)
             else
             {
                 Year += 1;
-                DayPlus(Year * 10000 + 1 * 100 + 1, NDayCountFromJan01 - 366 - 1);
+                return DayPlus(Year * 10000 + 1 * 100 + 1, NDayCountFromJan01 - 366 - 1);
             }
         }
         else
@@ -367,7 +365,7 @@ DLLEXPORT(long) DayPlus(long Cdate, long NDays)
             else
             {
                 Year += 1;
-                DayPlus(Year * 10000 + 1 * 100 + 1, NDayCountFromJan01 - 365 - 1);
+                return DayPlus(Year * 10000 + 1 * 100 + 1, NDayCountFromJan01 - 365 - 1);
             }
         }
     }

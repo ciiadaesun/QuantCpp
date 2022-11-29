@@ -19,7 +19,7 @@
 
 DLLEXPORT(long) CDateToExcelDate(long Cdate);
 DLLEXPORT(long) ExcelDateToCDate(long ExlDate);
-DLLEXPORT(long) DayCountAtoB(long Day1, long Day2);
+DLLEXPORT(long) DayCountAtoB(long Day1, long Day2); 
 DLLEXPORT(long) DayPlus(long Cdate, long NDays);
 
 #ifndef max
@@ -143,7 +143,7 @@ DLLEXPORT(long) ExcelDateToCDate(long ExlDate)
         }
     }
     //400년의 배수만큼 날짜 차감 완료
-
+    
     //100년동안 윤년 개수
     long nDay_for_100_400x = 36525;       //400의 배수 년도에는36525
     long nDay_for_100 = 36524;            //나머지 3년동안은 36524
@@ -279,7 +279,7 @@ DLLEXPORT(long) DayPlus(long Cdate, long NDays)
 
 
     //0보다 작을 때는 귀찮으니 기존 Function 사용하자
-    if (NDays < 0)
+    if (NDays < 0) 
         return ExcelDateToCDate(CDateToExcelDate(Cdate) + NDays);
     else if (NDays == 0)
         return Cdate;
@@ -332,7 +332,7 @@ DLLEXPORT(long) DayPlus(long Cdate, long NDays)
             else
             {
                 Year += 1;
-                DayPlus(Year * 10000 + 1 * 100 + 1, NDayCountFromJan01 - 366 - 1);
+                return DayPlus(Year * 10000 + 1 * 100 + 1, NDayCountFromJan01 - 366 - 1);
             }
         }
         else
@@ -365,7 +365,7 @@ DLLEXPORT(long) DayPlus(long Cdate, long NDays)
             else
             {
                 Year += 1;
-                DayPlus(Year * 10000 + 1 * 100 + 1, NDayCountFromJan01 - 365 - 1);
+                return DayPlus(Year * 10000 + 1 * 100 + 1, NDayCountFromJan01 - 365 - 1);
             }
         }
     }
