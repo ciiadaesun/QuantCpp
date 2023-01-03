@@ -2404,3 +2404,304 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration(
     free(Strike);
     _CrtDumpMemoryLeaks();
 }
+
+void SNormExp(double* x, double* w, long N)
+{
+    long i, j, its, m;
+    double p1, p2, p3, pp, z, z1;
+    double pim4, tol;
+    //	double PI = 4.0*atan(1.0);
+
+    tol = 3.0e-14;
+    pim4 = 1.0 / pow(PI, 0.25);
+
+    m = (N + 1) / 2;
+
+    for (i = 0; i < m; i++) {
+        switch (i) {
+        case 0:
+            z = sqrt(2.0 * N + 1.0) - 1.85575 * pow(2.0 * N + 1.0, -0.16667);
+            break;
+        case 1:
+            z = z - 1.14 * pow(N, 0.426) / z;
+            break;
+        case 2:
+            z = 1.86 * z - 0.86 * x[0];
+            break;
+        case 3:
+            z = 1.91 * z - 0.91 * x[1];
+            break;
+        default:
+            z = 2.0 * z - x[i - 2];
+        }
+
+        for (its = 1; its <= 10; its++) {
+            p1 = pim4;
+            p2 = 0.0;
+            for (j = 1; j <= N; j++) {
+                p3 = p2;
+                p2 = p1;
+                p1 = z * sqrt(2.0 / (double)j) * p2 - sqrt((double)(j - 1) / (double)j) * p3;
+            }
+
+            pp = sqrt(2.0 * (double)N) * p2;
+            z1 = z;
+            z = z1 - p1 / pp;
+
+            if (fabs(z - z1) < tol) break;
+        }
+
+        x[i] = z;
+        x[N - 1 - i] = -z;
+        w[i] = 2 / (pp * pp);
+        w[N - 1 - i] = w[i];
+    }
+
+    for (i = 0; i < N; i++) {
+        x[i] *= sqrt(2.0);
+        w[i] /= sqrt(PI);
+    }
+}
+
+void NormExp(double* x, double* w, long N, double m, double sigma)
+{
+    long i;
+
+    SNormExp(x, w, N);
+
+    for (i = 0; i < N; i++) x[i] = m + sigma * x[i];
+}
+
+// Find_Sol 함수에서 사용
+double func(
+    double y,
+    double kappa,
+    double* c,
+    double T,
+    double* t,
+    long nDates
+)
+{
+    long i;
+    double value;
+
+    value = 1.0;
+
+    for (i = 0; i < nDates; i++) value -= c[i] * exp(-B(T, t[i], kappa) * y);
+    
+
+    return value;
+}
+
+// Swaption2F 함수에 필요한 해찾기
+double Find_Sol(
+    double kappa,
+    double* c,
+    double T,
+    double* t,
+    long nDates
+)
+{
+    double tol = Tiny_Value;
+    double low, high, mid;
+    double low_value, high_value, mid_value;
+
+    low = -1.0;
+    high = 1.0;
+    low_value = func(low, kappa, c, T, t, nDates);
+    high_value = func(high, kappa, c, T, t, nDates);
+    while (low_value * high_value > 0.0) {
+        low *= 2.0;
+        high *= 2.0;
+        low_value = func(low, kappa, c, T, t, nDates);
+        high_value = func(high, kappa, c, T, t, nDates);
+    }
+
+    while (high - low > tol) {
+        mid = (low + high) / 2.0;
+        mid_value = func(mid, kappa, c, T, t, nDates);
+
+        if (mid_value == 0.0) return mid;
+
+        if (mid_value * high_value > 0.0) high = mid;
+        else low = mid;
+    }
+
+    mid = (low + high) / 2.0;
+
+    return mid;
+}
+
+// 2-factor 모형의 적분 int_t^T x(u)+y(u) du의 분산 계산
+double V(
+    double t,
+    double T,
+    double kappa1,		// 회귀속도1 
+    double kappa2,		// 회귀속도2 
+    double* tVol,		// 변동성 구간 종점
+    double* Vol1,		// 구간 변동성1
+    double* Vol2,		// 구간 변동성2
+    long nVol,			// 변동성 구간 개수
+    double rho			// 상관계수
+)
+{
+    long i;
+    double value;
+    double* Vol = (double*)malloc(nVol * sizeof(double));
+
+    for (i = 0; i < nVol; i++) Vol[i] = sqrt(fabs(Vol1[i] * Vol2[i]));
+
+    value = Integ(T, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1) - Integ(t, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        - 2.0 * exp(-kappa1 * T) * Integ(T, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        + 2.0 * exp(-kappa1 * T) * Integ(t, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        + exp(-2.0 * kappa1 * T) * Integ(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        - exp(-2.0 * kappa1 * T) * Integ(t, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        + Integ(T, 1.0, 0.0, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        - Integ(t, 1.0, 0.0, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        - 2.0 * exp(-kappa2 * T) * Integ(T, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        + 2.0 * exp(-kappa2 * T) * Integ(t, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        + exp(-2.0 * kappa2 * T) * Integ(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        - exp(-2.0 * kappa2 * T) * Integ(t, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        + 2.0 * rho * Integ(T, 1.0, 0.0, tVol, Vol, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * Integ(t, 1.0, 0.0, tVol, Vol, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * exp(-kappa1 * T) * Integ(T, 1.0, kappa1, tVol, Vol, nVol) / (kappa1 * kappa2)
+        + 2.0 * rho * exp(-kappa1 * T) * Integ(t, 1.0, kappa1, tVol, Vol, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * exp(-kappa2 * T) * Integ(T, 1.0, kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
+        + 2.0 * rho * exp(-kappa2 * T) * Integ(t, 1.0, kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
+        + 2.0 * rho * exp(-(kappa1 + kappa2) * T) * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * exp(-(kappa1 + kappa2) * T) * Integ(t, 1.0, kappa1 + kappa2, tVol, Vol, nVol) / (kappa1 * kappa2);
+
+    if (Vol) free(Vol);
+
+    return value;
+}
+
+// Swaption2F 함수에서 사용
+double A(
+    double t,
+    double T,
+    double kappa1,		// 회귀속도1 
+    double kappa2,		// 회귀속도2 
+    double* tVol,		// 변동성 구간 종점
+    double* Vol1,		// 구간 변동성1
+    double* Vol2,		// 구간 변동성2
+    long nVol,			// 변동성 구간 개수
+    double rho,			// 상관계수
+    double DF_t,
+    double DF_T
+)
+{
+    double V1 = V(t, T, kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho);
+    double V2 = V(0, T, kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho);
+    double V3 = V(0, t, kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho);
+
+    return exp(0.5 * (V1 - V2 + V3)) * DF_T / DF_t;
+}
+
+
+
+double Swaption2F(
+    double NA,			// 액면금액
+    double kappa1,		// 회귀속도1 
+    double kappa2,		// 회귀속도2 
+    double* tVol,		// 변동성 구간 종점
+    double* Vol1,		// 구간 변동성1
+    double* Vol2,		// 구간 변동성2
+    long nVol,			// 변동성 구간 개수
+    double rho,			// 상관계수
+    double* tDF,			// 할인채 만기
+    double* DF,			// 할인채 가격
+    long nDF,				// 할인채 개수
+    double StrikeRate,	// 고정금리(지급부분)
+    long MaturityDate,	// 옵션 만기일까지 일수
+    long* Dates,			// 지급일: 계산일로부터 각 중간지급일까지의 일수
+    long nDates,			// 지급 회수(계산일 이후 남은 회수)
+    double* P0_t,           // 스왑지급일에 P0
+    double P0_MaturityDate // MaturityDate의 할인계수
+)
+{
+    long i, j;
+    double sum, value = 0.0;
+    long nQuad = 10;
+    double* x = (double*)malloc(nQuad * sizeof(double));
+    double* w = (double*)malloc(nQuad * sizeof(double));
+    double T;
+    double* t = (double*)malloc(nDates * sizeof(double));
+    double* c = (double*)malloc(nDates * sizeof(double));
+    double h1, h2, kappa_i, y;
+    double m_x, sigma_x, m_y, sigma_y, rho_xy;
+    double* Vol = (double*)malloc(nVol * sizeof(double));
+
+    if (kappa1 < Tiny_Value) kappa1 = Tiny_Value;
+    if (kappa2 < Tiny_Value) kappa2 = Tiny_Value;
+
+    for (i = 0; i < nVol; i++) {
+        if (Vol1[i] < 0.0) Vol1[i] = -Vol1[i];
+        if (Vol1[i] < Tiny_Value) Vol1[i] = Tiny_Value;
+        if (Vol2[i] < 0.0) Vol2[i] = -Vol2[i];
+        if (Vol2[i] < Tiny_Value) Vol2[i] = Tiny_Value;
+    }
+
+    rho = max(min(rho, 0.9999),-0.9999);
+
+    for (i = 0; i < nVol; i++) Vol[i] = sqrt(fabs(Vol1[i] * Vol2[i]));
+
+    T = (double)MaturityDate / 365.0;
+    for (i = 0; i < nDates; i++) t[i] = (double)Dates[i] / 365.0;
+
+    m_x = -exp(-kappa1 * T) / kappa1 * Integ(T, 1.0, kappa1, tVol, Vol1, nVol)
+        + exp(-2.0 * kappa1 * T) / kappa1 * Integ(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol)
+        - rho * exp(-kappa1 * T) / kappa2 * Integ(T, 1.0, kappa1, tVol, Vol, nVol)
+        + rho * exp(-(kappa1 + kappa2) * T) / kappa2 * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol, nVol);
+    m_y = -exp(-kappa2 * T) / kappa2 * Integ(T, 1.0, kappa2, tVol, Vol2, nVol)
+        + exp(-2.0 * kappa2 * T) / kappa2 * Integ(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol)
+        - rho * exp(-kappa2 * T) / kappa1 * Integ(T, 1.0, kappa2, tVol, Vol, nVol)
+        + rho * exp(-(kappa1 + kappa2) * T) / kappa1 * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol, nVol);
+    sigma_x = sqrt(exp(-2.0 * kappa1 * T) * Integ(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol));
+    sigma_y = sqrt(exp(-2.0 * kappa2 * T) * Integ(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol));
+    rho_xy = rho * exp(-(kappa1 + kappa2) * T) * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol, nVol) / (sigma_x * sigma_y);
+
+    if (sigma_x < 0.0) sigma_x = -sigma_x;
+    if (sigma_x < Tiny_Value) sigma_x = Tiny_Value;
+    if (sigma_y < 0.0) sigma_y = -sigma_y;
+    if (sigma_y < Tiny_Value) sigma_y = Tiny_Value;
+
+    rho_xy = max(min(rho_xy, 0.9999), -0.9999);
+
+    NormExp(x, w, nQuad, m_x, sigma_x);
+
+    for (i = 0; i < nQuad; i++) {
+        for (j = 0; j < nDates; j++) {
+            if (j == 0) {
+                c[j] = StrikeRate * (t[j] - T) * A(T, t[j], kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho, P0_t[j], P0_MaturityDate) * exp(-B(T, t[j], kappa1) * x[i]);
+            }
+            else if (j == nDates - 1) {
+                c[j] = (1.0 + StrikeRate * (t[j] - t[j - 1])) * A(T, t[j], kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho, P0_t[j], P0_MaturityDate) * exp(-B(T, t[j], kappa1) * x[i]);
+            }
+            else {
+                c[j] = StrikeRate * (t[j] - t[j - 1]) * A(T, t[j], kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho, P0_t[j], P0_MaturityDate)* exp(-B(T, t[j], kappa1) * x[i]);
+            }
+        }
+
+        y = Find_Sol(kappa2, c, T, t, nDates);
+
+        h1 = ((y - m_y) / sigma_y - rho_xy * (x[i] - m_x) / sigma_x) / sqrt(1.0 - rho_xy * rho_xy);
+
+        sum = CDF_N(-h1);
+        for (j = 0; j < nDates; j++) 
+        {
+            h2 = h1 + B(T, t[j], kappa2) * sigma_y * sqrt(1.0 - rho_xy * rho_xy);
+            kappa_i = -B(T, t[j], kappa2) * (m_y - 0.5 * (1.0 - rho_xy * rho_xy) * sigma_y * sigma_y * B(T, t[j], kappa2)+ rho_xy * sigma_y * (x[i] - m_x) / sigma_x);
+            sum -= c[j] * exp(kappa_i) * CDF_N(-h2);
+        }
+
+        value += w[i] * sum;
+    }
+
+    if (Vol) free(Vol);
+    if (x) free(x);
+    if (w) free(w);
+    if (t) free(t);
+    if (c) free(c);
+    return NA * value * P0_MaturityDate;
+}
