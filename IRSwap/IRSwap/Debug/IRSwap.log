@@ -1,23 +1,24 @@
 ﻿  IRSwap.cpp
-C:\Users\KDB\github5\IRSwap\IRSwap\CalcDate.h(4,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(1125,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(1125,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(1214,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(1563,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(1563,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(1559,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(1560,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(1588,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(1588,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(1584,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(1585,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\Util.h(1603,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\IRSwap.cpp(8,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\IRSwap.cpp(1562,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\IRSwap.cpp(3158,16): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\IRSwap.cpp(3164,10): warning C4101: 'NotionalPayDate' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\IRSwap.cpp(3158,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\KDB\github5\IRSwap\IRSwap\IRSwap.cpp(3158,19): warning C4101: 'n' :참조되지 않은 지역 변수입니다.
-     C:\Users\KDB\github5\IRSwap\Debug\IRSwap.lib 라이브러리 및 C:\Users\KDB\github5\IRSwap\Debug\IRSwap.exp 개체를 생성하고 있습니다.
-  IRSwap.vcxproj -> C:\Users\KDB\github5\IRSwap\Debug\IRSwap.dll
+C:\Users\ciiad\github5\IRSwap\IRSwap\CalcDate.h(4,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(1179,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(1179,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(1671,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(1671,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(1667,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(1668,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(1701,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(1701,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(1697,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(1698,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(1716,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(2758,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\Util.h(2823,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\IRSwap.cpp(8,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\IRSwap.cpp(1562,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\IRSwap.cpp(3158,16): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\IRSwap.cpp(3164,10): warning C4101: 'NotionalPayDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\IRSwap.cpp(3158,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwap\IRSwap\IRSwap.cpp(3158,19): warning C4101: 'n' :참조되지 않은 지역 변수입니다.
+     C:\Users\ciiad\github5\IRSwap\Debug\IRSwap.lib 라이브러리 및 C:\Users\ciiad\github5\IRSwap\Debug\IRSwap.exp 개체를 생성하고 있습니다.
+  IRSwap.vcxproj -> C:\Users\ciiad\github5\IRSwap\Debug\IRSwap.dll

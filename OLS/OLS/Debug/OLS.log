@@ -1,0 +1,9 @@
+﻿  OLS.cpp
+C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(49,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(49,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(45,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(46,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(947,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
+C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(1012,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
+C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(1144,1): warning C4326: 'main'의 반환 형식이 'int'이어야 하는데 'long'입니다.
+  OLS.vcxproj -> C:\Users\ciiad\github5\OLS\Debug\OLS.exe

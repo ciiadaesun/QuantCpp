@@ -5,3 +5,6 @@ EXPORTS
 	isin								@2
 	Pricing_IRStructuredSwap_Excel	    @3
 	HWCapHWSwaptionCalibration			@4
+	HWCapHWSwaption_2FCalibration		@5
+	HWCapHWSwaptionCalibration2F			@6
+	

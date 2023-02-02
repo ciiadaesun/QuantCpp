@@ -35,6 +35,7 @@
 #define Tiny_Value                1.0e-7        // 변동성 최소값
 #define Max_Value                1.0            // 변동성 최대값
 
+
 long Number_Of_Payment(double T_OptionMaturity, double T_SwapMaturity, double PayFreqOfMonth)
 {
     double dT = (T_SwapMaturity - T_OptionMaturity + 0.00001);
@@ -124,6 +125,57 @@ double Integ(
         sigma = Interpolate_Linear(tVol, Vol, nVol, s);
         value += sigma * sigma * A * exp(kappa * s) * ds;
     }
+    return value;
+}
+
+// 적분 계산 공통함수
+// I(t) = Int_0^t sigma(s)^2 A exp(Bs) ds
+double I(
+    double t,
+    double A,
+    double B,
+    double* tVol,		// 변동성 구간 종점
+    double* Vol,			// 구간 변동성
+    long nVol 			// 변동성 구간 개수
+)
+{
+    long i, N = 0;
+    double value = 0;
+
+    if (t <= tVol[0]) N = 0;
+    else if (t >= tVol[nVol - 1]) N = nVol - 1;
+    else {
+        for (i = 0; i < nVol - 1; i++) {
+            if (t >= tVol[i] && t < tVol[i + 1]) {
+                N = i + 1;
+                break;
+            }
+        }
+    }
+
+    if (B == 0.0) {
+        if (N == 0) value += Vol[0] * Vol[0] * A * t;
+        else {
+            for (i = 0; i < N; i++) {
+                if (i == 0) value += Vol[0] * Vol[0] * A * tVol[0];
+                else value += Vol[i] * Vol[i] * A * (tVol[i] - tVol[i - 1]);
+            }
+
+            value += Vol[N] * Vol[N] * A * (t - tVol[N - 1]);
+        }
+    }
+    else {
+        if (N == 0) value += Vol[0] * Vol[0] * A / B * (exp(B * t) - 1.0);
+        else {
+            for (i = 0; i < N; i++) {
+                if (i == 0) value += Vol[0] * Vol[0] * A / B * (exp(B * tVol[0]) - 1.0);
+                else value += Vol[i] * Vol[i] * A / B * (exp(B * tVol[i]) - exp(B * tVol[i - 1]));
+            }
+
+            value += Vol[N] * Vol[N] * A / B * (exp(B * t) - exp(B * tVol[N - 1]));
+        }
+    }
+
     return value;
 }
 
@@ -1450,7 +1502,7 @@ void NextLambda(double ErrorSquareSum, double PrevErrorSquareSum, double* lambda
     if (*lambda < LambdaMin) BreakFlag = 1;
 }
 
-void Levenberg_Marquardt(long NParams, long NResidual, double* NextParams, double* CurrentParams, double* lambda, double** Jacov, double* Residual, double& ParamSum, double** JT_J, double** Inverse_JT_J, double** JT_Res, double** ResultMatrix)
+void Levenberg_Marquardt(long NParams, long NResidual, double* NextParams, double* CurrentParams, double* lambda, double** Jacov, double* Residual, double& ParamSum, double** JT_J, double** Inverse_JT_J, double** JT_Res, double** ResultMatrix, long FixedKappaFlag)
 {
     long i;
     double mu = *lambda;
@@ -1469,32 +1521,50 @@ void Levenberg_Marquardt(long NParams, long NResidual, double* NextParams, doubl
     for (i = 0; i < m; i++) JT_J[i][i] = JT_J[i][i] + mu;// *JT_J[i][i];
 
     // inv(J'J + mu * diag(J'J))
-    long Shape_Inv_JT_J[2] = { m,m };
-    
-    MatrixInversion(JT_J, m, Inverse_JT_J);
+    long Shape_Inv_JT_J[2] = { m,m };    
+    //MatrixInversion(JT_J, m, Inverse_JT_J);
 
     // J' dot Res               Shape = m * n dot n * 1 = m * 1
     long Shape_JT_Res[2] = { m,1 };
     XprimeY(Jacov, Shape_J, Residual, n, JT_Res);
 
-    Dot2dArray(Inverse_JT_J, Shape_Inv_JT_J, JT_Res, Shape_JT_Res, ResultMatrix);
+    double* Known = (double*)malloc(sizeof(double) * m);
+    double* UnKnown = (double*)malloc(sizeof(double) * m);
+    for (i = 0; i < m; i++) Known[i] = JT_Res[i][0];
 
-    for (i = 0; i < NParams; i++)
+    gaussian_elimination(JT_J, Known, UnKnown, m);
+
+    //Dot2dArray(Inverse_JT_J, Shape_Inv_JT_J, JT_Res, Shape_JT_Res, ResultMatrix);
+
+    if (FixedKappaFlag == 0)
     {
-        NextParams[i] = CurrentParams[i] - ResultMatrix[i][0];
-        if (i == 0)
+        for (i = 0; i < NParams; i++)
         {
-            if (NextParams[0] < MIN_kappa) NextParams[0] = MIN_kappa;
-        }
-        else
-        {
-            if (NextParams[i] < MIN_Vol) NextParams[i] = MIN_Vol;
+            NextParams[i] = CurrentParams[i] - UnKnown[i];// -ResultMatrix[i][0];
+            if (i == 0)
+            {
+                if (NextParams[0] < MIN_kappa) NextParams[0] = MIN_kappa;
+            }
+            else
+            {
+                if (NextParams[i] < MIN_Vol) NextParams[i] = MIN_Vol;
+            }
         }
     }
+    else
+    {
+        for (i = 0; i < NParams; i++)
+        {
+            NextParams[i] = CurrentParams[i] - UnKnown[i]; //- ResultMatrix[i][0];
+            if (NextParams[i] < MIN_Vol) NextParams[i] = MIN_Vol;
+        }
 
+    }
     double s = 0.0;
-    for (i = 0; i < NParams; i++) s += fabs(ResultMatrix[i][0]);
+    for (i = 0; i < NParams; i++) s += fabs(UnKnown[i]);
     ParamSum = s;
+    free(Known);
+    free(UnKnown);
 }
 
 void Gradient_Desent(long NParams, long NResidual, double* NextParams, double* CurrentParams, double* lambda, double** Jacov, double* Residual, double& ParamSum, double** JT_Res)
@@ -1529,6 +1599,63 @@ void Gradient_Desent(long NParams, long NResidual, double* NextParams, double* C
     ParamSum = fabs(s);
 }
 
+void make_Residual_HWSwaptionCap(
+    long NParams,
+    double* Params,
+    long NZero,
+    double* ZeroTerm,
+    double* ZeroRate,
+    long NHWVol,
+    double* HWVolTerm,
+    long NResidual,
+    double* BSSwaptionPrice,
+    double* StrikePrice,
+    double* TempHWSwaptionPrice,
+    double* ResidualArray,
+    double* TermSwapNew,
+    double* TermOptNew,
+    long* OptMaturityDates,
+    long* nDates,
+    long** dates,
+    double** PT,
+    double& absErrorSum,
+    long FixedKappaFlag,
+    double FixedKappa,
+    double& RMPSE
+)
+{
+    long i;
+    double kappa;
+    double* HWVol;
+    if (FixedKappaFlag != 1)
+    {
+        kappa = Params[0];
+        HWVol = Params + 1;
+    }
+    else
+    {
+        kappa = FixedKappa;
+        HWVol = Params;
+    }
+    double s = 0.0;
+    double percent_rsme = 0.0;
+    for (i = 0; i < NResidual; i++)
+    {
+        if (OptMaturityDates[i] > 0) TempHWSwaptionPrice[i] = HW_Swaption(1.0, kappa, HWVolTerm, HWVol, NHWVol, ZeroTerm, ZeroRate, NZero, StrikePrice[i], OptMaturityDates[i], dates[i], nDates[i], PT[i]);
+        else TempHWSwaptionPrice[i] = HW_Cap(1.0, kappa, HWVolTerm, HWVol, NHWVol, ZeroTerm, ZeroRate, NZero, StrikePrice[i], dates[i], nDates[i], PT[i]);
+    }
+    for (i = 0; i < NResidual; i++)
+    {
+        ResidualArray[i] = (BSSwaptionPrice[i] - TempHWSwaptionPrice[i]);
+        percent_rsme += ResidualArray[i] * ResidualArray[i] / (TempHWSwaptionPrice[i] * TempHWSwaptionPrice[i]);
+    }
+    percent_rsme = sqrt(percent_rsme / (double)NResidual);
+    RMPSE = percent_rsme;
+    for (i = 0; i < NResidual; i++) s += fabs(ResidualArray[i]);
+
+    absErrorSum = s;
+}
+
 void make_Residual_HWSwaption(
     long NParams,
     double* Params,
@@ -1550,7 +1677,8 @@ void make_Residual_HWSwaption(
     double** PT,
     double& absErrorSum,
     long FixedKappaFlag,
-    double FixedKappa
+    double FixedKappa,
+    double& RMPSE
 )
 {
     long i;
@@ -1567,9 +1695,17 @@ void make_Residual_HWSwaption(
         HWVol = Params;
     }
     double s = 0.0;
+    double percent_rsme = 0.0;
     for (i = 0; i < NResidual; i++) TempHWSwaptionPrice[i] = HW_Swaption(1.0, kappa, HWVolTerm, HWVol, NHWVol, ZeroTerm, ZeroRate, NZero, StrikePrice[i], OptMaturityDates[i], dates[i], nDates[i], PT[i]);
-    for (i = 0; i < NResidual; i++) ResidualArray[i] = (BSSwaptionPrice[i] - TempHWSwaptionPrice[i]);
+    for (i = 0; i < NResidual; i++)
+    {
+        ResidualArray[i] = (BSSwaptionPrice[i] - TempHWSwaptionPrice[i]);
+        percent_rsme += ResidualArray[i] * ResidualArray[i] / (TempHWSwaptionPrice[i]* TempHWSwaptionPrice[i]);
+    }
+    percent_rsme = sqrt(percent_rsme/(double)NResidual);
+    RMPSE = percent_rsme;
     for (i = 0; i < NResidual; i++) s += fabs(ResidualArray[i]);
+    
     absErrorSum = s;
 }
 
@@ -1595,7 +1731,8 @@ void make_Residual_HWCapHWSwaption(
     double** PT,
     double& absErrorSum,
     long FixedKappaFlag,
-    double FixedKappa
+    double FixedKappa,
+    double& RMPSE
 )
 {
     long i;
@@ -1613,17 +1750,25 @@ void make_Residual_HWCapHWSwaption(
     }
 
     double s = 0.0;
+    double percent_rsme = 0.0;
     for (i = 0; i < NResidual; i++)
     {
         if (SwaptionFlag[i] == 0) TempHWSwaptionPrice[i] = HW_Cap(1.0, kappa, HWVolTerm, HWVol, NHWVol, ZeroTerm, ZeroRate, NZero, StrikePrice[i], dates[i], nDates[i], PT[i]);
         else TempHWSwaptionPrice[i] = HW_Swaption(1.0, kappa, HWVolTerm, HWVol, NHWVol, ZeroTerm, ZeroRate, NZero, StrikePrice[i], OptMaturityDates[i], dates[i], nDates[i], PT[i]);
     }
-    for (i = 0; i < NResidual; i++) ResidualArray[i] = (BSSwaptionPrice[i] - TempHWSwaptionPrice[i]);
+    for (i = 0; i < NResidual; i++)
+    {
+        ResidualArray[i] = (BSSwaptionPrice[i] - TempHWSwaptionPrice[i]);
+        percent_rsme += (ResidualArray[i] * ResidualArray[i]) / (TempHWSwaptionPrice[i] * TempHWSwaptionPrice[i]);
+    }
+    percent_rsme = sqrt(percent_rsme / (double)NResidual);
+    RMPSE = percent_rsme;
+    
     for (i = 0; i < NResidual; i++) s += fabs(ResidualArray[i]);
     absErrorSum = s;
 }
 
-void make_Jacov_HWSwaption(
+void make_Jacov_HWSwaptionCap(
     long NParams,
     double* Params,
     long NZero,
@@ -1718,6 +1863,140 @@ void make_Jacov_HWSwaption(
             T = (double)dates[i][nDates[i] - 1] / 365.0;
             HWT = HWVolTerm[j];
             if (HWT > T)
+            {
+                TempJacovMatrix[i][j] = 0.0;
+            }
+            else
+            {
+                if (OptMaturityDates[i] > 0)
+                {
+                    Pup = HW_Swaption(1.0, kappa_up, HWVolTerm, HWVol_up, NHWVol, ZeroTerm, ZeroRate, NZero, StrikePrice[i], OptMaturityDates[i], dates[i], nDates[i], PT[i]);
+                    ErrorUp = BSSwaptionPrice[i] - Pup;
+                    Pdn = HW_Swaption(1.0, kappa_dn, HWVolTerm, HWVol_dn, NHWVol, ZeroTerm, ZeroRate, NZero, StrikePrice[i], OptMaturityDates[i], dates[i], nDates[i], PT[i]);
+                    ErrorDn = BSSwaptionPrice[i] - Pdn;
+                    TempJacovMatrix[i][j] = (ErrorUp - ErrorDn) / (2.0 * dParams);
+                }
+                else
+                {
+                    Pup = HW_Cap(1.0, kappa_up, HWVolTerm, HWVol_up, NHWVol, ZeroTerm, ZeroRate, NZero, StrikePrice[i], dates[i], nDates[i], PT[i]);
+                    ErrorUp = BSSwaptionPrice[i] - Pup;
+                    Pdn = HW_Cap(1.0, kappa_dn, HWVolTerm, HWVol_dn, NHWVol, ZeroTerm, ZeroRate, NZero, StrikePrice[i], dates[i], nDates[i], PT[i]);
+                    ErrorDn = BSSwaptionPrice[i] - Pdn;
+                    TempJacovMatrix[i][j] = (ErrorUp - ErrorDn) / (2.0 * dParams);
+                }
+            }
+        }
+    }
+}
+
+void make_Jacov_HWSwaption(
+    long NParams,
+    double* Params,
+    long NZero,
+    double* ZeroTerm,
+    double* ZeroRate,
+    long NHWVol,
+    double* HWVolTerm,
+    long NResidual,
+    double* BSSwaptionPrice,
+    double* StrikePrice,
+    double* TempHWSwaptionPrice,
+    double* ResidualArray,
+    double* TermSwapNew,
+    double* TermOptNew,
+    long* OptMaturityDates,
+    long* nDates,
+    long** dates,
+    double** PT,
+    double* ParamsUp,
+    double* ParamsDn,
+    double** TempJacovMatrix,
+    long FixedKappaFlag,
+    double FixedKappa
+)
+{
+    long i;
+    long j;
+    long n;
+
+    double dhwvol_up = 0.0001;
+    double dkappa_up = 0.0001;
+
+    double T;
+    double HWT;
+
+    double kappa_up;
+    double kappa_dn;
+
+    double* HWVol_up;
+    double* HWVol_dn;
+
+    double Pup = 0.0;
+    double Pdn = 0.0;
+    double ErrorUp = 0.0;
+    double ErrorDn = 0.0;
+    double dParams;
+    double temp = 0.0;
+    long breakflag = 0;
+
+    for (i = 0; i < NResidual; i++)
+    {
+        for (j = 0; j < NParams; j++)
+        {
+            breakflag = 0;
+            // 파라미터 초기화
+            for (n = 0; n < NParams; n++) {
+                ParamsUp[n] = Params[n];
+                ParamsDn[n] = Params[n];
+            }
+            T = (double)dates[i][nDates[i] - 1] / 365.0;
+
+            // 파라미터 Up And Dn
+            if (FixedKappaFlag != 1)
+            {
+                if (j == 0)
+                {
+                    ParamsUp[j] = Params[j] + dkappa_up;
+                    ParamsDn[j] = Params[j] - dkappa_up;
+                    dParams = dkappa_up;
+                }
+                else
+                {
+                    ParamsUp[j] = Params[j] + dhwvol_up;
+                    ParamsDn[j] = max(0.0001, Params[j] - dhwvol_up);
+                    dParams = dhwvol_up;
+
+                    HWT = HWVolTerm[j];
+                    if (HWT > T + 0.5)
+                    {
+                        breakflag = 1;
+                    }
+                }
+
+                kappa_up = ParamsUp[0];
+                kappa_dn = ParamsDn[0];
+                HWVol_up = ParamsUp + 1;
+                HWVol_dn = ParamsDn + 1;
+            }
+            else
+            {
+                ParamsUp[j] = Params[j] + dhwvol_up;
+                ParamsDn[j] = max(0.0001, Params[j] - dhwvol_up);
+                dParams = dhwvol_up;
+
+                kappa_up = FixedKappa;
+                kappa_dn = FixedKappa;
+                HWVol_up = ParamsUp;
+                HWVol_dn = ParamsDn;
+
+                HWT = HWVolTerm[j];
+                if (HWT > T + 0.5)
+                {
+                    breakflag = 1;
+                }
+            }
+
+            if (breakflag == 1)
             {
                 TempJacovMatrix[i][j] = 0.0;
             }
@@ -1863,7 +2142,8 @@ void Gradient_Desent_HWCapHWSwaption(
     double* ParamsDn,
     double** TempJacovMatrix,
     long FixedKappaFlag,
-    double FixedKappa
+    double FixedKappa,
+    double& RMPSE
 )
 {
 
@@ -1875,14 +2155,15 @@ void Gradient_Desent_HWCapHWSwaption(
 
 
     double StopCondition = 0.00001;
-
+    double minerror = 1000000.0;
     double absErrorSum = 100000.0;
     double PrevAbsErrorSum = 0.0;
     double ParamSum = 10000.0;
     double lambda[1] = { 0.1 };
     double* NextParams = make_array(NParams);
     double** JT_Res = make_array(NParams, 1);
-    for (n = 0; n < 100; n++)
+    double* argminparam = make_array(NParams);
+    for (n = 0; n < 30; n++)
     {
         make_Jacov_HWCapHWSwaption(NParams, Params, NZero, ZeroTerm, ZeroRate,
             NHWVol, HWVolTerm, NResidual, SwaptionFlag, BSSwaptionPrice, StrikePrice,
@@ -1893,7 +2174,16 @@ void Gradient_Desent_HWCapHWSwaption(
         make_Residual_HWCapHWSwaption(NParams, Params, NZero, ZeroTerm, ZeroRate,
             NHWVol, HWVolTerm, NResidual, SwaptionFlag, BSSwaptionPrice, StrikePrice,
             TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, OptMaturityDates,
-            nDates, dates, PT, absErrorSum, FixedKappaFlag, FixedKappa);
+            nDates, dates, PT, absErrorSum, FixedKappaFlag, FixedKappa, RMPSE);
+
+        if (n >= 1)
+        {
+            if (absErrorSum < minerror || n == 1)
+            {
+                minerror = absErrorSum;
+                for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
+            }
+        }
 
         Gradient_Desent(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_Res);
         for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
@@ -1909,6 +2199,7 @@ void Gradient_Desent_HWCapHWSwaption(
     for (i = 0; i < NParams; i++) free(JT_Res[i]);
     free(JT_Res);
     free(NextParams);
+    free(argminparam);
 }
 
 void Levenberg_Marquardt_HWSwaption(
@@ -1934,7 +2225,8 @@ void Levenberg_Marquardt_HWSwaption(
     double* ParamsDn,
     double** TempJacovMatrix,
     long FixedKappaFlag,
-    double FixedKappa
+    double FixedKappa,
+    double& RMPSE
 )
 {
 
@@ -1971,7 +2263,7 @@ void Levenberg_Marquardt_HWSwaption(
             make_Residual_HWSwaption(NParams, Params, NZero, ZeroTerm, ZeroRate,
                 NHWVol, HWVolTerm, NResidual, BSSwaptionPrice, StrikePrice,
                 TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, OptMaturityDates,
-                nDates, dates, PT, absErrorSum, FixedKappaFlag, FixedKappa);
+                nDates, dates, PT, absErrorSum, FixedKappaFlag, FixedKappa, RMPSE);
 
             if (n >= 1)
             {
@@ -1983,7 +2275,7 @@ void Levenberg_Marquardt_HWSwaption(
                 }
             }
 
-            Levenberg_Marquardt(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix);
+            Levenberg_Marquardt(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix, FixedKappaFlag);
             for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
 
             if (ParamSum < StopCondition && n > 10) break;
@@ -2007,7 +2299,7 @@ void Levenberg_Marquardt_HWSwaption(
             make_Residual_HWSwaption(NParams, Params, NZero, ZeroTerm, ZeroRate,
                 NHWVol, HWVolTerm, NResidual, BSSwaptionPrice, StrikePrice,
                 TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, OptMaturityDates,
-                nDates, dates, PT, absErrorSum, FixedKappaFlag, FixedKappa);
+                nDates, dates, PT, absErrorSum, FixedKappaFlag, FixedKappa, RMPSE);
 
             if (n >= 1)
             {
@@ -2018,7 +2310,7 @@ void Levenberg_Marquardt_HWSwaption(
                     for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
                 }
             }
-            Levenberg_Marquardt(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix);
+            Levenberg_Marquardt(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix, FixedKappaFlag);
             for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
 
             if (ParamSum < StopCondition && n > 10) break;
@@ -2041,7 +2333,136 @@ void Levenberg_Marquardt_HWSwaption(
     free(argminparam);
 }
 
+void Levenberg_Marquardt_HWSwaptionCap(
+    long NParams,
+    double* Params,
+    long NZero,
+    double* ZeroTerm,
+    double* ZeroRate,
+    long NHWVol,
+    double* HWVolTerm,
+    long NResidual,
+    double* BSSwaptionPrice,
+    double* StrikePrice,
+    double* TempHWSwaptionPrice,
+    double* ResidualArray,
+    double* TermSwapNew,
+    double* TermOptNew,
+    long* OptMaturityDates,
+    long* nDates,
+    long** dates,
+    double** PT,
+    double* ParamsUp,
+    double* ParamsDn,
+    double** TempJacovMatrix,
+    long FixedKappaFlag,
+    double FixedKappa,
+    double& RMPSE
+)
+{
 
+    long i;
+    long n;
+    long Shape0 = NResidual;
+    long Shape1 = NParams;
+    long BreakFlag = 0;
+    long Levenberg = 1;
+
+    double StopCondition = 0.0001;
+    double minerror = 1000000.0;
+    double absErrorSum = 100000.0;
+    double PrevAbsErrorSum = 0.0;
+    double ParamSum = 10000.0;
+    double lambda[1] = { 1.00 };
+    double* NextParams = make_array(NParams);
+    double** JT_J = make_array(NParams, NParams);
+    double** Inverse_JT_J = make_array(NParams, NParams);
+    double** JT_Res = make_array(NParams, 1);
+    double** ResultMatrix = make_array(NParams, 1);
+    double* argminparam = make_array(NParams);
+
+    if (Levenberg == 1)
+    {
+        for (n = 0; n < 20; n++)
+        {
+
+            make_Jacov_HWSwaptionCap(NParams, Params, NZero, ZeroTerm, ZeroRate,
+                NHWVol, HWVolTerm, NResidual, BSSwaptionPrice, StrikePrice,
+                TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, OptMaturityDates,
+                nDates, dates, PT, ParamsUp, ParamsDn, TempJacovMatrix, FixedKappaFlag, FixedKappa);
+
+            make_Residual_HWSwaptionCap(NParams, Params, NZero, ZeroTerm, ZeroRate,
+                NHWVol, HWVolTerm, NResidual, BSSwaptionPrice, StrikePrice,
+                TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, OptMaturityDates,
+                nDates, dates, PT, absErrorSum, FixedKappaFlag, FixedKappa, RMPSE);
+
+            if (n >= 1)
+            {
+                NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
+                if (absErrorSum < minerror || n == 1)
+                {
+                    minerror = absErrorSum;
+                    for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
+                }
+            }
+
+            Levenberg_Marquardt(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix, FixedKappaFlag);
+            for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
+
+            if (ParamSum < StopCondition && n > 10) break;
+            if (BreakFlag == 1) break;
+            if (lambda[0] < 1.0e-07) break;
+
+            PrevAbsErrorSum = absErrorSum;
+        }
+    }
+    else
+    {
+        lambda[0] = 0.0;
+        for (n = 0; n < 20; n++)
+        {
+            make_Jacov_HWSwaptionCap(NParams, Params, NZero, ZeroTerm, ZeroRate,
+                NHWVol, HWVolTerm, NResidual, BSSwaptionPrice, StrikePrice,
+                TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, OptMaturityDates,
+                nDates, dates, PT, ParamsUp, ParamsDn, TempJacovMatrix, FixedKappaFlag, FixedKappa);
+
+
+            make_Residual_HWSwaptionCap(NParams, Params, NZero, ZeroTerm, ZeroRate,
+                NHWVol, HWVolTerm, NResidual, BSSwaptionPrice, StrikePrice,
+                TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, OptMaturityDates,
+                nDates, dates, PT, absErrorSum, FixedKappaFlag, FixedKappa, RMPSE);
+
+            if (n >= 1)
+            {
+                NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
+                if (absErrorSum < minerror || n == 1)
+                {
+                    minerror = absErrorSum;
+                    for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
+                }
+            }
+            Levenberg_Marquardt(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix, FixedKappaFlag);
+            for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
+
+            if (ParamSum < StopCondition && n > 10) break;
+            if (lambda[0] < 1.0e-07) break;
+            PrevAbsErrorSum = absErrorSum;
+        }
+    }
+
+    for (i = 0; i < NParams; i++) Params[i] = argminparam[i];
+
+    free(NextParams);
+    for (i = 0; i < NParams; i++) free(JT_J[i]);
+    for (i = 0; i < NParams; i++) free(Inverse_JT_J[i]);
+    free(JT_J);
+    free(Inverse_JT_J);
+    for (i = 0; i < NParams; i++) free(JT_Res[i]);
+    free(JT_Res);
+    for (i = 0; i < NParams; i++) free(ResultMatrix[i]);
+    free(ResultMatrix);
+    free(argminparam);
+}
 
 long HW_GradDecent_Calibration_SwaptionCap(
     long NZero,
@@ -2077,7 +2498,7 @@ long HW_GradDecent_Calibration_SwaptionCap(
     n = 0;
     for (i = 0; i < NHW; i++)
     {
-        if (TermCapVol[NCap - 1] < HWTerm[i] || TermOpt[NOpt - 1] < HWTerm[i]) n += 1;
+        if (TermCapVol[NCap - 1] < HWTerm[i] || (NOpt> 0 && TermOpt[NOpt - 1] < HWTerm[i]) ) n += 1;
     }
     NHW = NHW - n;
 
@@ -2144,6 +2565,7 @@ long HW_GradDecent_Calibration_SwaptionCap(
     double* paramsup = make_array(nparams);
     double* paramsdn = make_array(nparams);
     double** tempjacov = make_array(NResidual, nparams);
+    double RMPSE = 0.0;
 
     if (FixedKappaFlag != 1)
     {
@@ -2159,7 +2581,7 @@ long HW_GradDecent_Calibration_SwaptionCap(
         NHW, HWTerm, NResidual, SwaptionFlag, BSSwaptionPrice, Strike,
         HWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, OptMaturityDates,
         nDates, dates, PT, FreqMonth, FreqMonthCap, paramsup, paramsdn,
-        tempjacov, FixedKappaFlag, FixedKappa);
+        tempjacov, FixedKappaFlag, FixedKappa, RMPSE);
 
     if (FixedKappaFlag != 1)
     {
@@ -2190,7 +2612,144 @@ long HW_GradDecent_Calibration_SwaptionCap(
     free(ResidualArray);
     free(SwaptionFlag);
 
-    return 1;
+    return (long)(RMPSE * 10000.0);
+}
+
+long HW_LevMarq_Calibration_SwaptionCap(
+    long NZero,
+    double* ZeroTerm,
+    double* ZeroRate,
+
+    long NOpt,
+    double* TermOpt,
+    long NSwap,
+    double* TermSwap,
+    double* SwaptionVol,
+    double* Strike,
+    double FreqMonth,
+
+    long NCap,
+    double* CapTerm,
+    double* CapVol,
+
+    long NHW,
+    double* HWTerm,
+    double* HWVol,
+    double& kappa,
+    long FixedKappaFlag,
+    double FixedKappa
+)
+{
+    long i;
+    long j;
+
+    long k;
+    long n;
+
+    double* TermSwapNew = (double*)malloc(sizeof(double) * (NSwap * NOpt + NCap));
+    for (i = 0; i < NSwap * NOpt; i++) TermSwapNew[i] = TermSwap[i % NSwap];
+    for (i = NSwap * NOpt; i < NSwap * NOpt + NCap; i++) TermSwapNew[i] = CapTerm[i - NSwap * NOpt];
+
+    double* TermOptNew = (double*)malloc(sizeof(double) * (NSwap * NOpt + NCap));
+    for (i = 0; i < NSwap * NOpt; i++) TermOptNew[i] = TermOpt[i / NSwap];
+    for (i = NSwap * NOpt; i < NSwap * NOpt + NCap; i++) TermOptNew[i] = 0.0;
+
+    double* BSSwaptionPrice = make_array(NSwap * NOpt + NCap);
+    double* HWSwaptionPrice = make_array(NSwap * NOpt + NCap);
+
+    n = 0;
+    for (k = 0; k < NSwap * NOpt + NCap; k++)
+    {
+        Strike[k] = FSR(ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth);
+        if (TermOptNew[k] > 0.0) BSSwaptionPrice[k] = BS_Swaption(1.0, SwaptionVol[k], Strike[k], ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth);
+        else
+        {
+            BSSwaptionPrice[k] = BS_Cap(1.0, CapVol[n], ZeroTerm, ZeroRate, NZero, Strike[k], TermOptNew[k], CapTerm[n], FreqMonth);
+            n++;
+        }
+    }
+
+    long* OptMaturityDates = (long*)malloc(sizeof(long) * (NOpt * NSwap + NCap));
+    for (i = 0; i < NOpt * NSwap; i++) OptMaturityDates[i] = (long)(TermOptNew[i] * 365.0);
+    for (i = NOpt * NSwap; i < NOpt * NSwap + NCap; i++) OptMaturityDates[i] = 0;
+
+    long* nDates = (long*)malloc(sizeof(long) * (NOpt * NSwap + NCap));
+    for (i = 0; i < NOpt * NSwap; i++) nDates[i] = Number_Of_Payment(TermOptNew[i], TermOptNew[i] + TermSwapNew[i], FreqMonth);
+    for (i = NOpt * NSwap; i < NOpt * NSwap + NCap; i++) nDates[i] = Number_Of_Payment(TermOptNew[i], TermOptNew[i] + TermSwapNew[i], FreqMonth);
+
+    long** dates = (long**)malloc(sizeof(long*) * (NOpt * NSwap + NCap));
+    for (i = 0; i < NOpt * NSwap + NCap; i++)
+    {
+        dates[i] = (long*)malloc(sizeof(long) * nDates[i]);
+        PaymentDatesMapping(TermOptNew[i] + TermSwapNew[i], FreqMonth, dates[i], nDates[i]);
+    }
+
+    double** PT = (double**)malloc(sizeof(double*) * (NOpt * NSwap+NCap));
+    for (i = 0; i < NOpt * NSwap + NCap; i++)
+    {
+        PT[i] = (double*)malloc(sizeof(double) * (nDates[i] + 1));
+        PT[i][0] = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZero, TermOptNew[i]);
+        for (n = 0; n < nDates[i]; n++)  PT[i][n + 1] = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZero, (double)dates[i][n] / 365.0);
+    }
+
+    long NResidual = NOpt * NSwap + NCap;
+    double* ResidualArray = make_array(NResidual);
+
+    long nparams;
+    if (FixedKappaFlag != 1) nparams = 1 + NHW;
+    else nparams = NHW;
+
+    double* params = make_array(nparams);
+    double* paramsup = make_array(nparams);
+    double* paramsdn = make_array(nparams);
+    double** tempjacov = make_array(NResidual, nparams);
+    double RMPSE = 0.0;
+
+    if (FixedKappaFlag != 1)
+    {
+        params[0] = kappa;
+        for (i = 0; i < NHW; i++) params[i + 1] = HWVol[i];
+    }
+    else
+    {
+        for (i = 0; i < NHW; i++) params[i] = HWVol[i];
+    }
+
+    Levenberg_Marquardt_HWSwaptionCap(nparams, params, NZero, ZeroTerm, ZeroRate,
+        NHW, HWTerm, NResidual, BSSwaptionPrice, Strike,
+        HWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, OptMaturityDates,
+        nDates, dates, PT, paramsup, paramsdn,
+        tempjacov, FixedKappaFlag, FixedKappa, RMPSE);
+
+    if (FixedKappaFlag != 1)
+    {
+        kappa = params[0];
+        for (i = 0; i < NHW; i++) HWVol[i] = params[i + 1];
+    }
+    else
+    {
+        kappa = FixedKappa;
+        for (i = 0; i < NHW; i++) HWVol[i] = params[i];
+    }
+
+    free(TermSwapNew);
+    free(TermOptNew);
+    free(BSSwaptionPrice);
+    free(HWSwaptionPrice);
+    free(OptMaturityDates);
+    free(nDates);
+    for (i = 0; i < NOpt * NSwap + NCap; i++) free(dates[i]);
+    free(dates);
+    for (i = 0; i < NOpt * NSwap + NCap; i++) free(PT[i]);
+    free(PT);
+    free(params);
+    free(paramsup);
+    free(paramsdn);
+    for (i = 0; i < NResidual; i++) free(tempjacov[i]);
+    free(tempjacov);
+    free(ResidualArray);
+
+    return (long)(RMPSE * 10000.0);
 }
 
 long HW_LevMarq_Calibration_Swaption(
@@ -2268,6 +2827,7 @@ long HW_LevMarq_Calibration_Swaption(
     double* paramsup = make_array(nparams);
     double* paramsdn = make_array(nparams);
     double** tempjacov = make_array(NResidual, nparams);
+    double RMPSE = 0.0;
 
     if (FixedKappaFlag != 1)
     {
@@ -2283,7 +2843,7 @@ long HW_LevMarq_Calibration_Swaption(
         NHW, HWTerm, NResidual, BSSwaptionPrice, Strike,
         HWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, OptMaturityDates,
         nDates, dates, PT, paramsup, paramsdn,
-        tempjacov, FixedKappaFlag, FixedKappa);
+        tempjacov, FixedKappaFlag, FixedKappa, RMPSE);
 
     if (FixedKappaFlag != 1)
     {
@@ -2313,7 +2873,7 @@ long HW_LevMarq_Calibration_Swaption(
     free(tempjacov);
     free(ResidualArray);
 
-    return 1;
+    return (long)(RMPSE*10000.0);
 }
 
 DLLEXPORT(long) HWCapHWSwaptionCalibration(
@@ -2352,7 +2912,7 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration(
 
     double* Strike = (double*)malloc(sizeof(double) * (NSwap * NOpt + NCap));
     double kappa = initial_kappa[0];
-    if (NCap == 0 && NSwap * NOpt > 0 || CaliFlag == 1 )
+    if (NCap == 0 && NSwap * NOpt > 0 || CaliFlag == 1)
     {
         HWTerm = TermOpt;
         NHW = min(NOpt, NHW_initial);
@@ -2369,9 +2929,10 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration(
         }
         free(HWVol);
     }
-    else if (NCap > 0)
+    else if (NCap > 0 && CaliFlag == 2)
     {
-        if (CaliFlag == 2) NOpt = 0;
+        NOpt = 0;
+        NSwap = 0;
         if (NOpt > NCap)
         {
             HWTerm = TermOpt;
@@ -2386,7 +2947,7 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration(
 
         ResultCode = HW_GradDecent_Calibration_SwaptionCap(NZero, ZeroTerm, ZeroRate,
             NOpt, TermOpt, NSwap, TermSwap, SwaptionVol, Strike,
-            NCap, TermCap, CapVol, FreqMonthSwaption, FreqMonthCap,
+            NCap, TermCap, CapVol, FreqMonthCap, FreqMonthCap,
             NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa);
         for (i = 0; i < NHW; i++)
         {
@@ -2396,16 +2957,38 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration(
         }
         free(HWVol);
     }
-    else
+    else if ((NCap > 0 && NSwap * NOpt > 0 && CaliFlag == 0))
     {
-        return -1;
+        if (NOpt > NCap)
+        {
+            HWTerm = TermOpt;
+            NHW = min(NHW_initial, NOpt);
+        }
+        else {
+            HWTerm = TermCap;
+            NHW = min(NHW_initial, NCap);
+        }
+        HWVol = (double*)malloc(sizeof(double) * NHW);
+        for (i = 0; i < NHW; i++) HWVol[i] = max(0.001, HWVol_initial[i]);
+        ResultCode = HW_LevMarq_Calibration_SwaptionCap(NZero, ZeroTerm, ZeroRate,
+            NOpt, TermOpt, NSwap, TermSwap, SwaptionVol, Strike, FreqMonthSwaption, NCap, TermCap, CapVol,
+            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa);
+        for (i = 0; i < NHW; i++)
+        {
+            HWTerm_initial[i] = HWTerm[i];
+            HWVol_initial[i] = HWVol[i];
+            *initial_kappa = kappa;
+        }
+        free(HWVol);
     }
+
 
     free(Strike);
     _CrtDumpMemoryLeaks();
+    return ResultCode;
 }
 
-void SNormExp(double* x, double* w, long N)
+void _stdcall SNormExp(double* x, double* w, long N)
 {
     long i, j, its, m;
     double p1, p2, p3, pp, z, z1;
@@ -2413,7 +2996,7 @@ void SNormExp(double* x, double* w, long N)
     //	double PI = 4.0*atan(1.0);
 
     tol = 3.0e-14;
-    pim4 = 1.0 / pow(PI, 0.25);
+    pim4 = 0.7511255444649425;// 1.0 / pow(PI, 0.25);
 
     m = (N + 1) / 2;
 
@@ -2453,17 +3036,17 @@ void SNormExp(double* x, double* w, long N)
 
         x[i] = z;
         x[N - 1 - i] = -z;
-        w[i] = 2 / (pp * pp);
+        w[i] = 2.0 / (pp * pp);
         w[N - 1 - i] = w[i];
     }
 
     for (i = 0; i < N; i++) {
-        x[i] *= sqrt(2.0);
-        w[i] /= sqrt(PI);
+        x[i] *= 1.4142135623730951;// sqrt(2.0);
+        w[i] /= 1.7724538509055159;// sqrt(PI);
     }
 }
 
-void NormExp(double* x, double* w, long N, double m, double sigma)
+void _stdcall NormExp(double* x, double* w, long N, double m, double sigma)
 {
     long i;
 
@@ -2541,15 +3124,13 @@ double V(
     double* tVol,		// 변동성 구간 종점
     double* Vol1,		// 구간 변동성1
     double* Vol2,		// 구간 변동성2
+    double* Vol12,      // 구간 변동성 12 Cross Quadratic
     long nVol,			// 변동성 구간 개수
     double rho			// 상관계수
 )
 {
     long i;
     double value;
-    double* Vol = (double*)malloc(nVol * sizeof(double));
-
-    for (i = 0; i < nVol; i++) Vol[i] = sqrt(fabs(Vol1[i] * Vol2[i]));
 
     value = Integ(T, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1) - Integ(t, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1)
         - 2.0 * exp(-kappa1 * T) * Integ(T, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
@@ -2562,14 +3143,196 @@ double V(
         + 2.0 * exp(-kappa2 * T) * Integ(t, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
         + exp(-2.0 * kappa2 * T) * Integ(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
         - exp(-2.0 * kappa2 * T) * Integ(t, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        + 2.0 * rho * Integ(T, 1.0, 0.0, tVol, Vol, nVol) / (kappa1 * kappa2)
-        - 2.0 * rho * Integ(t, 1.0, 0.0, tVol, Vol, nVol) / (kappa1 * kappa2)
-        - 2.0 * rho * exp(-kappa1 * T) * Integ(T, 1.0, kappa1, tVol, Vol, nVol) / (kappa1 * kappa2)
-        + 2.0 * rho * exp(-kappa1 * T) * Integ(t, 1.0, kappa1, tVol, Vol, nVol) / (kappa1 * kappa2)
-        - 2.0 * rho * exp(-kappa2 * T) * Integ(T, 1.0, kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
-        + 2.0 * rho * exp(-kappa2 * T) * Integ(t, 1.0, kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
-        + 2.0 * rho * exp(-(kappa1 + kappa2) * T) * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
-        - 2.0 * rho * exp(-(kappa1 + kappa2) * T) * Integ(t, 1.0, kappa1 + kappa2, tVol, Vol, nVol) / (kappa1 * kappa2);
+        + 2.0 * rho * Integ(T, 1.0, 0.0, tVol, Vol12, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * Integ(t, 1.0, 0.0, tVol, Vol12, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * exp(-kappa1 * T) * Integ(T, 1.0, kappa1, tVol, Vol12, nVol) / (kappa1 * kappa2)
+        + 2.0 * rho * exp(-kappa1 * T) * Integ(t, 1.0, kappa1, tVol, Vol12, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * exp(-kappa2 * T) * Integ(T, 1.0, kappa2, tVol, Vol12, nVol) / (kappa1 * kappa2)
+        + 2.0 * rho * exp(-kappa2 * T) * Integ(t, 1.0, kappa2, tVol, Vol12, nVol) / (kappa1 * kappa2)
+        + 2.0 * rho * exp(-(kappa1 + kappa2) * T) * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol12, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * exp(-(kappa1 + kappa2) * T) * Integ(t, 1.0, kappa1 + kappa2, tVol, Vol12, nVol) / (kappa1 * kappa2);
+
+    return value;
+}
+
+// Swaption2F 함수에서 사용
+double A(
+    double t,
+    double T,
+    double kappa1,		// 회귀속도1 
+    double kappa2,		// 회귀속도2 
+    double* tVol,		// 변동성 구간 종점
+    double* Vol1,		// 구간 변동성1
+    double* Vol2,		// 구간 변동성2
+    double* Vol12,      // 구간 변동성 12 Cross Quadratic
+    long nVol,			// 변동성 구간 개수
+    double rho,			// 상관계수
+    double DF_t,
+    double DF_T
+)
+{
+    double V1 = V(t, T, kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho);
+    double V2 = V(0, T, kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho);
+    double V3 = V(0, t, kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho);
+
+    return exp(0.5 * (V1 - V2 + V3)) * DF_T / DF_t;
+}
+
+// Cap2F 함수에서 사용
+double SIGMA(
+    double T,
+    double S,
+    double kappa1,		// 회귀속도1
+    double kappa2,		// 회귀속도2 
+    double* tVol,		// 변동성 구간 종점
+    double* Vol1,		// 구간 변동성1
+    double* Vol2,		// 구간 변동성2
+    long nVol, 			// 변동성 구간 개수
+    double rho,			// 상관계수
+    double* Vol12ArrayTemp
+)
+{
+    long i;
+
+    double A = (1.0 - exp(-kappa1 * (S - T))) / kappa1;
+    double B = (1.0 - exp(-kappa2 * (S - T))) / kappa2;
+
+    double I1 = A * A * exp(-2.0 * kappa1 * T) * Integ(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol);
+    double I2 = B * B * exp(-2.0 * kappa2 * T) * Integ(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol);
+    double I3 = 2.0 * rho * A * B * exp(-(kappa1 + kappa2) * T) * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol12ArrayTemp, nVol);
+
+    return sqrt(fabs(I1 + I2 + I3));
+}
+
+// 2-factor 모형의 Cap 가격 계산
+double _stdcall Cap2F(
+    double NA,			// 액면금액
+    double kappa1,		// 회귀속도1 
+    double kappa2,		// 회귀속도2 
+    double* tVol,		// 변동성 구간 종점
+    double* Vol1,		// 구간 변동성1
+    double* Vol2,		// 구간 변동성2
+    double* Vol12,      // 구간 변동성12 = sqrt(Vol1 * Vol2)
+    long nVol,			// 변동성 구간 개수
+    double rho,			// 상관계수
+    double StrikeRate,	// 행사금리
+    long* Dates,			// 지급일: 계산일로부터 각 지급일까지의 일수
+    long nDates,			// 지급 회수(계산일 이후 남은 회수)
+    double* P0_t           // 스왑지급일에 P0
+)
+{
+    long i;
+    double PrevT, T, delta, A, B, PrevDisc, Disc;
+    double value;
+
+    kappa1 = max(kappa1, Tiny_Value);
+    kappa2 = max(kappa2, Tiny_Value);
+
+    for (i = 0; i < nVol; i++) {
+        if (Vol1[i] < 0.0) Vol1[i] = -Vol1[i];
+        if (Vol1[i] < Tiny_Value) Vol1[i] = Tiny_Value;
+        if (Vol2[i] < 0.0) Vol2[i] = -Vol2[i];
+        if (Vol2[i] < Tiny_Value) Vol2[i] = Tiny_Value;
+        Vol12[i] = sqrt(fabs(Vol1[i] * Vol2[i]));
+    }
+
+    rho = max(min(rho, 0.9999), -0.9999);
+
+    PrevT = 0.0;
+    value = 0.0;
+    PrevDisc = 1.0;
+    for (i = 0; i < nDates; i++) {
+        T = (double)Dates[i] / 365.0;
+        delta = T - PrevT;
+        Disc = P0_t[i]; 
+
+        if ((i == 0) && (PrevDisc > (1.0 + StrikeRate * delta) * Disc))
+        {
+            value += PrevDisc - (1.0 + StrikeRate * delta) * Disc;
+        }
+        else 
+        {
+            B = SIGMA(PrevT, T, kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho, Vol12);
+            A = log(PrevDisc / ((1.0 + StrikeRate * delta) * Disc)) / B;
+            value += PrevDisc * CDF_N(A + 0.5 * B) - (1.0 + StrikeRate * delta) * Disc * CDF_N(A - 0.5 * B);
+        }
+
+        PrevT = T;
+        PrevDisc = Disc;
+    }
+
+    return NA * value;
+}
+
+// 할인율 계산 
+double P0(
+    double t,
+    double* tDF,			// 할인채 만기
+    double* DF,			// 할인채 가격
+    long nDF				// 할인채 개수
+)
+{
+    long i;
+    double value = 0.0;
+    double* R = (double*)malloc(sizeof(double)*(nDF));	//(double *)malloc(nDF*sizeof(double));
+
+    for (i = 0; i < nDF; i++) R[i] = -log(DF[i]) / tDF[i];
+
+    if (t <= tDF[0]) value = exp(-R[0] * t);
+    else if (t >= tDF[nDF - 1]) value = exp(-R[nDF - 1] * t);
+    else {
+        for (i = 0; i < nDF - 1; i++) {
+            if (t >= tDF[i] && t < tDF[i + 1]) {
+                value = exp(-(R[i] + (R[i + 1] - R[i]) * (t - tDF[i]) / (tDF[i + 1] - tDF[i])) * t);
+                break;
+            }
+        }
+    }
+
+    if (R) free(R);
+
+    return value;
+}
+
+// 2-factor 모형의 적분 int_t^T x(u)+y(u) du의 분산 계산
+double V(
+    double t,
+    double T,
+    double kappa1,		// 회귀속도1 
+    double kappa2,		// 회귀속도2 
+    double* tVol,		// 변동성 구간 종점
+    double* Vol1,		// 구간 변동성1
+    double* Vol2,		// 구간 변동성2
+    long nVol,			// 변동성 구간 개수
+    double rho			// 상관계수
+)
+{
+    long i;
+    double value;
+    double* Vol = (double*)malloc(nVol * sizeof(double));
+
+    for (i = 0; i < nVol; i++) Vol[i] = sqrt(fabs(Vol1[i] * Vol2[i]));
+
+    value = I(T, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        - I(t, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        - 2.0 * exp(-kappa1 * T) * I(T, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        + 2.0 * exp(-kappa1 * T) * I(t, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        + exp(-2.0 * kappa1 * T) * I(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        - exp(-2.0 * kappa1 * T) * I(t, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        + I(T, 1.0, 0.0, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        - I(t, 1.0, 0.0, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        - 2.0 * exp(-kappa2 * T) * I(T, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        + 2.0 * exp(-kappa2 * T) * I(t, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        + exp(-2.0 * kappa2 * T) * I(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        - exp(-2.0 * kappa2 * T) * I(t, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        + 2.0 * rho * I(T, 1.0, 0.0, tVol, Vol, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * I(t, 1.0, 0.0, tVol, Vol, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * exp(-kappa1 * T) * I(T, 1.0, kappa1, tVol, Vol, nVol) / (kappa1 * kappa2)
+        + 2.0 * rho * exp(-kappa1 * T) * I(t, 1.0, kappa1, tVol, Vol, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * exp(-kappa2 * T) * I(T, 1.0, kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
+        + 2.0 * rho * exp(-kappa2 * T) * I(t, 1.0, kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
+        + 2.0 * rho * exp(-(kappa1 + kappa2) * T) * I(T, 1.0, kappa1 + kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * exp(-(kappa1 + kappa2) * T) * I(t, 1.0, kappa1 + kappa2, tVol, Vol, nVol) / (kappa1 * kappa2);
 
     if (Vol) free(Vol);
 
@@ -2587,121 +3350,976 @@ double A(
     double* Vol2,		// 구간 변동성2
     long nVol,			// 변동성 구간 개수
     double rho,			// 상관계수
-    double DF_t,
-    double DF_T
+    double* tDF,			// 할인채 만기
+    double* DF,			// 할인채 가격
+    long nDF				// 할인채 개수
 )
 {
     double V1 = V(t, T, kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho);
     double V2 = V(0, T, kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho);
     double V3 = V(0, t, kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho);
 
-    return exp(0.5 * (V1 - V2 + V3)) * DF_T / DF_t;
+    return exp(0.5 * (V1 - V2 + V3)) * P0(T, tDF, DF, nDF) / P0(t, tDF, DF, nDF);
 }
 
-
-
-double Swaption2F(
+// 2-factor 모형의 Fixed Payer Swaption 가격 계산
+double _stdcall Swaption2F(
     double NA,			// 액면금액
     double kappa1,		// 회귀속도1 
     double kappa2,		// 회귀속도2 
     double* tVol,		// 변동성 구간 종점
     double* Vol1,		// 구간 변동성1
     double* Vol2,		// 구간 변동성2
+    double* Vol12,
     long nVol,			// 변동성 구간 개수
     double rho,			// 상관계수
-    double* tDF,			// 할인채 만기
-    double* DF,			// 할인채 가격
-    long nDF,				// 할인채 개수
     double StrikeRate,	// 고정금리(지급부분)
     long MaturityDate,	// 옵션 만기일까지 일수
     long* Dates,			// 지급일: 계산일로부터 각 중간지급일까지의 일수
+    double* termdates,      // 지급일까지 t 로 환산
+    double* termC,          
     long nDates,			// 지급 회수(계산일 이후 남은 회수)
-    double* P0_t,           // 스왑지급일에 P0
-    double P0_MaturityDate // MaturityDate의 할인계수
+    double* PT,
+    double P0_at_OptMaturity
 )
 {
     long i, j;
     double sum, value = 0.0;
-    long nQuad = 10;
-    double* x = (double*)malloc(nQuad * sizeof(double));
-    double* w = (double*)malloc(nQuad * sizeof(double));
+    const long nQuad = 13;
+    double x[nQuad] = { 0.0, };
+    double w[nQuad] = { 0.0, }; 
     double T;
-    double* t = (double*)malloc(nDates * sizeof(double));
-    double* c = (double*)malloc(nDates * sizeof(double));
     double h1, h2, kappa_i, y;
     double m_x, sigma_x, m_y, sigma_y, rho_xy;
-    double* Vol = (double*)malloc(nVol * sizeof(double));
 
     if (kappa1 < Tiny_Value) kappa1 = Tiny_Value;
     if (kappa2 < Tiny_Value) kappa2 = Tiny_Value;
 
-    for (i = 0; i < nVol; i++) {
-        if (Vol1[i] < 0.0) Vol1[i] = -Vol1[i];
-        if (Vol1[i] < Tiny_Value) Vol1[i] = Tiny_Value;
-        if (Vol2[i] < 0.0) Vol2[i] = -Vol2[i];
-        if (Vol2[i] < Tiny_Value) Vol2[i] = Tiny_Value;
-    }
-
-    rho = max(min(rho, 0.9999),-0.9999);
-
-    for (i = 0; i < nVol; i++) Vol[i] = sqrt(fabs(Vol1[i] * Vol2[i]));
-
     T = (double)MaturityDate / 365.0;
-    for (i = 0; i < nDates; i++) t[i] = (double)Dates[i] / 365.0;
 
-    m_x = -exp(-kappa1 * T) / kappa1 * Integ(T, 1.0, kappa1, tVol, Vol1, nVol)
-        + exp(-2.0 * kappa1 * T) / kappa1 * Integ(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol)
-        - rho * exp(-kappa1 * T) / kappa2 * Integ(T, 1.0, kappa1, tVol, Vol, nVol)
-        + rho * exp(-(kappa1 + kappa2) * T) / kappa2 * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol, nVol);
-    m_y = -exp(-kappa2 * T) / kappa2 * Integ(T, 1.0, kappa2, tVol, Vol2, nVol)
-        + exp(-2.0 * kappa2 * T) / kappa2 * Integ(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol)
-        - rho * exp(-kappa2 * T) / kappa1 * Integ(T, 1.0, kappa2, tVol, Vol, nVol)
-        + rho * exp(-(kappa1 + kappa2) * T) / kappa1 * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol, nVol);
-    sigma_x = sqrt(exp(-2.0 * kappa1 * T) * Integ(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol));
-    sigma_y = sqrt(exp(-2.0 * kappa2 * T) * Integ(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol));
-    rho_xy = rho * exp(-(kappa1 + kappa2) * T) * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol, nVol) / (sigma_x * sigma_y);
+    m_x = -exp(-kappa1 * T) / kappa1 * I(T, 1.0, kappa1, tVol, Vol1, nVol)
+        + exp(-2.0 * kappa1 * T) / kappa1 * I(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol)
+        - rho * exp(-kappa1 * T) / kappa2 * I(T, 1.0, kappa1, tVol, Vol12, nVol)
+        + rho * exp(-(kappa1 + kappa2) * T) / kappa2 * I(T, 1.0, kappa1 + kappa2, tVol, Vol12, nVol);
+    m_y = -exp(-kappa2 * T) / kappa2 * I(T, 1.0, kappa2, tVol, Vol2, nVol)
+        + exp(-2.0 * kappa2 * T) / kappa2 * I(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol)
+        - rho * exp(-kappa2 * T) / kappa1 * I(T, 1.0, kappa2, tVol, Vol12, nVol)
+        + rho * exp(-(kappa1 + kappa2) * T) / kappa1 * I(T, 1.0, kappa1 + kappa2, tVol, Vol12, nVol);
+    sigma_x = sqrt(exp(-2.0 * kappa1 * T) * I(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol));
+    sigma_y = sqrt(exp(-2.0 * kappa2 * T) * I(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol));
+    rho_xy = rho * exp(-(kappa1 + kappa2) * T) * I(T, 1.0, kappa1 + kappa2, tVol, Vol12, nVol) / (sigma_x * sigma_y);
 
     if (sigma_x < 0.0) sigma_x = -sigma_x;
     if (sigma_x < Tiny_Value) sigma_x = Tiny_Value;
     if (sigma_y < 0.0) sigma_y = -sigma_y;
     if (sigma_y < Tiny_Value) sigma_y = Tiny_Value;
 
-    rho_xy = max(min(rho_xy, 0.9999), -0.9999);
+    rho_xy = max(-0.9999,min(0.9999,rho_xy));
 
     NormExp(x, w, nQuad, m_x, sigma_x);
 
     for (i = 0; i < nQuad; i++) {
         for (j = 0; j < nDates; j++) {
             if (j == 0) {
-                c[j] = StrikeRate * (t[j] - T) * A(T, t[j], kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho, P0_t[j], P0_MaturityDate) * exp(-B(T, t[j], kappa1) * x[i]);
+                termC[j] = StrikeRate * (termdates[j] - T) * A(T, termdates[j], kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho, P0_at_OptMaturity, PT[j])
+                    * exp(-B(T, termdates[j], kappa1) * x[i]);
             }
             else if (j == nDates - 1) {
-                c[j] = (1.0 + StrikeRate * (t[j] - t[j - 1])) * A(T, t[j], kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho, P0_t[j], P0_MaturityDate) * exp(-B(T, t[j], kappa1) * x[i]);
+                termC[j] = (1.0 + StrikeRate * (termdates[j] - termdates[j - 1])) * A(T, termdates[j], kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho, P0_at_OptMaturity, PT[j])
+                    * exp(-B(T, termdates[j], kappa1) * x[i]);
             }
             else {
-                c[j] = StrikeRate * (t[j] - t[j - 1]) * A(T, t[j], kappa1, kappa2, tVol, Vol1, Vol2, nVol, rho, P0_t[j], P0_MaturityDate)* exp(-B(T, t[j], kappa1) * x[i]);
+                termC[j] = StrikeRate * (termdates[j] - termdates[j - 1]) * A(T, termdates[j], kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho, P0_at_OptMaturity, PT[j])
+                    * exp(-B(T, termdates[j], kappa1) * x[i]);
             }
         }
 
-        y = Find_Sol(kappa2, c, T, t, nDates);
+        y = Find_Sol(kappa2, termC, T, termdates, nDates);
 
         h1 = ((y - m_y) / sigma_y - rho_xy * (x[i] - m_x) / sigma_x) / sqrt(1.0 - rho_xy * rho_xy);
 
         sum = CDF_N(-h1);
-        for (j = 0; j < nDates; j++) 
-        {
-            h2 = h1 + B(T, t[j], kappa2) * sigma_y * sqrt(1.0 - rho_xy * rho_xy);
-            kappa_i = -B(T, t[j], kappa2) * (m_y - 0.5 * (1.0 - rho_xy * rho_xy) * sigma_y * sigma_y * B(T, t[j], kappa2)+ rho_xy * sigma_y * (x[i] - m_x) / sigma_x);
-            sum -= c[j] * exp(kappa_i) * CDF_N(-h2);
+        for (j = 0; j < nDates; j++) {
+            h2 = h1 + B(T, termdates[j], kappa2) * sigma_y * sqrt(1.0 - rho_xy * rho_xy);
+            kappa_i = -B(T, termdates[j], kappa2) * (m_y - 0.5 * (1.0 - rho_xy * rho_xy) * sigma_y * sigma_y * B(T, termdates[j], kappa2)
+                + rho_xy * sigma_y * (x[i] - m_x) / sigma_x);
+
+            sum -= termC[j] * exp(kappa_i) * CDF_N(-h2);
         }
 
         value += w[i] * sum;
     }
 
-    if (Vol) free(Vol);
-    if (x) free(x);
-    if (w) free(w);
-    if (t) free(t);
-    if (c) free(c);
-    return NA * value * P0_MaturityDate;
+
+    return NA * value * P0_at_OptMaturity;
+}
+
+
+
+
+// 2-factor 모형의 Calibration 함수
+// ATM 변동성만 사용
+DLLEXPORT(long) HWCapHWSwaption_2FCalibration(
+    long CaliFlag,
+    long NZero,
+    double* ZeroTerm,
+    double* ZeroRate,
+
+    long NOpt,
+    double* TermOpt,
+    long NSwap,
+    double* TermSwap,
+    double* SwaptionVol,
+    double FreqMonthSwaption,
+
+    long NCap,
+    double* TermCap,
+    double* CapVol,
+    double FreqMonthCap,
+
+    long NHW_initial,
+    double* HWTerm_initial,
+    double* HWVol_initial,
+    double* HWVol2_initial,
+    double* initial_kappa,
+    double* initial_kappa2,
+    long FixedKappaFlag,
+    double FixedKappa,
+    double  FixedKappa2
+)
+{
+    long i;
+    long ResultCode = 0;
+    //_CrtSetBreakAlloc(161);
+
+    long NHW = 4;
+    double* HWTerm;
+    double* HWVol;
+
+    double* Strike = (double*)malloc(sizeof(double) * (NSwap * NOpt + NCap));
+    double kappa = initial_kappa[0];
+    if (NCap == 0 && NSwap * NOpt > 0 || CaliFlag == 1 )
+    {
+        HWTerm = TermOpt;
+        NHW = min(NOpt, NHW_initial);
+        HWVol = (double*)malloc(sizeof(double) * NHW);
+        for (i = 0; i < NHW; i++) HWVol[i] = max(0.001, HWVol_initial[i]);
+        ResultCode = HW_LevMarq_Calibration_Swaption(NZero, ZeroTerm, ZeroRate,
+            NOpt, TermOpt, NSwap, TermSwap, SwaptionVol, Strike, FreqMonthSwaption,
+            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa);
+        for (i = 0; i < NHW; i++)
+        {
+            HWTerm_initial[i] = HWTerm[i];
+            HWVol_initial[i] = HWVol[i];
+            *initial_kappa = kappa;
+        }
+        free(HWVol);
+    }
+    else if (NCap > 0)
+    {
+        if (CaliFlag == 2) NOpt = 0;
+        if (NOpt > NCap)
+        {
+            HWTerm = TermOpt;
+            NHW = min(NHW_initial, NOpt);
+        }
+        else {
+            HWTerm = TermCap;
+            NHW = min(NHW_initial, NCap);
+        }
+        HWVol = (double*)malloc(sizeof(double) * NHW);
+        for (i = 0; i < NHW; i++) HWVol[i] = max(0.001, HWVol_initial[i]);
+
+        ResultCode = HW_GradDecent_Calibration_SwaptionCap(NZero, ZeroTerm, ZeroRate,
+            NOpt, TermOpt, NSwap, TermSwap, SwaptionVol, Strike,
+            NCap, TermCap, CapVol, FreqMonthSwaption, FreqMonthCap,
+            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa);
+        for (i = 0; i < NHW; i++)
+        {
+            HWTerm_initial[i] = HWTerm[i];
+            HWVol_initial[i] = HWVol[i];
+            *initial_kappa = kappa;
+        }
+        free(HWVol);
+    }
+    else
+    {
+        return -1;
+    }
+
+    free(Strike);
+    _CrtDumpMemoryLeaks();
+}
+
+void make_Jacov_HWSwaption_2F(
+    long NLoop,
+    long NParams,
+    double* Params,
+    long NZero,
+    double* ZeroTerm,
+    double* ZeroRate,
+    long NHWVol,
+    double* HWVolTerm,
+    long NResidual,
+    double* BSSwaptionPrice,
+    double* StrikePrice,
+    double* TempHWSwaptionPrice,
+    double* ResidualArray,
+    double* TermSwapNew,
+    double* TermOptNew,
+    double* P0_at_OptMaturity,
+    long* OptMaturityDates,
+    long* nDates,
+    long** dates,
+    double** termdates,
+    double** TempC,
+    double** PT,
+    double* ParamsUp,
+    double* ParamsDn,
+    double** TempJacovMatrix,
+    long FixedKappaFlag,
+    double FixedKappa,
+    double FixedKappa2,
+    double rho,
+    double* HWVol12_TempArray
+)
+{
+    long i;
+    long j;
+    long n;
+
+    double dhwvol_up = 0.0002;
+    double dkappa_up = 0.0002;
+    if (NLoop == 0)
+    {
+        dhwvol_up *= 10.0;
+        dkappa_up *= 10.0;
+    }
+    double T;
+    double HWT;
+
+    double kappa_up;
+    double kappa_dn;
+    double kappa_up2;
+    double kappa_dn2;
+
+    double* HWVol_up;
+    double* HWVol_dn;
+    double* HWVol_up2;
+    double* HWVol_dn2;
+
+    double Pup = 0.0;
+    double Pdn = 0.0;
+    double ErrorUp = 0.0;
+    double ErrorDn = 0.0;
+    double dParams;
+    double temp = 0.0;
+    long breakflag = 0;
+
+    for (i = 0; i < NResidual; i++)
+    {
+        T = (double)dates[i][nDates[i] - 1] / 365.0;
+        for (j = 0; j < NParams; j++)
+        {
+            breakflag = 0;
+
+            // 파라미터 초기화
+            for (n = 0; n < NParams; n++) {
+                ParamsUp[n] = Params[n];
+                ParamsDn[n] = Params[n];
+            }
+
+            // 파라미터 Up And Dn
+            if (FixedKappaFlag != 1)
+            {
+                if (j == 0 || j == 1)
+                {
+                    ParamsUp[j] = Params[j] + dkappa_up;
+                    ParamsDn[j] = max(0.00001, Params[j] - dkappa_up);
+                    dParams = (ParamsUp[j] - ParamsDn[j]) * 0.5;
+                }
+                else
+                {
+                    ParamsUp[j] = Params[j] + dhwvol_up;
+                    ParamsDn[j] = max(0.0001, Params[j] - dhwvol_up);
+                    dParams = (ParamsUp[j] - ParamsDn[j]) * 0.5;
+                    HWT = HWVolTerm[j];
+                    if (HWT > T + 0.5)
+                    {
+                        TempJacovMatrix[i][j] = 0.0;
+                        breakflag = 1;
+                    }
+
+                }
+
+                kappa_up = ParamsUp[0];
+                kappa_dn = ParamsDn[0];
+                kappa_up2 = ParamsUp[1];
+                kappa_dn2 = ParamsDn[1];
+
+                HWVol_up = ParamsUp + 2;
+                HWVol_dn = ParamsDn + 2;
+                HWVol_up2 = ParamsUp + 2 + NHWVol;
+                HWVol_dn2 = ParamsDn + 2 + NHWVol;
+            }
+            else
+            {
+                ParamsUp[j] = Params[j] + dhwvol_up;
+                ParamsDn[j] = max(0.0001, Params[j] - dhwvol_up);
+                dParams = (ParamsUp[j] - ParamsDn[j]) * 0.5;
+
+                kappa_up = FixedKappa;
+                kappa_dn = FixedKappa;
+                kappa_up2 = FixedKappa2;
+                kappa_dn2 = FixedKappa2;
+
+                HWVol_up = ParamsUp;
+                HWVol_dn = ParamsDn;
+                HWVol_up2 = ParamsUp + NHWVol;
+                HWVol_dn2 = ParamsDn + NHWVol;
+
+                HWT = HWVolTerm[j];
+                if (HWT > T + 0.5)
+                {
+                    breakflag = 1;
+                }
+            }            
+
+            if (breakflag == 2)
+            {
+                TempJacovMatrix[i][j] = 0.0;
+            }
+            else
+            {
+                if (OptMaturityDates[i] > 0)
+                {
+                    for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol_up[n] * HWVol_up2[n]));
+                    Pup = Swaption2F(1.0, kappa_up, kappa_up2, HWVolTerm, HWVol_up, HWVol_up2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], OptMaturityDates[i], dates[i], termdates[i], TempC[i], nDates[i], PT[i], P0_at_OptMaturity[i]);
+                    //ErrorUp = BSSwaptionPrice[i] - Pup;
+
+                    for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol_dn[n] * HWVol_dn2[n]));
+                    Pdn = Swaption2F(1.0, kappa_dn, kappa_dn2, HWVolTerm, HWVol_dn, HWVol_dn2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], OptMaturityDates[i], dates[i], termdates[i], TempC[i], nDates[i], PT[i], P0_at_OptMaturity[i]);
+                    //ErrorDn = BSSwaptionPrice[i] - Pdn;
+
+                    //TempJacovMatrix[i][j] = (ErrorUp - ErrorDn) / (2.0 * dParams);
+                    TempJacovMatrix[i][j] = (Pdn - Pup)/(2.0 * dParams);
+                }
+                else
+                {
+                    for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol_up[n] * HWVol_up2[n]));
+                    Pup = Cap2F(1.0, kappa_up, kappa_up2, HWVolTerm, HWVol_up, HWVol_up2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], dates[i], nDates[i], PT[i]);
+                    ErrorUp = BSSwaptionPrice[i] - Pup;
+
+                    for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol_dn[n] * HWVol_dn2[n]));
+                    Pdn = Cap2F(1.0, kappa_dn, kappa_dn2, HWVolTerm, HWVol_dn, HWVol_dn2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], dates[i], nDates[i], PT[i]);
+                    ErrorDn = BSSwaptionPrice[i] - Pdn;
+
+                    TempJacovMatrix[i][j] = (ErrorUp - ErrorDn) / (2.0 * dParams);
+
+                }
+            }
+        }
+    }
+}
+
+void make_Residual_HWSwaption_2F(
+    long NParams,
+    double* Params,
+    long NZero,
+    double* ZeroTerm,
+    double* ZeroRate,
+    long NHWVol,
+    double* HWVolTerm,
+    long NResidual,
+    double* BSSwaptionPrice,
+    double* StrikePrice,
+    double* TempHWSwaptionPrice,
+    double* ResidualArray,
+    double* TermSwapNew,
+    double* TermOptNew,
+    double* P0_at_OptMaturity,
+    long* OptMaturityDates,
+    long* nDates,
+    long** dates,
+    double** termdates,
+    double** TempC,
+    double** PT,
+    double& absErrorSum,
+    long FixedKappaFlag,
+    double FixedKappa,
+    double FixedKappa2,
+    double rho,
+    double* HWVol12_TempArray,
+    double& RMPSE
+)
+{
+    long i, n;
+    double kappa;
+    double kappa2;
+    double* HWVol;
+    double* HWVol2;
+    if (FixedKappaFlag != 1)
+    {
+        kappa = Params[0];
+        kappa2 = Params[1];
+        HWVol = Params + 2;
+        HWVol2 = Params + 2 + NHWVol;
+    }
+    else
+    {
+        kappa = FixedKappa;
+        kappa2 = FixedKappa2;
+        HWVol = Params;
+        HWVol2 = Params + NHWVol;
+    }
+    double s = 0.0;
+    RMPSE = 0.0;
+    for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol[n] * HWVol2[n]));
+    for (i = 0; i < NResidual; i++)
+    {
+        if (OptMaturityDates[i] > 0) TempHWSwaptionPrice[i] = Swaption2F(1.0, kappa, kappa2, HWVolTerm, HWVol, HWVol2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], OptMaturityDates[i], dates[i], termdates[i], TempC[i], nDates[i], PT[i], P0_at_OptMaturity[i]);
+        else TempHWSwaptionPrice[i] = Cap2F(1.0, kappa, kappa2, HWVolTerm, HWVol, HWVol2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], dates[i], nDates[i], PT[i]);
+    }
+    for (i = 0; i < NResidual; i++)
+    {
+        ResidualArray[i] = (BSSwaptionPrice[i] - TempHWSwaptionPrice[i]);
+        RMPSE += ResidualArray[i] * ResidualArray[i] / (BSSwaptionPrice[i]* BSSwaptionPrice[i]);
+    }
+    RMPSE = sqrt(RMPSE / (double)NResidual);
+    for (i = 0; i < NResidual; i++) s += (ResidualArray[i])* (ResidualArray[i]);
+    
+    absErrorSum = s;
+}
+
+void Levenberg_Marquardt_2F(long NLoop, long NParams, long NResidual, double* NextParams, double* CurrentParams, double* lambda, double** Jacov, double* Residual, double& ParamSum, double** JT_J, double** Inverse_JT_J, double** JT_Res, double** ResultMatrix, long FixedKappaFlag, double* Initial_Params, double RMPSE, double* ArgminParams)
+{
+    long i;
+    double mu = *lambda;
+    double MIN_kappa = 0.001;
+    double MAX_kappa = 0.2;
+
+    double MIN_Vol = 0.00001;
+    double MAX_Vol = 0.3;
+    long n = NResidual, m = NParams;
+    long Shape_J[2] = { n,m };
+    long Shape_JT[2] = { m,n };
+    long Shape_Residual[2] = { n,1 };
+
+    // J' dot J                 Shape = m * m
+    XprimeDotX(Jacov, Shape_J, JT_J);
+    //rounding(JT_J, m, m, 5);
+
+    // J'J + mu * diag(J'J)     Shape = m * m
+    for (i = 0; i < m; i++) JT_J[i][i] = JT_J[i][i] + mu;// *JT_J[i][i];
+
+    // inv(J'J + mu * diag(J'J))
+    long Shape_Inv_JT_J[2] = { m,m };
+
+    //MatrixInversion(JT_J, m, Inverse_JT_J);
+
+    // J' dot Res               Shape = m * n dot n * 1 = m * 1
+    long Shape_JT_Res[2] = { m,1 };
+    XprimeY(Jacov, Shape_J, Residual, n, JT_Res);
+    double* Known = (double*)malloc(sizeof(double) * m);
+    double* UnKnown = (double*)malloc(sizeof(double) * m);
+    for (i = 0; i < m; i++) Known[i] = JT_Res[i][0];
+
+    gaussian_elimination(JT_J, Known, UnKnown, m);
+
+    //Dot2dArray(Inverse_JT_J, Shape_Inv_JT_J, JT_Res, Shape_JT_Res, ResultMatrix);
+
+    if (FixedKappaFlag == 0)
+    {
+        for (i = 0; i < NParams; i++)
+        {
+            NextParams[i] = CurrentParams[i] - UnKnown[i];//- ResultMatrix[i][0];
+            if (i == 0 || i == 1)
+            {
+                if (NextParams[i] > MAX_kappa || NextParams[i] < MIN_kappa)
+                {
+                    if (NLoop == 0) NextParams[i] = max(MIN_kappa, min(MAX_kappa, Initial_Params[i]));
+                    else NextParams[i] = max(MIN_kappa, min(MAX_kappa, ArgminParams[i]));
+                }
+            }
+            else
+            {
+                if (NextParams[i] > MAX_Vol || NextParams[i] < MIN_Vol)
+                {
+                    if (NLoop == 0) NextParams[i] = max(MIN_Vol, min(MAX_Vol, Initial_Params[i]));
+                    else NextParams[i] = max(MIN_Vol, min(MAX_Vol, ArgminParams[i]));
+                }
+            }
+        }
+    }
+    else
+    {
+        for (i = 0; i < NParams; i++)
+        {
+            NextParams[i] = CurrentParams[i] - UnKnown[i];// ResultMatrix[i][0];
+
+            if (NextParams[i] > MAX_Vol || NextParams[i] < MIN_Vol)
+            {
+                if (NLoop == 0) NextParams[i] = max(MIN_Vol, min(MAX_Vol, Initial_Params[i]));
+                else NextParams[i] = max(MIN_Vol, min(MAX_Vol, ArgminParams[i]));
+            }
+        }
+
+    }
+    double s = 0.0;
+    for (i = 0; i < NParams; i++) s += fabs(UnKnown[i]);
+    ParamSum = s;
+    free(Known);
+    free(UnKnown);
+}
+
+void Levenberg_Marquardt_HWSwaption_2F(
+    long NParams,
+    double* Params,
+    long NZero,
+    double* ZeroTerm,
+    double* ZeroRate,
+    long NHWVol,
+    double* HWVolTerm,
+    long NResidual,
+    double* BSSwaptionPrice,
+    double* StrikePrice,
+    double* TempHWSwaptionPrice,
+    double* ResidualArray,
+    double* TermSwapNew,
+    double* TermOptNew,
+    double* P0_at_OptMaturity,
+    long* OptMaturityDates,
+    long* nDates,
+    long** dates,
+    double** termdates,
+    double** TempC,
+    double** PT,
+    double* ParamsUp,
+    double* ParamsDn,
+    double** TempJacovMatrix,
+    long FixedKappaFlag,
+    double FixedKappa,
+    double FixedKappa2,
+    double rho,
+    double* HWVol12_Temp,
+    double& RMPSE
+)
+{
+
+    long i;
+    long n;
+    long Shape0 = NResidual;
+    long Shape1 = NParams;
+    long BreakFlag = 0;
+    long Levenberg = 1;
+
+    double* InitialParams = (double*)malloc(sizeof(double) * (NParams));
+    for (i = 0; i < NParams; i++) InitialParams[i] = Params[i];
+
+    double StopCondition = 0.0001;
+    double minerror = 1000000.0;
+    double absErrorSum = 100000.0;
+    double PrevAbsErrorSum = 0.0;
+    double ParamSum = 10000.0;
+    double lambda[1] = { 1.00 };
+    double* NextParams = (double*)malloc(sizeof(double) * (NParams));
+    double** JT_J = make_array(NParams, NParams);
+    double** Inverse_JT_J = make_array(NParams, NParams);
+    double** JT_Res = make_array(NParams, 1);
+    double** ResultMatrix = make_array(NParams, 1);
+    double* argminparam = (double*)malloc(sizeof(double) * (NParams));
+    double minrmpse = 1.0;
+    double prevrmpse = 1.0;
+
+    for (n = 0; n < 14; n++)
+    {
+
+        make_Jacov_HWSwaption_2F(n, NParams, Params, NZero, ZeroTerm, ZeroRate,
+            NHWVol, HWVolTerm, NResidual, BSSwaptionPrice, StrikePrice,
+            TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, P0_at_OptMaturity,
+            OptMaturityDates,
+            nDates, dates, termdates, TempC, PT, ParamsUp, ParamsDn, TempJacovMatrix, FixedKappaFlag, FixedKappa, FixedKappa2, rho, HWVol12_Temp);
+
+        make_Residual_HWSwaption_2F(NParams, Params, NZero, ZeroTerm, ZeroRate,
+            NHWVol, HWVolTerm, NResidual, BSSwaptionPrice, StrikePrice,
+            TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, P0_at_OptMaturity,
+            OptMaturityDates,
+            nDates, dates, termdates, TempC, PT, absErrorSum, FixedKappaFlag, FixedKappa, FixedKappa2, rho, HWVol12_Temp, RMPSE);
+
+        if (n >= 1)
+        {
+            NextLambda(absErrorSum, PrevAbsErrorSum, lambda, BreakFlag);
+            if (absErrorSum < minerror || n == 1)
+            {
+                minerror = absErrorSum;
+                minrmpse = RMPSE;
+                for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
+                if (RMPSE < 0.1) break;
+            }
+        }
+
+        Levenberg_Marquardt_2F(n, NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix, FixedKappaFlag, InitialParams, RMPSE, argminparam);
+        for (i = 0; i < NParams; i++) Params[i] = NextParams[i];
+
+        if (ParamSum < StopCondition && n > 10) break;
+        if (BreakFlag == 1) break;
+        if (lambda[0] < 1.0e-07) break;
+        if (minrmpse <= 0.1 || (minrmpse <= 0.2 && n > 10)) break;
+        PrevAbsErrorSum = absErrorSum;
+    }
+
+    for (i = 0; i < NParams; i++) Params[i] = argminparam[i];
+    RMPSE = minrmpse;
+
+    free(InitialParams);
+    free(NextParams);
+    for (i = 0; i < NParams; i++) free(JT_J[i]);
+    for (i = 0; i < NParams; i++) free(Inverse_JT_J[i]);
+    free(JT_J);
+    free(Inverse_JT_J);
+    for (i = 0; i < NParams; i++) free(JT_Res[i]);
+    free(JT_Res);
+    for (i = 0; i < NParams; i++) free(ResultMatrix[i]);
+    free(ResultMatrix);
+    free(argminparam);
+}
+
+long HW2F_LevMarq_Calibration_SwaptionCap(
+    long NZero,
+    double* ZeroTerm,
+    double* ZeroRate,
+
+    long NOpt,
+    double* TermOpt,
+    long NSwap,
+    double* TermSwap,
+    double* SwaptionVol,
+    double* Strike,
+    double FreqMonth,
+
+    long NCap,
+    double* TermCap,
+    double* CapVol,
+
+    long NHW,
+    double* HWTerm,
+    double* HWVol,
+    double* HWVol2,
+    double& kappa,
+    double& kappa2,
+    double rho,
+    long FixedKappaFlag,
+    double FixedKappa,
+    double FixedKappa2
+)
+{
+    long i;
+    long j;
+
+    long k;
+    long n;
+
+    double* TermSwapNew = (double*)malloc(sizeof(double) * (NSwap * NOpt + NCap) );                                             // 할당 1
+    for (i = 0; i < NSwap * NOpt; i++) TermSwapNew[i] = TermSwap[i % NSwap];
+    for (i = NSwap * NOpt; i < NSwap * NOpt + NCap; i++) TermSwapNew[i] = TermCap[i - NSwap * NOpt];
+
+    double* TermOptNew = (double*)malloc(sizeof(double) * (NSwap * NOpt + NCap) );                                              // 할당 2
+    for (i = 0; i < NSwap * NOpt; i++) TermOptNew[i] = TermOpt[i / NSwap];
+    for (i = NSwap * NOpt; i < NSwap * NOpt + NCap; i++) TermOptNew[i] = 0.0;
+
+    double* BSSwaptionPrice = (double*)malloc(sizeof(double) * (NSwap * NOpt + NCap));                                          // 할당 3
+    double* HWSwaptionPrice = (double*)malloc(sizeof(double) * (NSwap * NOpt + NCap));                                          // 할당 4
+    double fm;
+    n = 0;
+    for (k = 0; k < NSwap * NOpt + NCap; k++)
+    {
+        Strike[k] = FSR(ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth);
+        if (TermOptNew[k] > 0.0) BSSwaptionPrice[k] = BS_Swaption(1.0, SwaptionVol[k], Strike[k], ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth);
+        else
+        {
+            BSSwaptionPrice[k] = BS_Cap(1.0, CapVol[n], ZeroTerm, ZeroRate, NZero, Strike[k], TermOptNew[k], TermCap[n], FreqMonth);
+            n++;
+        }
+    }
+
+    long* OptMaturityDates = (long*)malloc(sizeof(long) * (NOpt * NSwap + NCap));                                               // 할당 5
+    for (i = 0; i < NOpt * NSwap; i++) OptMaturityDates[i] = (long)(TermOptNew[i] * 365.0);
+    for (i = NOpt * NSwap; i < NOpt * NSwap + NCap; i++) OptMaturityDates[i] = 0;
+
+    double* P0_at_OptMaturityDates = (double*)malloc(sizeof(double) * (NOpt * NSwap + NCap));                                   // 할당 6
+    for (i = 0; i < NOpt * NSwap; i++) P0_at_OptMaturityDates[i] = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZero, TermOptNew[i]);
+    for (i = NOpt * NSwap; i < NOpt * NSwap + NCap; i++) P0_at_OptMaturityDates[i] = 1.0;
+
+    double* HWVol12_TempArray = (double*)malloc(sizeof(double) * NHW);                                                          // 할당 7
+
+    double RMPSE = 1.0;
+
+    long* nDates = (long*)malloc(sizeof(long) * (NOpt * NSwap + NCap));                                                         // 할당 8
+    for (i = 0; i < NOpt * NSwap + NCap; i++) nDates[i] = Number_Of_Payment(TermOptNew[i], TermOptNew[i] + TermSwapNew[i], FreqMonth);
+
+    long** dates = (long**)malloc(sizeof(long*) * (NOpt * NSwap + NCap));                                                       // 할당 9
+    double** termdates = (double**)malloc(sizeof(double*) * (NOpt * NSwap + NCap));                                             // 할당 10
+    double** TempC = (double**)malloc(sizeof(double*) * (NOpt * NSwap + NCap));                                                 // 할당 11
+    for (i = 0; i < NOpt * NSwap + NCap; i++)
+    {
+        dates[i] = (long*)malloc(sizeof(long) * nDates[i]);
+        termdates[i] = (double*)malloc(sizeof(double) * nDates[i]);
+        TempC[i] = (double*)malloc(sizeof(double) * nDates[i]);
+        PaymentDatesMapping(TermOptNew[i] + TermSwapNew[i], FreqMonth, dates[i], nDates[i]);
+        for (j = 0; j < nDates[i]; j++) termdates[i][j] = ((double)dates[i][j]) / 365.0;
+    }
+
+    double** PT = (double**)malloc(sizeof(double*) * (NOpt * NSwap+NCap) );                                                     // 할당 12
+    for (i = 0; i < NOpt * NSwap + NCap; i++)
+    {
+        PT[i] = (double*)malloc(sizeof(double) * (nDates[i] + 1));
+        if (TermOptNew[i] > 0.0) PT[i][0] = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZero, TermOptNew[i]);
+        else PT[i][0] = 1.0;
+
+        for (n = 0; n < nDates[i]; n++)  PT[i][n + 1] = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZero, (double)dates[i][n] / 365.0);
+    }
+
+    long NResidual = NOpt * NSwap + NCap;
+    double* ResidualArray = (double*)malloc(sizeof(double) * (NResidual));                                                      // 할당 13
+
+    long nparams;
+    if (FixedKappaFlag != 1) nparams = 2*(1 + NHW);
+    else nparams = NHW*2;
+
+    double* params = (double*)malloc(sizeof(double) * (nparams));                                                               // 할당 14
+    double* paramsup = (double*)malloc(sizeof(double)*(nparams));                                                               // 할당 15
+    double* paramsdn = (double*)malloc(sizeof(double)*(nparams));                                                               // 할당 16
+    double** tempjacov = make_array(NResidual, nparams);                                                                        // 할당 17
+
+    if (FixedKappaFlag != 1)
+    {
+        params[0] = kappa;
+        params[1] = kappa2;
+        for (i = 0; i < NHW; i++) params[i + 2] = HWVol[i];
+        for (i = 0; i < NHW; i++) params[i + 2 + NHW] = HWVol2[i];
+    }
+    else
+    {
+        for (i = 0; i < NHW; i++) params[i] = HWVol[i];
+        for (i = 0; i < NHW; i++) params[i + NHW] = HWVol2[i];
+    }
+    double* HWTerm2F = (double*)malloc(sizeof(double) * NHW * 2);                                                               // 할당 18
+    for (i = 0; i < NHW; i++) HWTerm2F[i] = HWTerm[i];
+    for (i = NHW; i < 2 * NHW; i++) HWTerm2F[i] = HWTerm[i - NHW];
+
+    Levenberg_Marquardt_HWSwaption_2F(nparams, params, NZero, ZeroTerm, ZeroRate,
+        NHW, HWTerm2F, NResidual, BSSwaptionPrice, Strike,
+        HWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, P0_at_OptMaturityDates,
+        OptMaturityDates,
+        nDates, dates, termdates, TempC, PT, paramsup, paramsdn,
+        tempjacov, FixedKappaFlag, FixedKappa, FixedKappa2, rho, HWVol12_TempArray, RMPSE);
+
+    if (FixedKappaFlag != 1)
+    {
+        kappa = params[0];
+        kappa2 = params[1];
+        for (i = 0; i < NHW; i++) HWVol[i] = params[i + 2];
+        for (i = 0; i < NHW; i++) HWVol2[i] = params[i + 2 + NHW];
+    }
+    else
+    {
+        kappa = FixedKappa;
+        kappa2 = FixedKappa2;
+        for (i = 0; i < NHW; i++) HWVol[i] = params[i];
+        for (i = 0; i < NHW; i++) HWVol2[i] = params[i + NHW];
+    }
+
+    free(TermSwapNew);                                                                  // 할당1 해제
+    free(TermOptNew);                                                                   // 할당2 해제
+    free(BSSwaptionPrice);                                                              // 할당3 해제
+    free(HWSwaptionPrice);                                                              // 할당4 해제
+    free(OptMaturityDates);                                                             // 할당5 해제
+    free(P0_at_OptMaturityDates);                                                       // 할당6 해제
+    free(HWVol12_TempArray);                                                            // 할당7 해제
+    free(nDates);                                                                       // 할당8 해제
+
+    for (i = 0; i < NOpt * NSwap + NCap; i++) free(dates[i]);                           // 할당9 해제
+    free(dates);
+    for (i = 0; i < NOpt * NSwap + NCap; i++) free(termdates[i]);                       // 할당10 해제
+    free(termdates);
+    for (i = 0; i < NOpt * NSwap + NCap; i++) free(TempC[i]);                           // 할당11 해제
+    free(TempC);
+    for (i = 0; i < NOpt * NSwap + NCap; i++) free(PT[i]);                              // 할당12 해제
+    free(PT);                                                                           
+
+    free(ResidualArray);                                                                // 할당13 해제
+    free(params);                                                                       // 할당14 해제
+    free(paramsup);                                                                     // 할당15 해제
+    free(paramsdn);                                                                     // 할당16 해제
+
+    for (i = 0; i < NResidual; i++) free(tempjacov[i]);                                 // 할당17 해제
+    free(tempjacov);
+
+    free(HWTerm2F);                                                                     // 할당18 해제
+
+    return (long)(RMPSE * 10000.0);
+}
+
+DLLEXPORT(long) HWCapHWSwaptionCalibration2F(
+    long CaliFlag,
+    long NZero,
+    double* ZeroTerm,
+    double* ZeroRate,
+
+    long NOpt,
+    double* TermOpt,
+    long NSwap,
+    double* TermSwap,
+    double* SwaptionVol,
+    double FreqMonthSwaption,
+
+    long NCap,
+    double* TermCap,
+    double* CapVol,
+    double FreqMonthCap,
+
+    long NHW_initial,
+    double* HWTerm_initial,
+    double* HWVol_initial,
+    double* HWVol_initial2,
+    double* initial_kappa,
+    double* initial_kappa2,
+    long FixedKappaFlag,
+    double FixedKappa,
+    double FixedKappa2,
+    double rho
+)
+{
+    long i;
+    long ResultCode = 0;
+    //_CrtSetBreakAlloc(647);
+
+    long NHW = 4;
+    double* HWTerm;
+    double* HWVol;
+    double* HWVol2;
+
+    double* Strike = (double*)malloc(sizeof(double) * (NSwap * NOpt + NCap));
+    double kappa = initial_kappa[0];
+    double kappa2 = initial_kappa2[0];
+
+    if ( CaliFlag == 1 && NOpt * NSwap > 0)
+    {
+        HWTerm = TermOpt;
+        NCap = 0;
+        NHW = min(NOpt, NHW_initial);
+        HWVol = (double*)malloc(sizeof(double) * NHW);
+        HWVol2 = (double*)malloc(sizeof(double) * NHW);
+
+        for (i = 0; i < NHW; i++)
+        {
+            HWVol[i] = max(0.005, HWVol_initial[i]);
+            HWVol2[i] = max(0.002, HWVol_initial2[i]);
+        }
+
+        ResultCode = HW2F_LevMarq_Calibration_SwaptionCap(NZero, ZeroTerm, ZeroRate,
+            NOpt, TermOpt, NSwap,
+            TermSwap, SwaptionVol, Strike,
+            FreqMonthSwaption,
+            NCap, TermCap, CapVol,
+            NHW, HWTerm, HWVol, HWVol2,
+            kappa, kappa2, rho,
+            FixedKappaFlag,
+            FixedKappa, FixedKappa2);
+
+        for (i = 0; i < NHW; i++)
+        {
+            HWTerm_initial[i] = HWTerm[i];
+            HWVol_initial[i] = HWVol[i];
+            HWVol_initial2[i] = HWVol2[i];
+            *initial_kappa = kappa;
+            *initial_kappa2 = kappa2;
+        }
+
+        free(HWVol);
+        free(HWVol2);
+    }
+    else if (NCap > 0 && CaliFlag == 2)
+    {
+        NOpt = 0;
+        NSwap = 0;
+        HWTerm = TermOpt;
+        NHW = min(NHW_initial, NCap);
+        HWVol = (double*)malloc(sizeof(double) * NHW);
+        HWVol2 = (double*)malloc(sizeof(double) * NHW);
+
+        for (i = 0; i < NHW; i++)
+        {
+            HWVol[i] = max(0.005, HWVol_initial[i]);
+            HWVol2[i] = max(0.002, HWVol_initial2[i]);
+        }
+
+        ResultCode = HW2F_LevMarq_Calibration_SwaptionCap(NZero, ZeroTerm, ZeroRate,
+            NOpt, TermOpt, NSwap,
+            TermSwap, SwaptionVol, Strike,
+            FreqMonthCap,
+            NCap, TermCap, CapVol,
+            NHW, HWTerm, HWVol, HWVol2,
+            kappa, kappa2, rho,
+            FixedKappaFlag,
+            FixedKappa, FixedKappa2);
+
+        for (i = 0; i < NHW; i++)
+        {
+            HWTerm_initial[i] = HWTerm[i];
+            HWVol_initial[i] = HWVol[i];
+            HWVol_initial2[i] = HWVol2[i];
+            *initial_kappa = kappa;
+            *initial_kappa2 = kappa2;
+        }
+
+        free(HWVol);
+        free(HWVol2);
+    }
+    else if ((NCap > 0 && NSwap * NOpt > 0 && CaliFlag == 0))
+    {
+        if (NOpt > NCap)
+        {
+            HWTerm = TermOpt;
+            NHW = min(NHW_initial, NOpt);
+        }
+        else {
+            HWTerm = TermCap;
+            NHW = min(NHW_initial, NCap);
+        }
+        HWVol = (double*)malloc(sizeof(double) * NHW);
+        HWVol2 = (double*)malloc(sizeof(double) * NHW);
+        for (i = 0; i < NHW; i++)
+        {
+            HWVol[i] = max(0.005, HWVol_initial[i]);
+            HWVol2[i] = max(0.002, HWVol_initial2[i]);
+        }
+
+        ResultCode = HW2F_LevMarq_Calibration_SwaptionCap(NZero, ZeroTerm, ZeroRate,
+            NOpt, TermOpt, NSwap,
+            TermSwap, SwaptionVol, Strike,
+            FreqMonthSwaption,
+            NCap, TermCap, CapVol,
+            NHW, HWTerm, HWVol, HWVol2,
+            kappa, kappa2, rho,
+            FixedKappaFlag,
+            FixedKappa, FixedKappa2);
+
+        for (i = 0; i < NHW; i++)
+        {
+            HWTerm_initial[i] = HWTerm[i];
+            HWVol_initial[i] = HWVol[i];
+            HWVol_initial2[i] = HWVol2[i];
+            *initial_kappa = kappa;
+            *initial_kappa2 = kappa2;
+        }
+
+        free(HWVol);
+        free(HWVol2);
+    }
+
+
+    free(Strike);
+    _CrtDumpMemoryLeaks();
+    return ResultCode;
 }
