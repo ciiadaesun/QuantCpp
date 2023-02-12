@@ -58,6 +58,34 @@ long PaymentDatesMapping(double T_SwapMaturity, double FreqMonth, long* TempDate
     return NDates;
 }
 
+double Interpolate_Linear_Point(double* x, double* fx, long nx, double targetx, long& Point)
+{
+    long i;
+    double result = 0.0;
+
+    if (nx == 1 || targetx == x[0])
+        return fx[0];
+    else if (targetx == x[nx - 1])
+        return fx[nx - 1];
+
+
+    if (targetx < x[0]) return fx[0];
+    else if (targetx > x[nx - 1]) return fx[nx - 1];
+    else
+    {
+        for (i = max(1, Point); i < nx; i++)
+        {
+            if (targetx < x[i])
+            {
+                result = (fx[i] - fx[i - 1]) / (x[i] - x[i - 1]) * (targetx - x[i - 1]) + fx[i - 1];
+                Point = i - 1;
+                break;
+            }
+        }
+        return result;
+    }
+}
+
 double FSR(
     double* Term,
     double* Rate,
@@ -68,6 +96,8 @@ double FSR(
 )
 {
     long i;
+    long Point = 0;
+    double r, t;
     double Swap_Rate;
 
     long ndates = Number_Of_Payment(T_Option, T_Option + Tenor, FreqMonth);
@@ -75,10 +105,14 @@ double FSR(
     ndates = PaymentDatesMapping(T_Option + Tenor, FreqMonth, dates, ndates);
 
     double* PT = (double*)malloc(sizeof(double) * (ndates + 1));
-    PT[0] = Calc_Discount_Factor(Term, Rate, NTerm, T_Option); // 옵션만기시점
+    t = T_Option;
+    r = Interpolate_Linear_Point(Term, Rate, NTerm, t, Point);
+    PT[0] = exp(-r * t); // 옵션만기시점
     for (i = 1; i < ndates + 1; i++)
     {
-        PT[i] = Calc_Discount_Factor(Term, Rate, NTerm, (double)dates[i - 1] / 365.0);
+        t = (double)(dates[i - 1] / 365.0);
+        r = Interpolate_Linear_Point(Term, Rate, NTerm, t, Point);
+        PT[i] = exp(-r * t);
     }
 
     double a, b, dt;
@@ -113,7 +147,8 @@ double Integ(
 )
 {
     long i;
-    long NodeNum = 3;
+    long NodeNum = 4;
+    long Point = 0;
     double ds = t / (double)NodeNum;
     double s;
     double value = 0.0;
@@ -122,7 +157,7 @@ double Integ(
     for (i = 0; i < NodeNum; i++)
     {
         s = (double)(i + 1) * ds;
-        sigma = Interpolate_Linear(tVol, Vol, nVol, s);
+        sigma = Interpolate_Linear_Point(tVol, Vol, nVol, s, Point);
         value += sigma * sigma * A * exp(kappa * s) * ds;
     }
     return value;
@@ -130,6 +165,7 @@ double Integ(
 
 // 적분 계산 공통함수
 // I(t) = Int_0^t sigma(s)^2 A exp(Bs) ds
+/*
 double I(
     double t,
     double A,
@@ -177,7 +213,7 @@ double I(
     }
 
     return value;
-}
+}*/
 
 double B(double s, double t, double kappa)
 {
@@ -3085,7 +3121,7 @@ double Find_Sol(
     long nDates
 )
 {
-    double tol = Tiny_Value;
+    double tol = 1.0e-6;
     double low, high, mid;
     double low_value, high_value, mid_value;
 
@@ -3093,7 +3129,8 @@ double Find_Sol(
     high = 1.0;
     low_value = func(low, kappa, c, T, t, nDates);
     high_value = func(high, kappa, c, T, t, nDates);
-    while (low_value * high_value > 0.0) {
+    while (low_value * high_value > 0.0) 
+    {
         low *= 2.0;
         high *= 2.0;
         low_value = func(low, kappa, c, T, t, nDates);
@@ -3132,25 +3169,33 @@ double V(
     long i;
     double value;
 
-    value = Integ(T, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1) - Integ(t, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1)
-        - 2.0 * exp(-kappa1 * T) * Integ(T, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
-        + 2.0 * exp(-kappa1 * T) * Integ(t, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
-        + exp(-2.0 * kappa1 * T) * Integ(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
-        - exp(-2.0 * kappa1 * T) * Integ(t, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
-        + Integ(T, 1.0, 0.0, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        - Integ(t, 1.0, 0.0, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        - 2.0 * exp(-kappa2 * T) * Integ(T, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        + 2.0 * exp(-kappa2 * T) * Integ(t, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        + exp(-2.0 * kappa2 * T) * Integ(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        - exp(-2.0 * kappa2 * T) * Integ(t, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        + 2.0 * rho * Integ(T, 1.0, 0.0, tVol, Vol12, nVol) / (kappa1 * kappa2)
-        - 2.0 * rho * Integ(t, 1.0, 0.0, tVol, Vol12, nVol) / (kappa1 * kappa2)
-        - 2.0 * rho * exp(-kappa1 * T) * Integ(T, 1.0, kappa1, tVol, Vol12, nVol) / (kappa1 * kappa2)
-        + 2.0 * rho * exp(-kappa1 * T) * Integ(t, 1.0, kappa1, tVol, Vol12, nVol) / (kappa1 * kappa2)
-        - 2.0 * rho * exp(-kappa2 * T) * Integ(T, 1.0, kappa2, tVol, Vol12, nVol) / (kappa1 * kappa2)
-        + 2.0 * rho * exp(-kappa2 * T) * Integ(t, 1.0, kappa2, tVol, Vol12, nVol) / (kappa1 * kappa2)
-        + 2.0 * rho * exp(-(kappa1 + kappa2) * T) * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol12, nVol) / (kappa1 * kappa2)
-        - 2.0 * rho * exp(-(kappa1 + kappa2) * T) * Integ(t, 1.0, kappa1 + kappa2, tVol, Vol12, nVol) / (kappa1 * kappa2);
+    double exp_minus_kappa1_T = exp(-kappa1 * T);
+    double exp_minus2_kappa1_T = exp(-2.0 * kappa1 * T);
+    double exp_minus_kappa2_T = exp(-kappa2 * T);
+    double exp_minus2_kappa2_T = exp(-2.0 * kappa2 * T);
+    double kappa1kappa1 = kappa1 * kappa1;
+    double kappa2kappa2 = kappa2 * kappa2;
+    double kappa1kappa2 = kappa1 * kappa2;
+
+    value = Integ(T, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1) - Integ(t, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1kappa1)
+        - 2.0 * exp_minus_kappa1_T * Integ(T, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1kappa1)
+        + 2.0 * exp_minus_kappa1_T * Integ(t, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1kappa1)
+        + exp_minus2_kappa1_T * Integ(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) / (kappa1kappa1)
+        - exp_minus2_kappa1_T * Integ(t, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) / (kappa1kappa1)
+        + Integ(T, 1.0, 0.0, tVol, Vol2, nVol) / (kappa2kappa2)
+        - Integ(t, 1.0, 0.0, tVol, Vol2, nVol) / (kappa2kappa2)
+        - 2.0 * exp_minus_kappa2_T * Integ(T, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2kappa2)
+        + 2.0 * exp_minus_kappa2_T * Integ(t, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2kappa2)
+        + exp_minus2_kappa2_T * Integ(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2kappa2)
+        - exp_minus2_kappa2_T * Integ(t, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2kappa2)
+        + 2.0 * rho * Integ(T, 1.0, 0.0, tVol, Vol12, nVol) / (kappa1kappa2)
+        - 2.0 * rho * Integ(t, 1.0, 0.0, tVol, Vol12, nVol) / (kappa1kappa2)
+        - 2.0 * rho * exp_minus_kappa1_T * Integ(T, 1.0, kappa1, tVol, Vol12, nVol) / (kappa1kappa2)
+        + 2.0 * rho * exp_minus_kappa1_T * Integ(t, 1.0, kappa1, tVol, Vol12, nVol) / (kappa1kappa2)
+        - 2.0 * rho * exp_minus_kappa2_T * Integ(T, 1.0, kappa2, tVol, Vol12, nVol) / (kappa1kappa2)
+        + 2.0 * rho * exp_minus_kappa2_T * Integ(t, 1.0, kappa2, tVol, Vol12, nVol) / (kappa1kappa2)
+        + 2.0 * rho * exp(-(kappa1 + kappa2) * T) * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol12, nVol) / (kappa1kappa2)
+        - 2.0 * rho * exp(-(kappa1 + kappa2) * T) * Integ(t, 1.0, kappa1 + kappa2, tVol, Vol12, nVol) / (kappa1kappa2);
 
     return value;
 }
@@ -3172,8 +3217,8 @@ double A(
 )
 {
     double V1 = V(t, T, kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho);
-    double V2 = V(0, T, kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho);
-    double V3 = V(0, t, kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho);
+    double V2 = V(0.0, T, kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho);
+    double V3 = V(0.0, t, kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho);
 
     return exp(0.5 * (V1 - V2 + V3)) * DF_T / DF_t;
 }
@@ -3313,26 +3358,26 @@ double V(
 
     for (i = 0; i < nVol; i++) Vol[i] = sqrt(fabs(Vol1[i] * Vol2[i]));
 
-    value = I(T, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1)
-        - I(t, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1)
-        - 2.0 * exp(-kappa1 * T) * I(T, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
-        + 2.0 * exp(-kappa1 * T) * I(t, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
-        + exp(-2.0 * kappa1 * T) * I(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
-        - exp(-2.0 * kappa1 * T) * I(t, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
-        + I(T, 1.0, 0.0, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        - I(t, 1.0, 0.0, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        - 2.0 * exp(-kappa2 * T) * I(T, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        + 2.0 * exp(-kappa2 * T) * I(t, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        + exp(-2.0 * kappa2 * T) * I(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        - exp(-2.0 * kappa2 * T) * I(t, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
-        + 2.0 * rho * I(T, 1.0, 0.0, tVol, Vol, nVol) / (kappa1 * kappa2)
-        - 2.0 * rho * I(t, 1.0, 0.0, tVol, Vol, nVol) / (kappa1 * kappa2)
-        - 2.0 * rho * exp(-kappa1 * T) * I(T, 1.0, kappa1, tVol, Vol, nVol) / (kappa1 * kappa2)
-        + 2.0 * rho * exp(-kappa1 * T) * I(t, 1.0, kappa1, tVol, Vol, nVol) / (kappa1 * kappa2)
-        - 2.0 * rho * exp(-kappa2 * T) * I(T, 1.0, kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
-        + 2.0 * rho * exp(-kappa2 * T) * I(t, 1.0, kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
-        + 2.0 * rho * exp(-(kappa1 + kappa2) * T) * I(T, 1.0, kappa1 + kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
-        - 2.0 * rho * exp(-(kappa1 + kappa2) * T) * I(t, 1.0, kappa1 + kappa2, tVol, Vol, nVol) / (kappa1 * kappa2);
+    value = Integ(T, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        - Integ(t, 1.0, 0.0, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        - 2.0 * exp(-kappa1 * T) * Integ(T, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        + 2.0 * exp(-kappa1 * T) * Integ(t, 1.0, kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        + exp(-2.0 * kappa1 * T) * Integ(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        - exp(-2.0 * kappa1 * T) * Integ(t, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) / (kappa1 * kappa1)
+        + Integ(T, 1.0, 0.0, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        - Integ(t, 1.0, 0.0, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        - 2.0 * exp(-kappa2 * T) * Integ(T, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        + 2.0 * exp(-kappa2 * T) * Integ(t, 1.0, kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        + exp(-2.0 * kappa2 * T) * Integ(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        - exp(-2.0 * kappa2 * T) * Integ(t, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) / (kappa2 * kappa2)
+        + 2.0 * rho * Integ(T, 1.0, 0.0, tVol, Vol, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * Integ(t, 1.0, 0.0, tVol, Vol, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * exp(-kappa1 * T) * Integ(T, 1.0, kappa1, tVol, Vol, nVol) / (kappa1 * kappa2)
+        + 2.0 * rho * exp(-kappa1 * T) * Integ(t, 1.0, kappa1, tVol, Vol, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * exp(-kappa2 * T) * Integ(T, 1.0, kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
+        + 2.0 * rho * exp(-kappa2 * T) * Integ(t, 1.0, kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
+        + 2.0 * rho * exp(-(kappa1 + kappa2) * T) * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol, nVol) / (kappa1 * kappa2)
+        - 2.0 * rho * exp(-(kappa1 + kappa2) * T) * Integ(t, 1.0, kappa1 + kappa2, tVol, Vol, nVol) / (kappa1 * kappa2);
 
     if (Vol) free(Vol);
 
@@ -3396,18 +3441,17 @@ double _stdcall Swaption2F(
     if (kappa2 < Tiny_Value) kappa2 = Tiny_Value;
 
     T = (double)MaturityDate / 365.0;
+    double exp_minus_kappa1_T = exp(-kappa1 * T);
+    double exp_minus2_kappa1_T = exp(-2.0 * kappa1 * T);
+    double exp_minus_kappa2_T = exp(-kappa2 * T);
+    double exp_minus2_kappa2_T = exp(-2.0 * kappa2 * T);
 
-    m_x = -exp(-kappa1 * T) / kappa1 * I(T, 1.0, kappa1, tVol, Vol1, nVol)
-        + exp(-2.0 * kappa1 * T) / kappa1 * I(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol)
-        - rho * exp(-kappa1 * T) / kappa2 * I(T, 1.0, kappa1, tVol, Vol12, nVol)
-        + rho * exp(-(kappa1 + kappa2) * T) / kappa2 * I(T, 1.0, kappa1 + kappa2, tVol, Vol12, nVol);
-    m_y = -exp(-kappa2 * T) / kappa2 * I(T, 1.0, kappa2, tVol, Vol2, nVol)
-        + exp(-2.0 * kappa2 * T) / kappa2 * I(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol)
-        - rho * exp(-kappa2 * T) / kappa1 * I(T, 1.0, kappa2, tVol, Vol12, nVol)
-        + rho * exp(-(kappa1 + kappa2) * T) / kappa1 * I(T, 1.0, kappa1 + kappa2, tVol, Vol12, nVol);
-    sigma_x = sqrt(exp(-2.0 * kappa1 * T) * I(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol));
-    sigma_y = sqrt(exp(-2.0 * kappa2 * T) * I(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol));
-    rho_xy = rho * exp(-(kappa1 + kappa2) * T) * I(T, 1.0, kappa1 + kappa2, tVol, Vol12, nVol) / (sigma_x * sigma_y);
+
+    m_x = -exp_minus_kappa1_T  / kappa1 * Integ(T, 1.0, kappa1, tVol, Vol1, nVol) + exp_minus2_kappa1_T / kappa1 * Integ(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol) - rho * exp_minus_kappa1_T  / kappa2 * Integ(T, 1.0, kappa1, tVol, Vol12, nVol) + rho * exp(-(kappa1 + kappa2) * T) / kappa2 * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol12, nVol);
+    m_y = -exp_minus_kappa2_T / kappa2 * Integ(T, 1.0, kappa2, tVol, Vol2, nVol) + exp_minus2_kappa2_T / kappa2 * Integ(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol) - rho * exp_minus_kappa2_T / kappa1 * Integ(T, 1.0, kappa2, tVol, Vol12, nVol)+ rho * exp(-(kappa1 + kappa2) * T) / kappa1 * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol12, nVol);
+    sigma_x = sqrt(exp_minus2_kappa1_T * Integ(T, 1.0, 2.0 * kappa1, tVol, Vol1, nVol));
+    sigma_y = sqrt(exp_minus2_kappa2_T * Integ(T, 1.0, 2.0 * kappa2, tVol, Vol2, nVol));
+    rho_xy = rho * exp(-(kappa1 + kappa2) * T) * Integ(T, 1.0, kappa1 + kappa2, tVol, Vol12, nVol) / (sigma_x * sigma_y);
 
     if (sigma_x < 0.0) sigma_x = -sigma_x;
     if (sigma_x < Tiny_Value) sigma_x = Tiny_Value;
@@ -3420,17 +3464,17 @@ double _stdcall Swaption2F(
 
     for (i = 0; i < nQuad; i++) {
         for (j = 0; j < nDates; j++) {
-            if (j == 0) {
-                termC[j] = StrikeRate * (termdates[j] - T) * A(T, termdates[j], kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho, P0_at_OptMaturity, PT[j])
-                    * exp(-B(T, termdates[j], kappa1) * x[i]);
+            if (j == 0) 
+            {
+                termC[j] = StrikeRate * (termdates[j] - T) * A(T, termdates[j], kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho, P0_at_OptMaturity, PT[j]) * exp(-B(T, termdates[j], kappa1) * x[i]);
             }
-            else if (j == nDates - 1) {
-                termC[j] = (1.0 + StrikeRate * (termdates[j] - termdates[j - 1])) * A(T, termdates[j], kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho, P0_at_OptMaturity, PT[j])
-                    * exp(-B(T, termdates[j], kappa1) * x[i]);
+            else if (j == nDates - 1) 
+            {
+                termC[j] = (1.0 + StrikeRate * (termdates[j] - termdates[j - 1])) * A(T, termdates[j], kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho, P0_at_OptMaturity, PT[j]) * exp(-B(T, termdates[j], kappa1) * x[i]);
             }
-            else {
-                termC[j] = StrikeRate * (termdates[j] - termdates[j - 1]) * A(T, termdates[j], kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho, P0_at_OptMaturity, PT[j])
-                    * exp(-B(T, termdates[j], kappa1) * x[i]);
+            else 
+            {
+                termC[j] = StrikeRate * (termdates[j] - termdates[j - 1]) * A(T, termdates[j], kappa1, kappa2, tVol, Vol1, Vol2, Vol12, nVol, rho, P0_at_OptMaturity, PT[j]) * exp(-B(T, termdates[j], kappa1) * x[i]);
             }
         }
 
@@ -3439,11 +3483,10 @@ double _stdcall Swaption2F(
         h1 = ((y - m_y) / sigma_y - rho_xy * (x[i] - m_x) / sigma_x) / sqrt(1.0 - rho_xy * rho_xy);
 
         sum = CDF_N(-h1);
-        for (j = 0; j < nDates; j++) {
+        for (j = 0; j < nDates; j++) 
+        {
             h2 = h1 + B(T, termdates[j], kappa2) * sigma_y * sqrt(1.0 - rho_xy * rho_xy);
-            kappa_i = -B(T, termdates[j], kappa2) * (m_y - 0.5 * (1.0 - rho_xy * rho_xy) * sigma_y * sigma_y * B(T, termdates[j], kappa2)
-                + rho_xy * sigma_y * (x[i] - m_x) / sigma_x);
-
+            kappa_i = -B(T, termdates[j], kappa2) * (m_y - 0.5 * (1.0 - rho_xy * rho_xy) * sigma_y * sigma_y * B(T, termdates[j], kappa2) + rho_xy * sigma_y * (x[i] - m_x) / sigma_x);
             sum -= termC[j] * exp(kappa_i) * CDF_N(-h2);
         }
 
@@ -3921,7 +3964,7 @@ void Levenberg_Marquardt_HWSwaption_2F(
     double absErrorSum = 100000.0;
     double PrevAbsErrorSum = 0.0;
     double ParamSum = 10000.0;
-    double lambda[1] = { 1.00 };
+    double lambda[1] = { 1.0 };
     double* NextParams = (double*)malloc(sizeof(double) * (NParams));
     double** JT_J = make_array(NParams, NParams);
     double** Inverse_JT_J = make_array(NParams, NParams);
@@ -3931,7 +3974,7 @@ void Levenberg_Marquardt_HWSwaption_2F(
     double minrmpse = 1.0;
     double prevrmpse = 1.0;
 
-    for (n = 0; n < 14; n++)
+    for (n = 0; n < 6; n++)
     {
 
         make_Jacov_HWSwaption_2F(n, NParams, Params, NZero, ZeroTerm, ZeroRate,

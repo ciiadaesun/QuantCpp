@@ -3,6 +3,14 @@
 #include <stdio.h>
 #include <crtdbg.h>
 
+#ifndef max
+#define max(a,b)            (((a) > (b)) ? (a) : (b))
+#endif
+
+#ifndef min
+#define min(a,b)            (((a) < (b)) ? (a) : (b))
+#endif
+
 // MatrixA와 MatrixB를 곱하여 ResultMatrix에 저장한다.
 void Dot2dArray(
 	double** MatrixA,				// 매트릭스 A 
@@ -1059,6 +1067,195 @@ public:
 	}
 };
 
+////////////////////////////////////
+// 여기서부터 Logistic Regression //
+////////////////////////////////////
+
+double ProbFun(double* x, double* beta, long nbeta)
+{
+	long i;
+	double xb = 0.0;
+	for (i = 0; i < nbeta; i++) xb += x[i] * beta[i];
+	xb = max(-300.0, min(300.0, xb));
+	return 1.0 / (1.0 + exp(-xb));
+} 
+
+double log_logisticfunc(double* X, double* Beta, long nBeta, double y)
+{
+	long i;
+	double XB = 0.0;
+	double prob;
+	double logprob;
+	for (i = 0; i < nBeta; i++) XB += X[i] * Beta[i];
+
+	if ((XB < 300.0) && (XB > -300.0))
+	{
+		prob = 1.0 / (1.0 + exp(-XB));
+		if (y == 0) logprob = log(max(1.0E-300, 1 - prob));
+		else logprob = log(max(1.0E-300, prob));
+	}
+	else if (XB >= 100.0)
+	{
+		logprob = 1.0E-22;
+	}
+	else
+	{
+		logprob = -XB;
+	}
+	return logprob;
+}
+
+double log_logisticfunc_scalar(double XB, long nBeta, double y)
+{
+	long i;
+	double prob;
+	double logprob;
+
+	if ((XB < 300.0) && (XB > -300.0))
+	{
+		prob = 1.0 / (1.0 + exp(-XB));
+		if (y == 0) logprob = log(max(1.0E-300, 1 - prob));
+		else logprob = log(max(1.0E-300, prob));
+	}
+	else if (XB >= 100.0)
+	{
+		logprob = 1.0E-22;
+	}
+	else
+	{
+		logprob = -XB;
+	}
+	return logprob;
+}
+
+double log_logistic_sum_func(double** x, double* y, long ndata, double* beta, long nbeta)
+{
+	long i, j;
+	double XB = 0.0;
+	double logprob = 0.0;
+	for (i = 0; i < nbeta; i++)
+	{
+		XB = 0.0;
+		for (j = 0; j < nbeta; j++)
+		{
+			XB += x[i][j] * beta[j];
+		}
+		logprob += log_logisticfunc_scalar(XB, nbeta, y[i]);
+	}
+	return logprob;
+}
+
+double* ErrorFunc(double** x, double* y, long ndata, double* beta, long nbeta)
+{
+	long i;
+	double* P = (double*)malloc(sizeof(double) * ndata);
+	double* err = (double*)malloc(sizeof(double) * ndata);
+	for (i = 0; i < ndata; i++) P[i] = ProbFun(x[i], beta, nbeta);
+	
+	for (i = 0; i < ndata; i++) err[i] = -(y[i] * log(max(1.0E-300, P[i])) + (1.0 - y[i]) * log(max(1.0E-300, 1.0 - P[i])));
+
+	free(P);
+	return err;
+}
+
+double** Error_Jacov(double** x, double* y, long ndata, double* beta, long nbeta)
+{
+	long i, j;
+	double p;
+	double** ErrJcv = (double**)malloc(sizeof(double*) * ndata);
+	for (i = 0; i < ndata; i++) ErrJcv[i] = (double*)malloc(sizeof(double) * nbeta);
+
+	for (i = 0; i < ndata; i++)
+	{
+		p = ProbFun(x[i], beta, nbeta);
+		for (j = 0; j < nbeta; j++)
+		{
+			ErrJcv[i][j] = (p - y[i]) * x[i][j];
+		}
+	}
+	return ErrJcv;
+}
+
+double** Err_Hessian(double** x, double* y, long ndata, double* beta, long nbeta)
+{
+	long i, j, k;
+	double** xT_ii_x = (double**)malloc(sizeof(double*) * nbeta);									// X.T.dot(Omega).dot(X)
+	for (i = 0; i < nbeta; i++) xT_ii_x[i] = (double*)malloc(sizeof(double) * nbeta);
+	double* p = (double*)malloc(sizeof(double) * ndata);
+	for (i = 0; i < ndata; i++) p[i] = ProbFun(x[i], beta, nbeta);
+
+	double FixA, FixB, FixC,  s;
+	for (i = 0; i < nbeta; i++)
+	{
+		for (j = 0; j < nbeta; j++)
+		{
+			s = 0.0;
+			for (k = 0; k < ndata; k++)
+			{
+				FixA = x[k][i];
+				FixB = x[k][j];
+				FixC = p[k] * (1.0 - p[k]);
+				s += FixA * FixB * FixC;
+			}
+			xT_ii_x[i][j] = s;
+		}
+	}
+	free(p);
+	return xT_ii_x;
+}
+
+double** Inv_Err_Hessian(double** x, double* y, long ndata, double* beta, long nbeta)
+{
+	long i, j, k;
+	double** xT_ii_x = (double**)malloc(sizeof(double*) * nbeta);									// X.T.dot(Omega).dot(X)
+	for (i = 0; i < nbeta; i++) xT_ii_x[i] = (double*)malloc(sizeof(double) * nbeta);
+
+	double** inv_xT_ii_x = (double**)malloc(sizeof(double*) * nbeta);
+	for (i = 0; i < nbeta; i++) inv_xT_ii_x[i] = (double*)malloc(sizeof(double) * nbeta);
+	long shape[2] = { nbeta, nbeta };
+	double* p = (double*)malloc(sizeof(double) * ndata);
+	for (i = 0; i < ndata; i++) p[i] = ProbFun(x[i], beta, nbeta);
+
+	double FixA, FixB, FixC, s;
+	for (i = 0; i < nbeta; i++)
+	{
+		for (j = 0; j < nbeta; j++)
+		{
+			s = 0.0;
+			for (k = 0; k < ndata; k++)
+			{
+				FixA = x[k][i];
+				FixB = x[k][j];
+				FixC = p[k] * (1.0 - p[k]);
+				s += FixA * FixB * FixC;
+			}
+			xT_ii_x[i][j] = s;
+		}
+	}
+	matrixinverse(xT_ii_x, shape, inv_xT_ii_x);
+	free(p);
+	for (i = 0; i < nbeta; i++) free(xT_ii_x[i]);
+	free(xT_ii_x);
+	return inv_xT_ii_x;
+}
+
+double* Error_Sum_Jacov(double** x, double* y, long ndata, double* beta, long nbeta)
+{
+	long i, j;
+	double p;
+	double* ErrJcv = (double*)malloc(sizeof(double*) * nbeta);
+	for (i = 0; i < nbeta; i++) ErrJcv[i] = 0.0;
+
+	for (i = 0; i < ndata; i++)
+	{
+		p = ProbFun(x[i], beta, nbeta);
+		for (j = 0; j < nbeta; j++)
+		{
+			ErrJcv[j] += (p - y[i]) * x[i][j];
+		}
+	}
+	return ErrJcv;
+}
 
 long main2()
 {
