@@ -1715,7 +1715,8 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	double* CPNProb,				// 쿠폰 확률 및 쿠폰 -> Shape = (NCPN * 2, )
 	double* ResultLocalVol,			// LocalVolatility 결과값
 
-	char* Error
+	char* Error,
+	double* RMSPE
 )
 {
 	//_crtBreakAlloc = 91;
@@ -1834,7 +1835,7 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 				ResultCode = SABR_Vol(N_Rf, RfTerm, RfRate, N_Div, DivTerm,
 					DivRate, NTermforSABR, TermforSABR, NParityforSABR, ParityforSABR,
 					VolforSABR, CalcLocalVolFlag, SABRBeta, VolforSABR, TempVol, 
-					ResultParams, Futures);
+					ResultParams, Futures, RMSPE + i);
 				for (j = 0; j < NTermforSABR*3; j++) ResultSABRParams[j] = ResultParams[j];
 			}
 			free(ResultParams);

@@ -1257,6 +1257,18 @@ double* Error_Sum_Jacov(double** x, double* y, long ndata, double* beta, long nb
 	return ErrJcv;
 }
 
+double* MLE_Logistic_Estimate(double** x, double* y, long ndata, long nbeta, double* beta_0, double alpha_0, long method)
+{
+	double* theta = beta_0;
+	double alpha = alpha_0;
+
+	double* min_theta = (double*)malloc(sizeof(double) * nbeta);
+
+
+
+	free(min_theta);
+}
+
 long main2()
 {
 	long i;

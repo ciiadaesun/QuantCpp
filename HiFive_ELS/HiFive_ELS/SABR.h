@@ -143,12 +143,14 @@ void make_Residual_SABR(
 	double* FuturesArray,
 	double Beta,
 	double& ErrorSquareSum,
-	double* SABRVolNew
+	double* SABRVolNew,
+	double &RMSPE
 )
 {
 	long i;
 	double s = 0.0;
 	double Futures = 1.0;
+	double rmse_p = 0.0;
 	for (i = 0; i < NResidual; i++)
 	{
 		Futures = Interpolate_Linear(TermFuturesArray, FuturesArray, NTermFutures, TermVolNew[i]);
@@ -156,6 +158,9 @@ void make_Residual_SABR(
 	}
 	for (i = 0; i < NResidual; i++) ResidualArray[i] = VolNew[i] - SABRVolNew[i];
 	for (i = 0; i < NResidual; i++) s += (ResidualArray[i] * ResidualArray[i]);
+	for (i = 0; i < NResidual; i++) rmse_p += (ResidualArray[i] * ResidualArray[i])/(VolNew[i] * VolNew[i]);
+	rmse_p = sqrt(rmse_p);
+	RMSPE = rmse_p;
 	ErrorSquareSum = s;
 }
 
@@ -232,7 +237,8 @@ void Levenberg_Marquardt_SABR(
 	double* TermFuturesArray,
 	double* FuturesArray,
 	double* SABRVolNew,
-	double Beta
+	double Beta,
+	double &RMSPE
 
 )
 {
@@ -255,11 +261,12 @@ void Levenberg_Marquardt_SABR(
 	double FirstErrorSquare = 1.0;
 	double* argminparam = make_array(NParams);
 	double* argminvol = make_array(NResidual);
+	double minrmspe = 0.0;
 	for (n = 0; n < 50; n++)
 	{
 		make_Jacov_SABR(NParams, Params, NResidual, TempJacovMatrix, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, VolNew, Beta, NTermFutures, TermFuturesArray, FuturesArray);
 
-		make_Residual_SABR(NParams, Params, NResidual, ResidualArray, TermVolNew, ParityVolNew, VolNew, NTermFutures, TermFuturesArray, FuturesArray, Beta, ErrorSquareSum, SABRVolNew);
+		make_Residual_SABR(NParams, Params, NResidual, ResidualArray, TermVolNew, ParityVolNew, VolNew, NTermFutures, TermFuturesArray, FuturesArray, Beta, ErrorSquareSum, SABRVolNew, RMSPE);
 
 		if (n == 0) FirstErrorSquare = ErrorSquareSum + 0.0;
 
@@ -269,6 +276,7 @@ void Levenberg_Marquardt_SABR(
 			if (ErrorSquareSum < minerror || n == 1)
 			{
 				minerror = ErrorSquareSum;
+				minrmspe = RMSPE;
 				for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
 				for (i = 0; i < NResidual; i++) argminvol[i] = SABRVolNew[i];
 			}
@@ -283,7 +291,7 @@ void Levenberg_Marquardt_SABR(
 		PrevErrorSquareSum = ErrorSquareSum;
 	}
 
-
+	RMSPE = minrmspe;
 	for (i = 0; i < NParams; i++) Params[i] = argminparam[i];
 	for (i = 0; i < NResidual; i++) SABRVolNew[i] = argminvol[i];
 
@@ -300,7 +308,7 @@ void Levenberg_Marquardt_SABR(
 	free(argminvol);
 }
 
-void SABRCalibration(long NTermVol, double* TermVol, long NParityVol, double* ParityVol, double* Vol, long NTermFutures, double* TermFuturesArray, double* FuturesArray, double Beta, double* Params, double* ResultLocVol)
+void SABRCalibration(long NTermVol, double* TermVol, long NParityVol, double* ParityVol, double* Vol, long NTermFutures, double* TermFuturesArray, double* FuturesArray, double Beta, double* Params, double* ResultLocVol, double& RMSPE)
 {
 	long i;
 	long j;
@@ -331,7 +339,7 @@ void SABRCalibration(long NTermVol, double* TermVol, long NParityVol, double* Pa
 		ParamsDn[i] = Params[i];
 	}
 
-	Levenberg_Marquardt_SABR(nparams, TargetParams, NResidual, ResidualArray, TempJacov, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, VolNew, NTermFutures, TermFuturesArray, FuturesArray, SABRVolNew, Beta);
+	Levenberg_Marquardt_SABR(nparams, TargetParams, NResidual, ResidualArray, TempJacov, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, VolNew, NTermFutures, TermFuturesArray, FuturesArray, SABRVolNew, Beta, RMSPE);
 	for (i = 0; i < NTermVol * NParityVol; i++) ResultLocVol[i] = SABRVolNew[i];
 	for (i = 0; i < nparams; i++) Params[i] = TargetParams[i];
 	free(TermVolNew);
@@ -363,7 +371,8 @@ long SABR_Vol(
 	double* ResultLocalVolReshaped,
 
 	double* ResultParams,
-	double* Futures
+	double* Futures,
+	double* RMSPE
 )
 {
 	long i;
@@ -397,7 +406,8 @@ long SABR_Vol(
 
 	double* VolArray = (double*)malloc(sizeof(double) * NParityVol);
 	double* TempVolResult = (double*)malloc(sizeof(double) * NParityVol);
-
+	double rmspe_term = 0.0;
+	double mean_rmspe = 0.0;
 	for (i = 0; i < NTermVol; i++)
 	{
 
@@ -411,10 +421,11 @@ long SABR_Vol(
 			VolArray[k] = Vol[i + j * NTermVol];
 			k += 1;
 		}
-		SABRCalibration(1, TermVol + i, NParityVol, ParityVol, VolArray, NTermFutures, TermFuturesArray, FuturesArray, Beta, TermParams[i], TempVolResult);
-
+		SABRCalibration(1, TermVol + i, NParityVol, ParityVol, VolArray, NTermFutures, TermFuturesArray, FuturesArray, Beta, TermParams[i], TempVolResult, rmspe_term);
+		mean_rmspe += rmspe_term / (double)NTermVol;
 		for (j = 0; j < NParityVol; j++) ResultImVol[j][i] = TempVolResult[j];
 	}
+	RMSPE[0] = mean_rmspe;
 
 	k = 0;
 	for (i = 0; i < NParityVol; i++)
@@ -487,12 +498,12 @@ DLLEXPORT(long) Excel_SABR_Vol(
 {
 	long i, j;
 	long ResultCode = 0;
-
+	double RMSPE = 1.0;
 	ResultCode = SABR_Vol(
 		N_Rf, RfTerm, RfRate, N_Div, DivTerm,
 		DivRate, NTermVol, TermVol, NParityVol, ParityVol,
 		Vol, CalcLocalVolFlag, Beta, ResultImpliedVolReshaped, ResultLocalVolReshaped,
-		ResultParams, Futures
+		ResultParams, Futures, &RMSPE
 	);
 
 	//_CrtDumpMemoryLeaks();
