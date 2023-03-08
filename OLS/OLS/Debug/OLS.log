@@ -1,10 +1,19 @@
 ﻿  OLS.cpp
-C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(57,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(57,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(53,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(54,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(955,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
-C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(1020,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
-C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(1110,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(1341,1): warning C4326: 'main'의 반환 형식이 'int'이어야 하는데 'long'입니다.
-  OLS.vcxproj -> C:\Users\ciiad\github5\OLS\Debug\OLS.exe
+C:\Users\ciiad\github5\OLS\OLS\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(1179,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(1179,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(1671,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(1671,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(1667,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(1668,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(1701,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(1701,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(1697,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(1698,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(1716,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(2758,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
+C:\Users\ciiad\github5\OLS\OLS\Util.h(2823,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
+C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(234,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(607,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+     C:\Users\ciiad\github5\OLS\Debug\OLS.lib 라이브러리 및 C:\Users\ciiad\github5\OLS\Debug\OLS.exp 개체를 생성하고 있습니다.
+  OLS.vcxproj -> C:\Users\ciiad\github5\OLS\Debug\OLS.dll
