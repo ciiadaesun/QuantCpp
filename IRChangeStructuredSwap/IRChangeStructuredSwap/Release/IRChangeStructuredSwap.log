@@ -13,6 +13,7 @@ C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\Util.h(1698
 C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\Util.h(1716,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\Util.h(2758,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\Util.h(2823,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\Util.h(3092,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(2530,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(2680,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
