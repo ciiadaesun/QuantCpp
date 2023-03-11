@@ -29,9 +29,52 @@
 #endif
 #endif
 
+#define LONG_MAX      2147483647L
+#define LDBL_MAX 1.7976931348623158e+308
+#define DBL_MAX 1.7976931348623158e+308
+#define ln_LDBL_MAX 1.13565234062941435e+4L
+#define LDBL_EPSILON 2.2204460492503131e-016
+#define max_double_arg 171.0
+#define max_long_double_arg 1755.5L
+#define exp_g_o_sqrt_2pi +6.23316569877722552586386e+3L
+#define EXPONANTIAL 2.71828182845904523536028747L
+#define G_CONST 9.65657815377331589457187L
+#ifndef PI
+#define PI 3.141592653589793238462643383279
+#endif
+#define log_sqrt_2pi 9.18938533204672741780329736e-1L
+
 
 long GetMinor(double** src, double** dest, long row, long col, long order);
 double CalcDeterminant(double** mat, long order, double*** MinorMatrixList);
+long double xBeta_Function(long double a, long double b);
+static long double Duplication_Formula(long double two_x);
+long double xGamma_Function(long double x);
+double Student_t_Distribution(double x, int n);
+
+static long double const a_list[] = {
++1.14400529453851095667309e+4L,
+-3.23988020152318335053598e+4L,
++3.50514523505571666566083e+4L,
+-1.81641309541260702610647e+4L,
++4.63232990536666818409138e+3L,
+-5.36976777703356780555748e+2L,
++2.28754473395181007645155e+1L,
+-2.17925748738865115560082e-1L,
++1.08314836272589368860689e-4L
+};
+
+static const long double B_list[] = { 1.0L / (long double)(6 * 2 * 1),
+-1.0L / (long double)(30 * 4 * 3),
+1.0L / (long double)(42 * 6 * 5),
+-1.0L / (long double)(30 * 8 * 7),
+5.0L / (long double)(66 * 10 * 9),
+-691.0L / (long double)(2730 * 12 * 11),
+7.0L / (long double)(6 * 14 * 13),
+-3617.0L / (long double)(510 * 16 * 15),
+43867.0L / (long double)(796 * 18 * 17),
+-174611.0L / (long double)(330 * 20 * 19)
+};
 
 /////////////////////////////////////////////////
 // Numerical Recipy Random Number Generator
@@ -2700,6 +2743,7 @@ public:
 	double Kurt;					// Kurt
 	double JB;						// Jarq Bera Test Statistic
 	double centered_tss;			// TSS
+	double* p;
 
 	// variables informationi
 	// X -> independent Variable **Matrix (ndata , num_variables)
@@ -2761,6 +2805,12 @@ public:
 		Kurt = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 1];
 		JB = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 2];
 		centered_tss = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 3];
+
+		p = (double*)malloc(sizeof(double) * n);
+		for (i = 0; i < n; i++)
+		{
+			p[i] = (1.0 - Student_t_Distribution(fabs(t_value[i]), Df_res)) * 2.0;
+		}
 	}
 
 
@@ -2827,6 +2877,12 @@ public:
 		JB = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 2];
 		centered_tss = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 3];
 
+		p = (double*)malloc(sizeof(double) * n);
+		for (i = 0; i < n; i++)
+		{
+			p[i] = (1.0 - Student_t_Distribution(fabs(t_value[i]), Df_res)) * 2.0;
+		}
+
 		for (i = 0; i < ndata; i++) free(X_2d[i]);
 		free(X_2d);
 	}
@@ -2839,6 +2895,7 @@ public:
 		free(cov_HC2);
 		free(cov_HC3);
 		free(Eigenvector);
+		free(p);
 	}
 
 	// Python의 sm.OLS(y,x).fit().summary()와 비슷한 포멧
@@ -2852,8 +2909,8 @@ public:
 		printf("No_Obs: \t\t %d\t AIC:\t %0.5lf \n", nobs, AIC);
 		printf("Df_Residuals: \t\t %d\t BIC:\t %0.5lf\n", Df_res, BIC);
 		printf("Df_Model: \t\t %d\n\n", Df_model);
-		printf("\t\t coef \t\t stderr \t\t tvalue\n");
-		double n1, n2, n3;
+		printf("\t\t coef \t\t stderr \t\t tvalue \t\t prob \n");
+		double n1, n2, n3, n4;
 		for (long i = 0; i < n; i++)
 		{
 			n1 = beta[i];
@@ -2863,6 +2920,7 @@ public:
 			if (n1 < 0.) printf("\t %0.5lf", n2);
 			else printf("\t\t %0.5lf", n2);
 			printf("\t\t % 0.5lf \n", n3);
+			printf("\t\t % 0.5lf \n", n4);
 		}
 		printf("\nDurbin_Watson: \t %0.5lf\t Jarque_Bera:\t %0.5lf\n", durbin_watson, JB);
 		printf("Skew: \t\t %0.5lf\t Kurtosis:\t %0.5lf \n", Skew, Kurt);
@@ -3379,6 +3437,7 @@ public:
 	double BIC;
 	double** x;
 	double ResultArray[10];
+	double* p;
 	long converge;
 
 	LOGIT(double** x_before_const, long* y, long nvariables, long num_data, double* beta_0, double alpha_0 = 0.001, long method = 2)
@@ -3419,6 +3478,12 @@ public:
 		AIC = -2.0 * LL + (double)(2 * nbeta);
 		BIC = -2.0 * LL + ((double)nbeta) * log((double)ndata);
 
+		p = (double*)malloc(sizeof(double) * nbeta);
+		for (i = 0; i < nbeta; i++)
+		{
+			p[i] = (1.0 - Student_t_Distribution(fabs(tvalue[i]), ndata - nbeta)) * 2.0;
+		}
+
 		for (i = 0; i < nbeta; i++) free(ErrInvHess[i]);
 		free(ErrInvHess);
 	}
@@ -3431,5 +3496,250 @@ public:
 		free(beta);
 		free(std_beta);
 		free(tvalue);
+		free(p);
 	}
 };
+
+static long double Beta_Continued_Fraction(long double x, long double a,
+	long double b)
+{
+	long double Am1 = 1.0L;
+	long double A0 = 0.0L;
+	long double Bm1 = 0.0L;
+	long double B0 = 1.0L;
+	long double e = 1.0L;
+	long double Ap1 = A0 + e * Am1;
+	long double Bp1 = B0 + e * Bm1;
+	long double f_less = Ap1 / Bp1;
+	long double f_greater = 0.0L;
+	long double aj = a;
+	long double am = a;
+	static long double eps = 10.0L * LDBL_EPSILON;
+	int j = 0;
+	int m = 0;
+	int k = 1;
+
+	if (x == 0.0L) return 0.0L;
+
+	while ((2.0L * fabsl(f_greater - f_less) > eps * fabsl(f_greater + f_less))) {
+		Am1 = A0;
+		A0 = Ap1;
+		Bm1 = B0;
+		B0 = Bp1;
+		am = a + m;
+		e = -am * (am + b) * x / ((aj + 1.0L) * aj);
+		Ap1 = A0 + e * Am1;
+		Bp1 = B0 + e * Bm1;
+		k = (k + 1) & 3;
+		if (k == 1) f_less = Ap1 / Bp1;
+		else if (k == 3) f_greater = Ap1 / Bp1;
+		if (fabsl(Bp1) > 1.0L) {
+			Am1 = A0 / Bp1;
+			A0 = Ap1 / Bp1;
+			Bm1 = B0 / Bp1;
+			B0 = 1.0;
+		}
+		else {
+			Am1 = A0;
+			A0 = Ap1;
+			Bm1 = B0;
+			B0 = Bp1;
+		}
+		m++;
+		j += 2;
+		aj = a + j;
+		e = m * (b - m) * x / ((aj - 1.0L) * aj);
+		Ap1 = A0 + e * Am1;
+		Bp1 = B0 + e * Bm1;
+		k = (k + 1) & 3;
+		if (k == 1) f_less = Ap1 / Bp1;
+		else if (k == 3) f_greater = Ap1 / Bp1;
+	}
+	return expl(a * logl(x) + b * logl(1.0L - x) + logl(Ap1 / Bp1)) /
+		(a * xBeta_Function(a, b));
+}
+
+static long double xBeta_Distribution(double xx, double aa, double bb)
+{
+	long double x = (long double)xx;
+	long double a = (long double)aa;
+	long double b = (long double)bb;
+
+	/* Both shape parameters are strictly greater than 1. */
+
+	if (aa > 1.0 && bb > 1.0)
+		if (x <= (a - 1.0L) / (a + b - 2.0L))
+			return Beta_Continued_Fraction(x, a, b);
+		else
+			return 1.0L - Beta_Continued_Fraction(1.0L - x, b, a);
+
+	/* Both shape parameters are strictly less than 1. */
+
+	if (aa < 1.0 && bb < 1.0)
+		return (a * xBeta_Distribution(xx, aa + 1.0, bb)
+			+ b * xBeta_Distribution(xx, aa, bb + 1.0)) / (a + b);
+
+	/* One of the shape parameters exactly equals 1. */
+
+	if (aa == 1.0)
+		return 1.0L - powl(1.0L - x, b) / (b * xBeta_Function(a, b));
+
+	if (bb == 1.0) return powl(x, a) / (a * xBeta_Function(a, b));
+
+	/* Exactly one of the shape parameters is strictly less than 1. */
+
+	if (aa < 1.0)
+		return xBeta_Distribution(xx, aa + 1.0, bb)
+		+ powl(x, a) * powl(1.0L - x, b) / (a * xBeta_Function(a, b));
+
+	/* The remaining condition is b < 1.0 */
+
+	return xBeta_Distribution(xx, aa, bb + 1.0)
+		- powl(x, a) * powl(1.0L - x, b) / (b * xBeta_Function(a, b));
+}
+
+double Beta_Distribution(double x, double a, double b)
+{
+
+	if (x <= 0.0) return 0.0;
+	if (x >= 1.0) return 1.0;
+
+	return (double)xBeta_Distribution(x, a, b);
+}
+
+double Gamma_Function_Max_Arg(void) { return max_double_arg; }
+
+static long double Duplication_Formula(long double two_x)
+{
+	long double x = 0.5L * two_x;
+	long double g;
+	double two_n = 1.0;
+	int n = (int)two_x - 1;
+
+	g = powl(2.0L, two_x - 1.0L - (long double)n);
+	g = ldexpl(g, n);
+	g /= sqrt(PI);
+	g *= xGamma_Function(x);
+	g *= xGamma_Function(x + 0.5L);
+
+	return g;
+}
+
+static long double xGamma(long double x)
+{
+
+	long double xx = (x < 1.0L) ? x + 1.0L : x;
+	long double temp;
+	int const n = sizeof(a_list) / sizeof(long double);
+	int i;
+
+	if (x > 1755.5L) return LDBL_MAX;
+
+	if (x > 900.0L) return Duplication_Formula(x);
+
+	temp = 0.0L;
+	for (i = n - 1; i >= 0; i--) {
+		temp += (a_list[i] / (xx + (long double)i));
+	}
+	temp += 1.0L;
+	temp *= (powl((G_CONST + xx - 0.5L) / EXPONANTIAL, xx - 0.5L) / exp_g_o_sqrt_2pi);
+	return (x < 1.0L) ? temp / x : temp;
+}
+
+long double xGamma_Function(long double x)
+{
+	long double sin_x;
+	long double rg;
+	long int ix;
+
+	// For a positive argument (x > 0) //
+	// if x <= max_long_double_arg return Gamma(x) //
+	// otherwise return LDBL_MAX. //
+
+	if (x > 0.0L)
+		if (x <= max_long_double_arg) return xGamma(x);
+		else return LDBL_MAX;
+
+	// For a nonpositive argument (x <= 0) //
+	// if x is a pole return LDBL_MAX //
+
+	if (x > -(long double)LONG_MAX) {
+		ix = (long int)x;
+		if (x == (long double)ix) return LDBL_MAX;
+	}
+	sin_x = sinl(PI * x);
+	if (sin_x == 0.0L) return LDBL_MAX;
+
+	// if x is not a pole and x < -(max_long_double_arg - 1) //
+	// then return 0.0L //
+
+	if (x < -(max_long_double_arg - 1.0L)) return 0.0L;
+
+	// if x is not a pole and x >= -(max_long_double - 1) //
+	// then return Gamma(x) //
+
+	rg = xGamma(1.0L - x) * sin_x / PI;
+	if (rg != 0.0L) return (1.0L / rg);
+	return LDBL_MAX;
+}
+
+static long double xLnGamma_Asymptotic_Expansion(long double x) {
+	const int m = 3;
+	long double term[3];
+	long double sum = 0.0L;
+	long double xx = x * x;
+	long double xj = x;
+	long double lngamma = log_sqrt_2pi - xj + (xj - 0.5L) * logl(xj);
+	int i;
+
+	for (i = 0; i < m; i++) { term[i] = B_list[i] / xj; xj *= xx; }
+	for (i = m - 1; i >= 0; i--) sum += term[i];
+	return lngamma + sum;
+}
+
+long double xLn_Gamma_Function(long double x)
+{
+
+	// For a positive argument, 0 < x <= Gamma_Function_Max_Arg() //
+	// then return log Gamma(x). //
+
+	if (x <= Gamma_Function_Max_Arg()) return logl(xGamma_Function(x));
+
+	// otherwise return result from asymptotic expansion of ln Gamma(x). //
+
+	return xLnGamma_Asymptotic_Expansion(x);
+}
+
+long double xBeta_Function(long double a, long double b)
+{
+	long double lnbeta;
+
+	// If (a + b) <= Gamma_Function_Max_Arg() then simply return //
+	// gamma(a)*gamma(b) / gamma(a+b). //
+
+	if ((a + b) <= Gamma_Function_Max_Arg())
+		return xGamma_Function(a) / (xGamma_Function(a + b) / xGamma_Function(b));
+
+	// If (a + b) > Gamma_Function_Max_Arg() then simply return //
+	// exp(lngamma(a) + lngamma(b) - lngamma(a+b) ). //
+
+	lnbeta = xLn_Gamma_Function(a) + xLn_Gamma_Function(b)
+		- xLn_Gamma_Function(a + b);
+	return (lnbeta > ln_LDBL_MAX) ? (long double)LDBL_MAX : expl(lnbeta);
+}
+
+double Beta_Function(double a, double b)
+{
+	long double beta = xBeta_Function((long double)a, (long double)b);
+	return (beta < DBL_MAX) ? (double)beta : DBL_MAX;
+}
+
+double Student_t_Distribution(double x, int n)
+{
+	double a = (double)n / 2.0;
+	double beta = Beta_Distribution(1.0 / (1.0 + x * x / n), a, 0.5);
+
+	if (x > 0.0) return 1.0 - 0.5 * beta;
+	else if (x < 0.0) return 0.5 * beta;
+	return 0.5;
+}

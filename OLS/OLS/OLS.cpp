@@ -27,7 +27,7 @@ void TempFunc(double** x_before_const, long* y, long nvariables, long num_data, 
 	ResultArray[3 * nbeta + 3] = LOGITClass.AIC;
 	ResultArray[3 * nbeta + 4] = LOGITClass.BIC;
 	ResultArray[3 * nbeta + 5] = LOGITClass.converge;
-
+	for (i = 0 ; i < nbeta; i++) ResultArray[3 * nbeta + 5 + i] = LOGITClass.p[i];
 }
 
 DLLEXPORT(long) MLE_Estimate(
@@ -84,6 +84,7 @@ void TempFuncOLS(double** x, double* y, long num_data, long nvariables, double* 
 	ResultArray[n * 3 + 11 + 2 * num_data + 1] = OLSClass.Kurt;
 	ResultArray[n * 3 + 11 + 2 * num_data + 2] = OLSClass.JB;
 	ResultArray[n * 3 + 11 + 2 * num_data + 3] = OLSClass.centered_tss;
+	for (i = 0; i < nbeta; i++) ResultArray[n * 3 + 11 + 2 * num_data + 3 + i] = OLSClass.p[i];
 }
 
 DLLEXPORT(long) OLS_Estimate(
