@@ -325,7 +325,7 @@ void make_Jacov_HESTON(
     double param_max[5] = { 5.0, 2.0, 2.0, 0.95, 1.0 };
     double param_min[5] = { -0.3, 0.001, 0.00001 , -0.95, 0.00001 };
     double dparamsarray[5] = { 0.01, 0.001, 0.001, 0.02, 0.001 };                           // dP (kappa, vofv, meanvar, rho, v0)
-    if (GradientDecentFlag == 0) for (i = 0; i < 5; i++) dparamsarray[i] = dparamsarray[i] * 10.0;       // 첫 루프에는 10배 먼 dP를 사용하자
+    //if (GradientDecentFlag == 0) for (i = 0; i < 5; i++) dparamsarray[i] = dparamsarray[i] * 10.0;       // 첫 루프에는 10배 먼 dP를 사용하자
 
     double dparam_up;
     double Pup = 0.0;
@@ -380,21 +380,42 @@ void make_Residual_Heston(
     double* HestonCallNew,
     long kmax,
     double* int_x,
-    double* int_y
+    double* int_y,
+    double& rmpse
 )
 {
     long i;
     double s = 0.0, s2 = 0.0;
     double V0;
+    double local_rmpse = 0.0;
+
+    double ext_itm_parity = 0.6;
+    double ext_itm_term = 0.5;
+    // Extreme ITM 빼고 RMSPE 계산
+    long N_except_ext = NResidual;
+    for (i = 0; i < NResidual; i++)
+    {
+        if ((ext_itm_parity > ParityVolNew[i]) && (ext_itm_term > TermVolNew[i]))
+        {
+            N_except_ext -= 1;
+        }
+    }
 
     for (i = 0; i < NResidual; i++)
     {
-
         V0 = Params[4];
         HestonCallNew[i] = HestonPrice(1.0, ParityVolNew[i], r[i], div[i], Params, TermVolNew[i], V0, kmax, int_x, int_y);
-
     }
-    for (i = 0; i < NResidual; i++) ResidualArray[i] = BSCallArray[i] - HestonCallNew[i];
+    for (i = 0; i < NResidual; i++)
+    {
+        ResidualArray[i] = BSCallArray[i] - HestonCallNew[i];
+        if ((ext_itm_parity <= ParityVolNew[i]) && (ext_itm_term <= TermVolNew[i]))
+        {
+            local_rmpse += (ResidualArray[i] * ResidualArray[i]) / (HestonCallNew[i] * HestonCallNew[i]);
+        }
+    }
+    local_rmpse = sqrt(local_rmpse/(double)N_except_ext);
+    rmpse = local_rmpse;
     for (i = 0; i < NResidual; i++) s2 += fabs(ResidualArray[i] / HestonCallNew[i]);
     for (i = 0; i < NResidual; i++) s += (ResidualArray[i] * ResidualArray[i]);
     ErrorSquareSum = s;
@@ -636,7 +657,8 @@ void Levenberg_Marquardt_HESTON(
     double* TermVolNew,         // BS Call 계산하기 위해 사용된 만기
     double* ParityVolNew,       // BS Call 계산하기 위해 사용된 Moneyness
     double* BSCallArray,        // BS Call 가격
-    double* HestonCallNew       // Output : Heston Call
+    double* HestonCallNew,      // Output : Heston Call
+    double& RMPSE
 )
 {
     long i;
@@ -648,7 +670,7 @@ void Levenberg_Marquardt_HESTON(
     double PrecentError = 1.0;
     double PrevErrorSquareSum = 0.0;
     double ParamSum = 0.0;
-    double lambda[1] = { 1.0 };
+    double lambda[1] = { 1.00 };
     double* NextParams = make_array(NParams);
     double** JT_J = make_array(NParams, NParams);
     double** Inverse_JT_J = make_array(NParams, NParams);
@@ -660,6 +682,7 @@ void Levenberg_Marquardt_HESTON(
     double FirstErrorSquare = 1.0;
     double* argminparam = (double*)malloc(sizeof(double) * NParams);
     double* argminhestoncall = (double*)malloc(sizeof(double) * NResidual);
+    double minrmpse = 1.0;
     /////////////////////////////////
     // Heston Price에 사용할 Array //
     /////////////////////////////////
@@ -680,7 +703,7 @@ void Levenberg_Marquardt_HESTON(
         //////////////////////////
         // Residual Matrix 생성 //
         //////////////////////////
-        make_Residual_Heston(NParams, Params, NResidual, ResidualArray, TermVolNew, ParityVolNew, r, div, BSCallArray, ErrorSquareSum, PrecentError, HestonCallNew, kmax, integ_x, integ_y);
+        make_Residual_Heston(NParams, Params, NResidual, ResidualArray, TermVolNew, ParityVolNew, r, div, BSCallArray, ErrorSquareSum, PrecentError, HestonCallNew, kmax, integ_x, integ_y, RMPSE);
 
         if (n == 0) FirstErrorSquare = ErrorSquareSum + 0.0;
 
@@ -690,12 +713,16 @@ void Levenberg_Marquardt_HESTON(
             if (ErrorSquareSum < minerror)
             {
                 minerror = ErrorSquareSum;
+                minrmpse = RMPSE;
                 for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
                 for (i = 0; i < NResidual; i++) argminhestoncall[i] = HestonCallNew[i];
             }
         }
         if (BreakFlag == 1 && GradientFlag == 0 && lambda[0] < 1.0e-06) break;
-        if (lambda[0] >= 1.0e-06 || GradientFlag == 1) Levenberg_Marquardt_HESTON(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix, GradientFlag, Initial_Params);
+        if (lambda[0] >= 1.0e-06 || GradientFlag == 1)
+        {
+            Levenberg_Marquardt_HESTON(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix, GradientFlag, Initial_Params);
+        }
         else
         {
             ////////////////////////////////////////////
@@ -708,10 +735,10 @@ void Levenberg_Marquardt_HESTON(
 
         if (n >= 10 && GradientFlag == 0 && lambda[0] < 1.0e-06) break;
         if (ErrorSquareSum / FirstErrorSquare < 0.001) break;
-
+        if (minrmpse < 0.08) break;
         PrevErrorSquareSum = ErrorSquareSum;
     }
-
+    RMPSE = minrmpse;
     for (i = 0; i < NResidual; i++) HestonCallNew[i] = argminhestoncall[i];
     for (i = 0; i < NParams; i++) Params[i] = argminparam[i];
 
@@ -742,7 +769,9 @@ void HestonCalibration(
     long NDiv,              // Dividend 기간구조 개수
     double* DivTerm,        // Dividend 기간구조 만기 Array,
     double* DivRate,        // Dividend 기간구조 배당수익률 Array 
-    double* ResultImVol     // Output: Calibration 결과를 담을 Array
+    double* ResultImVol,    // Output: Calibration 결과를 담을 Array
+    double* HestonPrice,
+    double& rmspe
 )
 {
     long i;
@@ -782,18 +811,23 @@ void HestonCalibration(
         ParamsDn[i] = Params[i];
     }
     double* ResultHestonCall = (double*)malloc(sizeof(double) * NTermVol * NParityVol);
-    Levenberg_Marquardt_HESTON(nparams, Params, NResidual, ResidualArray, TempJacov, ParamsUp, ParamsDn, r, div, TermVolNew, ParityVolNew, BSCallArray, HestonCallNew);
+    rmspe = 1.0;
+    Levenberg_Marquardt_HESTON(nparams, Params, NResidual, ResidualArray, TempJacov, ParamsUp, ParamsDn, r, div, TermVolNew, ParityVolNew, BSCallArray, HestonCallNew, rmspe);
 
-    for (i = 0; i < NTermVol * NParityVol; i++) ResultHestonCall[i] = HestonCallNew[i];
+    for (i = 0; i < NTermVol * NParityVol; i++)
+    {
+        ResultHestonCall[i] = HestonCallNew[i];
+        HestonPrice[i] = HestonCallNew[i];
+    }
 
     const long kmax = 1000;
     double integ_x[kmax * 5] = { 0.0, };
     double integ_y[kmax * 5] = { 0.0, };
-    for (i = 0; i < NTermVol * NParityVol; i++)
-    {
-        VolNew[i] = Heston_LocalVol(1.0, ParityVolNew[i], r[i], div[i], Params[4],
-            TermVolNew[i], Params[2], Params[0], Params[1], Params[3], 0.0, kmax, integ_x, integ_y, HestonCallNew[i]);
-    }
+    //for (i = 0; i < NTermVol * NParityVol; i++)
+    //{
+    //    VolNew[i] = Heston_LocalVol(1.0, ParityVolNew[i], r[i], div[i], Params[4],
+    //        TermVolNew[i], Params[2], Params[0], Params[1], Params[3], 0.0, kmax, integ_x, integ_y, HestonCallNew[i]);
+    //}
 
     free(ResultHestonCall);
     free(TermVolNew);
@@ -807,7 +841,7 @@ void HestonCalibration(
     free(div);
     free(BSCallArray);
 }
-
+/*
 int main()
 {
     long i, j, k;
@@ -826,7 +860,8 @@ int main()
                                                 10.33 , 11.41 , 12.81 , 13.35 , 13.89 , 14.17 , 14.68 , 15.11 , 15.39 , 15.67 ,
                                                 10.98 , 10.83 , 12.14 , 12.61 , 13.13 , 13.70 , 14.29 , 14.80 , 15.21 , 15.51 ,
                                                 11.48 , 11.39 , 11.79 , 12.48 , 13.10 , 13.55 , 14.18 , 14.78 , 15.26 , 15.60 };
-    for (i = 0; i < NParity * NTermVol; i++) if (VolReshaped[i] > 1.0) VolReshaped[i] /= 100.0;
+    for (i = 0; i < NParity * NTermVol; i++) if (VolReshaped[i] > 2.0) VolReshaped[i] /= 100.0;
+    double HestonPrice[NParity * NTermVol] ={ 0.0, };
     double ResultImvol[NParity * NTermVol] = { 0.0, };
     const long NTerm = 3;
     double TermRate[NTerm] = { 1.0, 2.0, 3.0 };
@@ -836,20 +871,56 @@ int main()
     double DivTerm[NDiv] = { 1.0, 2.0, 3.0 };
     double DivRate[NDiv] = { 0.02, 0.02, 0.02 };
 
-    double imvol = 0.2;
-    double K = 1.0;
-    double T = 1.0;
 
     double kappa, volofvol, meanvar, rho, V0;
-    kappa = 0.5;        // 0.3
+    kappa = 0.5;        // 0    .3
     volofvol = 0.22;   // 0.265
     meanvar = 0.02;     // 0.05
     rho = 0.0;        // -0.01
     V0 = 0.02;          //0.02
-
+    double rmspe = 1.0;
     double params[5] = { kappa, volofvol, meanvar, rho  , V0 };
-    HestonCalibration(NTermVol, TermVol, NParity, ParityVol, VolReshaped, params, NTerm, TermRate, Rate, NDiv, DivTerm, DivRate, ResultImvol);
+    HestonCalibration(NTermVol, TermVol, NParity, ParityVol, VolReshaped, params, NTerm, TermRate, Rate, NDiv, DivTerm, DivRate, ResultImvol, HestonPrice, rmspe);
 
 
     _CrtDumpMemoryLeaks();
+}
+*/
+
+DLLEXPORT(long) HestonCalibrate(
+    long NZero,
+    double* ZeroTerm,
+    double* ZeroRate,
+    long NDiv,
+    double* DivTerm,
+    double* DivRate,
+
+    long NParity,
+    double* ParityVol,
+    long NTermVol,
+    double* TermVol,
+    double* VolReshaped,
+
+    double kappa_init,
+    double volofvol_init,
+    double meanvar_init,
+    double rho_init,
+    double Variance0_init,
+
+    double* Params,
+    double* HestonCallPrice,
+    double* HestonBSImvol,
+    double* ResultLocalVol
+    )
+{
+    long i;
+    for (i = 0; i < NParity * NTermVol; i++) if (VolReshaped[i] > 2.0) VolReshaped[i] /= 100.0;
+    double rmspe = 1.0;
+    double params_array[5] = { kappa_init, volofvol_init, meanvar_init, rho_init  , Variance0_init };
+
+    HestonCalibration(NTermVol, TermVol, NParity, ParityVol, VolReshaped, params_array, NTermVol, ZeroTerm, ZeroRate, NDiv, DivTerm, DivRate, HestonBSImvol, HestonCallPrice, rmspe);
+    for (i = 0; i < 5; i++) Params[i] = params_array[i];
+    Params[5] = rmspe;
+
+    return 1;
 }
