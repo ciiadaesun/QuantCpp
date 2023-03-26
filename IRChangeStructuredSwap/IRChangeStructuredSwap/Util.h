@@ -3433,3 +3433,58 @@ public:
 		free(tvalue);
 	}
 };
+
+// Gauss Hermite 적분 계산에 사용될 x지점과 weight를 계산
+// integral_-inf to inf exp(-x^2) f(x) dx = sum(w * f(x))
+void gauss_hermite(double *x, double *w, long n) 
+{
+	long i, j, its, m;
+	double p1, p2, p3, pp, z, z1;
+	double pim4, tol;
+
+	tol = 3.0e-14;
+	pim4 = 1.0 / pow(PI, 0.25);
+	m = (n + 1) / 2;
+	for (i = 0; i < m; i++)
+	{
+		if (i == 0) z = sqrt(2.0 * (double)n + 1.0) - 1.85575 * pow(2.0 * (double)n + 1.0, -0.16667);
+		else if (i == 1) z = z - 1.14 * pow(n, 0.426) / z;
+		else if (i == 2) z = 1.86 * z - 0.86 * x[0];
+		else if (i == 3) z = 1.91 * z - 0.91 * x[1];
+		else z = 2.0 * z - x[i - 2];
+		for (its = 1; its <= 10; its++)
+		{
+			p1 = pim4;
+			p2 = 0.0;
+			for (j = 1; j <= n; j++)
+			{
+				p3 = p2;
+				p2 = p1;
+				p1 = z * sqrt(2.0 / (double)j) * p2 - sqrt((double)(j - 1) / (double)j) * p3;
+			}
+			pp = sqrt(2.0 * (double)n) * p2;
+			z1 = z;
+			z = z1 - p1 / pp;
+			if (fabs(z - z1) < tol) break;
+		}
+		x[i] = z;
+		x[n - 1 - i] = -z;
+		w[i] = 2.0 / (pp * pp);
+		w[n - 1 - i] = w[i];
+	}
+}
+
+// Gauss Hermite Normal 적분 계산에 사용될 x지점과 weight를 계산
+// integral_-inf to inf 1.0/(sigma*sqrt(2.0PI)) * exp(-((x-mu)/sigma)^2) f(x) dx = sum(w * f(x))
+void gauss_hermite_normal(double* x, double* w, double mu, double sigma, long n)
+{
+	long i;
+	double sqrt2 = sqrt(2.0);
+	double sqrtPI = sqrt(PI);
+	gauss_hermite(x, w, n);
+	for (i = 0; i < n; i++)
+	{
+		x[i] = (x[i] * sqrt2) * sigma + mu;
+		w[i] = (w[i] / sqrtPI);
+	}
+}
