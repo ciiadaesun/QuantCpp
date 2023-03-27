@@ -719,17 +719,17 @@ double PayoffLeg(
 	if (ParticipateRate > 0)
 	{
 		cpnrate = (double)NAFlag * Notional + Notional * (ParticipateRate * Rate + FixedCPNRate) * DeltaT;
-		if (Rate >= RangeUp && Rate <= RangeDn) cpnrate += Notional * ParticipateRate * RangeCpn * DeltaT;
+		if (Rate <= RangeUp && Rate >= RangeDn) cpnrate += Notional * ParticipateRate * RangeCpn * DeltaT;
 	}
 	else if (ParticipateRate < 0)
 	{
 		cpnrate = (double)NAFlag * -Notional + Notional * (ParticipateRate * Rate - FixedCPNRate) * DeltaT;
-		if (Rate >= RangeUp && Rate <= RangeDn) cpnrate += Notional * ParticipateRate * RangeCpn * DeltaT;
+		if (Rate <= RangeUp && Rate >= RangeDn) cpnrate += Notional * ParticipateRate * RangeCpn * DeltaT;
 	}
 	else
 	{
 		cpnrate = (double)NAFlag * Notional + Notional * FixedCPNRate * DeltaT;
-		if (Rate >= RangeUp && Rate <= RangeDn) cpnrate += Notional * ParticipateRate * RangeCpn * DeltaT;
+		if (Rate <= RangeUp && Rate >= RangeDn) cpnrate += Notional * ParticipateRate * RangeCpn * DeltaT;
 	}
 	return cpnrate;
 }
@@ -850,6 +850,10 @@ void Test(
 	}
 	else if (RefType_Domestic->RefRateType == 2) ndates_domestic = 1;
 	else ndates_domestic = 1;
+
+	//////////////////////////////////////////
+	// Hull White 관련 Parameter 사전 세팅
+	//////////////////////////////////////////
 
 	domestic_DF_t_T = (double**)malloc(sizeof(double*) * NDays);
 	domestic_B_t_T = (double**)malloc(sizeof(double*) * NDays);
@@ -1719,6 +1723,7 @@ DLLEXPORT(long) IRStructuedSwapFDM(
 	long DualRangeFlag,
 	long NotionalFlag,
 
+	long GreekFlag,
 	double* resultarray1,
 	double* resultarray2
 )
@@ -1806,7 +1811,7 @@ DLLEXPORT(long) IRStructuedSwapFDM(
 		CpnPayDateDomestic[i] = DayCountAtoB(PricingDate, PayDateDomesticYYYYMMDD[i]);
 		CpnPayDateForeign[i] = DayCountAtoB(PricingDate, PayDateForeignYYYYMMDD[i]);
 	}
-	if (ResetDate[0] < 0) LastCpnDatetoToday = ResetDate[i];
+	if (ResetDate[0] < 0) LastCpnDatetoToday = ResetDate[0];
 
 	long* CancelDate = (long*)malloc(sizeof(long) * NCancel);
 	for (i = 0; i < NCancel; i++) CancelDate[i] = DayCountAtoB(PricingDate, CancelDateYYYYMMDD[i]);
@@ -1903,13 +1908,107 @@ DLLEXPORT(long) IRStructuedSwapFDM(
 	RefType_Foreign->NCPN_Ann = Foreign_NCPN_Ann;
 	RefType_Foreign->Maturity = Foreign_Maturity;
 	RefType_Foreign->RefRateType = Foreign_RateType;
-
+	
 	if (n == Foreign_Cpn_Schd->NCpn) // 스케줄 정상인경우 가격계산
 	{
 		Test(NodeNum, NotionalFlag, RefType_Domestic, RefType_Foreign,
 			ZeroDomestic, ZeroForeign, hw_d, hw_f, rho12,
 			rho23, FXVol_INFO, DailyFDMFlag,
 			LastCpnDatetoToday, Domestic_Cpn_Schd, Foreign_Cpn_Schd, DualRangeFlag, option_schd, resultarray1);
+		
+		if (GreekFlag >= 1)
+		{
+			double* CurveUp = (double*)malloc(sizeof(double) * (NZero_domestic + NZero_foreign));
+			double* PV01_Domestic = (double*)malloc(sizeof(double) * NZero_domestic);
+			double* PV01_Foreign = (double*)malloc(sizeof(double) * NZero_foreign);
+
+			double PV01_Curve_Domestic;
+			double PV01_Curve_Foreign;
+			double P = resultarray1[2];
+			long n_fdmhalf = NodeNum / 2;
+			long dailyfdmflag2 = 0;
+			if (GreekFlag > 1)
+			{
+				for (i = 0; i < NZero_domestic; i++)
+				{
+					for (j = 0; j < NZero_domestic; j++)
+					{
+						if (i == j) CurveUp[j] = ZeroRate_domestic[j] + 0.0001;
+						else CurveUp[j] = ZeroRate_domestic[j];
+					}
+
+					ZeroDomestic->RateArray = CurveUp;
+
+					Test(n_fdmhalf, NotionalFlag, RefType_Domestic, RefType_Foreign,
+						ZeroDomestic, ZeroForeign, hw_d, hw_f, rho12,
+						rho23, FXVol_INFO, dailyfdmflag2,
+						LastCpnDatetoToday, Domestic_Cpn_Schd, Foreign_Cpn_Schd, DualRangeFlag, option_schd, resultarray2);
+
+					PV01_Domestic[i] = (resultarray2[2] - P) ;
+
+					// 원상복귀
+					ZeroDomestic->RateArray = ZeroRate_domestic;
+				}
+
+				for (i = 0; i < NZero_foreign; i++)
+				{
+					for (j = 0; j < NZero_foreign; j++)
+					{
+						if (i == j) CurveUp[j] = ZeroRate_foreign[j] + 0.0001;
+						else CurveUp[j] = ZeroRate_foreign[j];
+					}
+
+					ZeroForeign->RateArray = CurveUp;
+
+					Test(n_fdmhalf, NotionalFlag, RefType_Domestic, RefType_Foreign,
+						ZeroDomestic, ZeroForeign, hw_d, hw_f, rho12,
+						rho23, FXVol_INFO, dailyfdmflag2,
+						LastCpnDatetoToday, Domestic_Cpn_Schd, Foreign_Cpn_Schd, DualRangeFlag, option_schd, resultarray2);
+
+					PV01_Foreign[i] = (resultarray2[2] - P) ;
+
+					// 원상복귀
+					ZeroForeign->RateArray = ZeroRate_foreign;
+				}
+			}
+
+			// 커브 전체
+			for (j = 0; j < NZero_domestic; j++) CurveUp[j] = ZeroRate_domestic[j] + 0.0001;
+
+			ZeroDomestic->RateArray = CurveUp;
+			Test(n_fdmhalf, NotionalFlag, RefType_Domestic, RefType_Foreign,
+				ZeroDomestic, ZeroForeign, hw_d, hw_f, rho12,
+				rho23, FXVol_INFO, dailyfdmflag2,
+				LastCpnDatetoToday, Domestic_Cpn_Schd, Foreign_Cpn_Schd, DualRangeFlag, option_schd, resultarray2);
+
+			PV01_Curve_Domestic = (resultarray2[2] - P) ;
+			ZeroDomestic->RateArray = ZeroRate_domestic;
+
+			// 커브 전체
+			for (j = 0; j < NZero_foreign; j++) CurveUp[j] = ZeroRate_foreign[j] + 0.0001;
+
+			ZeroForeign->RateArray = CurveUp;
+			Test(n_fdmhalf, NotionalFlag, RefType_Domestic, RefType_Foreign,
+				ZeroDomestic, ZeroForeign, hw_d, hw_f, rho12,
+				rho23, FXVol_INFO, dailyfdmflag2,
+				LastCpnDatetoToday, Domestic_Cpn_Schd, Foreign_Cpn_Schd, DualRangeFlag, option_schd, resultarray2);
+
+			PV01_Curve_Foreign = (resultarray2[2] - P);
+			ZeroForeign->RateArray = ZeroRate_foreign;
+
+			// 저장
+			resultarray2[0] = PV01_Curve_Domestic;
+			resultarray2[1] = PV01_Curve_Foreign;
+			if (GreekFlag > 1)
+			{
+				for (i = 0; i < NZero_domestic; i++) resultarray2[2 + i] = PV01_Domestic[i];
+				for (i = 0; i < NZero_foreign; i++) resultarray2[2 + i + NZero_domestic] = PV01_Foreign[i];
+			}
+
+			free(PV01_Domestic);
+			free(PV01_Foreign);
+			free(CurveUp);
+		}
 	}
 
 	free(ResetDate);
@@ -1917,7 +2016,7 @@ DLLEXPORT(long) IRStructuedSwapFDM(
 	free(CpnPayDateDomestic);
 	free(CpnPayDateForeign);
 	free(CancelDate);
-
+	
 	delete Domestic_Cpn_Schd;
 	delete Foreign_Cpn_Schd;
 	delete option_schd;

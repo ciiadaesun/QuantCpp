@@ -29,9 +29,52 @@
 #endif
 #endif
 
+#define LONG_MAX      2147483647L
+#define LDBL_MAX 1.7976931348623158e+308
+#define DBL_MAX 1.7976931348623158e+308
+#define ln_LDBL_MAX 1.13565234062941435e+4L
+#define LDBL_EPSILON 2.2204460492503131e-016
+#define max_double_arg 171.0
+#define max_long_double_arg 1755.5L
+#define exp_g_o_sqrt_2pi +6.23316569877722552586386e+3L
+#define EXPONANTIAL 2.71828182845904523536028747L
+#define G_CONST 9.65657815377331589457187L
+#ifndef PI
+#define PI 3.141592653589793238462643383279
+#endif
+#define log_sqrt_2pi 9.18938533204672741780329736e-1L
+
 
 long GetMinor(double** src, double** dest, long row, long col, long order);
 double CalcDeterminant(double** mat, long order, double*** MinorMatrixList);
+long double xBeta_Function(long double a, long double b);
+static long double Duplication_Formula(long double two_x);
+long double xGamma_Function(long double x);
+double Student_t_Distribution(double x, int n);
+
+static long double const a_list[] = {
++1.14400529453851095667309e+4L,
+-3.23988020152318335053598e+4L,
++3.50514523505571666566083e+4L,
+-1.81641309541260702610647e+4L,
++4.63232990536666818409138e+3L,
+-5.36976777703356780555748e+2L,
++2.28754473395181007645155e+1L,
+-2.17925748738865115560082e-1L,
++1.08314836272589368860689e-4L
+};
+
+static const long double B_list[] = { 1.0L / (long double)(6 * 2 * 1),
+-1.0L / (long double)(30 * 4 * 3),
+1.0L / (long double)(42 * 6 * 5),
+-1.0L / (long double)(30 * 8 * 7),
+5.0L / (long double)(66 * 10 * 9),
+-691.0L / (long double)(2730 * 12 * 11),
+7.0L / (long double)(6 * 14 * 13),
+-3617.0L / (long double)(510 * 16 * 15),
+43867.0L / (long double)(796 * 18 * 17),
+-174611.0L / (long double)(330 * 20 * 19)
+};
 
 /////////////////////////////////////////////////
 // Numerical Recipy Random Number Generator
@@ -2700,6 +2743,7 @@ public:
 	double Kurt;					// Kurt
 	double JB;						// Jarq Bera Test Statistic
 	double centered_tss;			// TSS
+	double* p;
 
 	// variables informationi
 	// X -> independent Variable **Matrix (ndata , num_variables)
@@ -2761,6 +2805,12 @@ public:
 		Kurt = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 1];
 		JB = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 2];
 		centered_tss = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 3];
+
+		p = (double*)malloc(sizeof(double) * n);
+		for (i = 0; i < n; i++)
+		{
+			p[i] = (1.0 - Student_t_Distribution(fabs(t_value[i]), Df_res)) * 2.0;
+		}
 	}
 
 
@@ -2827,6 +2877,12 @@ public:
 		JB = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 2];
 		centered_tss = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 3];
 
+		p = (double*)malloc(sizeof(double) * n);
+		for (i = 0; i < n; i++)
+		{
+			p[i] = (1.0 - Student_t_Distribution(fabs(t_value[i]), Df_res)) * 2.0;
+		}
+
 		for (i = 0; i < ndata; i++) free(X_2d[i]);
 		free(X_2d);
 	}
@@ -2839,6 +2895,7 @@ public:
 		free(cov_HC2);
 		free(cov_HC3);
 		free(Eigenvector);
+		free(p);
 	}
 
 	// Python의 sm.OLS(y,x).fit().summary()와 비슷한 포멧
@@ -2852,8 +2909,8 @@ public:
 		printf("No_Obs: \t\t %d\t AIC:\t %0.5lf \n", nobs, AIC);
 		printf("Df_Residuals: \t\t %d\t BIC:\t %0.5lf\n", Df_res, BIC);
 		printf("Df_Model: \t\t %d\n\n", Df_model);
-		printf("\t\t coef \t\t stderr \t\t tvalue\n");
-		double n1, n2, n3;
+		printf("\t\t coef \t\t stderr \t\t tvalue \t\t prob \n");
+		double n1, n2, n3, n4;
 		for (long i = 0; i < n; i++)
 		{
 			n1 = beta[i];
@@ -2863,6 +2920,7 @@ public:
 			if (n1 < 0.) printf("\t %0.5lf", n2);
 			else printf("\t\t %0.5lf", n2);
 			printf("\t\t % 0.5lf \n", n3);
+			printf("\t\t % 0.5lf \n", n4);
 		}
 		printf("\nDurbin_Watson: \t %0.5lf\t Jarque_Bera:\t %0.5lf\n", durbin_watson, JB);
 		printf("Skew: \t\t %0.5lf\t Kurtosis:\t %0.5lf \n", Skew, Kurt);
@@ -3379,6 +3437,7 @@ public:
 	double BIC;
 	double** x;
 	double ResultArray[10];
+	double* p;
 	long converge;
 
 	LOGIT(double** x_before_const, long* y, long nvariables, long num_data, double* beta_0, double alpha_0 = 0.001, long method = 2)
@@ -3405,7 +3464,7 @@ public:
 		tvalue = (double*)malloc(sizeof(double) * nbeta);
 
 		for (i = 0; i < nbeta; i++) beta[i] = ResultArray[i];
-		LL = - ResultArray[nbeta];
+		LL = -ResultArray[nbeta];
 		converge = (long)(ResultArray[nbeta + 1] + 0.0001);
 
 		double** ErrInvHess = Error_Inv_Hessian(x, y, beta, ndata, nbeta);
@@ -3419,6 +3478,12 @@ public:
 		AIC = -2.0 * LL + (double)(2 * nbeta);
 		BIC = -2.0 * LL + ((double)nbeta) * log((double)ndata);
 
+		p = (double*)malloc(sizeof(double) * nbeta);
+		for (i = 0; i < nbeta; i++)
+		{
+			p[i] = (1.0 - Student_t_Distribution(fabs(tvalue[i]), ndata - nbeta)) * 2.0;
+		}
+
 		for (i = 0; i < nbeta; i++) free(ErrInvHess[i]);
 		free(ErrInvHess);
 	}
@@ -3431,12 +3496,257 @@ public:
 		free(beta);
 		free(std_beta);
 		free(tvalue);
+		free(p);
 	}
 };
 
+static long double Beta_Continued_Fraction(long double x, long double a,
+	long double b)
+{
+	long double Am1 = 1.0L;
+	long double A0 = 0.0L;
+	long double Bm1 = 0.0L;
+	long double B0 = 1.0L;
+	long double e = 1.0L;
+	long double Ap1 = A0 + e * Am1;
+	long double Bp1 = B0 + e * Bm1;
+	long double f_less = Ap1 / Bp1;
+	long double f_greater = 0.0L;
+	long double aj = a;
+	long double am = a;
+	static long double eps = 10.0L * LDBL_EPSILON;
+	int j = 0;
+	int m = 0;
+	int k = 1;
+
+	if (x == 0.0L) return 0.0L;
+
+	while ((2.0L * fabsl(f_greater - f_less) > eps * fabsl(f_greater + f_less))) {
+		Am1 = A0;
+		A0 = Ap1;
+		Bm1 = B0;
+		B0 = Bp1;
+		am = a + m;
+		e = -am * (am + b) * x / ((aj + 1.0L) * aj);
+		Ap1 = A0 + e * Am1;
+		Bp1 = B0 + e * Bm1;
+		k = (k + 1) & 3;
+		if (k == 1) f_less = Ap1 / Bp1;
+		else if (k == 3) f_greater = Ap1 / Bp1;
+		if (fabsl(Bp1) > 1.0L) {
+			Am1 = A0 / Bp1;
+			A0 = Ap1 / Bp1;
+			Bm1 = B0 / Bp1;
+			B0 = 1.0;
+		}
+		else {
+			Am1 = A0;
+			A0 = Ap1;
+			Bm1 = B0;
+			B0 = Bp1;
+		}
+		m++;
+		j += 2;
+		aj = a + j;
+		e = m * (b - m) * x / ((aj - 1.0L) * aj);
+		Ap1 = A0 + e * Am1;
+		Bp1 = B0 + e * Bm1;
+		k = (k + 1) & 3;
+		if (k == 1) f_less = Ap1 / Bp1;
+		else if (k == 3) f_greater = Ap1 / Bp1;
+	}
+	return expl(a * logl(x) + b * logl(1.0L - x) + logl(Ap1 / Bp1)) /
+		(a * xBeta_Function(a, b));
+}
+
+static long double xBeta_Distribution(double xx, double aa, double bb)
+{
+	long double x = (long double)xx;
+	long double a = (long double)aa;
+	long double b = (long double)bb;
+
+	/* Both shape parameters are strictly greater than 1. */
+
+	if (aa > 1.0 && bb > 1.0)
+		if (x <= (a - 1.0L) / (a + b - 2.0L))
+			return Beta_Continued_Fraction(x, a, b);
+		else
+			return 1.0L - Beta_Continued_Fraction(1.0L - x, b, a);
+
+	/* Both shape parameters are strictly less than 1. */
+
+	if (aa < 1.0 && bb < 1.0)
+		return (a * xBeta_Distribution(xx, aa + 1.0, bb)
+			+ b * xBeta_Distribution(xx, aa, bb + 1.0)) / (a + b);
+
+	/* One of the shape parameters exactly equals 1. */
+
+	if (aa == 1.0)
+		return 1.0L - powl(1.0L - x, b) / (b * xBeta_Function(a, b));
+
+	if (bb == 1.0) return powl(x, a) / (a * xBeta_Function(a, b));
+
+	/* Exactly one of the shape parameters is strictly less than 1. */
+
+	if (aa < 1.0)
+		return xBeta_Distribution(xx, aa + 1.0, bb)
+		+ powl(x, a) * powl(1.0L - x, b) / (a * xBeta_Function(a, b));
+
+	/* The remaining condition is b < 1.0 */
+
+	return xBeta_Distribution(xx, aa, bb + 1.0)
+		- powl(x, a) * powl(1.0L - x, b) / (b * xBeta_Function(a, b));
+}
+
+double Beta_Distribution(double x, double a, double b)
+{
+
+	if (x <= 0.0) return 0.0;
+	if (x >= 1.0) return 1.0;
+
+	return (double)xBeta_Distribution(x, a, b);
+}
+
+double Gamma_Function_Max_Arg(void) { return max_double_arg; }
+
+static long double Duplication_Formula(long double two_x)
+{
+	long double x = 0.5L * two_x;
+	long double g;
+	double two_n = 1.0;
+	int n = (int)two_x - 1;
+
+	g = powl(2.0L, two_x - 1.0L - (long double)n);
+	g = ldexpl(g, n);
+	g /= sqrt(PI);
+	g *= xGamma_Function(x);
+	g *= xGamma_Function(x + 0.5L);
+
+	return g;
+}
+
+static long double xGamma(long double x)
+{
+
+	long double xx = (x < 1.0L) ? x + 1.0L : x;
+	long double temp;
+	int const n = sizeof(a_list) / sizeof(long double);
+	int i;
+
+	if (x > 1755.5L) return LDBL_MAX;
+
+	if (x > 900.0L) return Duplication_Formula(x);
+
+	temp = 0.0L;
+	for (i = n - 1; i >= 0; i--) {
+		temp += (a_list[i] / (xx + (long double)i));
+	}
+	temp += 1.0L;
+	temp *= (powl((G_CONST + xx - 0.5L) / EXPONANTIAL, xx - 0.5L) / exp_g_o_sqrt_2pi);
+	return (x < 1.0L) ? temp / x : temp;
+}
+
+long double xGamma_Function(long double x)
+{
+	long double sin_x;
+	long double rg;
+	long int ix;
+
+	// For a positive argument (x > 0) //
+	// if x <= max_long_double_arg return Gamma(x) //
+	// otherwise return LDBL_MAX. //
+
+	if (x > 0.0L)
+		if (x <= max_long_double_arg) return xGamma(x);
+		else return LDBL_MAX;
+
+	// For a nonpositive argument (x <= 0) //
+	// if x is a pole return LDBL_MAX //
+
+	if (x > -(long double)LONG_MAX) {
+		ix = (long int)x;
+		if (x == (long double)ix) return LDBL_MAX;
+	}
+	sin_x = sinl(PI * x);
+	if (sin_x == 0.0L) return LDBL_MAX;
+
+	// if x is not a pole and x < -(max_long_double_arg - 1) //
+	// then return 0.0L //
+
+	if (x < -(max_long_double_arg - 1.0L)) return 0.0L;
+
+	// if x is not a pole and x >= -(max_long_double - 1) //
+	// then return Gamma(x) //
+
+	rg = xGamma(1.0L - x) * sin_x / PI;
+	if (rg != 0.0L) return (1.0L / rg);
+	return LDBL_MAX;
+}
+
+static long double xLnGamma_Asymptotic_Expansion(long double x) {
+	const int m = 3;
+	long double term[3];
+	long double sum = 0.0L;
+	long double xx = x * x;
+	long double xj = x;
+	long double lngamma = log_sqrt_2pi - xj + (xj - 0.5L) * logl(xj);
+	int i;
+
+	for (i = 0; i < m; i++) { term[i] = B_list[i] / xj; xj *= xx; }
+	for (i = m - 1; i >= 0; i--) sum += term[i];
+	return lngamma + sum;
+}
+
+long double xLn_Gamma_Function(long double x)
+{
+
+	// For a positive argument, 0 < x <= Gamma_Function_Max_Arg() //
+	// then return log Gamma(x). //
+
+	if (x <= Gamma_Function_Max_Arg()) return logl(xGamma_Function(x));
+
+	// otherwise return result from asymptotic expansion of ln Gamma(x). //
+
+	return xLnGamma_Asymptotic_Expansion(x);
+}
+
+long double xBeta_Function(long double a, long double b)
+{
+	long double lnbeta;
+
+	// If (a + b) <= Gamma_Function_Max_Arg() then simply return //
+	// gamma(a)*gamma(b) / gamma(a+b). //
+
+	if ((a + b) <= Gamma_Function_Max_Arg())
+		return xGamma_Function(a) / (xGamma_Function(a + b) / xGamma_Function(b));
+
+	// If (a + b) > Gamma_Function_Max_Arg() then simply return //
+	// exp(lngamma(a) + lngamma(b) - lngamma(a+b) ). //
+
+	lnbeta = xLn_Gamma_Function(a) + xLn_Gamma_Function(b)
+		- xLn_Gamma_Function(a + b);
+	return (lnbeta > ln_LDBL_MAX) ? (long double)LDBL_MAX : expl(lnbeta);
+}
+
+double Beta_Function(double a, double b)
+{
+	long double beta = xBeta_Function((long double)a, (long double)b);
+	return (beta < DBL_MAX) ? (double)beta : DBL_MAX;
+}
+
+double Student_t_Distribution(double x, int n)
+{
+	double a = (double)n / 2.0;
+	double beta = Beta_Distribution(1.0 / (1.0 + x * x / n), a, 0.5);
+
+	if (x > 0.0) return 1.0 - 0.5 * beta;
+	else if (x < 0.0) return 0.5 * beta;
+	return 0.5;
+}
+
 // Gauss Hermite 적분 계산에 사용될 x지점과 weight를 계산
 // integral_-inf to inf exp(-x^2) f(x) dx = sum(w * f(x))
-void gauss_hermite(double *x, double *w, long n) 
+void gauss_hermite(double* x, double* w, long n)
 {
 	long i, j, its, m;
 	double p1, p2, p3, pp, z, z1;
@@ -3479,9 +3789,147 @@ void gauss_hermite(double *x, double *w, long n)
 void gauss_hermite_normal(double* x, double* w, double mu, double sigma, long n)
 {
 	long i;
-	double sqrt2 = sqrt(2.0);
-	double sqrtPI = sqrt(PI);
-	gauss_hermite(x, w, n);
+	double sqrt2 = 1.4142135623730951;//sqrt(2.0);
+	double sqrtPI = 1.772453809055159;//sqrt(PI);
+	if (n == 10)
+	{
+		x[0] = 3.4361591188377378;
+		x[1] = 2.5327316742327897;
+		x[2] = 1.7566836492998819;
+		x[3] = 1.0366108297895136;
+		x[4] = 0.34290132722370459;
+		x[5] = -0.34290132722370459;
+		x[6] = -1.0366108297895136;
+		x[7] = -1.7566836492998819;
+		x[8] = -2.5327316742327897;
+		x[9] = -3.4361591188377378;
+
+		w[0] = 7.6404328552326461e-06;
+		w[1] = 0.0013436457467812333;
+		w[2] = 0.033874394455481044;
+		w[3] = 0.24013861108231341;
+		w[4] = 0.61086263373532512;
+		w[5] = 0.61086263373532512;
+		w[6] = 0.24013861108231341;
+		w[7] = 0.033874394455481044;
+		w[8] = 0.0013436457467812333;
+		w[9] = 7.6404328552326461e-06;
+
+	}
+	else if (n == 13)
+	{
+		x[0] = 4.1013375961786398;
+		x[1] = 3.2466089783724099;
+		x[2] = 2.5197356856782380;
+		x[3] = 1.8531076516015121;
+		x[4] = 1.2200550365907485;
+		x[5] = 0.60576387917106012;
+		x[6] = -0.0000000000000000;
+		x[7] = -0.60576387917106012;
+		x[8] = -1.2200550365907485;
+		x[9] = -1.8531076516015121;
+		x[10] = -2.5197356856782380;
+		x[11] = -3.2466089783724099;
+		x[12] = -4.1013375961786398;
+
+		w[0] = 4.8257318500731258e-08;
+		w[1] = 2.0430360402707067e-05;
+		w[2] = 0.0012074599927192004;
+		w[3] = 0.020862775296169925;
+		w[4] = 0.14032332068702350;
+		w[5] = 0.42161629689854202;
+		w[6] = 0.60439318792116170;
+		w[7] = 0.42161629689854202;
+		w[8] = 0.14032332068702350;
+		w[9] = 0.020862775296169925;
+		w[10] = 0.0012074599927192004;
+		w[11] = 2.0430360402707067e-05;
+		w[12] = 4.8257318500731258e-08;
+	}
+	else if (n == 15)
+	{
+		x[0] = 4.4999907073093910;
+		x[1] = 3.6699503734044527;
+		x[2] = 2.9671669279056032;
+		x[3] = 2.3257324861738575;
+		x[4] = 1.7199925751864888;
+		x[5] = 1.1361155852109208;
+		x[6] = 0.56506958325557577;
+		x[7] = 1.2325951644078309e-32;
+		x[8] = -0.56506958325557577;
+		x[9] = -1.1361155852109208;
+		x[10] = -1.7199925751864888;
+		x[11] = -2.3257324861738575;
+		x[12] = -2.9671669279056032;
+		x[13] = -3.6699503734044527;
+		x[14] = -4.4999907073093910;
+
+		w[0] = 1.5224758042535009e-09;
+		w[1] = 1.0591155477110650e-06;
+		w[2] = 0.00010000444123249984;
+		w[3] = 0.0027780688429127772;
+		w[4] = 0.030780033872546100;
+		w[5] = 0.15848891579593580;
+		w[6] = 0.41202868749889859;
+		w[7] = 0.56410030872641737;
+		w[8] = 0.41202868749889859;
+		w[9] = 0.15848891579593580;
+		w[10] = 0.030780033872546100;
+		w[11] = 0.0027780688429127772;
+		w[12] = 0.00010000444123249984;
+		w[13] = 1.0591155477110650e-06;
+		w[14] = 1.5224758042535009e-09;
+
+	}
+	else if (n == 20)
+	{
+		x[0] = 5.3874808900112328;
+		x[1] = 4.6036824495507442;
+		x[2] = 3.9447640401156252;
+		x[3] = 3.3478545673832163;
+		x[4] = 2.7888060584281305;
+		x[5] = 2.2549740020892757;
+		x[6] = 1.7385377121165861;
+		x[7] = 1.2340762153953231;
+		x[8] = 0.73747372854539428;
+		x[9] = 0.24534070830090124;
+		x[10] = -0.24534070830090124;
+		x[11] = -0.73747372854539428;
+		x[12] = -1.2340762153953231;
+		x[13] = -1.7385377121165861;
+		x[14] = -2.2549740020892757;
+		x[15] = -2.7888060584281305;
+		x[16] = -3.3478545673832163;
+		x[17] = -3.9447640401156252;
+		x[18] = -4.6036824495507442;
+		x[19] = -5.3874808900112328;
+
+		w[0] = 2.2293936455341523e-13;
+		w[1] = 4.3993409922731799e-10;
+		w[2] = 1.0860693707692815e-07;
+		w[3] = 7.8025564785320666e-06;
+		w[4] = 0.00022833863601635264;
+		w[5] = 0.0032437733422378528;
+		w[6] = 0.024810520887463626;
+		w[7] = 0.10901720602002152;
+		w[8] = 0.28667550536283404;
+		w[9] = 0.46224366960061009;
+		w[10] = 0.46224366960061009;
+		w[11] = 0.28667550536283404;
+		w[12] = 0.10901720602002152;
+		w[13] = 0.024810520887463626;
+		w[14] = 0.0032437733422378528;
+		w[15] = 0.00022833863601635264;
+		w[16] = 7.8025564785320666e-06;
+		w[17] = 1.0860693707692815e-07;
+		w[18] = 4.3993409922731799e-10;
+		w[19] = 2.2293936455341523e-13;
+	}
+	else
+	{
+		gauss_hermite(x, w, n);
+	}
+
 	for (i = 0; i < n; i++)
 	{
 		x[i] = (x[i] * sqrt2) * sigma + mu;

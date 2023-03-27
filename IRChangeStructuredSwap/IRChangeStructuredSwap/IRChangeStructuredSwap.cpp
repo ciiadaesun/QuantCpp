@@ -2088,6 +2088,7 @@ long Simulate_HW(
     double xt_termlsmc[2] = { 0.0,0.0 };
     double xt_lsmc[2] = { 0.0,0.0 };
     double xt_interp;
+    double NotionalValue[2] = { 0.0, 0.0 };
     for (i = 0; i < Simul->NSimul; i++)
     {
         PricePath_Rcv = 0.0;
@@ -2327,16 +2328,20 @@ long Simulate_HW(
                     {
                         Y[n][i] += PtT * RcvPayoff[j];
                     }
+
+                    if (j == RcvLeg->NCashFlow - 1 && NAFlag == 1)
+                    {                        
+                        Y[n][i] += PtT * Notional;
+                    }
                 }
 
-                if (j == RcvLeg->NCashFlow - 1 && NAFlag == 1)
-                {
-                    for (n = 0; n < RcvLeg->NOption; n++) Y[n][i] += PtT * Notional;
-                }
             }
+
+            if (j == RcvLeg->NCashFlow - 1) NotionalValue[0] += Pt * PtT * Notional / (double)Simul->NSimul;
         }
 
         RcvPrice += PricePath_Rcv / (double)Simul->NSimul;
+     
 
         if (RcvLeg->OptionUseFlag == 1)
         {
@@ -2580,14 +2585,15 @@ long Simulate_HW(
                     {
                         Y[n][i] -= PtT * PayPayoff[j];
                     }
-                }
 
-                if (j == PayLeg->NCashFlow - 1 && NAFlag == 1)
-                {
-                    for (n = 0; n < PayLeg->NOption; n++) Y[n][i] -= PtT * Notional;
+                    if (j == PayLeg->NCashFlow - 1 && NAFlag == 1)
+                    {
+                        Y[n][i] -= PtT * Notional;
+                    }
                 }
             }
 
+            if (j == PayLeg->NCashFlow - 1) NotionalValue[1] += Pt * PtT * Notional / (double)Simul->NSimul;
         }
 
         PayPrice += PricePath_Pay / (double)Simul->NSimul;
@@ -2690,8 +2696,8 @@ long Simulate_HW(
 
     if (PricingOnly == 1)
     {
-        ResultPrice[0] = RcvPrice;
-        ResultPrice[1] = PayPrice;
+        ResultPrice[0] = RcvPrice + NotionalValue[0];
+        ResultPrice[1] = PayPrice + NotionalValue[1];
         ResultPrice[2] = RcvPrice - PayPrice;
         if (RcvLeg->OptionUseFlag == 1)
         {

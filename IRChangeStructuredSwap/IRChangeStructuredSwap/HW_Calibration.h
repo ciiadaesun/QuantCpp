@@ -3121,7 +3121,7 @@ double Find_Sol(
     long nDates
 )
 {
-    double tol = 1.0e-6;
+    double tol = 1.0e-5;
     double low, high, mid;
     double low_value, high_value, mid_value;
 
@@ -3425,14 +3425,14 @@ double _stdcall Swaption2F(
     double* termC,          
     long nDates,			// 지급 회수(계산일 이후 남은 회수)
     double* PT,
-    double P0_at_OptMaturity
+    double P0_at_OptMaturity,
+    long nQuad,                 //Gauss Normal Quadrature 개수
+    double* x,                  //Gauss Normal Quadrature의 x값
+    double* w                   //Gauss Normal Quadrature의 y값 비율
 )
 {
     long i, j;
     double sum, value = 0.0;
-    const long nQuad = 13;
-    double x[nQuad] = { 0.0, };
-    double w[nQuad] = { 0.0, }; 
     double T;
     double h1, h2, kappa_i, y;
     double m_x, sigma_x, m_y, sigma_y, rho_xy;
@@ -3460,8 +3460,8 @@ double _stdcall Swaption2F(
 
     rho_xy = max(-0.9999,min(0.9999,rho_xy));
 
-    NormExp(x, w, nQuad, m_x, sigma_x);
-
+    //NormExp(x, w, nQuad, m_x, sigma_x);
+    gauss_hermite_normal(x, w, m_x, sigma_x, nQuad);
     for (i = 0; i < nQuad; i++) {
         for (j = 0; j < nDates; j++) {
             if (j == 0) 
@@ -3624,7 +3624,10 @@ void make_Jacov_HWSwaption_2F(
     double FixedKappa,
     double FixedKappa2,
     double rho,
-    double* HWVol12_TempArray
+    double* HWVol12_TempArray,
+    long nQuad,
+    double* x_array,
+    double* w_array
 )
 {
     long i;
@@ -3661,7 +3664,6 @@ void make_Jacov_HWSwaption_2F(
 
     for (i = 0; i < NResidual; i++)
     {
-        T = (double)dates[i][nDates[i] - 1] / 365.0;
         for (j = 0; j < NParams; j++)
         {
             breakflag = 0;
@@ -3686,13 +3688,6 @@ void make_Jacov_HWSwaption_2F(
                     ParamsUp[j] = Params[j] + dhwvol_up;
                     ParamsDn[j] = max(0.0001, Params[j] - dhwvol_up);
                     dParams = (ParamsUp[j] - ParamsDn[j]) * 0.5;
-                    HWT = HWVolTerm[j];
-                    if (HWT > T + 0.5)
-                    {
-                        TempJacovMatrix[i][j] = 0.0;
-                        breakflag = 1;
-                    }
-
                 }
 
                 kappa_up = ParamsUp[0];
@@ -3720,46 +3715,29 @@ void make_Jacov_HWSwaption_2F(
                 HWVol_dn = ParamsDn;
                 HWVol_up2 = ParamsUp + NHWVol;
                 HWVol_dn2 = ParamsDn + NHWVol;
-
-                HWT = HWVolTerm[j];
-                if (HWT > T + 0.5)
-                {
-                    breakflag = 1;
-                }
             }            
 
-            if (breakflag == 2)
+            if (OptMaturityDates[i] > 0)
             {
-                TempJacovMatrix[i][j] = 0.0;
+                for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol_up[n] * HWVol_up2[n]));
+                Pup = Swaption2F(1.0, kappa_up, kappa_up2, HWVolTerm, HWVol_up, HWVol_up2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], OptMaturityDates[i], dates[i], termdates[i], TempC[i], nDates[i], PT[i], P0_at_OptMaturity[i], nQuad, x_array, w_array);
+
+                for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol_dn[n] * HWVol_dn2[n]));
+                Pdn = Swaption2F(1.0, kappa_dn, kappa_dn2, HWVolTerm, HWVol_dn, HWVol_dn2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], OptMaturityDates[i], dates[i], termdates[i], TempC[i], nDates[i], PT[i], P0_at_OptMaturity[i], nQuad, x_array, w_array);
+
+                //TempJacovMatrix[i][j] = (ErrorUp - ErrorDn) / (2.0 * dParams);
+                TempJacovMatrix[i][j] = (Pdn - Pup) / (2.0 * dParams);
             }
             else
             {
-                if (OptMaturityDates[i] > 0)
-                {
-                    for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol_up[n] * HWVol_up2[n]));
-                    Pup = Swaption2F(1.0, kappa_up, kappa_up2, HWVolTerm, HWVol_up, HWVol_up2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], OptMaturityDates[i], dates[i], termdates[i], TempC[i], nDates[i], PT[i], P0_at_OptMaturity[i]);
-                    //ErrorUp = BSSwaptionPrice[i] - Pup;
+                for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol_up[n] * HWVol_up2[n]));
+                Pup = Cap2F(1.0, kappa_up, kappa_up2, HWVolTerm, HWVol_up, HWVol_up2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], dates[i], nDates[i], PT[i]);
 
-                    for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol_dn[n] * HWVol_dn2[n]));
-                    Pdn = Swaption2F(1.0, kappa_dn, kappa_dn2, HWVolTerm, HWVol_dn, HWVol_dn2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], OptMaturityDates[i], dates[i], termdates[i], TempC[i], nDates[i], PT[i], P0_at_OptMaturity[i]);
-                    //ErrorDn = BSSwaptionPrice[i] - Pdn;
+                for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol_dn[n] * HWVol_dn2[n]));
+                Pdn = Cap2F(1.0, kappa_dn, kappa_dn2, HWVolTerm, HWVol_dn, HWVol_dn2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], dates[i], nDates[i], PT[i]);
 
-                    //TempJacovMatrix[i][j] = (ErrorUp - ErrorDn) / (2.0 * dParams);
-                    TempJacovMatrix[i][j] = (Pdn - Pup)/(2.0 * dParams);
-                }
-                else
-                {
-                    for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol_up[n] * HWVol_up2[n]));
-                    Pup = Cap2F(1.0, kappa_up, kappa_up2, HWVolTerm, HWVol_up, HWVol_up2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], dates[i], nDates[i], PT[i]);
-                    ErrorUp = BSSwaptionPrice[i] - Pup;
+                TempJacovMatrix[i][j] = (Pdn - Pup) / (2.0 * dParams);
 
-                    for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol_dn[n] * HWVol_dn2[n]));
-                    Pdn = Cap2F(1.0, kappa_dn, kappa_dn2, HWVolTerm, HWVol_dn, HWVol_dn2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], dates[i], nDates[i], PT[i]);
-                    ErrorDn = BSSwaptionPrice[i] - Pdn;
-
-                    TempJacovMatrix[i][j] = (ErrorUp - ErrorDn) / (2.0 * dParams);
-
-                }
             }
         }
     }
@@ -3793,7 +3771,10 @@ void make_Residual_HWSwaption_2F(
     double FixedKappa2,
     double rho,
     double* HWVol12_TempArray,
-    double& RMPSE
+    double& RMPSE,
+    long nQuad,
+    double* x_array,
+    double* w_array
 )
 {
     long i, n;
@@ -3820,7 +3801,7 @@ void make_Residual_HWSwaption_2F(
     for (n = 0; n < NHWVol; n++) HWVol12_TempArray[n] = sqrt(fabs(HWVol[n] * HWVol2[n]));
     for (i = 0; i < NResidual; i++)
     {
-        if (OptMaturityDates[i] > 0) TempHWSwaptionPrice[i] = Swaption2F(1.0, kappa, kappa2, HWVolTerm, HWVol, HWVol2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], OptMaturityDates[i], dates[i], termdates[i], TempC[i], nDates[i], PT[i], P0_at_OptMaturity[i]);
+        if (OptMaturityDates[i] > 0) TempHWSwaptionPrice[i] = Swaption2F(1.0, kappa, kappa2, HWVolTerm, HWVol, HWVol2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], OptMaturityDates[i], dates[i], termdates[i], TempC[i], nDates[i], PT[i], P0_at_OptMaturity[i], nQuad, x_array, w_array);
         else TempHWSwaptionPrice[i] = Cap2F(1.0, kappa, kappa2, HWVolTerm, HWVol, HWVol2, HWVol12_TempArray, NHWVol, rho, StrikePrice[i], dates[i], nDates[i], PT[i]);
     }
     for (i = 0; i < NResidual; i++)
@@ -3973,7 +3954,9 @@ void Levenberg_Marquardt_HWSwaption_2F(
     double* argminparam = (double*)malloc(sizeof(double) * (NParams));
     double minrmpse = 1.0;
     double prevrmpse = 1.0;
-
+    const long nQuad = 13;
+    double x[13] = { 0.0 , };
+    double w[13] = { 0.0, };
     for (n = 0; n < 6; n++)
     {
 
@@ -3981,13 +3964,13 @@ void Levenberg_Marquardt_HWSwaption_2F(
             NHWVol, HWVolTerm, NResidual, BSSwaptionPrice, StrikePrice,
             TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, P0_at_OptMaturity,
             OptMaturityDates,
-            nDates, dates, termdates, TempC, PT, ParamsUp, ParamsDn, TempJacovMatrix, FixedKappaFlag, FixedKappa, FixedKappa2, rho, HWVol12_Temp);
+            nDates, dates, termdates, TempC, PT, ParamsUp, ParamsDn, TempJacovMatrix, FixedKappaFlag, FixedKappa, FixedKappa2, rho, HWVol12_Temp, nQuad, x, w);
 
         make_Residual_HWSwaption_2F(NParams, Params, NZero, ZeroTerm, ZeroRate,
             NHWVol, HWVolTerm, NResidual, BSSwaptionPrice, StrikePrice,
             TempHWSwaptionPrice, ResidualArray, TermSwapNew, TermOptNew, P0_at_OptMaturity,
             OptMaturityDates,
-            nDates, dates, termdates, TempC, PT, absErrorSum, FixedKappaFlag, FixedKappa, FixedKappa2, rho, HWVol12_Temp, RMPSE);
+            nDates, dates, termdates, TempC, PT, absErrorSum, FixedKappaFlag, FixedKappa, FixedKappa2, rho, HWVol12_Temp, RMPSE, nQuad, x, w);
 
         if (n >= 1)
         {
