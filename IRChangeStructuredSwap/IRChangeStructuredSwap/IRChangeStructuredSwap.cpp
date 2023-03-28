@@ -2337,7 +2337,7 @@ long Simulate_HW(
 
             }
 
-            if (j == RcvLeg->NCashFlow - 1) NotionalValue[0] += Pt * PtT * Notional / (double)Simul->NSimul;
+            if (j == RcvLeg->NCashFlow - 1 && NAFlag == 1) NotionalValue[0] += Pt * PtT * Notional / (double)Simul->NSimul;
         }
 
         RcvPrice += PricePath_Rcv / (double)Simul->NSimul;
@@ -2593,7 +2593,7 @@ long Simulate_HW(
                 }
             }
 
-            if (j == PayLeg->NCashFlow - 1) NotionalValue[1] += Pt * PtT * Notional / (double)Simul->NSimul;
+            if (j == PayLeg->NCashFlow - 1 && NAFlag == 1) NotionalValue[1] += Pt * PtT * Notional / (double)Simul->NSimul;
         }
 
         PayPrice += PricePath_Pay / (double)Simul->NSimul;

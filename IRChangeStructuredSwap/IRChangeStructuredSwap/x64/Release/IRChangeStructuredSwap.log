@@ -15,14 +15,12 @@ C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\Util.h(2802
 C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\Util.h(2873,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\Util.h(3150,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(2530,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(2680,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(2813,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(3169,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(3240,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(3645,12): warning C4101: 'HWT' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(3644,12): warning C4101: 'T' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(4058,12): warning C4101: 'fm' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(2550,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(2700,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(2833,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(3242,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(3313,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(4340,12): warning C4101: 'fm' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\ErrorCheck.h(91,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\CalcDate.h(4,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\IRChangeStructuredSwap.cpp(1706,12): warning C4101: 'A' :참조되지 않은 지역 변수입니다.
@@ -38,7 +36,7 @@ C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\IRChangeStr
      C:\Users\ciiad\github5\IRChangeStructuredSwap\x64\Release\IRChangeStructuredSwap.lib 라이브러리 및 C:\Users\ciiad\github5\IRChangeStructuredSwap\x64\Release\IRChangeStructuredSwap.exp 개체를 생성하고 있습니다.
   코드를 생성하고 있습니다.
   Previous IPDB not found, fall back to full compilation.
-C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(3595): warning C4715: 'HWCapHWSwaption_2FCalibration': 모든 제어 경로에서 값을 반환하지는 않습니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwap\IRChangeStructuredSwap\HW_Calibration.h(3667): warning C4715: 'HWCapHWSwaption_2FCalibration': 모든 제어 경로에서 값을 반환하지는 않습니다.
   All 115 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   코드를 생성했습니다.
   IRChangeStructuredSwap.vcxproj -> C:\Users\ciiad\github5\IRChangeStructuredSwap\x64\Release\IRChangeStructuredSwap.dll
