@@ -182,6 +182,8 @@ typedef struct HW_Parameter {
 
     double** XA;                            // Hull White XA Term = exp(-kappa * (T2-T1)) --> Shape : (NAsset, NDays)
     double** XV;                            // Hull White XV Term = sqrt( integral_(t1)^(t2) exp(-2kappa(t2-t1)) sigma_t^2 dt ) --> Shape : (NAsset, NDays)
+    double** XA2F;
+    double** XV2F;
 
     long CurveIdx_DiscRcv;                  // 시뮬레이션 기준 Rcv Discount 커브 index
     long CurveIdx_DiscPay;                  // 시뮬레이션 기준 Pay Discount 커브 index
@@ -192,12 +194,16 @@ typedef struct HW_Parameter {
     double* Rcv_DF_t_T;                     // Rcv Disc P(t,T)
     double* B_t_T_RcvDisc;                  // Rcv disc Hull White B(t,T) = (1-exp(-kappa(T-t))/kappa
     double* QVTerm_RcvDisc;                 // Rcv disc Hull White QVTerm(t,T) = integ_0^t sigma^2 * [B(s,t)^2 - B(s,T)^2] ds
+    double* B_t_T_RcvDisc2F;                // Rcv disc Hull White 2F B(t,T) = (1-exp(-kappa(T-t))/kappa
+    double* QVTerm_RcvDisc2F;               // Rcv disc Hull White 2F QVTerm(t,T) = integ_0^t sigma^2 * [B(s,t)^2 - B(s,T)^2] ds
 
     double* Pay_DF_0_t;                     // Pay Disc P(0,t)
     double* Pay_DF_0_T;                     // Pay Disc P(0,T)
     double* Pay_DF_t_T;                     // Pay Disc P(t,T)
     double* B_t_T_PayDisc;                  // Pay Disc Hull White B(t,T) = (1-exp(-kappa(T-t))/kappa
     double* QVTerm_PayDisc;                 // Pay Disc Hull White QVTerm(t,T) = integ_0^t sigma^2 * [B(s,t)^2 - B(s,T)^2] ds
+    double* B_t_T_PayDisc2F;                // Pay Disc Hull White 2F B(t,T) = (1-exp(-kappa(T-t))/kappa
+    double* QVTerm_PayDisc2F;               // Pay Disc Hull White 2F QVTerm(t,T) = integ_0^t sigma^2 * [B(s,t)^2 - B(s,T)^2] ds
 
     long NRcvCurve;                         // Rcv Leg Reference Curve 개수
     long NPayCurve;                         // Pay Leg Reference Curve 개수
@@ -206,24 +212,33 @@ typedef struct HW_Parameter {
     double*** RcvRef_DF_t_T;                // Rcv Ref P(t,T) --> Shape = NReference, NDays, NCpn
     double*** RcvRef_B_t_T;                 // Rcv Ref B(t,T) --> Shape = NReference, NDays, NCpn
     double*** RcvRef_QVTerm;                // Rcv Ref QVTerm(t, T) --> Shape = NReference, NDays, NCpn
+    double*** RcvRef_B_t_T2F;               // Rcv Ref 2F B(t,T) --> Shape = NReference, NDays, NCpn
+    double*** RcvRef_QVTerm2F;              // Rcv Ref 2F QVTerm(t, T) --> Shape = NReference, NDays, NCpn
+
     double*** RcvRef_dt;                    // Rcv Ref DeltaT(t, T)--> Shape = NReference, NDays, NCpn
 
     long* ndates_cpn_powerspread_rcv;       // Rcv Reference 반대쪽 파워스프레드 금리별 쿠폰개수
     double*** RcvRef_DF_t_T_PowerSpread;    // Rcv Ref 반대쪽 파워스프레드 P(t,T) --> Shape = NReference, NDays, NCpn
     double*** RcvRef_B_t_T_PowerSpread;     // Rcv Ref 반대쪽 파워스프레드 B(t,T) --> Shape = NReference, NDays, NCpn
     double*** RcvRef_QVTerm_PowerSpread;    // Rcv Ref 반대쪽 파워스프레드 QVTerm(t, T) --> Shape = NReference, NDays, NCpn
+    double*** RcvRef_B_t_T_PowerSpread2F;   // Rcv Ref 반대쪽 파워스프레드 B(t,T) --> Shape = NReference, NDays, NCpn
+    double*** RcvRef_QVTerm_PowerSpread2F;  // Rcv Ref 반대쪽 파워스프레드 QVTerm(t, T) --> Shape = NReference, NDays, NCpn
     double*** RcvRef_dt_PowerSpread;        // Rcv Ref 반대쪽 파워스프레드 DeltaT(t, T)--> Shape = NReference, NDays, NCpn
 
     long* ndates_cpn_pay;                   // Pay Reference 금리별 쿠폰개수
     double*** PayRef_DF_t_T;                // Pay Ref P(t,T) --> Shape = NReference, NDays, NCpn
     double*** PayRef_B_t_T;                 // Pay Ref B(t,T) --> Shape = NReference, NDays, NCpn
     double*** PayRef_QVTerm;                // Pay Ref QVTerm(t, T) --> Shape = NReference, NDays, NCpn
+    double*** PayRef_B_t_T2F;               // Pay Ref 2F B(t,T) --> Shape = NReference, NDays, NCpn
+    double*** PayRef_QVTerm2F;              // Pay Ref 2F QVTerm(t, T) --> Shape = NReference, NDays, NCpn
     double*** PayRef_dt;                    // Pay Ref DeltaT(t, T)--> Shape = NReference, NDays, NCpn
 
     long* ndates_cpn_powerspread_pay;       // Pay Reference 반대쪽 파워스프레드 금리별 쿠폰개수
     double*** PayRef_DF_t_T_PowerSpread;    // Pay Ref 반대쪽 파워스프레드 P(t,T) --> Shape = NReference, NDays, NCpn
     double*** PayRef_B_t_T_PowerSpread;     // Pay Ref 반대쪽 파워스프레드 B(t,T) --> Shape = NReference, NDays, NCpn
     double*** PayRef_QVTerm_PowerSpread;    // Pay Ref 반대쪽 파워스프레드 QVTerm(t, T) --> Shape = NReference, NDays, NCpn
+    double*** PayRef_B_t_T_PowerSpread2F;   // Pay Ref 반대쪽 파워스프레드 B(t,T) --> Shape = NReference, NDays, NCpn
+    double*** PayRef_QVTerm_PowerSpread2F;  // Pay Ref 반대쪽 파워스프레드 QVTerm(t, T) --> Shape = NReference, NDays, NCpn
     double*** PayRef_dt_PowerSpread;        // Pay Ref 반대쪽 파워스프레드 DeltaT(t, T)--> Shape = NReference, NDays, NCpn
 
 } HW_INFO;
@@ -309,6 +324,7 @@ typedef struct SimulationInfo {
     double* dt_Array;               // 시뮬레이션 Day들의 간격
     double* T_Array;                // 시뮬레이션 Day를 T로 변환
     double** FixedRandn;            // 고정된랜덤넘버
+    double** FixedRandn2;           // 2Factor 랜덤넘버
     long* NHWVol;                   // HWVol 개수를 NAsset만큼 배열
     double* HWKappa;                // HW Kappa값을 NAsset만큼 배열
     double** HWVolTerm;             // HW Vol Term을 --> NAsset, NHWVol 만큼 배열
@@ -318,6 +334,9 @@ typedef struct SimulationInfo {
     double** Rate;                  // 기초금리 Array --> Shape = NAsset, NRateTerm
     long* SimulCurveIdx;            // 시뮬레이션되는 커브 번호
     long SOFRBusinessDaySimul;      // SOFR로 인해 BusinessDay Simul되는지 여부
+    long HWFactorFlag;
+    double* HWKappa2;
+    double** HWVol2;
 }SIMUL_INFO;
 
 // Linear Interpolation (X변수, Y변수, X길이, 타겟X)
@@ -1964,6 +1983,7 @@ long Simulate_HW(
     double** SimulatedRatePay,
     double** SimulatedRatePay2,
     double** SimulShortRate,
+    double** SimulShortRate2F,
     double** SimulOverNightRate,
     long* CurveIdx_Rcv,
     long* CurveIdx_Pay,
@@ -2088,6 +2108,8 @@ long Simulate_HW(
     double xt_termlsmc[2] = { 0.0,0.0 };
     double xt_lsmc[2] = { 0.0,0.0 };
     double xt_interp;
+    double xt_interp2f;
+
     double NotionalValue[2] = { 0.0, 0.0 };
     for (i = 0; i < Simul->NSimul; i++)
     {
@@ -2098,8 +2120,16 @@ long Simulate_HW(
         {
             for (n = 0; n < Simul->NAsset; n++)
             {
-                if (j == 0) SimulShortRate[n][j] = 0.0;
-                else  SimulShortRate[n][j] = Simulated_ShortRate(HW_Information->XA[n][j], HW_Information->XV[n][j], SimulShortRate[n][j - 1], Simul->FixedRandn[i * Simul->NDays + j][n]);
+                if (j == 0)
+                {
+                    SimulShortRate[n][j] = 0.0;
+                    if (Simul->HWFactorFlag > 0) SimulShortRate2F[n][j] = 0.0;
+                }
+                else
+                {
+                    SimulShortRate[n][j] = Simulated_ShortRate(HW_Information->XA[n][j], HW_Information->XV[n][j], SimulShortRate[n][j - 1], Simul->FixedRandn[i * Simul->NDays + j][n]);
+                    if (Simul->HWFactorFlag > 0) SimulShortRate2F[n][j] = Simulated_ShortRate(HW_Information->XA2F[n][j], HW_Information->XV2F[n][j], SimulShortRate2F[n][j - 1], Simul->FixedRandn2[i * Simul->NDays + j][n]);
+                }
             }
         }
 
@@ -2118,12 +2148,26 @@ long Simulate_HW(
                         xt_lsmc[1] = SimulShortRate[n][j + 1];
                         xt_interp = Interpolate_Linear(xt_termlsmc, xt_lsmc, 2, T_Opt);
                         X[idxoption][i][n] = xt_interp;
+                        if (Simul->HWFactorFlag > 0)
+                        {
+                            xt_lsmc[0] = SimulShortRate2F[n][j];
+                            xt_lsmc[1] = SimulShortRate2F[n][j + 1];
+                            xt_interp = Interpolate_Linear(xt_termlsmc, xt_lsmc, 2, T_Opt);
+                            X[idxoption][i][n] = X[idxoption][i][n] + xt_interp;
+                        }
                     }
                     break;
                 }
                 else if (T_Opt >= Simul->T_Array[Simul->NDays - 1])
                 {
-                    for (n = 0; n < Simul->NAsset; n++) X[idxoption][i][n] = SimulShortRate[n][Simul->NDays - 1];
+                    for (n = 0; n < Simul->NAsset; n++)
+                    {
+                        X[idxoption][i][n] = SimulShortRate[n][Simul->NDays - 1];
+                        if (Simul->HWFactorFlag > 0)
+                        {
+                            X[idxoption][i][n] = X[idxoption][i][n] + SimulShortRate2F[n][Simul->NDays - 1];
+                        }
+                    }
                 }
             }
         }
@@ -2146,6 +2190,8 @@ long Simulate_HW(
                     if (isinFindIndex(Simul->DaysForSimul[j], RcvLeg->DaysForwardStart, RcvLeg->NCashFlow, Dayidx, &idxrcv))
                     {
                         xt = SimulShortRate[Curveidx][j];
+                        if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[Curveidx][j];
+
                         if (RcvLeg->Reference_Inform[n].PowerSpreadFlag == 0)
                         {
                             t = ((double)RcvLeg->DaysForwardStart[Dayidx]) / RcvLeg->Reference_Inform[n].Day1Y;
@@ -2182,6 +2228,8 @@ long Simulate_HW(
                     if (isinFindIndex(j, RcvLeg->DaysForwardStart, RcvLeg->NCashFlow, Dayidx, &idxrcv))
                     {
                         xt = SimulShortRate[Curveidx][j];
+                        if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[Curveidx][j];
+
                         t = Simul->T_Array[j];
                         if (RcvLeg->Reference_Inform[n].RefRateType <= 2)
                         {
@@ -2222,6 +2270,8 @@ long Simulate_HW(
                     if (isinFindIndex(Simul->DaysForSimul[j], RcvLeg->DaysForwardStart, RcvLeg->NCashFlow, Dayidx, &idxrcv))
                     {
                         xt = SimulShortRate[Curveidx][j];
+                        if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[Curveidx][j];
+
                         if (RcvLeg->Reference_Inform[n].PowerSpreadFlag == 0)
                         {
                             t = ((double)RcvLeg->DaysForwardStart[Dayidx]) / RcvLeg->Reference_Inform[n].Day1Y;
@@ -2294,6 +2344,8 @@ long Simulate_HW(
                 RcvPayoff[j] = Notional * PayoffStructure(Simul->DailySimulFlag, RcvLeg, RcvLeg->NReference, Simul->NDays, SimulatedRateRcv, SimulatedRateRcv2, RcvDailyRate, SimulOverNightRate, j, RateHistoryUseFlag, RcvOutputRate, nAccrual);
                 xt_idx = FindIndex(Day1, Simul->DaysForSimul, Simul->NDays, &idx1);
                 xt = SimulShortRate[HW_Information->CurveIdx_DiscRcv][xt_idx];
+                if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[HW_Information->CurveIdx_DiscRcv][xt_idx];
+
                 if (t > 0.0) PtT = HW_Information->Rcv_DF_t_T[j] * exp(-xt * HW_Information->B_t_T_RcvDisc[j] + HW_Information->QVTerm_RcvDisc[j]);
                 else PtT = HW_Information->Rcv_DF_0_T[j];
 
@@ -2402,6 +2454,8 @@ long Simulate_HW(
                     if (isinFindIndex(Simul->DaysForSimul[j], PayLeg->DaysForwardStart, PayLeg->NCashFlow, Dayidx, &idxpay))
                     {
                         xt = SimulShortRate[Curveidx][j];
+                        if (Simul->HWFactorFlag> 0 ) xt += SimulShortRate2F[Curveidx][j];
+
                         if (PayLeg->Reference_Inform[n].PowerSpreadFlag == 0)
                         {
                             t = ((double)PayLeg->DaysForwardStart[Dayidx]) / PayLeg->Reference_Inform[n].Day1Y;
@@ -2438,6 +2492,8 @@ long Simulate_HW(
                     if (isinFindIndex(j, PayLeg->DaysForwardStart, PayLeg->NCashFlow, Dayidx, &idxpay))
                     {
                         xt = SimulShortRate[Curveidx][j];
+                        if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[Curveidx][j];
+
                         t = Simul->T_Array[j];
                         if (PayLeg->Reference_Inform[n].RefRateType <= 2)
                         {
@@ -2478,6 +2534,8 @@ long Simulate_HW(
                     if (isinFindIndex(Simul->DaysForSimul[j], PayLeg->DaysForwardStart, PayLeg->NCashFlow, Dayidx, &idxpay))
                     {
                         xt = SimulShortRate[Curveidx][j];
+                        if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[Curveidx][j];
+
                         if (PayLeg->Reference_Inform[n].PowerSpreadFlag == 0)
                         {
                             t = ((double)PayLeg->DaysForwardStart[Dayidx]) / PayLeg->Reference_Inform[n].Day1Y;
@@ -2550,6 +2608,8 @@ long Simulate_HW(
                 PayPayoff[j] = Notional * PayoffStructure(Simul->DailySimulFlag, PayLeg, PayLeg->NReference, Simul->NDays, SimulatedRatePay, SimulatedRatePay2, PayDailyRate, SimulOverNightRate, j, RateHistoryUseFlag, PayOutputRate, nAccrual);
                 xt_idx = FindIndex(Day1, Simul->DaysForSimul, Simul->NDays, &idx2);
                 xt = SimulShortRate[HW_Information->CurveIdx_DiscPay][xt_idx];
+                if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[HW_Information->CurveIdx_DiscPay][xt_idx];
+
                 if (t > 0.0) PtT = HW_Information->Pay_DF_t_T[j] * exp(-xt * HW_Information->B_t_T_PayDisc[j] + HW_Information->QVTerm_PayDisc[j]);
                 else PtT = HW_Information->Pay_DF_0_T[j];
 
@@ -2787,12 +2847,21 @@ long IRStructuredSwap(
     long Length_XV_Array = Simul->NDays;
     double** XA_Array = (double**)malloc(sizeof(double*) * Simul->NAsset);
     double** XV_Array = (double**)malloc(sizeof(double*) * Simul->NAsset);
+    double** XA_Array2 = (double**)malloc(sizeof(double*) * Simul->NAsset);
+    double** XV_Array2 = (double**)malloc(sizeof(double*) * Simul->NAsset);
     for (i = 0; i < Simul->NAsset; i++)
     {
         XA_Array[i] = (double*)malloc(sizeof(double) * Simul->NDays);
         XV_Array[i] = (double*)malloc(sizeof(double) * Simul->NDays);
+        XA_Array2[i] = (double*)malloc(sizeof(double) * Simul->NDays);
+        XV_Array2[i] = (double*)malloc(sizeof(double) * Simul->NDays);
         Set_XA(Simul->HWKappa[i], Length_XA_Array, XA_Array[i], Simul->dt_Array);
         Set_XV(Simul->HWKappa[i], Simul->NHWVol[i], Simul->HWVolTerm[i], Simul->HWVol[i], Length_XV_Array, XV_Array[i], Simul->dt_Array);
+        if (Simul->HWFactorFlag > 0)
+        {
+            Set_XA(Simul->HWKappa2[i], Length_XA_Array, XA_Array2[i], Simul->dt_Array);
+            Set_XV(Simul->HWKappa2[i], Simul->NHWVol[i], Simul->HWVolTerm[i], Simul->HWVol2[i], Length_XV_Array, XV_Array2[i], Simul->dt_Array);
+        }
     }
 
     double** SimulatedRateRcv = make_array(RcvLeg->NReference, RcvLeg->NCashFlow);
@@ -2802,6 +2871,7 @@ long IRStructuredSwap(
     double** SimulatedRatePay2 = make_array(PayLeg->NReference, PayLeg->NCashFlow);
 
     double** SimulShortRate = make_array(Simul->NAsset, Simul->NDays);
+    double** SimulShortRate2 = make_array(Simul->NAsset, Simul->NDays);
     double** SimulOverNightRate = make_array(Simul->NAsset, Simul->NDays);
 
     long* CurveIdx_Rcv = (long*)malloc(sizeof(long) * RcvLeg->NReference);
@@ -2859,6 +2929,10 @@ long IRStructuredSwap(
     double* B_t_T_PayDisc = (double*)malloc(PayLeg->NCashFlow * sizeof(double));
     double* QVTerm_RcvDisc = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
     double* QVTerm_PayDisc = (double*)malloc(PayLeg->NCashFlow * sizeof(double));
+    double* B_t_T_RcvDisc2 = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
+    double* B_t_T_PayDisc2 = (double*)malloc(PayLeg->NCashFlow * sizeof(double));
+    double* QVTerm_RcvDisc2 = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
+    double* QVTerm_PayDisc2 = (double*)malloc(PayLeg->NCashFlow * sizeof(double));
 
     for (i = 0; i < RcvLeg->NCashFlow; i++)
     {
@@ -2867,6 +2941,12 @@ long IRStructuredSwap(
         T = ((double)RcvLeg->DaysPayDate_C[i]) / Rcv_DF_Day1Y;
         B_t_T_RcvDisc[i] = B_s_to_t(Simul->HWKappa[CurveIdx_DiscRcv], t, T);
         QVTerm_RcvDisc[i] = HullWhiteQVTerm(t, T, Simul->HWKappa[CurveIdx_DiscRcv], Simul->NHWVol[CurveIdx_DiscRcv], Simul->HWVolTerm[CurveIdx_DiscRcv], Simul->HWVol[CurveIdx_DiscRcv]);
+        if (Simul->HWFactorFlag > 0)
+        {
+            B_t_T_RcvDisc2[i] = B_s_to_t(Simul->HWKappa2[CurveIdx_DiscRcv], t, T);
+            QVTerm_RcvDisc2[i] = HullWhiteQVTerm(t, T, Simul->HWKappa2[CurveIdx_DiscRcv], Simul->NHWVol[CurveIdx_DiscRcv], Simul->HWVolTerm[CurveIdx_DiscRcv], Simul->HWVol2[CurveIdx_DiscRcv]);
+
+        }
     }
 
     for (i = 0; i < PayLeg->NCashFlow; i++)
@@ -2876,6 +2956,11 @@ long IRStructuredSwap(
         T = ((double)PayLeg->DaysPayDate_C[i]) / Pay_DF_Day1Y;
         B_t_T_PayDisc[i] = B_s_to_t(Simul->HWKappa[CurveIdx_DiscPay], t, T);
         QVTerm_PayDisc[i] = HullWhiteQVTerm(t, T, Simul->HWKappa[CurveIdx_DiscPay], Simul->NHWVol[CurveIdx_DiscPay], Simul->HWVolTerm[CurveIdx_DiscPay], Simul->HWVol[CurveIdx_DiscPay]);
+        if (Simul->HWFactorFlag > 0)
+        {
+            B_t_T_PayDisc2[i] = B_s_to_t(Simul->HWKappa2[CurveIdx_DiscPay], t, T);
+            QVTerm_PayDisc2[i] = HullWhiteQVTerm(t, T, Simul->HWKappa2[CurveIdx_DiscPay], Simul->NHWVol[CurveIdx_DiscPay], Simul->HWVolTerm[CurveIdx_DiscPay], Simul->HWVol2[CurveIdx_DiscPay]);
+        }
     }
 
     long ndates, ndates2 = 1;
@@ -2889,12 +2974,16 @@ long IRStructuredSwap(
     double*** RcvRef_DF_t_T = (double***)malloc(sizeof(double) * RcvLeg->NReference);        // Shape = NReference, NDays, NCpn
     double*** RcvRef_B_t_T = (double***)malloc(sizeof(double) * RcvLeg->NReference);
     double*** RcvRef_QVTerm = (double***)malloc(sizeof(double) * RcvLeg->NReference);
+    double*** RcvRef_B_t_T2 = (double***)malloc(sizeof(double) * RcvLeg->NReference);
+    double*** RcvRef_QVTerm2 = (double***)malloc(sizeof(double) * RcvLeg->NReference);
     double*** RcvRef_dt = (double***)malloc(sizeof(double**) * RcvLeg->NReference);
 
     long* ndates_Rcv_PowerSpread = (long*)malloc(sizeof(double) * RcvLeg->NReference);
     double*** RcvRef_DF_t_T_PowerSpread = (double***)malloc(sizeof(double) * RcvLeg->NReference);        // Shape = NReference, NDays, NCpn
     double*** RcvRef_B_t_T_PowerSpread = (double***)malloc(sizeof(double) * RcvLeg->NReference);
     double*** RcvRef_QVTerm_PowerSpread = (double***)malloc(sizeof(double) * RcvLeg->NReference);
+    double*** RcvRef_B_t_T_PowerSpread2 = (double***)malloc(sizeof(double) * RcvLeg->NReference);
+    double*** RcvRef_QVTerm_PowerSpread2 = (double***)malloc(sizeof(double) * RcvLeg->NReference);
     double*** RcvRef_dt_PowerSpread = (double***)malloc(sizeof(double**) * RcvLeg->NReference);
 
     for (i = 0; i < RcvLeg->NReference; i++)
@@ -2945,11 +3034,15 @@ long IRStructuredSwap(
         RcvRef_DF_t_T[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         RcvRef_B_t_T[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         RcvRef_QVTerm[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+        RcvRef_B_t_T2[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+        RcvRef_QVTerm2[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         RcvRef_dt[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
 
         RcvRef_DF_t_T_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         RcvRef_B_t_T_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         RcvRef_QVTerm_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+        RcvRef_B_t_T_PowerSpread2[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+        RcvRef_QVTerm_PowerSpread2[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         RcvRef_dt_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
 
         if (RcvLeg->Reference_Inform[i].PowerSpreadFlag == 0)
@@ -2962,6 +3055,8 @@ long IRStructuredSwap(
                     RcvRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ncpn);
                     RcvRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ncpn);
                     RcvRef_QVTerm[i][j] = (double*)malloc(sizeof(double) * ncpn);
+                    RcvRef_B_t_T2[i][j] = (double*)malloc(sizeof(double) * ncpn);
+                    RcvRef_QVTerm2[i][j] = (double*)malloc(sizeof(double) * ncpn);
                     RcvRef_dt[i][j] = (double*)malloc(sizeof(double) * ncpn);
                 }
 
@@ -2982,6 +3077,11 @@ long IRStructuredSwap(
                     RcvRef_DF_t_T[i][j][0] = DF_0_T / DF_0_t;
                     RcvRef_B_t_T[i][j][0] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
                     RcvRef_QVTerm[i][j][0] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
+                    if (Simul->HWFactorFlag > 0)
+                    {
+                        RcvRef_B_t_T2[i][j][0] = B_s_to_t(Simul->HWKappa2[CurveIdxRef], t, T1);
+                        RcvRef_QVTerm2[i][j][0] = HullWhiteQVTerm(t, T1, Simul->HWKappa2[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol2[CurveIdxRef]);
+                    }
                 }
 
             }
@@ -3000,6 +3100,8 @@ long IRStructuredSwap(
                     RcvRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                     RcvRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                     RcvRef_QVTerm[i][j] = (double*)malloc(sizeof(double) * ndates);
+                    RcvRef_B_t_T2[i][j] = (double*)malloc(sizeof(double) * ndates);
+                    RcvRef_QVTerm2[i][j] = (double*)malloc(sizeof(double) * ndates);
                     RcvRef_dt[i][j] = (double*)malloc(sizeof(double) * ndates);
                     DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx0);
                     idx1 = 0;
@@ -3011,6 +3113,11 @@ long IRStructuredSwap(
                         RcvRef_DF_t_T[i][j][k] = DF_0_T / DF_0_t;
                         RcvRef_QVTerm[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
                         RcvRef_B_t_T[i][j][k] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
+                        if (Simul->HWFactorFlag > 0)
+                        {
+                            RcvRef_QVTerm2[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa2[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol2[CurveIdxRef]);
+                            RcvRef_B_t_T2[i][j][k] = B_s_to_t(Simul->HWKappa2[CurveIdxRef], t, T1);
+                        }
                     }
                 }
             }
@@ -3028,6 +3135,8 @@ long IRStructuredSwap(
                 RcvRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                 RcvRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                 RcvRef_QVTerm[i][j] = (double*)malloc(sizeof(double) * ndates);
+                RcvRef_B_t_T2[i][j] = (double*)malloc(sizeof(double) * ndates);
+                RcvRef_QVTerm2[i][j] = (double*)malloc(sizeof(double) * ndates);
                 RcvRef_dt[i][j] = (double*)malloc(sizeof(double) * ndates);
                 DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx0);
                 idx1 = 0;
@@ -3046,6 +3155,8 @@ long IRStructuredSwap(
                 RcvRef_DF_t_T_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 RcvRef_B_t_T_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 RcvRef_QVTerm_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
+                RcvRef_B_t_T_PowerSpread2[i][j] = (double*)malloc(sizeof(double) * ndates2);
+                RcvRef_QVTerm_PowerSpread2[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 RcvRef_dt_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 idx2 = 0;
                 for (k = 0; k < ndates2; k++)
@@ -3056,6 +3167,11 @@ long IRStructuredSwap(
                     RcvRef_DF_t_T_PowerSpread[i][j][k] = DF_0_T / DF_0_t;
                     RcvRef_QVTerm_PowerSpread[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
                     RcvRef_B_t_T_PowerSpread[i][j][k] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
+                    if (Simul->HWFactorFlag > 0)
+                    {
+                        RcvRef_QVTerm_PowerSpread2[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa2[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol2[CurveIdxRef]);
+                        RcvRef_B_t_T_PowerSpread2[i][j][k] = B_s_to_t(Simul->HWKappa2[CurveIdxRef], t, T1);
+                    }
                 }
             }
         }
@@ -3065,12 +3181,16 @@ long IRStructuredSwap(
     double*** PayRef_DF_t_T = (double***)malloc(sizeof(double) * PayLeg->NReference);        // Shape = NReference, NDays, NCpn
     double*** PayRef_B_t_T = (double***)malloc(sizeof(double) * PayLeg->NReference);
     double*** PayRef_QVTerm = (double***)malloc(sizeof(double) * PayLeg->NReference);
+    double*** PayRef_B_t_T2 = (double***)malloc(sizeof(double) * PayLeg->NReference);
+    double*** PayRef_QVTerm2 = (double***)malloc(sizeof(double) * PayLeg->NReference);
     double*** PayRef_dt = (double***)malloc(sizeof(double**) * PayLeg->NReference);
 
     long* ndates_Pay_PowerSpread = (long*)malloc(sizeof(double) * PayLeg->NReference);
     double*** PayRef_DF_t_T_PowerSpread = (double***)malloc(sizeof(double) * PayLeg->NReference);        // Shape = NReference, NDays, NCpn
     double*** PayRef_B_t_T_PowerSpread = (double***)malloc(sizeof(double) * PayLeg->NReference);
     double*** PayRef_QVTerm_PowerSpread = (double***)malloc(sizeof(double) * PayLeg->NReference);
+    double*** PayRef_B_t_T_PowerSpread2 = (double***)malloc(sizeof(double) * PayLeg->NReference);
+    double*** PayRef_QVTerm_PowerSpread2 = (double***)malloc(sizeof(double) * PayLeg->NReference);
     double*** PayRef_dt_PowerSpread = (double***)malloc(sizeof(double**) * PayLeg->NReference);
 
     for (i = 0; i < PayLeg->NReference; i++)
@@ -3120,11 +3240,15 @@ long IRStructuredSwap(
         PayRef_DF_t_T[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         PayRef_B_t_T[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         PayRef_QVTerm[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+        PayRef_B_t_T2[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+        PayRef_QVTerm2[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         PayRef_dt[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
 
         PayRef_DF_t_T_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         PayRef_B_t_T_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         PayRef_QVTerm_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+        PayRef_B_t_T_PowerSpread2[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
+        PayRef_QVTerm_PowerSpread2[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         PayRef_dt_PowerSpread[i] = (double**)malloc(sizeof(double*) * Simul->NDays);
         if (PayLeg->Reference_Inform[i].PowerSpreadFlag == 0)
         {
@@ -3136,6 +3260,8 @@ long IRStructuredSwap(
                     PayRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ncpn);
                     PayRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ncpn);
                     PayRef_QVTerm[i][j] = (double*)malloc(sizeof(double) * ncpn);
+                    PayRef_B_t_T2[i][j] = (double*)malloc(sizeof(double) * ncpn);
+                    PayRef_QVTerm2[i][j] = (double*)malloc(sizeof(double) * ncpn);
                     PayRef_dt[i][j] = (double*)malloc(sizeof(double) * ncpn);
                 }
 
@@ -3173,6 +3299,8 @@ long IRStructuredSwap(
                     PayRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                     PayRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                     PayRef_QVTerm[i][j] = (double*)malloc(sizeof(double) * ndates);
+                    PayRef_B_t_T2[i][j] = (double*)malloc(sizeof(double) * ndates);
+                    PayRef_QVTerm2[i][j] = (double*)malloc(sizeof(double) * ndates);
                     PayRef_dt[i][j] = (double*)malloc(sizeof(double) * ndates);
 
                     DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx0);
@@ -3202,6 +3330,8 @@ long IRStructuredSwap(
                 PayRef_DF_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                 PayRef_B_t_T[i][j] = (double*)malloc(sizeof(double) * ndates);
                 PayRef_QVTerm[i][j] = (double*)malloc(sizeof(double) * ndates);
+                PayRef_B_t_T2[i][j] = (double*)malloc(sizeof(double) * ndates);
+                PayRef_QVTerm2[i][j] = (double*)malloc(sizeof(double) * ndates);
                 PayRef_dt[i][j] = (double*)malloc(sizeof(double) * ndates);
                 DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx0);
                 idx1 = 0;
@@ -3220,6 +3350,8 @@ long IRStructuredSwap(
                 PayRef_DF_t_T_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 PayRef_B_t_T_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 PayRef_QVTerm_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
+                PayRef_B_t_T_PowerSpread2[i][j] = (double*)malloc(sizeof(double) * ndates2);
+                PayRef_QVTerm_PowerSpread2[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 PayRef_dt_PowerSpread[i][j] = (double*)malloc(sizeof(double) * ndates2);
                 idx2 = 0;
                 for (k = 0; k < ndates2; k++)
@@ -3241,6 +3373,8 @@ long IRStructuredSwap(
 
     HW_information->XA = XA_Array;
     HW_information->XV = XV_Array;
+    HW_information->XA2F = XA_Array2;
+    HW_information->XV2F = XV_Array2;
 
     HW_information->CurveIdx_DiscRcv = CurveIdx_DiscRcv;
     HW_information->CurveIdx_DiscPay = CurveIdx_DiscPay;
@@ -3258,6 +3392,10 @@ long IRStructuredSwap(
     HW_information->B_t_T_PayDisc = B_t_T_PayDisc;
     HW_information->QVTerm_RcvDisc = QVTerm_RcvDisc;
     HW_information->QVTerm_PayDisc = QVTerm_PayDisc;
+    HW_information->B_t_T_RcvDisc2F = B_t_T_RcvDisc2;
+    HW_information->B_t_T_PayDisc2F = B_t_T_PayDisc2;
+    HW_information->QVTerm_RcvDisc2F = QVTerm_RcvDisc2;
+    HW_information->QVTerm_PayDisc2F = QVTerm_PayDisc2;
     HW_information->NRcvCurve = RcvLeg->NReference;
     HW_information->NPayCurve = RcvLeg->NReference;
 
@@ -3265,24 +3403,32 @@ long IRStructuredSwap(
     HW_information->RcvRef_DF_t_T = RcvRef_DF_t_T;
     HW_information->RcvRef_B_t_T = RcvRef_B_t_T;
     HW_information->RcvRef_QVTerm = RcvRef_QVTerm;
+    HW_information->RcvRef_B_t_T2F = RcvRef_B_t_T2;
+    HW_information->RcvRef_QVTerm2F = RcvRef_QVTerm2;
     HW_information->RcvRef_dt = RcvRef_dt;
 
     HW_information->ndates_cpn_powerspread_rcv = ndates_Rcv_PowerSpread;
     HW_information->RcvRef_DF_t_T_PowerSpread = RcvRef_DF_t_T_PowerSpread;
     HW_information->RcvRef_B_t_T_PowerSpread = RcvRef_B_t_T_PowerSpread;
     HW_information->RcvRef_QVTerm_PowerSpread = RcvRef_QVTerm_PowerSpread;
+    HW_information->RcvRef_B_t_T_PowerSpread2F = RcvRef_B_t_T_PowerSpread2;
+    HW_information->RcvRef_QVTerm_PowerSpread2F = RcvRef_QVTerm_PowerSpread2;
     HW_information->RcvRef_dt_PowerSpread = RcvRef_dt_PowerSpread;
 
     HW_information->ndates_cpn_pay = ndates_Pay;
     HW_information->PayRef_DF_t_T = PayRef_DF_t_T;
     HW_information->PayRef_B_t_T = PayRef_B_t_T;
     HW_information->PayRef_QVTerm = PayRef_QVTerm;
+    HW_information->PayRef_B_t_T2F = PayRef_B_t_T2;
+    HW_information->PayRef_QVTerm2F = PayRef_QVTerm2;
     HW_information->PayRef_dt = PayRef_dt;
 
     HW_information->ndates_cpn_powerspread_pay = ndates_Pay_PowerSpread;
     HW_information->PayRef_DF_t_T_PowerSpread = PayRef_DF_t_T_PowerSpread;
     HW_information->PayRef_B_t_T_PowerSpread = PayRef_B_t_T_PowerSpread;
     HW_information->PayRef_QVTerm_PowerSpread = PayRef_QVTerm_PowerSpread;
+    HW_information->PayRef_B_t_T_PowerSpread2F = PayRef_B_t_T_PowerSpread2;
+    HW_information->PayRef_QVTerm_PowerSpread2F = PayRef_QVTerm_PowerSpread2;
     HW_information->PayRef_dt_PowerSpread = PayRef_dt_PowerSpread;
 
     ////////////////////////////
@@ -3309,19 +3455,23 @@ long IRStructuredSwap(
     PayLeg->SOFR_Compound0 = SOFRComp0_Pay;
 
 
-
+    
     ResultCode = Simulate_HW(1, PricingDateC, NAFlag, Notional, RcvLeg, PayLeg,
         Simul, HW_information,
-        SimulatedRateRcv, SimulatedRateRcv2, SimulatedRatePay, SimulatedRatePay2, SimulShortRate, SimulOverNightRate, CurveIdx_Rcv,
+        SimulatedRateRcv, SimulatedRateRcv2, SimulatedRatePay, SimulatedRatePay2, SimulShortRate, SimulShortRate2, SimulOverNightRate, CurveIdx_Rcv,
         CurveIdx_Pay, ResultPrice, ResultRcv, ResultPay);
-
+    
     for (i = 0; i < Simul->NAsset; i++)
     {
         free(XA_Array[i]);
         free(XV_Array[i]);
+        free(XA_Array2[i]);
+        free(XV_Array2[i]);
     }
     free(XA_Array);
     free(XV_Array);
+    free(XA_Array2);
+    free(XV_Array2);
 
     for (i = 0; i < RcvLeg->NReference; i++)
     {
@@ -3350,8 +3500,10 @@ long IRStructuredSwap(
     for (i = 0; i < Simul->NAsset; i++)
     {
         free(SimulShortRate[i]);
+        free(SimulShortRate2[i]);
     }
     free(SimulShortRate);
+    free(SimulShortRate2);
 
     for (i = 0; i < Simul->NAsset; i++)
     {
@@ -3371,6 +3523,11 @@ long IRStructuredSwap(
     free(B_t_T_PayDisc);
     free(QVTerm_RcvDisc);
     free(QVTerm_PayDisc);
+    free(B_t_T_RcvDisc2);
+    free(B_t_T_PayDisc2);
+    free(QVTerm_RcvDisc2);
+    free(QVTerm_PayDisc2);
+
     for (i = 0; i < RcvLeg->NReference; i++)
     {
         if (RcvLeg->Reference_Inform[i].PowerSpreadFlag == 0)
@@ -3380,6 +3537,8 @@ long IRStructuredSwap(
                 free(RcvRef_DF_t_T[i][j]);
                 free(RcvRef_B_t_T[i][j]);
                 free(RcvRef_QVTerm[i][j]);
+                free(RcvRef_B_t_T2[i][j]);
+                free(RcvRef_QVTerm2[i][j]);
                 free(RcvRef_dt[i][j]);
             }
         }
@@ -3390,11 +3549,15 @@ long IRStructuredSwap(
                 free(RcvRef_DF_t_T[i][j]);
                 free(RcvRef_B_t_T[i][j]);
                 free(RcvRef_QVTerm[i][j]);
+                free(RcvRef_B_t_T2[i][j]);
+                free(RcvRef_QVTerm2[i][j]);
                 free(RcvRef_dt[i][j]);
 
                 free(RcvRef_DF_t_T_PowerSpread[i][j]);
                 free(RcvRef_B_t_T_PowerSpread[i][j]);
                 free(RcvRef_QVTerm_PowerSpread[i][j]);
+                free(RcvRef_B_t_T_PowerSpread2[i][j]);
+                free(RcvRef_QVTerm_PowerSpread2[i][j]);
                 free(RcvRef_dt_PowerSpread[i][j]);
             }
 
@@ -3402,22 +3565,30 @@ long IRStructuredSwap(
         free(RcvRef_DF_t_T[i]);
         free(RcvRef_B_t_T[i]);
         free(RcvRef_QVTerm[i]);
+        free(RcvRef_B_t_T2[i]);
+        free(RcvRef_QVTerm2[i]);
         free(RcvRef_dt[i]);
 
         free(RcvRef_DF_t_T_PowerSpread[i]);
         free(RcvRef_B_t_T_PowerSpread[i]);
         free(RcvRef_QVTerm_PowerSpread[i]);
+        free(RcvRef_B_t_T_PowerSpread2[i]);
+        free(RcvRef_QVTerm_PowerSpread2[i]);
         free(RcvRef_dt_PowerSpread[i]);
     }
 
     free(RcvRef_DF_t_T);
     free(RcvRef_B_t_T);
     free(RcvRef_QVTerm);
+    free(RcvRef_B_t_T2);
+    free(RcvRef_QVTerm2);
     free(RcvRef_dt);
 
     free(RcvRef_DF_t_T_PowerSpread);
     free(RcvRef_B_t_T_PowerSpread);
     free(RcvRef_QVTerm_PowerSpread);
+    free(RcvRef_B_t_T_PowerSpread2);
+    free(RcvRef_QVTerm_PowerSpread2);
     free(RcvRef_dt_PowerSpread);
     //
     for (i = 0; i < PayLeg->NReference; i++)
@@ -3429,6 +3600,8 @@ long IRStructuredSwap(
                 free(PayRef_DF_t_T[i][j]);
                 free(PayRef_B_t_T[i][j]);
                 free(PayRef_QVTerm[i][j]);
+                free(PayRef_B_t_T2[i][j]);
+                free(PayRef_QVTerm2[i][j]);
                 free(PayRef_dt[i][j]);
             }
         }
@@ -3439,11 +3612,15 @@ long IRStructuredSwap(
                 free(PayRef_DF_t_T[i][j]);
                 free(PayRef_B_t_T[i][j]);
                 free(PayRef_QVTerm[i][j]);
+                free(PayRef_B_t_T2[i][j]);
+                free(PayRef_QVTerm2[i][j]);
                 free(PayRef_dt[i][j]);
 
                 free(PayRef_DF_t_T_PowerSpread[i][j]);
                 free(PayRef_B_t_T_PowerSpread[i][j]);
                 free(PayRef_QVTerm_PowerSpread[i][j]);
+                free(PayRef_B_t_T_PowerSpread2[i][j]);
+                free(PayRef_QVTerm_PowerSpread2[i][j]);
                 free(PayRef_dt_PowerSpread[i][j]);
             }
 
@@ -3456,17 +3633,23 @@ long IRStructuredSwap(
         free(PayRef_DF_t_T_PowerSpread[i]);
         free(PayRef_B_t_T_PowerSpread[i]);
         free(PayRef_QVTerm_PowerSpread[i]);
+        free(PayRef_B_t_T_PowerSpread2[i]);
+        free(PayRef_QVTerm_PowerSpread2[i]);
         free(PayRef_dt_PowerSpread[i]);
     }
 
     free(PayRef_DF_t_T);
     free(PayRef_B_t_T);
     free(PayRef_QVTerm);
+    free(PayRef_B_t_T2);
+    free(PayRef_QVTerm2);
     free(PayRef_dt);
 
     free(PayRef_DF_t_T_PowerSpread);
     free(PayRef_B_t_T_PowerSpread);
     free(PayRef_QVTerm_PowerSpread);
+    free(PayRef_B_t_T_PowerSpread2);
+    free(PayRef_QVTerm_PowerSpread2);
     free(PayRef_dt_PowerSpread);
 
     free(ndates_Rcv);
@@ -3548,7 +3731,9 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     double* ResultPrice,                // 54 산출된 가격 [0] Rcv [1] Pay [2] Price [3] OptionPrice [4~
     double* ResultRcv,                  // 55 [0~NCF-1]금리1, [NCF~2NCF-1]금리2, [2NCF~3NCF-1]금리3, [3NCF~4NCF-1] E(Accrual수), [4NCF~5NCF-1] E(CPN), [5NCF~6NCF-1] E(DF)
     double* ResultPay,                  // 56 [0~NCF-1]금리1, [NCF~2NCF-1]금리2, [2NCF~3NCF-1]금리3, [3NCF~4NCF-1] E(Accrual수), [4NCF~5NCF-1] E(CPN), [5NCF~6NCF-1] E(DF)
-    char* Error                         // 57 에러메시지
+    long HWFactorFlag,                  // 57 0: 1Factor 1: 2Factor
+    double* HWVolArray2,                // 58 HW 2F Vol Array
+    char* Error                         // 59 에러메시지
 )
 {
 
@@ -3559,7 +3744,8 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     long j;
     long k;
     long n;
-
+    double* HWKappaArray2 = HWKappaArray + 4;
+    double* HWrho2F = HWKappaArray + 8;
     ErrorCode = ErrorCheck_IRStructuredSwap_Excel(
         PriceDateExcel, NAFlag, Notional, PayoffStructure, HolidayFlagCount,
         Holidays_Excel, RcvFlag, RcvMaxLossReturn, RcvRefCurveNumber, RcvRefRateType,
@@ -3587,12 +3773,13 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
 
     double** HWVolTermMatrix = (double**)malloc(sizeof(double*) * N_Curve_Max);
     double** HWVolMatrix = (double**)malloc(sizeof(double*) * N_Curve_Max);
-
+    double** HWVolMatrix2 = (double**)malloc(sizeof(double*) * N_Curve_Max);
     n = 0;
     for (i = 0; i < N_Curve_Max; i++)
     {
         HWVolTermMatrix[i] = HWVolTermArray + n;
         HWVolMatrix[i] = HWVolArray + n;
+        HWVolMatrix2[i] = HWVolArray2 + n;
         n = n + NHWVolCount[i];
     }
 
@@ -4104,7 +4291,36 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     long seed = 0;
     randnorm(seed);
     double** FixedRandn = random_mvrn(NSimul * MaxDaysSimul, nSimulateCurve, CorrMatAdj);
-
+    double** FixedRandn2;
+    double* HW2FRho_adj;
+    if (HWFactorFlag > 0)
+    {
+        HW2FRho_adj = (double*)malloc(sizeof(double) * nSimulateCurve);
+        FixedRandn2 = (double**)malloc(sizeof(double*) * NSimul * MaxDaysSimul);
+        for (i = 0; i < NSimul * MaxDaysSimul; i++) FixedRandn2[i] = (double*)malloc(sizeof(double) * nSimulateCurve);
+        long idum_sim = -1;
+        long iy_sim = 0;
+        long iv_sim[NTAB];
+        long iset_sim = 0;
+        double gset_sim = 0.0;
+        double tempcorrmat[4] = { 0.0,0.0,0.0,0.0 };
+        double tempresultcorrmat[4] = { 0.0,0.0,0.0,0.0 };
+        for (i = 0; i < nSimulateCurve; i++)
+        {
+            tempcorrmat[0] = 1.0;
+            tempcorrmat[1] = HWrho2F[i];
+            tempcorrmat[2] = HWrho2F[i];
+            tempcorrmat[3] = 1.0;
+            Cholesky_Decomposition(tempcorrmat, tempresultcorrmat, 2);
+            HW2FRho_adj[i] = tempresultcorrmat[3];
+        }
+        for (i = 0; i < NSimul * MaxDaysSimul; i++) for (j = 0; j < nSimulateCurve; j++) FixedRandn2[i][j] = HWrho2F[j] * FixedRandn[i][j] + HW2FRho_adj[j] *  randn(1, idum_sim, iset_sim, gset_sim, iy_sim, iv_sim);
+    }
+    else
+    {
+        FixedRandn2 = FixedRandn;
+        HW2FRho_adj = HWKappaArray;
+    }
     /////////////////
     // Rate History
     /////////////////
@@ -4175,14 +4391,20 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     }
 
     Simul->FixedRandn = FixedRandn;
+    Simul->FixedRandn2 = FixedRandn2;
     Simul->NHWVol = (long*)malloc(sizeof(long) * Simul->NAsset);
     Simul->HWKappa = (double*)malloc(sizeof(double) * Simul->NAsset);
+    Simul->HWKappa2 = (double*)malloc(sizeof(double) * Simul->NAsset);
+
     Simul->HWVolTerm = (double**)malloc(sizeof(double*) * Simul->NAsset);
     Simul->HWVol = (double**)malloc(sizeof(double*) * Simul->NAsset);
+    Simul->HWVol2 = (double**)malloc(sizeof(double*) * Simul->NAsset);
+
     Simul->NRateTerm = (long*)malloc(sizeof(long) * Simul->NAsset);
     Simul->RateTerm = (double**)malloc(sizeof(double*) * Simul->NAsset);
     Simul->Rate = (double**)malloc(sizeof(double*) * Simul->NAsset);
     Simul->SimulCurveIdx = SimulateCurveIdx;
+    Simul->HWFactorFlag = HWFactorFlag;
     k = 0;
     for (i = 0; i < N_Curve_Max; i++)
     {
@@ -4191,7 +4413,9 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
             Simul->NHWVol[k] = NHWVolCount[i];
             Simul->HWVolTerm[k] = HWVolTermMatrix[i];
             Simul->HWVol[k] = HWVolMatrix[i];
+            Simul->HWVol2[k] = HWVolMatrix2[i];
             Simul->HWKappa[k] = HWKappaArray[i];
+            Simul->HWKappa2[k] = HWKappaArray2[i];
             Simul->NRateTerm[k] = NZeroRate[i];
             Simul->RateTerm[k] = ZeroRateTermMatrix[i];
             Simul->Rate[k] = ZeroRateMatrix[i];
@@ -4356,6 +4580,7 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
 
     free(HWVolTermMatrix);
     free(HWVolMatrix);
+    free(HWVolMatrix2);
     free(ZeroRateTermMatrix);
     free(ZeroRateMatrix);
 
@@ -4424,6 +4649,12 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
         free(FixedRandn[i]);
     }
     free(FixedRandn);
+    if (HWFactorFlag > 0)
+    {
+        for (i = 0; i < NSimul * MaxDaysSimul; i++) free(FixedRandn2[i]);
+        free(FixedRandn2);
+        free(HW2FRho_adj);
+    }
     delete (RcvLeg->Reference_Inform);
     delete (PayLeg->Reference_Inform);
     delete (RcvLeg);
@@ -4447,8 +4678,10 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     free(Simul->T_Array);
     free(Simul->NHWVol);
     free(Simul->HWKappa);
+    free(Simul->HWKappa2);
     free(Simul->HWVolTerm);
     free(Simul->HWVol);
+    free(Simul->HWVol2);
     free(Simul->NRateTerm);
     free(Simul->RateTerm);
     free(Simul->Rate);

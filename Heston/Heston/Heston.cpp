@@ -387,37 +387,30 @@ void make_Residual_Heston(
     long i;
     double s = 0.0, s2 = 0.0;
     double V0;
-    double local_rmpse = 0.0;
 
-    double ext_itm_parity = 0.6;
-    double ext_itm_term = 0.5;
     // Extreme ITM »©°í RMSPE °è»ê
-    long N_except_ext = NResidual;
-    for (i = 0; i < NResidual; i++)
-    {
-        if ((ext_itm_parity > ParityVolNew[i]) && (ext_itm_term > TermVolNew[i]))
-        {
-            N_except_ext -= 1;
-        }
-    }
-
+    double meanprice = 0.0, r2 = 0.0, tss = 0.0;
     for (i = 0; i < NResidual; i++)
     {
         V0 = Params[4];
         HestonCallNew[i] = HestonPrice(1.0, ParityVolNew[i], r[i], div[i], Params, TermVolNew[i], V0, kmax, int_x, int_y);
+        meanprice += BSCallArray[i] / (double)NResidual;
     }
+
+    rmpse = 0.0;
+    tss = 0.0;
+    s = 0.0;
     for (i = 0; i < NResidual; i++)
     {
         ResidualArray[i] = BSCallArray[i] - HestonCallNew[i];
-        if ((ext_itm_parity <= ParityVolNew[i]) && (ext_itm_term <= TermVolNew[i]))
-        {
-            local_rmpse += (ResidualArray[i] * ResidualArray[i]) / (HestonCallNew[i] * HestonCallNew[i]);
-        }
+        r2 = ResidualArray[i] * ResidualArray[i];
+        s += (r2 * r2) ;
+        tss += (BSCallArray[i] - meanprice) * (BSCallArray[i] - meanprice);
     }
-    local_rmpse = sqrt(local_rmpse/(double)N_except_ext);
-    rmpse = local_rmpse;
+    rmpse = s / tss;
+
     for (i = 0; i < NResidual; i++) s2 += fabs(ResidualArray[i] / HestonCallNew[i]);
-    for (i = 0; i < NResidual; i++) s += (ResidualArray[i] * ResidualArray[i]);
+
     ErrorSquareSum = s;
     PrecentError = s2 / (double)NResidual;
 }
