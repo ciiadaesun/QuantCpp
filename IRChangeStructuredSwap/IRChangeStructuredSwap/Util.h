@@ -29,6 +29,8 @@
 #endif
 #endif
 
+////////////////////////////////////
+// Tdistribution에 사용될 변수들
 #define LONG_MAX      2147483647L
 #define LDBL_MAX 1.7976931348623158e+308
 #define DBL_MAX 1.7976931348623158e+308
@@ -43,43 +45,29 @@
 #define PI 3.141592653589793238462643383279
 #endif
 #define log_sqrt_2pi 9.18938533204672741780329736e-1L
-
-
-long GetMinor(double** src, double** dest, long row, long col, long order);
-double CalcDeterminant(double** mat, long order, double*** MinorMatrixList);
 long double xBeta_Function(long double a, long double b);
 static long double Duplication_Formula(long double two_x);
 long double xGamma_Function(long double x);
 double Student_t_Distribution(double x, int n);
+////////////////////////////////////
 
-static long double const a_list[] = {
-+1.14400529453851095667309e+4L,
--3.23988020152318335053598e+4L,
-+3.50514523505571666566083e+4L,
--1.81641309541260702610647e+4L,
-+4.63232990536666818409138e+3L,
--5.36976777703356780555748e+2L,
-+2.28754473395181007645155e+1L,
--2.17925748738865115560082e-1L,
-+1.08314836272589368860689e-4L
-};
 
-static const long double B_list[] = { 1.0L / (long double)(6 * 2 * 1),
--1.0L / (long double)(30 * 4 * 3),
-1.0L / (long double)(42 * 6 * 5),
--1.0L / (long double)(30 * 8 * 7),
-5.0L / (long double)(66 * 10 * 9),
--691.0L / (long double)(2730 * 12 * 11),
-7.0L / (long double)(6 * 14 * 13),
--3617.0L / (long double)(510 * 16 * 15),
-43867.0L / (long double)(796 * 18 * 17),
--174611.0L / (long double)(330 * 20 * 19)
-};
+long GetMinor(double** src, double** dest, long row, long col, long order);
+double CalcDeterminant(double** mat, long order, double*** MinorMatrixList);
 
-/////////////////////////////////////////////////
-// Numerical Recipy Random Number Generator
-// Page 305
-/////////////////////////////////////////////////
+static long double const a_list[] = {+1.14400529453851095667309e+4L,-3.23988020152318335053598e+4L,+3.50514523505571666566083e+4L,
+									-1.81641309541260702610647e+4L,+4.63232990536666818409138e+3L,-5.36976777703356780555748e+2L,
+									+2.28754473395181007645155e+1L,-2.17925748738865115560082e-1L,+1.08314836272589368860689e-4L};
+
+static const long double B_list[] = { 1.0L / (long double)(6 * 2 * 1), -1.0L / (long double)(30 * 4 * 3), 1.0L / (long double)(42 * 6 * 5),
+									-1.0L / (long double)(30 * 8 * 7),5.0L / (long double)(66 * 10 * 9),-691.0L / (long double)(2730 * 12 * 11),
+									7.0L / (long double)(6 * 14 * 13),-3617.0L / (long double)(510 * 16 * 15),43867.0L / (long double)(796 * 18 * 17),
+									-174611.0L / (long double)(330 * 20 * 19)};
+
+//////////////////////////////////////////////////
+// Numerical Recipy Random Number Generator		//
+// Page 305										//
+//////////////////////////////////////////////////
 
 #define IA 16807
 #define IM 2147483647
@@ -1976,9 +1964,7 @@ void gaussian_elimination_autocopy(double** MatrixA, double* Known_RHS, double* 
 
 	double** MyMatrix = (double**)malloc(sizeof(double*) * n_equations);
 	for (i = 0; i < n_equations; i++) MyMatrix[i] = (double*)malloc(sizeof(double) * n_equations);
-	for (i = 0; i < n_equations; i++)
-		for (j = 0; j < n_equations; j++)
-			MyMatrix[i][j] = MatrixA[i][j];
+	for (i = 0; i < n_equations; i++) for (j = 0; j < n_equations; j++)	MyMatrix[i][j] = MatrixA[i][j];
 
 	double* KnownRHS = (double*)malloc(sizeof(double) * n_equations);
 	for (i = 0; i < n_equations; i++) KnownRHS[i] = Known_RHS[i];
