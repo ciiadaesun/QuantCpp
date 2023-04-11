@@ -1279,13 +1279,19 @@ void Test(
 		vol1 = Interpolate_Linear(hw_d->HWTerm, hw_d->HWVol, hw_d->NTermHW, T_Array[NDays - 1 - n]);
 		vol2 = Interpolate_Linear(hw_f->HWTerm, hw_f->HWVol, hw_f->NTermHW, T_Array[NDays - 1 - n]);
 		fxvol = Interpolate_Linear(FXVol_INFO->TermArray, FXVol_INFO->RateArray, FXVol_INFO->N, T_Array[NDays - 1 - n]);
-
+		for (i = 0; i < NodeNum; i++)
+		{
+			xt = x_range[i];
+			if (hw_d->longterm_shortrateflag == 0) DF0 = DF_t_T_overnight[NDays - 1 - n] * exp(-xt * B_t_T_overnight[NDays - 1 - n] + QVTerm_overnight[NDays - 1 - n]);
+			else  DF0 = DF_t_T_overnight[NDays - 1 - n] * exp(-(xt - dlnP_dt_domestic[NDays - 1 - n]) * B_t_T_overnight[NDays - 1 - n] + QVTerm_overnight[NDays - 1 - n]);
+			r_on_range[i] = (1.0 - DF0) / (dt_on * DF0);
+		}
 		// X에 대한 Implicit
 		alpha_t = deterministicterm[NDays - 1 - n];
-		SetLHS_domestic(NodeNum, hw_d->kappa, vol1, rx_range, dx, dt_Array[NDays - 1 - n], Alpha_Domestic, Beta_Domestic, Gamma_Domestic);
-		SetRHS_domestic(NodeNum, rx_range, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Domestic, QVTerm_Domestic, FinalDomestic, RHS_Domestic, alpha_t);
-		SetRHS_domestic(NodeNum, rx_range, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Domestic, QVTerm_Domestic, FinalForeign, RHS_Foreign, alpha_t);
-		SetRHS_domestic(NodeNum, rx_range, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Domestic, QVTerm_Domestic, FinalIncludingOpt, RHS_IncludingOpt, alpha_t);
+		SetLHS_domestic(NodeNum, hw_d->kappa, vol1, x_range, dx, dt_Array[NDays - 1 - n], Alpha_Domestic, Beta_Domestic, Gamma_Domestic);
+		SetRHS_domestic(NodeNum, r_on_range, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Domestic, QVTerm_Domestic, FinalDomestic, RHS_Domestic, alpha_t);
+		SetRHS_domestic(NodeNum, r_on_range, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Domestic, QVTerm_Domestic, FinalForeign, RHS_Foreign, alpha_t);
+		SetRHS_domestic(NodeNum, r_on_range, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Domestic, QVTerm_Domestic, FinalIncludingOpt, RHS_IncludingOpt, alpha_t);
 
 		// Tridiagonal 맨 앞,뒤값 조정
 		beta0 = Beta_Domestic[0] + 2.0 * Alpha_Domestic[0];
@@ -1321,10 +1327,10 @@ void Test(
 		Copy2dMatrix(FinalIncludingOpt, RHS_IncludingOpt, NodeNum, NodeNum);
 
 		// Y에 대한 Implicit
-		SetLHS_foreign(NodeNum, hw_f->kappa, vol2, fxvol, ry_range, dy, dt_Array[NDays - 1 - n], rho23, Alpha_Foreign, Beta_Foreign, Gamma_Foreign);
-		SetRHS_foreign(NodeNum, rx_range, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Foreign, QVTerm_Foreign, FinalDomestic, RHS_Domestic, alpha_t);
-		SetRHS_foreign(NodeNum, rx_range, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Foreign, QVTerm_Foreign, FinalForeign, RHS_Foreign, alpha_t);
-		SetRHS_foreign(NodeNum, rx_range, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Foreign, QVTerm_Foreign, FinalIncludingOpt, RHS_IncludingOpt, alpha_t);
+		SetLHS_foreign(NodeNum, hw_f->kappa, vol2, fxvol, y_range, dy, dt_Array[NDays - 1 - n], rho23, Alpha_Foreign, Beta_Foreign, Gamma_Foreign);
+		SetRHS_foreign(NodeNum, r_on_range, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Foreign, QVTerm_Foreign, FinalDomestic, RHS_Domestic, alpha_t);
+		SetRHS_foreign(NodeNum, r_on_range, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Foreign, QVTerm_Foreign, FinalForeign, RHS_Foreign, alpha_t);
+		SetRHS_foreign(NodeNum, r_on_range, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Foreign, QVTerm_Foreign, FinalIncludingOpt, RHS_IncludingOpt, alpha_t);
 
 		// Tridiagonal 맨 앞,뒤값 조정
 		beta0 = Beta_Foreign[0] + 2.0 * Alpha_Foreign[0];
@@ -1676,6 +1682,7 @@ void Test(
 	free(DF_t_T_overnight);
 	free(B_t_T_overnight);
 	free(QVTerm_overnight);
+
 }
 
 

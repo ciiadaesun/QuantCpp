@@ -38,7 +38,8 @@ DLLEXPORT(long) MLE_Estimate(
 	long nvariables,
 	double* ResultArray, 
 	double alpha_0, 
-	long method)
+	long method
+	)
 {
 	//_CrtSetBreakAlloc(3427);
 	long i, j;
@@ -49,7 +50,7 @@ DLLEXPORT(long) MLE_Estimate(
 	long* yvar = (long*)malloc(sizeof(long) * ndata);
 	for (i = 0; i < ndata; i++) yvar[i] = (long)(y[i] + 0.0001);
 
-	TempFunc(x_before_const, yvar, nvariables, ndata, beta_0, alpha_0, method, ResultArray);
+	TempFunc(x_before_const, yvar, nvariables, ndata, beta_0, alpha_0, method,ResultArray);
 	for (i = 0; i < ndata; i++) free(x_before_const[i]);
 	free(x_before_const);
 
@@ -58,12 +59,12 @@ DLLEXPORT(long) MLE_Estimate(
 	return 1;
 }
 
-void TempFuncOLS(double** x, double* y, long num_data, long nvariables, double* ResultArray)
+void TempFuncOLS(double** x, double* y, long num_data, long nvariables, long NeweyWestLag, double* ResultArray)
 {
 	long i;
 	long nbeta = nvariables + 1;
 	long n = nbeta;
-	OLS OLSClass(x, y, num_data, nvariables);
+	OLS OLSClass(x, y, num_data, nvariables, NeweyWestLag);
 	for (i = 0; i < nbeta; i++) ResultArray[i] = OLSClass.beta[i];
 	for (i = 0; i < nbeta; i++) ResultArray[i + nbeta] = OLSClass.std_B[i];
 	for (i = 0; i < nbeta; i++) ResultArray[i + 2 * nbeta] = OLSClass.t_value[i];
@@ -85,6 +86,8 @@ void TempFuncOLS(double** x, double* y, long num_data, long nvariables, double* 
 	ResultArray[n * 3 + 11 + 2 * num_data + 2] = OLSClass.JB;
 	ResultArray[n * 3 + 11 + 2 * num_data + 3] = OLSClass.centered_tss;
 	for (i = 0; i < nbeta; i++) ResultArray[n * 3 + 11 + 2 * num_data + 3 + i] = OLSClass.p[i];
+	for (i = 0; i < nbeta; i++) ResultArray[n * 3 + 11 + 2 * num_data + 3 + nbeta + i] = OLSClass.std_B_NeweyWest[i];
+	for (i = 0; i < nbeta; i++) ResultArray[n * 3 + 11 + 2 * num_data + 3 + 2 * nbeta + i] = OLSClass.p_neweywest[i];
 }
 
 DLLEXPORT(long) OLS_Estimate(
@@ -92,12 +95,13 @@ DLLEXPORT(long) OLS_Estimate(
 	double* y,
 	long ndata,
 	long nvariables,
+	long NeweyWestLag,
 	double* ResultArray)
 {
 	long i, j;
 	long shape[2] = { ndata, nvariables };
 	double** x_before_const = DataReshape(x_reshape, shape);
-	TempFuncOLS(x_before_const, y, ndata, nvariables, ResultArray);
+	TempFuncOLS(x_before_const, y, ndata, nvariables, NeweyWestLag, ResultArray);
 
 	for (i = 0; i < ndata; i++) free(x_before_const[i]);
 	free(x_before_const);

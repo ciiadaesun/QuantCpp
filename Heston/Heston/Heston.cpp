@@ -241,6 +241,45 @@ double HestonPrice(double S, double K, double r, double div,
     return price;
 }
 
+double HestonPrice2(double S, double K, double r, double div,
+    double init_variance, double tau,
+    double LR_variance, double kappa, double volofvol, double rho)
+{
+    long i, j;
+    double theta = LR_variance;
+    double dx = 0.1;
+
+    complex<double> b, eps, g, h, q, F1, F2, H, epsq;
+    double X = log(S / K) + (r - div) * tau;
+    complex<double> x, im;
+    double value = 0.0, CallValue = 0.0, valuechange;
+    x = complex<double>(0.0, 0.5);
+    im = complex<double>(0.0, 1.0);
+    for (i = 0; i < 2000; i++)
+    {
+        x = complex<double>((double)(i)*dx + 0.5 * dx, 0.5);
+        b = 2.0 / (volofvol * volofvol) * (im * x * rho * volofvol + kappa);
+        eps = sqrt(b * b + 4.0 * (x * x - im * x) / (volofvol * volofvol));
+        g = (b - eps) / 2.0;
+        h = (b - eps) / (b + eps);
+        q = volofvol * tau * 0.5;
+        if (real(eps * q) >= 500) epsq = complex<double>(500.0, imag(eps * q));
+        else if (real(eps * q) <= -500) epsq = complex<double>(-500.0, imag(eps * q));
+        else epsq = eps * q;
+        F1 = 2.0 * kappa * theta / (volofvol * volofvol) * (q * g - log((1.0 - h * exp(-epsq)) / (1.0 - h)));
+        F2 = g * (1.0 - exp(-epsq)) / (1.0 - h * exp(-epsq));
+        H = exp(F1 + F2 * init_variance);
+        valuechange = real(exp(-im * x * X) * H / (x * x - im * x)) * dx;
+        value += valuechange;
+        if (i > 250 && fabs(valuechange) < 0.000001 * fabs(value)) break;
+    }
+    double temp = (1.0 / (PI)) * K * exp(-r * tau) * value;
+    CallValue = S * exp(-div * tau) - (1.0 / (PI)) * K * exp(-r * tau) * value;
+    if (CallValue  < 0.0 || CallValue > S) CallValue = BS_CallPrice(S, K, tau, sqrt(init_variance), r, div);
+    return CallValue;
+}
+
+
 double Heston_LocalVol(double S, double K, double r, double div,
     double init_variance, double tau,
     double LR_variance, double kappa, double volofvol, double rho,
@@ -298,6 +337,7 @@ double HestonPrice(double S, double K, double r, double div, double* Params, dou
     double gamma = 0.0;
     long optType = 0;
     return HestonPrice(S, K, r, div, V0, tau, LR_Var, kappa, Vol_Of_Vol, rho, gamma, optType, kmax, int_x, int_y);
+    //return HestonPrice2(S, K, r, div, V0, tau, LR_Var, kappa, Vol_Of_Vol, rho);
 }
 
 void make_Jacov_HESTON(
@@ -417,6 +457,7 @@ void make_Residual_Heston(
 
 
 void Levenberg_Marquardt_HESTON(
+    long niter,                  // Iteration Number
     long NParams,                // in : Parameter 개수
     long NResidual,              // in : Residual 개수
     double* NextParams,          // out : 다음 파라미터를 넣을 빈 Array (길이 = NParams)
@@ -430,7 +471,8 @@ void Levenberg_Marquardt_HESTON(
     double** JT_Res,             // out : (J'J) dot R
     double** ResultMatrix,       // out : 파라미터 변동분 매트릭스
     long& GradientFlag,          // out : Gradient Decent를 계속 사용할 지 여부
-    double* Initial_Params       // in : 파라미터가 Range벗어나는 경우 최초파라미터로 리셋하기 위해 사용
+    double* Initial_Params,      // in : 파라미터가 Range벗어나는 경우 최초파라미터로 리셋하기 위해 사용
+    double* argmin_params
 )
 {
     long i, j;
@@ -484,7 +526,8 @@ void Levenberg_Marquardt_HESTON(
     {
         if (NextParams[i] > ParamMax[i] || NextParams[i] < ParamMin[i])
         {
-            NextParams[i] = max(ParamMin[i], min(ParamMax[i], Initial_Params[i]));
+            if (niter > 0) NextParams[i] = max(ParamMin[i], min(ParamMax[i], argmin_params[i]));
+            else NextParams[i] = max(ParamMin[i], min(ParamMax[i], Initial_Params[i]));
             GradientContinue = 1;
         }
     }
@@ -492,6 +535,58 @@ void Levenberg_Marquardt_HESTON(
     GradientFlag = GradientContinue;
     double s = 0.0;
     for (i = 0; i < NParams; i++) s += fabs(ResultMatrix[i][0]);
+    ParamSum = s;
+}
+
+void GradientDecent_HESTON(
+    long niter,                  // Iteration Number
+    long NParams,                // in : Parameter 개수
+    long NResidual,              // in : Residual 개수
+    double* NextParams,          // out : 다음 파라미터를 넣을 빈 Array (길이 = NParams)
+    double* CurrentParams,       // in : 현재 파라미터 (길이 = NParams)
+    double* lambda,              // in/out : mu 파라미터의 포인터
+    double** Jacov,              // in : 자코비안 매트릭스
+    double* Residual,            // in : 잔차행렬
+    double& ParamSum,            // in : 파라미터 변동분의 합
+    double** JT_Res,             // out : (J'R)
+    double* Initial_Params,      // in : 파라미터가 Range벗어나는 경우 최초파라미터로 리셋하기 위해 사용
+    double* argmin_params
+)
+{
+    long i, j;
+
+    double mu = *lambda;
+
+    double ParamMax[5] = { 5.0, 2.0,   2.0,     0.95 , 1.0 };
+    double ParamMin[5] = { -0.3, 0.001, 0.00001,-0.95,  0.00001 };
+    double maxchange[5] = { 0.2, 0.2, 0.05, 0.1, 0.05 };
+    double minchange[5] = { -0.2, -0.2, -0.05, -0.1, -0.05 };
+
+    long n = NResidual;
+    long m = NParams;
+
+    long Shape_J[2] = { n,m };              // Shape of Jacov : (n, m)
+    long Shape_JT[2] = { m,n };             // Shape of J' : (m, n)
+    long Shape_Residual[2] = { n,1 };       // Shape of R : (n, 1)
+
+    /////////////
+    // 4. J'R  //
+    /////////////
+    XprimeY(Jacov, Shape_J, Residual, n, JT_Res);
+
+    for (i = 0; i < NParams; i++) NextParams[i] = CurrentParams[i] - max(minchange[i], min(maxchange[i], JT_Res[i][0] * 2.0 * mu));
+
+    for (i = 0; i < NParams; i++)
+    {
+        if (NextParams[i] > ParamMax[i] || NextParams[i] < ParamMin[i])
+        {
+            if (niter > 0) NextParams[i] = max(ParamMin[i], min(ParamMax[i], argmin_params[i]));
+            else NextParams[i] = max(ParamMin[i], min(ParamMax[i], Initial_Params[i]));
+        }
+    }
+
+    double s = 0.0;
+    for (i = 0; i < NParams; i++) s += fabs(JT_Res[i][0]);
     ParamSum = s;
 }
 
@@ -664,6 +759,7 @@ void Levenberg_Marquardt_HESTON(
     double PrevErrorSquareSum = 0.0;
     double ParamSum = 0.0;
     double lambda[1] = { 1.00 };
+    double lambdafirst[1] = { 0.01 };
     double* NextParams = make_array(NParams);
     double** JT_J = make_array(NParams, NParams);
     double** Inverse_JT_J = make_array(NParams, NParams);
@@ -712,9 +808,14 @@ void Levenberg_Marquardt_HESTON(
             }
         }
         if (BreakFlag == 1 && GradientFlag == 0 && lambda[0] < 1.0e-06) break;
-        if (lambda[0] >= 1.0e-06 || GradientFlag == 1)
+        
+        if (n == 0)
         {
-            Levenberg_Marquardt_HESTON(NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix, GradientFlag, Initial_Params);
+            GradientDecent_HESTON(n, NParams, NResidual, NextParams, Params, lambdafirst, TempJacovMatrix, ResidualArray, ParamSum, JT_Res, Initial_Params, argminparam);
+        }
+        else if (lambda[0] >= 1.0e-06 || GradientFlag == 1)
+        {
+            Levenberg_Marquardt_HESTON(n, NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_J, Inverse_JT_J, JT_Res, ResultMatrix, GradientFlag, Initial_Params, argminparam);
         }
         else
         {
@@ -728,7 +829,7 @@ void Levenberg_Marquardt_HESTON(
 
         if (n >= 10 && GradientFlag == 0 && lambda[0] < 1.0e-06) break;
         if (ErrorSquareSum / FirstErrorSquare < 0.001) break;
-        if (minrmpse < 0.08) break;
+        if (n >= 7 && minrmpse < 0.05) break;
         PrevErrorSquareSum = ErrorSquareSum;
     }
     RMPSE = minrmpse;
@@ -747,6 +848,130 @@ void Levenberg_Marquardt_HESTON(
     free(Initial_Params);
     free(argminparam);
     free(argminhestoncall);
+}
+
+void GradientDecent_HESTON(
+    long NParams,               // Heston 파라미터 개수 = 5
+    double* Params,             // 파라미터 Array = [kappa, volofvol, MeanVaR, rho, V0
+    long NResidual,             // Residual 개수 = VolSurface의 Parity개수 * Term개수
+    double* ResidualArray,      // 잔차 Array
+    double** TempJacovMatrix,   // Jacovian Matrix를 위해 할당해놓은 Matrix
+    double* ParamsUp,           // 파라미터 양의 방향 미분할 Array
+    double* ParamsDn,           // 파라미터 음의 방향 미분할 Array
+    double* r,                  // BS Call 계산하기 위해 사용된 이자율
+    double* div,                // BS Call 계산하기 위해 사용된 배당수익률
+    double* TermVolNew,         // BS Call 계산하기 위해 사용된 만기
+    double* ParityVolNew,       // BS Call 계산하기 위해 사용된 Moneyness
+    double* BSCallArray,        // BS Call 가격
+    double* HestonCallNew,      // Output : Heston Call
+    double& RMPSE
+)
+{
+    long i,j;
+    long n;
+    long BreakFlag = 0;
+    long Levenberg = 1;
+
+    double ErrorSquareSum = 100000.0;
+    double PrecentError = 1.0;
+    double PrevErrorSquareSum = 0.0;
+    double ParamSum = 0.0;
+    double lambda[1] = { 0.1    };
+    double* NextParams = make_array(NParams);
+    double** JT_J = make_array(NParams, NParams);
+    double** Inverse_JT_J = make_array(NParams, NParams);
+    double** JT_Res = make_array(NParams, 1);
+    double** ResultMatrix = make_array(NParams, 1);
+    double* Initial_Params = (double*)malloc(sizeof(double) * NParams);
+    double minerror = 10000.0;
+    for (i = 0; i < NParams; i++) Initial_Params[i] = Params[i];
+    double FirstErrorSquare = 1.0;
+    double* argminparam = (double*)malloc(sizeof(double) * NParams);
+    double* argminhestoncall = (double*)malloc(sizeof(double) * NResidual);
+    double minrmpse = 1.0;
+
+    double** PrevJacov = make_array(NResidual, NParams);
+    double* PrevResidual = make_array(NResidual);
+    double* prevparam = (double*)malloc(sizeof(double) * (NParams));
+
+    /////////////////////////////////
+    // Heston Price에 사용할 Array //
+    /////////////////////////////////
+    const long kmax = 1000;
+    double integ_x[kmax * 5] = { 0.0, };
+    double integ_y[kmax * 5] = { 0.0, };
+
+    for (n = 0; n < 30; n++)
+    {
+        //////////////////////////
+        // Jacovian Matrix 생성 //
+        //////////////////////////
+        make_Jacov_HESTON(n, NParams, Params, NResidual, TempJacovMatrix, ParamsUp, ParamsDn, TermVolNew, ParityVolNew, r, div, BSCallArray, kmax, integ_x, integ_y);
+
+        //////////////////////////
+        // Residual Matrix 생성 //
+        //////////////////////////
+        make_Residual_Heston(NParams, Params, NResidual, ResidualArray, TermVolNew, ParityVolNew, r, div, BSCallArray, ErrorSquareSum, PrecentError, HestonCallNew, kmax, integ_x, integ_y, RMPSE);
+
+        if (n == 0) FirstErrorSquare = ErrorSquareSum + 0.0;
+
+        if (n >= 1)
+        {
+            if (ErrorSquareSum < minerror || n == 1)
+            {
+                minerror = ErrorSquareSum;
+                minrmpse = RMPSE;
+                for (i = 0; i < NParams; i++) argminparam[i] = Params[i];
+                for (i = 0; i < NResidual; i++) argminhestoncall[i] = HestonCallNew[i];
+                if (RMPSE < 0.01) break;
+            }
+            if (ErrorSquareSum < PrevErrorSquareSum) lambda[0] *= 0.8;
+            else
+            {
+                for (i = 0; i < NResidual; i++) for (j = 0; j < NParams; j++) TempJacovMatrix[i][j] = PrevJacov[i][j];
+                for (i = 0; i < NResidual; i++) ResidualArray[i] = PrevResidual[i];
+                for (i = 0; i < NParams; i++) Params[i] = prevparam[i];
+                lambda[0] *= 0.8;
+            }
+
+        }
+
+        for (i = 0; i < NResidual; i++) for (j = 0; j < NParams; j++) PrevJacov[i][j] = TempJacovMatrix[i][j];
+        for (i = 0; i < NResidual; i++) PrevResidual[i] = ResidualArray[i];
+
+        GradientDecent_HESTON(n, NParams, NResidual, NextParams, Params, lambda, TempJacovMatrix, ResidualArray, ParamSum, JT_Res, Initial_Params, argminparam);
+        for (i = 0; i < NParams; i++)
+        {
+            prevparam[i] = Params[i];
+            Params[i] = NextParams[i];
+        }
+
+        if (n >= 10 && lambda[0] < 1.0e-06) break;
+        if (ErrorSquareSum / FirstErrorSquare < 0.001) break;
+        if (n >= 5 && minrmpse < 0.01) break;
+        PrevErrorSquareSum = ErrorSquareSum;
+    }
+    RMPSE = minrmpse;
+    for (i = 0; i < NResidual; i++) HestonCallNew[i] = argminhestoncall[i];
+    for (i = 0; i < NParams; i++) Params[i] = argminparam[i];
+
+    free(NextParams);
+    for (i = 0; i < NParams; i++) free(JT_J[i]);
+    for (i = 0; i < NParams; i++) free(Inverse_JT_J[i]);
+    free(JT_J);
+    free(Inverse_JT_J);
+    for (i = 0; i < NParams; i++) free(JT_Res[i]);
+    free(JT_Res);
+    for (i = 0; i < NParams; i++) free(ResultMatrix[i]);
+    free(ResultMatrix);
+    free(Initial_Params);
+    free(argminparam);
+    free(argminhestoncall);
+
+    free(prevparam);
+    for (i = 0; i < NResidual; i++) free(PrevJacov[i]);
+    free(PrevJacov);
+    free(PrevResidual);
 }
 
 void HestonCalibration(
@@ -806,6 +1031,7 @@ void HestonCalibration(
     double* ResultHestonCall = (double*)malloc(sizeof(double) * NTermVol * NParityVol);
     rmspe = 1.0;
     Levenberg_Marquardt_HESTON(nparams, Params, NResidual, ResidualArray, TempJacov, ParamsUp, ParamsDn, r, div, TermVolNew, ParityVolNew, BSCallArray, HestonCallNew, rmspe);
+    //GradientDecent_HESTON(nparams, Params, NResidual, ResidualArray, TempJacov, ParamsUp, ParamsDn, r, div, TermVolNew, ParityVolNew, BSCallArray, HestonCallNew, rmspe);
 
     for (i = 0; i < NTermVol * NParityVol; i++)
     {
