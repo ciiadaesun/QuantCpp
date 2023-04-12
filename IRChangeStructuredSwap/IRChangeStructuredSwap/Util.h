@@ -659,8 +659,7 @@ double** random_mvrn(long number_random, long number_variable, double** Corr)
 	double* RANDN = (double*)malloc(sizeof(double) * number_variable);
 
 	double** MVRN = (double**)malloc(sizeof(double*) * number_random);
-	for (i = 0; i < number_random; i++)
-		MVRN[i] = (double*)malloc(sizeof(double) * number_variable);
+	for (i = 0; i < number_random; i++) MVRN[i] = (double*)malloc(sizeof(double) * number_variable);
 
 	for (i = 0; i < number_random; i++)
 	{

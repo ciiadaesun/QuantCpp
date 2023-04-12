@@ -240,7 +240,9 @@ typedef struct HW_Parameter {
     double*** PayRef_B_t_T_PowerSpread2F;   // Pay Ref 반대쪽 파워스프레드 B(t,T) --> Shape = NReference, NDays, NCpn
     double*** PayRef_QVTerm_PowerSpread2F;  // Pay Ref 반대쪽 파워스프레드 QVTerm(t, T) --> Shape = NReference, NDays, NCpn
     double*** PayRef_dt_PowerSpread;        // Pay Ref 반대쪽 파워스프레드 DeltaT(t, T)--> Shape = NReference, NDays, NCpn
-
+    double QuantoFlag;
+    double QuantoRho;
+    double QuantoVol;
 } HW_INFO;
 
 //레퍼런스금리정보
@@ -337,6 +339,9 @@ typedef struct SimulationInfo {
     long HWFactorFlag;
     double* HWKappa2;
     double** HWVol2;
+    double* HWQuantoFlag;
+    double* HWQuantoRho;
+    double* HWQuantoVol;
 }SIMUL_INFO;
 
 // Linear Interpolation (X변수, Y변수, X길이, 타겟X)
@@ -2044,6 +2049,19 @@ long Simulate_HW(
     double* RcvOutputRate = (double*)malloc(RcvLeg->NReference * sizeof(double));
     double* PayOutputRate = (double*)malloc(PayLeg->NReference * sizeof(double));
 
+    double** Simul_QuantoTerm = (double**)malloc(sizeof(double*) * Simul->NAsset);
+    for (i = 0; i < Simul->NAsset; i++) Simul_QuantoTerm[i] = (double*)malloc(sizeof(double) * Simul->NDays);
+    
+    double v;
+    for (i = 0; i < Simul->NAsset; i++)
+    {
+        for (j = 0; j < Simul->NDays; j++)
+        {
+            v = Interpolate_Linear(Simul->HWVolTerm[i], Simul->HWVol[i], Simul->NHWVol[i], Simul->T_Array[i]);
+            if (Simul->HWQuantoFlag[i] > 0.99) Simul_QuantoTerm[i][j] = Simul->HWQuantoRho[i] * Simul->HWQuantoVol[i] * v * Simul->dt_Array[j];
+            else Simul_QuantoTerm[i][j] = 0.0;
+        }
+    }
 
     ////////////////
     // LSMC Data  //
@@ -2129,6 +2147,8 @@ long Simulate_HW(
                 {
                     SimulShortRate[n][j] = Simulated_ShortRate(HW_Information->XA[n][j], HW_Information->XV[n][j], SimulShortRate[n][j - 1], Simul->FixedRandn[i * Simul->NDays + j][n]);
                     if (Simul->HWFactorFlag > 0) SimulShortRate2F[n][j] = Simulated_ShortRate(HW_Information->XA2F[n][j], HW_Information->XV2F[n][j], SimulShortRate2F[n][j - 1], Simul->FixedRandn2[i * Simul->NDays + j][n]);
+
+                    SimulShortRate[n][j] -= Simul_QuantoTerm[n][j];
                 }
             }
         }
@@ -2820,6 +2840,8 @@ long Simulate_HW(
 
     }
     free(DF_Opt);
+    for (i = 0; i < Simul->NAsset; i++) free(Simul_QuantoTerm[i]);
+    free(Simul_QuantoTerm);
     return 1;
 }
 
@@ -3590,6 +3612,7 @@ long IRStructuredSwap(
     free(RcvRef_B_t_T_PowerSpread2);
     free(RcvRef_QVTerm_PowerSpread2);
     free(RcvRef_dt_PowerSpread);
+
     //
     for (i = 0; i < PayLeg->NReference; i++)
     {
@@ -3629,6 +3652,8 @@ long IRStructuredSwap(
         free(PayRef_B_t_T[i]);
         free(PayRef_QVTerm[i]);
         free(PayRef_dt[i]);
+        free(PayRef_B_t_T2[i]);
+        free(PayRef_QVTerm2[i]);
 
         free(PayRef_DF_t_T_PowerSpread[i]);
         free(PayRef_B_t_T_PowerSpread[i]);
@@ -3733,12 +3758,13 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     double* ResultPay,                  // 56 [0~NCF-1]금리1, [NCF~2NCF-1]금리2, [2NCF~3NCF-1]금리3, [3NCF~4NCF-1] E(Accrual수), [4NCF~5NCF-1] E(CPN), [5NCF~6NCF-1] E(DF)
     long HWFactorFlag,                  // 57 0: 1Factor 1: 2Factor
     double* HWVolArray2,                // 58 HW 2F Vol Array
-    char* Error                         // 59 에러메시지
+    double* HWQuantoInfo,               // 59 HW Quanto Information
+    char* Error                         // 60 에러메시지
 )
 {
 
     long i;
-    //_CrtSetBreakAlloc(44399);
+    //_CrtSetBreakAlloc(22357);
     long ResultCode = 0;
     long ErrorCode = 0;
     long j;
@@ -3746,6 +3772,10 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     long n;
     double* HWKappaArray2 = HWKappaArray + 4;
     double* HWrho2F = HWKappaArray + 8;
+    double* HWQuantoFlag = HWQuantoInfo;
+    double* HWQuantoRho = HWQuantoInfo + 4;
+    double* HWQuantoFXVol = HWQuantoInfo + 8;
+    
     ErrorCode = ErrorCheck_IRStructuredSwap_Excel(
         PriceDateExcel, NAFlag, Notional, PayoffStructure, HolidayFlagCount,
         Holidays_Excel, RcvFlag, RcvMaxLossReturn, RcvRefCurveNumber, RcvRefRateType,
@@ -4403,6 +4433,10 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     Simul->NRateTerm = (long*)malloc(sizeof(long) * Simul->NAsset);
     Simul->RateTerm = (double**)malloc(sizeof(double*) * Simul->NAsset);
     Simul->Rate = (double**)malloc(sizeof(double*) * Simul->NAsset);
+    Simul->HWQuantoFlag = (double*)malloc(sizeof(double) * Simul->NAsset);
+    Simul->HWQuantoRho = (double*)malloc(sizeof(double) * Simul->NAsset);
+    Simul->HWQuantoVol = (double*)malloc(sizeof(double) * Simul->NAsset);
+
     Simul->SimulCurveIdx = SimulateCurveIdx;
     Simul->HWFactorFlag = HWFactorFlag;
     k = 0;
@@ -4419,6 +4453,9 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
             Simul->NRateTerm[k] = NZeroRate[i];
             Simul->RateTerm[k] = ZeroRateTermMatrix[i];
             Simul->Rate[k] = ZeroRateMatrix[i];
+            Simul->HWQuantoFlag[k] = HWQuantoFlag[i];
+            Simul->HWQuantoRho[k] = HWQuantoRho[i];
+            Simul->HWQuantoVol[k] = HWQuantoFXVol[i];
             k = k + 1;
         }
     }
@@ -4478,6 +4515,9 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
         Simul_ForGreek->NRateTerm  = Simul->NRateTerm ;
         Simul_ForGreek->RateTerm = Simul->RateTerm ;
         Simul_ForGreek->Rate = (double**)malloc(sizeof(double*) * Simul->NAsset);
+        Simul_ForGreek->HWQuantoFlag = Simul->HWQuantoFlag;
+        Simul_ForGreek->HWQuantoRho = Simul->HWQuantoRho;
+        Simul_ForGreek->HWQuantoVol = Simul->HWQuantoVol;
         Simul_ForGreek->SimulCurveIdx = SimulateCurveIdx;
         k = 0;
         for (i = 1; i < N_Curve_Max + 1; i++)
@@ -4685,7 +4725,9 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     free(Simul->NRateTerm);
     free(Simul->RateTerm);
     free(Simul->Rate);
-
+    free(Simul->HWQuantoFlag);
+    free(Simul->HWQuantoRho);
+    free(Simul->HWQuantoVol);
     delete(Simul);
     _CrtDumpMemoryLeaks();
     return 1;
