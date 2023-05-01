@@ -26,7 +26,7 @@ public:
 		Maturity_Days = DayCountAtoB(PricingDate, MaturityDate);
 		Interest_Rate = rate;
 		OneYearConvention = 365;
-		double T = ((double)(Maturity_Days)) / ((double)(OneYearConvention));
+		double T = ((double)(Maturity_Days)) / 365.0;
 		Discount_Factor = 1.0 / (1.0 + Interest_Rate * T);
 		ZeroRate = -1.0 / T * log(Discount_Factor);
 	}
@@ -38,7 +38,7 @@ public:
 		Maturity_Days = DayCountAtoB(PricingDate, MaturityDate);
 		Interest_Rate = rate;
 		OneYearConvention = YearConvention;
-		double T = (double)(Maturity_Days) / (double)(OneYearConvention);
+		double T = (double)(Maturity_Days) / 365.0;
 		Discount_Factor = 1.0 / (1.0 + Interest_Rate * T);
 		ZeroRate = -1.0 / T * log(Discount_Factor);
 	}
@@ -49,7 +49,7 @@ public:
 		Maturity_Days = DayCountAtoB(PricingDate, MaturityDate);
 		Interest_Rate = rate;
 		OneYearConvention = YearConvention;
-		double T = (double)(Maturity_Days) / (double)(OneYearConvention);
+		double T = (double)(Maturity_Days) / 365.0;
 		Discount_Factor = 1.0 / (1.0 + Interest_Rate * T);
 		ZeroRate = -1.0 / T * log(Discount_Factor);
 	}

@@ -3345,7 +3345,7 @@ DLLEXPORT(long) OISCurveGeneratorExcel(
 
     long* TempDateArray;
     ResultTerm[0] = dt;
-    ResultRate[0] = -1.0 / ResultTerm[0] * log(1.0 / (1.0 + TodayONRate * dt));
+    ResultRate[0] = -1.0 / ResultTerm[0] * log(1.0 / (1.0 + TodayONRate * 1.0/360.0));
     for (i = 0; i < NOIS; i++)
     {
         ForwardStartDate[i] = (long*)malloc(sizeof(long) * NArraySchedule[i]);
