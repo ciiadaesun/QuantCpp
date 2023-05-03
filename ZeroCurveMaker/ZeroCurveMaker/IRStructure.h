@@ -348,7 +348,7 @@ public:
 		OneYearConvention = Convention1Y;
 		Maturity_Day = DayCountAtoB(PricingDate, BondMaturityDate);
 		CPNRate = CouponRate;
-		Maturity = ((double)DayCountAtoB(PricingDate, BondMaturityDate)) / (double)Convention1Y;
+		Maturity = ((double)DayCountAtoB(PricingDate, BondMaturityDate)) / (double)365.0;
 
 		for (i = 0; i < (long)(Maturity + 10.0) * N_Annual_Cpn; i++)
 		{
