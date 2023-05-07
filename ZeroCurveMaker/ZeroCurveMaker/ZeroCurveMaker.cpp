@@ -88,7 +88,18 @@ double DF_From_Swap(long PriceDate_C, long* CpnDate, long NCpnDate, double swapr
 	if (DayCount1Y_Fix == 360) Time_Fix = 360.0;
 	else Time_Fix = 365.0;
 
-	s = 1.0;
+	double DF0 = 1.0;
+	double t0, r0;
+
+	if (PriceDate_C != FirstCpnDate)
+	{
+		t0 = ((double)DayCountAtoB(PriceDate_C, FirstCpnDate) / 365.0);
+		if (InterpFlag == 0 || InterpFlag == 1) r0 = Interpolate_Linear(ZeroTerm, ZeroRate, NZero, t0);
+		else r0 = CubicSpline(NZero, ZeroTerm, ZeroRate, t0);
+		DF0 = exp(-r0 * t0);
+	}
+
+	s = DF0;
 	for (i = 0; i < NCpnDate-1; i++)
 	{
 		tau = DayCountAtoB(PriceDate_C, CpnDate[i]);
@@ -849,10 +860,21 @@ double IRS(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long FirstCpnDate, lon
 	if (InterpFlag == 0 || InterpFlag == 1) r = Interpolate_Linear(RateTerm, Rate, NRate, T_N);
 	else r = CubicSpline(NRate, RateTerm, Rate, T_N);
 
-	double a = 1.0 - exp(-r * T_N);
-	double b = 0.0;
+	double a;
+	double b;
 	double deltat;
 	double TimeT;
+	double DF0 = 1.0;
+	double t0, r0;
+	if (PriceDateYYYYMMDD != FirstCpnDate)
+	{
+		t0 = ((double)DayCountAtoB(PriceDateYYYYMMDD, FirstCpnDate) / 365.0);
+		if (InterpFlag == 0 || InterpFlag == 1) r0 = Interpolate_Linear(RateTerm, Rate, NRate, t0);
+		else r0 = CubicSpline(NRate, RateTerm, Rate, t0);
+		DF0 = exp(-r0 * t0);
+	}
+	a = DF0 - exp(-r * T_N);
+	b = 0.0;
 	if (Convention1Y == 360) TimeT = 360.0;
 	else TimeT = 365.0;
 
@@ -862,12 +884,13 @@ double IRS(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long FirstCpnDate, lon
 
 		if (i == 0) deltat = ((double)DayCountAtoB(FirstCpnDate, CpnDate[i]) / TimeT);
 		else deltat = ((double)DayCountAtoB(CpnDate[i - 1], CpnDate[i]) / TimeT);
-		
+
 		if (InterpFlag == 0 || InterpFlag == 1) r = Interpolate_Linear(RateTerm, Rate, NRate, T_N);
 		else r = CubicSpline(NRate, RateTerm, Rate, T_N);
 
 		b += deltat * exp(-r * T_N);
 	}
+
 
 	return a / b;
 
