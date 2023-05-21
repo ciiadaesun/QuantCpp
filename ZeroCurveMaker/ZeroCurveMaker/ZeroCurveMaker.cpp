@@ -60,6 +60,24 @@ double Bootstrapping_Futures(long PriceDateYYYYMMDD, double mktrate, double DF_0
 	return z_st;
 }
 
+double CalcForward(long PriceDateYYYYMMDD, long ForwardStartYYYYMMDD, long ForwardEndYYYYMMDD, long Conv1Y, long NZero, double* ZeroTerm, double* ZeroRate)
+{
+	double Time;
+	if (Conv1Y == 360) Time = 360.0;
+	else Time = 365.0;
+	double T0, TN, deltaT;
+	double r0, rN;
+	double s;
+
+	T0 = ((double)DayCountAtoB(PriceDateYYYYMMDD, ForwardStartYYYYMMDD)) / 365.0;
+	TN = ((double)DayCountAtoB(PriceDateYYYYMMDD, ForwardEndYYYYMMDD)) / 365.0;
+	deltaT = ((double)DayCountAtoB(ForwardStartYYYYMMDD, ForwardEndYYYYMMDD))/Time;
+	r0 = Interpolate_Linear(ZeroTerm, ZeroRate, NZero, T0);
+	rN = Interpolate_Linear(ZeroTerm, ZeroRate, NZero, TN);
+	s = (exp(-r0 * T0) - exp(-rN * TN)) / (deltaT * exp(-rN * TN));
+	return s;
+}
+
 long MonthDateisSame(long YYYYMMDD1, long YYYYMMDD2)
 {
 	long Year = (long)YYYYMMDD1 / 10000;
@@ -325,11 +343,13 @@ long ZeroCurveGenerate_IRS2(
 	long NForward,
 	long* ForwardStart_C,
 	long* ForwardEnd_C,
+	long* ForwardPayDate_C,
 	double* ForwardRate,
 	long* Forward_OneYConvention,
 
 	long NSwap,
 	long* SwapMaturity_C,
+	long* SwapPayDate_C,
 	long* NCPN_Ann,
 	double* SwapRate,
 	long* Swap_OneYConvention_Fix,
@@ -345,6 +365,25 @@ long ZeroCurveGenerate_IRS2(
 	long i;
 	long j;
 	long ncurve = 0;
+
+	long* CpnDate;
+	long nCpnArray = 0;
+	long leapflag = 0;
+	long CpnDateisBeforeFeb;
+	double disc = 1.0;
+	double tau = 0.0;
+	long PrevCpnDate;
+	long FirstCpnDate = 0;
+
+	double dblErrorRange = 0.0000001;
+	double ObjValue = 0.0;
+	double MaxRate;
+	double MinRate;
+	double TargetRate;
+	double* Rate;
+	double* Term;
+	double PrevRate;
+	double CalcRate;
 
 	double* ZeroTerm = (double*)malloc(sizeof(double) * NResultCurve);
 	double* ZeroRate = (double*)malloc(sizeof(double) * NResultCurve);
@@ -363,43 +402,57 @@ long ZeroCurveGenerate_IRS2(
 
 	long maxshortday = ShortTerm_Maturity_C[NShortTerm - 1];
 	double tstart, tend, DF_0_to_tstart, r_to_tstart;
+	double F;
 	for (i = 0; i < NForward; i++)
 	{
 		if (ForwardEnd_C[i] > maxshortday)
 		{
-			tstart = ((double)DayCountAtoB(PriceDate_C, ForwardStart_C[i])) / 365.0;
-			tend = ((double)DayCountAtoB(PriceDate_C, ForwardEnd_C[i])) / 365.0;
-			if (InterpFlag == 0) r_to_tstart = Interpolate_Linear(ZeroTerm, ZeroRate, ncurve, tstart);
-			else if (InterpFlag == 1) r_to_tstart = Interpolate_Linear(ZeroTerm, ZeroRate, ncurve, tstart, 1);
-			else r_to_tstart = CubicSpline(ncurve, ZeroTerm, ZeroRate, tstart);
+			tau = (double)(DayCountAtoB(PriceDate_C, ForwardPayDate_C[i]));
+			t = tau / 365.0;
 
-			DF_0_to_tstart = exp(-r_to_tstart * tstart);
-			ZeroTerm[ncurve] = tend;
-			ZeroRate[ncurve] = Bootstrapping_Futures(PriceDate_C, ForwardRate[i], DF_0_to_tstart, ForwardStart_C[i], ForwardEnd_C[i], Forward_OneYConvention[i]);
+			MaxRate = ForwardRate[i] + 0.25;
+			MinRate = ForwardRate[i] - 0.15;
+			TargetRate = MaxRate;
+
+			Rate = (double*)malloc(sizeof(double) * (ncurve + 1));
+			Term = (double*)malloc(sizeof(double) * (ncurve + 1));
+			PrevRate = MaxRate;
+			for (j = 0; j < ncurve; j++)
+			{
+				Rate[j] = ZeroRate[j];
+				Term[j] = ZeroTerm[j];
+			}
+			Term[ncurve] = t;
+
+			for (j = 0; j < 1000; j++)
+			{
+				Rate[ncurve] = TargetRate;
+				F = CalcForward(PriceDate_C, ForwardStart_C[i], ForwardEnd_C[i], Forward_OneYConvention[i], ncurve + 1, Term, Rate);
+				CalcRate = F - ForwardRate[i];
+				if (fabs(CalcRate) < dblErrorRange) break;
+				if (CalcRate > 0)
+				{
+					MaxRate = TargetRate;
+					TargetRate = (MaxRate + MinRate) / 2.0;
+				}
+				else
+				{
+					MinRate = TargetRate;
+					TargetRate = (MinRate + MaxRate) / 2.0;
+				}
+			}
+
+			free(Rate);
+			free(Term);
+
+			ZeroTerm[ncurve] = tau / 365.0;
+			ZeroRate[ncurve] = TargetRate;
 			DiscFactor[ncurve] = exp(-ZeroTerm[ncurve] * ZeroRate[ncurve]);
 			Mkt[ncurve] = ForwardRate[i];
 			ncurve++;
 		}
 	}
 
-	long* CpnDate;
-	long nCpnArray = 0;
-	long leapflag = 0;
-	long CpnDateisBeforeFeb;
-	double disc = 1.0;
-	double tau = 0.0;
-	long PrevCpnDate;
-	long FirstCpnDate = 0;
-
-	double dblErrorRange = 0.00000001;
-	double ObjValue = 0.0;
-	double MaxRate;
-	double MinRate;
-	double TargetRate;
-	double* Rate;
-	double* Term;
-	double PrevRate;
-	double CalcRate;
 	for (i = 0; i < NSwap; i++)
 	{
 		FirstCpnDate = PriceDate_C;
@@ -407,7 +460,7 @@ long ZeroCurveGenerate_IRS2(
 		{
 
 			CpnDate = Generate_Date(PriceDate_C, SwapMaturity_C[i], NCPN_Ann[i], nCpnArray, FirstCpnDate);
-			tau = (double)(DayCountAtoB(PriceDate_C, SwapMaturity_C[i]));
+			tau = (double)(DayCountAtoB(PriceDate_C, SwapPayDate_C[i]));
 			t = tau / 365.0;
 
 			MaxRate = SwapRate[i] + 0.25;
@@ -444,6 +497,7 @@ long ZeroCurveGenerate_IRS2(
 			
 			free(CpnDate);
 			free(Rate);
+			free(Term);
 
 			ZeroTerm[ncurve] = tau / 365.0;
 			ZeroRate[ncurve] = TargetRate;
@@ -732,11 +786,13 @@ DLLEXPORT(long) ZeroMakerExcel(
 	long NForward,					// Forward 이자율 개수
 	long* ForwardStart_Excel,		// Forward금리 추정시작일 ExcelType Array
 	long* ForwardEnd_Excel,			// Forward금리 추정종료일 ExcelType Array
+	long* ForwardPayDate_Excel,		// Forward PayDate
 	double* ForwardRate,			// Forward Rate Array
 	long* Forward_OneYConvention,	// Forward Rate DayCount 1Y (360 or 365) Array
 
 	long NSwap,						// 입력된 Swap 개수
 	long* SwapMaturity_Excel,		// Swap 만기 ExcelType Array
+	long* SwapPayDate_Excel,		// SwapPayDate Array
 	long* NCPN_Ann,					// Swap 연 이자지급 회수 Array
 	double* SwapRate,				// Swap Rate Array
 	long* Swap_OneYConvention_Fix,	// Swap DayCount 1Y (360 or 365)
@@ -748,7 +804,7 @@ DLLEXPORT(long) ZeroMakerExcel(
 	double* MktRate,				// Out: MktRate Array
 
 	long InterpFlag,				// 0: Linterp 1: Linterp + Extrap 2: Cubic
-	long CaliFlag,					// 0: Analytic, 2: Root Finder
+	long CaliFlag,					// 0: Analytic, 1: Root Finder
 	char* Error						// Out: 에러메시지
 
 
@@ -767,7 +823,9 @@ DLLEXPORT(long) ZeroMakerExcel(
 	long* ShortTerm_Maturity_C = (long*)malloc(sizeof(long) * NShortTerm);
 	long* ForwardStart_C = (long*)malloc(sizeof(long) * NForward);
 	long* ForwardEnd_C = (long*)malloc(sizeof(long) * NForward);
+	long* ForwardPayDate_C = (long*)malloc(sizeof(long) * NForward);
 	long* SwapMaturity_C = (long*)malloc(sizeof(long) * NSwap);
+	long* SwapPayDate_C = (long*)malloc(sizeof(long) * NSwap);
 	for (i = 0; i < NShortTerm; i++)
 	{
 		ShortTerm_Maturity_C[i] = ExcelDateToCDate(ShortTerm_Maturity_Excel[i]);
@@ -777,19 +835,41 @@ DLLEXPORT(long) ZeroMakerExcel(
 	{
 		ForwardStart_C[i] = ExcelDateToCDate(ForwardStart_Excel[i]);
 		ForwardEnd_C[i] = ExcelDateToCDate(ForwardEnd_Excel[i]);
+		if (ForwardPayDate_Excel[i]) ForwardPayDate_C[i] = ExcelDateToCDate(ForwardPayDate_Excel[i]);
+		else ForwardPayDate_C[i] = ForwardEnd_C[i];
 	}
 
 	for (i = 0; i < NSwap; i++)
 	{
 		SwapMaturity_C[i] = ExcelDateToCDate(SwapMaturity_Excel[i]);
+		if (SwapPayDate_Excel[i]) SwapPayDate_C[i] = ExcelDateToCDate(SwapPayDate_Excel[i]);
+		else SwapPayDate_C[i] = SwapMaturity_C[i];
 	}
 
 	for (i = 0; i < NForward; i++)
 	{
 		if (ForwardEnd_C[i] >= SwapMaturity_C[0]) NForward -= 1;
 	}
+
 	if (MarketDataFlag == 0)
 	{
+		for (i = 0; i < NForward; i++)
+		{
+			if (ForwardEnd_C[i] != ForwardPayDate_C[i])
+			{
+				CaliFlag = 1;
+				break;
+			}
+		}
+		for (i = 0; i < NSwap; i++)
+		{
+			if (SwapMaturity_C[i] != SwapPayDate_C[i])
+			{
+				CaliFlag = 1;
+				break;
+			}
+		}
+
 		if (CaliFlag == 0)
 		{
 			ResultCode = ZeroCurveGenerate_IRS(
@@ -802,9 +882,10 @@ DLLEXPORT(long) ZeroMakerExcel(
 		{
 			ResultCode = ZeroCurveGenerate_IRS2(
 				PriceDate_C, NShortTerm, ShortTerm_Maturity_C, ShortTerm_Rate, ShortTerm_OneYConvention,
-				NForward, ForwardStart_C, ForwardEnd_C, ForwardRate, Forward_OneYConvention,
-				NSwap, SwapMaturity_C, NCPN_Ann, SwapRate, Swap_OneYConvention_Fix,
-				NResultCurve, ResultCurveTerm, ResultCurve, ResultDF, MktRate, InterpFlag);
+				NForward, ForwardStart_C, ForwardEnd_C, ForwardPayDate_C, ForwardRate, 
+				Forward_OneYConvention, NSwap, SwapMaturity_C, SwapPayDate_C, NCPN_Ann, 
+				SwapRate, Swap_OneYConvention_Fix, NResultCurve, ResultCurveTerm, ResultCurve, 
+				ResultDF, MktRate, InterpFlag);
 		}
 	}
 	else
@@ -818,7 +899,9 @@ DLLEXPORT(long) ZeroMakerExcel(
 	free(ShortTerm_Maturity_C);
 	free(ForwardStart_C);
 	free(ForwardEnd_C);
+	free(ForwardPayDate_C);
 	free(SwapMaturity_C);
+	free(SwapPayDate_C);
 	return ResultCode;
 }
 
@@ -854,6 +937,7 @@ DLLEXPORT(double) Calc_IRS(long PricingDate_Excel, long SwapMaturityDate_Excel, 
 
 double IRS(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long FirstCpnDate, long Number_Ann_CPN, long* CpnDate, long nCpnDate, long Convention1Y, long NRate, double* RateTerm, double* Rate, long InterpFlag)
 {
+	// CpnDate == PayDate
 	long i;
 	double T_N = ((double)DayCountAtoB(PriceDateYYYYMMDD, CpnDate[nCpnDate - 1]) / 365.0);
 	double r;
