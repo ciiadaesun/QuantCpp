@@ -158,7 +158,14 @@ long LastDayCountHaveLeapDate(long YYYYMMDD)
 
 long* Generate_Date(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOneYear, long &lenArray, long& FirstCpnDate)
 {
-	long i;
+	long i, j;
+
+	long PriceYYYY = (long)PriceDateYYYYMMDD / 10000;
+	long PriceMM = (long)(PriceDateYYYYMMDD - PriceYYYY * 10000) / 100;
+
+	long SwapMatYYYY = (long)SwapMat_YYYYMMDD / 10000;
+	long SwapMatMM = (long)(SwapMat_YYYYMMDD - SwapMatYYYY * 10000) / 100;
+
 	long n = ((SwapMat_YYYYMMDD/ 10000 - PriceDateYYYYMMDD /10000) + 2) * AnnCpnOneYear;
 	long narray = 0;
 	long CpnDate;
@@ -177,6 +184,9 @@ long* Generate_Date(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOn
 	}
 
 	long* ResultCpnDate = (long*)malloc(sizeof(long) * narray);
+	long CpnDateExcel;
+	long MOD7;
+	long SaturSundayFlag;
 	for (i = 0; i < n; i++)
 	{
 		if (i == 0) CpnDate = SwapMat_YYYYMMDD;
@@ -185,10 +195,50 @@ long* Generate_Date(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOn
 		if (CpnDate <= PriceDateYYYYMMDD|| DayCountAtoB(PriceDateYYYYMMDD, CpnDate) < 7) break;
 		else
 		{
-			ResultCpnDate[narray - 1 - i] = CpnDate;
+			CpnDateExcel = CDateToExcelDate(CpnDate);
+			MOD7 = CpnDateExcel % 7;
+			if (MOD7 == 1 || MOD7 == 0) SaturSundayFlag = 1;
+			else SaturSundayFlag = 0;
+			
+			if (SaturSundayFlag == 0)
+			{
+				ResultCpnDate[narray - 1 - i] = CpnDate;
+			}
+			else
+			{
+				// Forward End 날짜가 토요일 또는 일요일의 경우 날짜 미룸
+				for (j = 1; j <= 7; j++)
+				{
+					CpnDateExcel += 1;
+					MOD7 = CpnDateExcel % 7;
+					if (MOD7 != 1 && MOD7 != 0)
+					{
+						CpnDate = ExcelDateToCDate(CpnDateExcel);
+						break;
+					}
+				}
+				ResultCpnDate[narray - 1 - i] = CpnDate;
+			}
 		}
 	}
 	lenArray = narray;
+	if (AnnCpnOneYear == 1 && PriceMM != SwapMatMM)
+	{
+		long TargetDateYYYYMMDD = ResultCpnDate[0];
+		long TargetDateYYYY;
+		long TargetDateMM;
+		for (i = 1; i <= 12; i++)
+		{
+			TargetDateYYYYMMDD = EDate_Cpp(TargetDateYYYYMMDD, -1);
+			TargetDateYYYY = (long)TargetDateYYYYMMDD / 10000;
+			TargetDateMM = (long)(TargetDateYYYYMMDD - TargetDateYYYY * 10000) / 100;
+			if (TargetDateYYYY == PriceYYYY && TargetDateMM == PriceMM)
+			{
+				FirstCpnDate = TargetDateYYYYMMDD;
+				break;
+			}
+		}
+	}
 	return ResultCpnDate;
 }
 
@@ -913,12 +963,21 @@ DLLEXPORT(double) Calc_IRS(long PricingDate_Excel, long SwapMaturityDate_Excel, 
 	long SwapMat_YYYYMMDD = ExcelDateToCDate(SwapMaturityDate_Excel);
 	long FirstCpnDate = PriceDateYYYYMMDD;
 	long* CpnDate = Generate_Date(PriceDateYYYYMMDD, SwapMat_YYYYMMDD, Number_Ann_CPN, nCpnDate, FirstCpnDate);
+	double DF0 = 1.0, t0, r0;
 	double T_N = ((double)DayCountAtoB(PriceDateYYYYMMDD, CpnDate[nCpnDate - 1])/365.0);
 	double r = Interpolate_Linear(RateTerm, Rate, NRate, T_N);
-	double a = 1.0 - exp(-r * T_N);
 	double b = 0.0;
 	double deltat;
 	double TimeT;
+
+	if (PriceDateYYYYMMDD != FirstCpnDate)
+	{
+		t0 = ((double)DayCountAtoB(PriceDateYYYYMMDD, FirstCpnDate) / 365.0);
+		r0 = Interpolate_Linear(RateTerm, Rate, NRate, t0);
+		DF0 = exp(-r0 * t0);
+	}
+
+	double a = DF0 - exp(-r * T_N);
 	if (Convention1Y == 360) TimeT = 360.0;
 	else TimeT = 365.0;
 
