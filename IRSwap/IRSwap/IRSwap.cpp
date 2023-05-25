@@ -154,6 +154,110 @@ long MappingPaymentDates(double T_SwapMaturity, double FreqMonth, long* TempDate
     return NDates;
 }
 
+double Calc_Forward_Rate_Daily(
+    double* Term,
+    double* Rate,
+    long LengthArray,
+    double T1,
+    double denominator,
+    long* TimePos
+)
+{
+    long i;
+    long startidx = *TimePos + 0;
+    double dt = 0.00273972602739726;
+    double T2 = T1 + dt;
+    double r1, r2;
+    double DF1, DF2, FRate;
+
+    if (T1 <= Term[0]) r1 = Rate[0];
+    else if (T1 >= Term[LengthArray - 1]) r1 = Rate[LengthArray - 1];
+    else
+    {
+        for (i = max(1, startidx); i < LengthArray; i++)
+        {
+            if (T1 < Term[i])
+            {
+                *TimePos = i - 1;
+                r1 = (Rate[i] - Rate[i - 1]) / (Term[i] - Term[i - 1]) * (T1 - Term[i - 1]) + Rate[i - 1];
+                break;
+            }
+        }
+    }
+
+    if (T2 <= Term[0]) r2 = Rate[0];
+    else if (T2 >= Term[LengthArray - 1]) r2 = Rate[LengthArray - 1];
+    else
+    {
+        for (i = max(1, startidx); i < LengthArray; i++)
+        {
+            if (T2 < Term[i])
+            {
+                r2 = (Rate[i] - Rate[i - 1]) / (Term[i] - Term[i - 1]) * (T2 - Term[i - 1]) + Rate[i - 1];
+                break;
+            }
+        }
+    }
+
+    DF1 = exp(-r1 * T1);
+    DF2 = exp(-r2 * T2);
+    FRate = denominator * (DF1 / DF2 - 1.0);
+    return FRate;
+}
+
+double Calc_Forward_Rate_Daily(
+    double* Term,
+    double* Rate,
+    long LengthArray,
+    double T1,
+    double denominator,
+    long* TimePos,
+    long NHoliday
+)
+{
+    long i;
+    long startidx = *TimePos + 0;
+    double dt = 0.00273972602739726;
+    double T2 = T1 + ((double)(NHoliday + 1)) * dt;
+    double r1, r2;
+    double DeltaT = T2 - T1;
+    double DF1, DF2, FRate;
+
+    if (T1 <= Term[0]) r1 = Rate[0];
+    else if (T1 >= Term[LengthArray - 1]) r1 = Rate[LengthArray - 1];
+    else
+    {
+        for (i = max(1, startidx); i < LengthArray; i++)
+        {
+            if (T1 < Term[i])
+            {
+                *TimePos = i - 1;
+                r1 = (Rate[i] - Rate[i - 1]) / (Term[i] - Term[i - 1]) * (T1 - Term[i - 1]) + Rate[i - 1];
+                break;
+            }
+        }
+    }
+
+    if (T2 <= Term[0]) r2 = Rate[0];
+    else if (T2 >= Term[LengthArray - 1]) r2 = Rate[LengthArray - 1];
+    else
+    {
+        for (i = max(1, startidx); i < LengthArray; i++)
+        {
+            if (T2 < Term[i])
+            {
+                r2 = (Rate[i] - Rate[i - 1]) / (Term[i] - Term[i - 1]) * (T2 - Term[i - 1]) + Rate[i - 1];
+                break;
+            }
+        }
+    }
+
+    DF1 = exp(-r1 * T1);
+    DF2 = exp(-r2 * T2);
+    FRate = denominator/(double)(NHoliday+1) * (DF1 / DF2 - 1.0);
+    return FRate;
+}
+
 /////////////////////////////
 // Forward Swap Rate 계산 ///
 /////////////////////////////
@@ -840,7 +944,7 @@ double SOFR_ForwardRate_Compound(
                     ////////////////////
                     // Forward Rate Time 추정 LookBack 반영
                     ////////////////////
-                    if (LookBackDays < 1) t = ((double)i) / denominator;
+                    if (LookBackDays < 1) t = ((double)i) / 365.0;
                     else
                     {
                         k = 0;
@@ -854,7 +958,7 @@ double SOFR_ForwardRate_Compound(
                             if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
                             if (k == LookBackDays) break;
                         }
-                        t = ((double)lookbackday) / denominator;
+                        t = ((double)lookbackday) / 365.0;
                     }
 
                     ////////////////////
@@ -875,11 +979,11 @@ double SOFR_ForwardRate_Compound(
 
                     if (CountHoliday == 0)
                     {
-                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator,  &TimePos);
                     }
                     else
                     {
-                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos, CountHoliday);
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator , &TimePos, CountHoliday);
                     }
 
                     LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
@@ -939,7 +1043,7 @@ double SOFR_ForwardRate_Compound(
                     ////////////////////
                     // Forward Rate Time 추정 LookBack 반영
                     ////////////////////
-                    if (LookBackDays < 1) t = ((double)lookbackday) / denominator;
+                    if (LookBackDays < 1) t = ((double)lookbackday) / 365.0;
                     else
                     {
                         k = 0;
@@ -953,7 +1057,7 @@ double SOFR_ForwardRate_Compound(
                             if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
                             if (k == LookBackDays) break;
                         }
-                        t = ((double)lookbackday) / denominator;
+                        t = ((double)lookbackday) / 365.0;
                     }
 
                     CountHoliday2 = 0;
@@ -972,11 +1076,11 @@ double SOFR_ForwardRate_Compound(
 
                     if (CountHoliday2 == 0)
                     {
-                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator, &TimePos);
                     }
                     else
                     {
-                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos, CountHoliday2);
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator, &TimePos, CountHoliday2);
                     }
 
                     LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
@@ -1007,7 +1111,7 @@ double SOFR_ForwardRate_Compound(
                 {
                     lookbackday = i + 0;
 
-                    if (LookBackDays < 1) t = ((double)i) / denominator;
+                    if (LookBackDays < 1) t = ((double)i) / 365.0;
                     else
                     {
                         ///////////////////////////
@@ -1025,7 +1129,7 @@ double SOFR_ForwardRate_Compound(
                             if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
                             if (k == LookBackDays) break;
                         }
-                        t = ((double)lookbackday) / denominator;
+                        t = ((double)lookbackday) / 365.0;
                     }
                     ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
 
@@ -1065,7 +1169,7 @@ double SOFR_ForwardRate_Compound(
                         ////////////////////
                         lookbackday = i + CountHoliday + 1;
 
-                        if (LookBackDays < 1) t = ((double)lookbackday) / denominator;
+                        if (LookBackDays < 1) t = ((double)lookbackday) / 365.0;
                         else
                         {
                             k = 0;
@@ -1079,9 +1183,9 @@ double SOFR_ForwardRate_Compound(
                                 if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
                                 if (k == LookBackDays) break;
                             }
-                            t = ((double)lookbackday) / denominator;
+                            t = ((double)lookbackday) / 365.0;
                         }
-                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos2);
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator, &TimePos2);
 
                         LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
 
@@ -1114,7 +1218,7 @@ double SOFR_ForwardRate_Compound(
                 ////////////////////
                 // Forward Rate Time 추정 LookBack 반영
                 ////////////////////
-                if (LookBackDays < 1) t = ((double)i) / denominator;
+                if (LookBackDays < 1) t = ((double)i) / 365.0;
                 else
                 {
                     k = 0;
@@ -1127,9 +1231,9 @@ double SOFR_ForwardRate_Compound(
                         if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
                         if (k == LookBackDays) break;
                     }
-                    t = ((double)lookbackday) / denominator;
+                    t = ((double)lookbackday) / 365.0;
                 }
-                ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator, &TimePos);
 
                 LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
 
@@ -1157,7 +1261,7 @@ double SOFR_ForwardRate_Compound(
                     ////////////////////
                     // Forward Rate Time 추정 LookBack 반영
                     ////////////////////
-                    if (LookBackDays < 1) t = ((double)i) / denominator;
+                    if (LookBackDays < 1) t = ((double)i) / 365.0;
                     else
                     {
                         k = 0;
@@ -1171,7 +1275,7 @@ double SOFR_ForwardRate_Compound(
                             if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
                             if (k == LookBackDays) break;
                         }
-                        t = ((double)lookbackday) / denominator;
+                        t = ((double)lookbackday) / 365.0;
                     }
 
                     ////////////////////
@@ -1190,11 +1294,11 @@ double SOFR_ForwardRate_Compound(
 
                     if (CountHoliday == 0)
                     {
-                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator, &TimePos);
                     }
                     else
                     {
-                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos, CountHoliday);
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator, &TimePos, CountHoliday);
                     }
 
                     if (lookbackday < 0)
@@ -1251,7 +1355,7 @@ double SOFR_ForwardRate_Compound(
                     ////////////////////
                     // Forward Rate Time 추정 LookBack 반영
                     ////////////////////
-                    if (LookBackDays < 1) t = ((double)lookbackday) / denominator;
+                    if (LookBackDays < 1) t = ((double)lookbackday) / 365.0;
                     else
                     {
                         k = 0;
@@ -1264,7 +1368,7 @@ double SOFR_ForwardRate_Compound(
                             if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
                             if (k == LookBackDays) break;
                         }
-                        t = ((double)lookbackday) / denominator;
+                        t = ((double)lookbackday) / 365.0;
                     }
 
                     CountHoliday2 = 0;
@@ -1283,11 +1387,11 @@ double SOFR_ForwardRate_Compound(
 
                     if (CountHoliday2 == 0)
                     {
-                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator, &TimePos);
                     }
                     else
                     {
-                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos, CountHoliday2);
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator, &TimePos, CountHoliday2);
                     }
                     LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
 
@@ -1332,7 +1436,7 @@ double SOFR_ForwardRate_Compound(
                     ////////////////////
                     // Forward Rate Time1 추정 LookBack 반영
                     ////////////////////
-                    if (LookBackDays < 1) t = ((double)i) / denominator;
+                    if (LookBackDays < 1) t = ((double)i) / 365.0;
                     else
                     {
                         k = 0;
@@ -1345,7 +1449,7 @@ double SOFR_ForwardRate_Compound(
                             if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
                             if (k == LookBackDays) break;
                         }
-                        t = ((double)lookbackday) / denominator;
+                        t = ((double)lookbackday) / 365.0;
                     }
 
                     ////////////////////
@@ -1363,7 +1467,7 @@ double SOFR_ForwardRate_Compound(
 
                     if (CountHoliday == 0)
                     {
-                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator, &TimePos);
 
                         LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
 
@@ -1374,7 +1478,7 @@ double SOFR_ForwardRate_Compound(
                     else
                     {
                         TargetT[0] = 0.0;
-                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                        ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator, &TimePos);
 
                         LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
 
@@ -1389,7 +1493,7 @@ double SOFR_ForwardRate_Compound(
                         ////////////////////
                         t = ((double)(lookbackday + CountHoliday + 1)) / denominator;
                         TargetT[1] = (double)(CountHoliday + 1);
-                        TargetRate[1] = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                        TargetRate[1] = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator, &TimePos);
 
                         LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
 
@@ -1413,7 +1517,7 @@ double SOFR_ForwardRate_Compound(
                 ////////////////////
                 // Forward Rate Time 추정 LookBack 반영
                 ////////////////////
-                if (LookBackDays < 1) t = ((double)i) / denominator;
+                if (LookBackDays < 1) t = ((double)i) / 365.0;
                 else
                 {
                     k = 0;
@@ -1426,9 +1530,9 @@ double SOFR_ForwardRate_Compound(
                         if (max(isin(lookbackday, Holiday, NHoliday), isin(lookbackday, SaturSunDay, NSaturSunDay)) == 0) k += 1;
                         if (k == LookBackDays) break;
                     }
-                    t = ((double)lookbackday) / denominator;
+                    t = ((double)lookbackday) / 365.0;
                 }
-                ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, &TimePos);
+                ForwardRate = Calc_Forward_Rate_Daily(RefCrvTerm, RefCrvRate, NRefCrvTerm, t, denominator, &TimePos);
 
                 LockOutCheck(LockOutFlag, LockOutDay, i, LockOutDayRate, ForwardRate);
 
@@ -1747,6 +1851,8 @@ double LegValue(
     double FreqMonth;
     double FXRate = 1.0;
     double OIS_Annual = 0.0, OIS_Compound = 0.0;
+    double FX;
+    double DiscPay;
 
     if (Schedule->FixedFlotype == 1)
     {
@@ -1773,7 +1879,7 @@ double LegValue(
                     Ref_T1 = ((double)Schedule->Days_ForwardEnd[i]) / denominator;
                     Frac_T0 = ((double)Schedule->Days_StartDate[i]) / denominator;
                     Frac_T1 = ((double)Schedule->Days_EndDate[i]) / denominator;
-                    Pay_T = ((double)Schedule->Days_PayDate[i]) / denominator;
+                    Pay_T = ((double)Schedule->Days_PayDate[i]) / 365.0;
 
                     if (Schedule->Days_ForwardStart[i] < 0) FixedRateFlag = 1;
                     else FixedRateFlag = 0;
@@ -1808,7 +1914,7 @@ double LegValue(
                 {
                     SwapStartT = ((double)Schedule->Days_ForwardStart[i]) / denominator;
                     SwapEndT = SwapStartT + Schedule->RefSwapMaturity;
-                    Pay_T = ((double)Schedule->Days_PayDate[i]) / denominator;
+                    Pay_T = ((double)Schedule->Days_PayDate[i]) / 365.0;
 
                     if (Schedule->Days_ForwardStart[i] <= 0) FixedRateFlag = 1;
                     else FixedRateFlag = 0;
@@ -1861,15 +1967,13 @@ double LegValue(
 
                 if (PrevFlag == 0)
                 {
-                    SwapStartT = ((double)Schedule->Days_ForwardStart[i]) / denominator;
-                    SwapEndT = SwapStartT + Schedule->RefSwapMaturity;
-                    Pay_T = ((double)Schedule->Days_PayDate[i]) / denominator;
 
+                    Pay_T = ((double)Schedule->Days_PayDate[i]) / 365.0;
                     if (Schedule->Days_ForwardStart[i] < 0) UseHistorySOFR = 1;
                     else UseHistorySOFR = 0;
 
                     if (CRSFlag == 0) FXRate = 1.0;
-                    else FXRate = Interpolate_Linear(FXCurve.Term, FXCurve.Rate, FXCurve.nterm(), SwapEndT);
+                    else FXRate = Interpolate_Linear(FXCurve.Term, FXCurve.Rate, FXCurve.nterm(), Pay_T);
 
                     FreqMonth = 12.0 / (double)Schedule->NSwapPayAnnual;
                     OIS_Compound = SOFR_ForwardRate_Compound(RefCurve, Schedule->Days_ForwardStart[i], Schedule->Days_ForwardEnd[i], Schedule->LockOutRef, Schedule->LookBackRef, Schedule->ObservationShift, Schedule->HolidayFlag_Ref, Schedule->NHolidays_Ref, Schedule->Days_Holidays_Ref, NSaturSunDay_List[i], SaturSunDay_List[i], UseHistorySOFR, Schedule->NRefHistory, Schedule->RefHistoryDate, Schedule->RefHistory, denominator, OIS_Annual, 1);
@@ -1903,7 +2007,7 @@ double LegValue(
                 {
                     SwapStartT = ((double)Schedule->Days_ForwardStart[i]) / denominator;
                     SwapEndT = SwapStartT + Schedule->RefSwapMaturity;
-                    Pay_T = ((double)Schedule->Days_PayDate[i]) / denominator;
+                    Pay_T = ((double)Schedule->Days_PayDate[i]) / 365.0;
 
                     if (Schedule->Days_ForwardStart[i] <= 0) UseHistorySOFR = 1;
                     else UseHistorySOFR = 0;
@@ -1943,12 +2047,19 @@ double LegValue(
             {
                 Frac_T0 = ((double)Schedule->Days_StartDate[i]) / denominator;
                 Frac_T1 = ((double)Schedule->Days_EndDate[i]) / denominator;
-                Pay_T = ((double)Schedule->Days_PayDate[i]) / denominator;
-
-                FixedLeg_PartialValue(
-                    CRSFlag, DiscCurve, FXCurve, Frac_T0, Frac_T1, Pay_T, Schedule->CPN[i], Schedule->NotionalAmount,
-                    ResultRefRate + i, ResultCPN + i, ResultDF + i, DiscCFArray + i);
-
+                Pay_T = ((double)Schedule->Days_PayDate[i]) / 365.0;
+                
+                if (CRSFlag == 0) FX = 1.0;
+                else  FX = FXCurve.Interpolated_Rate(((double)Schedule->Days_EndDate[i])/365.0);
+                
+                DiscPay = exp(-DiscCurve.Interpolated_Rate(Pay_T) * Pay_T);
+                //FixedLeg_PartialValue(
+                //    CRSFlag, DiscCurve, FXCurve, Frac_T0, Frac_T1, Pay_T, Schedule->CPN[i], Schedule->NotionalAmount,
+                //    ResultRefRate + i, ResultCPN + i, ResultDF + i, DiscCFArray + i);
+                ResultRefRate[i] = 0.0;
+                ResultCPN[i] = FX * Schedule->NotionalAmount * Schedule->CPN[i] * ((double)(Schedule->Days_EndDate[i] - Schedule->Days_StartDate[i]))/denominator;
+                ResultDF[i] = DiscPay;
+                DiscCFArray[i] = ResultDF[i] * ResultCPN[i];
                 ResultRefRate[i] = Schedule->CPN[i];
             }
             else
@@ -3206,7 +3317,7 @@ long FindZeroRate(
     double* Pay_CPN = (double*)malloc(sizeof(double) * NCashFlow);
     for (i = 0; i < NCashFlow; i++) Pay_CPN[i] = min(0.5, SwapRate);
 
-    double dblErrorRange = 0.0001;
+    double dblErrorRange = 0.000001;
     double ObjValue = 0.0;
     double MaxRate = SwapRate + 0.2;
     double MinRate = SwapRate - 0.15;
@@ -3345,7 +3456,9 @@ DLLEXPORT(long) OISCurveGeneratorExcel(
 
     long* TempDateArray;
     ResultTerm[0] = dt;
-    ResultRate[0] = -1.0 / ResultTerm[0] * log(1.0 / (1.0 + TodayONRate * 1.0/360.0));
+    if (DayCountFlag == 1) ResultRate[0] = -365.0 * log(1.0 / (1.0 + TodayONRate * 1.0/360.0));
+    else ResultRate[0] = -365.0 * log(1.0 / (1.0 + TodayONRate * 1.0 / 365.0));
+
     for (i = 0; i < NOIS; i++)
     {
         ForwardStartDate[i] = (long*)malloc(sizeof(long) * NArraySchedule[i]);
@@ -3377,7 +3490,7 @@ DLLEXPORT(long) OISCurveGeneratorExcel(
         CaliFlag = FindZeroRate(PriceDateExl, DayCountFlag, RefRateType, NOverNightHistory, OverNightHistoryExlDate,
             OverNightHistoryRate, LockOutDays, LookBackDays, ObservShiftFlag, HolidayFlag,
             NHoliday, HolidayExl, NArraySchedule[i], ForwardStartDate[i], ForwardEndDate[i],
-            StartDate[i], EndDate[i], PayDate[i], SwapRate[i], NCurve, ResultTerm, ResultRate);
+            StartDate[i], EndDate[i], EndDate[i], SwapRate[i], NCurve, ResultTerm, ResultRate);
     }
 
 

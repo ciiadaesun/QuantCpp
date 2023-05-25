@@ -3,7 +3,8 @@
 #include <math.h>
 #include <crtdbg.h>
 
-#include "IRStructure.h"
+#include "CalcDate.h"
+#include "Util.h"
 
 #ifndef DLLEXPORT(A)
 #ifdef WIN32
@@ -264,57 +265,90 @@ long SaveErrorName2(char* Error, char ErrorName[100])
 	return -1;
 }
 
-double Day_to_T(long Day, long DaysOneYear)
-{
-	return ((double)Day) / ((double)DaysOneYear);
-}
-
-double CalcZeroRateFromSwapRate(double Spread, long NResetDate, long* ResetDays, double* DeltaT, long Convention1Y, long NRate, double* RateTerm, double* Rate, double *Time)
+double CPN_Bond_Pricing(long PricingDate, long BondMaturityDate, long Number_Ann_CPN, double Yield_To_Maturity, double CouponRate, long Convention1Y)
 {
 	long i;
-	double a, b;
-	double T;
-	double ZeroRate;
-	double PV;
-	double r;
+	long n;
 
-	a = 1.0;
-	for (i = 0; i < NResetDate - 1; i++)
-	{
-		T = Day_to_T(ResetDays[i], Convention1Y);
-		ZeroRate = CubicSpline(NRate, RateTerm, Rate, T);
-		a -= Spread * DeltaT[i] * exp(-ZeroRate * T);
-	}
+	double NA = 100.0;
 
-	b = 1.0 + Spread * DeltaT[NResetDate - 1];
-	PV = a / b;
-	T = Day_to_T(ResetDays[NResetDate - 1], Convention1Y);
-
-	r = -1.0 / T * log(PV);
-	*Time = T;
-	return r;
-}
-
-double CalcZeroRateFromCouponBond(double NA, double BondPrice, double CPNRate, double Maturity, long NCPNDate, long N_Annual_Cpn,long NRate, double* RateTerm, double* Rate, double* Time)
-{
-	long i;
-	double r;
-	double a = BondPrice ;
-	double ZeroRate;
-	double T;
+	long Maturity_Day = (PricingDate, BondMaturityDate);	
 	
-	for (i = 0; i < NCPNDate - 1; i++)
-	{
-		T = Maturity - ((double)i) * 1.0 / ((double)N_Annual_Cpn);
-		ZeroRate = CubicSpline(NRate, RateTerm, Rate, T);
-		a -= NA * CPNRate * 1.0/(double)N_Annual_Cpn * exp(-ZeroRate * T);
-	}
-	double b = NA + NA * CPNRate * 1.0 / (double)N_Annual_Cpn;
-	double DF = a / b;
+	long NDays;
+	long FirstCpnDate = PricingDate;
+	long* CpnDate = Generate_Date(PricingDate, BondMaturityDate, Number_Ann_CPN, NDays, FirstCpnDate);
+	
+	double Time = 365.0;
+	if (Convention1Y == 360) Time = 360.0;
+	else Time = 365.0;
 
-	r = -1.0 / Maturity * log(DF);
-	*Time = Maturity;
-	return r;
+	double T = 0.0;
+	double DF = 1.0;
+	double deltat;
+	double PV = 0.0;
+	for (i = 0; i < NDays; i++)
+	{
+		T = ((double)DayCountAtoB(PricingDate, CpnDate[i])) / 365.0;
+		DF = 1.0 / pow((1.0 + Yield_To_Maturity / (double)Number_Ann_CPN), (double)(i + 1));
+
+		if (i == 0) deltat = ((double)DayCountAtoB(FirstCpnDate, CpnDate[i]) / Time);
+		else deltat = ((double)DayCountAtoB(CpnDate[i - 1], CpnDate[i]) / Time);
+		PV += CouponRate * deltat * DF * NA;
+	}
+	PV += NA * DF;
+	free(CpnDate);
+	return PV;
+}
+
+double CalcDiscountFromCouponBond(long PricingDate, long BondMaturityDate, long Number_Ann_CPN, double CouponRate, long Convention1Y, double PV_Bond, long NZero, double* ZeroTerm, double* ZeroRate, long InterpFlag)
+{
+	long i;
+	long n;
+
+	double NA = 100.0;
+
+	long Maturity_Day = (PricingDate, BondMaturityDate);
+
+	long NDays;
+	long FirstCpnDate = PricingDate;
+	long* CpnDate = Generate_Date(PricingDate, BondMaturityDate, Number_Ann_CPN, NDays, FirstCpnDate);
+
+	double Time = 365.0;
+	if (Convention1Y == 360) Time = 360.0;
+	else Time = 365.0;
+
+	double T = 0.0;
+	double DF = 1.0;
+	double deltat = 0.0;
+	double a, b, r;
+	a = PV_Bond;
+	for (i = 0; i < NDays - 1; i++)
+	{
+		T = ((double)DayCountAtoB(PricingDate, CpnDate[i])) / 365.0;
+		if (InterpFlag == 0) r = Interpolate_Linear(ZeroTerm, ZeroRate, NZero, T);
+		else if (InterpFlag == 1)
+		{
+			r = Interpolate_Linear(ZeroTerm, ZeroRate, NZero, T, 1);
+		}
+		else 
+		{ 
+			r = CubicSpline(NZero, ZeroTerm, ZeroRate, T); 
+		}
+
+		DF = exp(-r * T);
+		if (i == 0) deltat = ((double)DayCountAtoB(FirstCpnDate, CpnDate[i]) / Time);
+		else deltat = ((double)DayCountAtoB(CpnDate[i - 1], CpnDate[i]) / Time);
+		a = a - CouponRate * deltat * DF * NA;
+	}
+	double CF_N = NA * (1.0 + CouponRate * deltat);
+	free(CpnDate);
+	return a / CF_N;
+}
+
+
+double Accrued_Interest(double Notional, double CpnRate, double Accrued_dt)
+{
+	return Notional * CpnRate * Accrued_dt;
 }
 
 long ZeroCurveGenerate_Bond(
@@ -327,22 +361,28 @@ long ZeroCurveGenerate_Bond(
 
 	long NSwap,
 	long* SwapMaturity_C,
+	long* SwapPayDate_C,
 	long* NCPN_Ann,
 	double* SwapRate,
 	long* Swap_OneYConvention,
 
 	long NResultCurve,
 	double* ResultCurveTerm,
-	double* ResultCurve
+	double* ResultCurve,
+	double* ResultDF,
+	double* ResultMktRate,
+	long InterpFlag
 )
 {
 	long i;
+	long k;
 	long N;
 
 	double r; 
 	
 	long NCPNBond =NSwap;
 	long* BondMaturityDate = SwapMaturity_C;
+	long* BondPayDate = SwapPayDate_C;
 	double* YTM = SwapRate;
 	long* Bond_OneYConvention = Swap_OneYConvention;
 
@@ -352,36 +392,58 @@ long ZeroCurveGenerate_Bond(
 	N = NShortTerm;
 	for (i = 0; i < N; i++)
 	{
-		ZeroTerm[i] = ((double)DayCountAtoB(PriceDate_C,ShortTerm_Maturity_C[i]))/(double)ShortTerm_OneYConvention[i];
-		ZeroRate[i] = ShortTerm_Rate[i];
+		ZeroTerm[i] = ((double)DayCountAtoB(PriceDate_C,ShortTerm_Maturity_C[i]))/365.0;
+		ZeroRate[i] = Bootstrapping_Deposit(ShortTerm_Rate[i], PriceDate_C, ShortTerm_Maturity_C[i], ShortTerm_OneYConvention[i]);
 	}
 
-	CPN_Bond* Bond_Infos = new CPN_Bond[NCPNBond];
-	for (i = 0; i < NCPNBond; i++)
-	{
-		(Bond_Infos + i)->initialize(PriceDate_C, BondMaturityDate[i], NCPN_Ann[i], YTM[i], YTM[i], Bond_OneYConvention[i]);
-	}
+	double PV_Bond, DF_T, t;
 
 	for (i = 0; i < NCPNBond; i++)
 	{
-		r = CalcZeroRateFromCouponBond((Bond_Infos + i)->NA, (Bond_Infos + i)->PV, (Bond_Infos + i)->YTM, (Bond_Infos + i)->Maturity, (Bond_Infos + i)->NCPNTime,
-										(Bond_Infos + i)->N_Annual_Cpn, N, ZeroTerm, ZeroRate, ZeroTerm + i + NShortTerm);
-		ZeroRate[i + NShortTerm] = r;
+		PV_Bond = CPN_Bond_Pricing(PriceDate_C, BondMaturityDate[i], NCPN_Ann[i], YTM[i], YTM[i], Bond_OneYConvention[i]);
+		DF_T = CalcDiscountFromCouponBond(PriceDate_C, BondMaturityDate[i], NCPN_Ann[i], YTM[i], Bond_OneYConvention[i], PV_Bond, N, ZeroTerm, ZeroRate, InterpFlag);
+		t = ((double)DayCountAtoB(PriceDate_C, BondMaturityDate[i])) / 365.0;
+		ZeroTerm[i + NShortTerm] = t;
+		ZeroRate[i + NShortTerm] = -1.0 / t * log(DF_T);
 		N += 1;
 	}
 
-	for (i = 0; i < N; i++)
+	for (i = 0; i < NShortTerm; i++)
 	{
 		ResultCurveTerm[i] = ZeroTerm[i];
 		ResultCurve[i] = ZeroRate[i];
+		ResultDF[i] = exp(-ZeroTerm[i] * ZeroRate[i]);
+		ResultMktRate[i] = ShortTerm_Rate[i];
+	}
+	for (i = 0; i < NCPNBond; i++)
+	{
+		if (BondMaturityDate[i] != BondPayDate[i])
+		{
+			t = ((double)DayCountAtoB(PriceDate_C, BondPayDate[i])) / 365.0;
+			if (InterpFlag == 0 || InterpFlag == 1) r = Interpolate_Linear(ZeroTerm, ZeroRate, NZero, t, 1);
+			else r = CubicSpline(NZero, ZeroTerm, ZeroRate, t);
+			ResultCurveTerm[i + NShortTerm] = t;
+			ResultCurve[i + NShortTerm] = r;
+		}
+		else
+		{
+			ResultCurveTerm[i + NShortTerm] = ZeroTerm[i + NShortTerm];
+			ResultCurve[i + NShortTerm] = ZeroRate[i + NShortTerm];
+		}
+		ResultDF[i + NShortTerm] = exp(-ResultCurveTerm[i + NShortTerm] * ResultCurve[i + NShortTerm]);
+		ResultMktRate[i + NShortTerm] = YTM[i];
 	}
 	
-	delete[] Bond_Infos;
+
+
 	free(ZeroTerm);
 	free(ZeroRate);
 	return 1;
 }
 
+//////////////////////////
+// Root Finder ZeroCurve Calibration
+//////////////////////////
 long ZeroCurveGenerate_IRS2(
 	long PriceDate_C,
 
@@ -942,8 +1004,8 @@ DLLEXPORT(long) ZeroMakerExcel(
 	{
 		ResultCode = ZeroCurveGenerate_Bond(
 			PriceDate_C, NShortTerm, ShortTerm_Maturity_C, ShortTerm_Rate, ShortTerm_OneYConvention,
-			NSwap, SwapMaturity_C, NCPN_Ann, SwapRate, Swap_OneYConvention_Fix,
-			NResultCurve, ResultCurveTerm, ResultCurve);
+			NSwap, SwapMaturity_C, SwapPayDate_C, NCPN_Ann, SwapRate, 
+			Swap_OneYConvention_Fix, NResultCurve, ResultCurveTerm, ResultCurve, ResultDF, MktRate, InterpFlag);
 	}
 
 	free(ShortTerm_Maturity_C);
