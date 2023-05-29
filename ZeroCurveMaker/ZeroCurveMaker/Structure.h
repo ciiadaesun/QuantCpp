@@ -133,8 +133,8 @@ class volinfo {
 private:
 	long N_Parity;
 	long N_Term;
-	long dynamicflag = 0;          // Implied vol dynamic flag 0: 할당되지 않음 1:포인터 위치로 할당 2: 완전 Copy
-	long localvol_dynamicflag = 0; // local vol dynamic flag 0: 계산되지 않음 1:계산되어 할당됨
+	long dynamicflag;          // Implied vol dynamic flag 0: 할당되지 않음 1:포인터 위치로 할당 2: 완전 Copy
+	long localvol_dynamicflag; // local vol dynamic flag 0: 계산되지 않음 1:계산되어 할당됨
 
 public:
 	double** Vol_Matrix;       //ImpliedVolatily
@@ -186,51 +186,47 @@ public:
 	// 포인터로 할당
 	void softcopy(long length_parity, double* parityarray, long length_term, double* termarray, double* reshapedvol)
 	{
-		if (dynamicflag == 0)
+		long i;
+		dynamicflag = 1;
+		localvol_dynamicflag = 0;
+		N_Parity = length_parity;
+		N_Term = length_term;
+		Term = termarray;
+		Parity = parityarray;
+		Vol_Matrix = (double**)malloc(sizeof(double*) * N_Parity);
+		for (i = 0; i < N_Parity; i++)
 		{
-			long i;
-			dynamicflag = 1;
-			N_Parity = length_parity;
-			N_Term = length_term;
-			Term = termarray;
-			Parity = parityarray;
-			Vol_Matrix = (double**)malloc(sizeof(double*) * N_Parity);
-			for (i = 0; i < N_Parity; i++)
-			{
-				Vol_Matrix[i] = reshapedvol + i * N_Term;
-			}
+			Vol_Matrix[i] = reshapedvol + i * N_Term;
 		}
 	}
 
 	// 완전 Copy
 	void hardcopy(long length_parity, double* parityarray, long length_term, double* termarray, double* reshapedvol)
 	{
-		if (dynamicflag == 0)
+		long i, j, k;
+		dynamicflag = 2;
+		localvol_dynamicflag = 0;
+		N_Parity = length_parity;
+		N_Term = length_term;
+		Term = (double*)malloc(sizeof(double) * N_Term);
+		for (i = 0; i < N_Term; i++)
 		{
-			long i, j, k;
-			dynamicflag = 2;
-			N_Parity = length_parity;
-			N_Term = length_term;
-			Term = (double*)malloc(sizeof(double) * N_Term);
-			for (i = 0; i < N_Term; i++)
+			Term[i] = termarray[i];
+		}
+		Parity = (double*)malloc(sizeof(double) * N_Parity);
+		for (i = 0; i < N_Parity; i++)
+		{
+			Parity[i] = parityarray[i];
+		}
+		Vol_Matrix = (double**)malloc(sizeof(double*) * N_Parity);
+		k = 0;
+		for (i = 0; i < N_Parity; i++)
+		{
+			Vol_Matrix[i] = (double*)malloc(sizeof(double) * N_Term);
+			for (j = 0; j < N_Term; j++)
 			{
-				Term[i] = termarray[i];
-			}
-			Parity = (double*)malloc(sizeof(double) * N_Parity);
-			for (i = 0; i < N_Parity; i++)
-			{
-				Parity[i] = parityarray[i];
-			}
-			Vol_Matrix = (double**)malloc(sizeof(double*) * N_Parity);
-			k = 0;
-			for (i = 0; i < N_Parity; i++)
-			{
-				Vol_Matrix[i] = (double*)malloc(sizeof(double) * N_Term);
-				for (j = 0; j < N_Term; j++)
-				{
-					Vol_Matrix[i][j] = reshapedvol[k];
-					k++;
-				}
+				Vol_Matrix[i][j] = reshapedvol[k];
+				k++;
 			}
 		}
 	}

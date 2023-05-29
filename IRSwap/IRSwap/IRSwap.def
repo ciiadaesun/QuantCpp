@@ -3,3 +3,5 @@ LIBRARY
 EXPORTS
 	IRSwap_Excel				@001
 	OISCurveGeneratorExcel		@002
+	Number_Coupon				@003
+	ResultCpnMapping			@004

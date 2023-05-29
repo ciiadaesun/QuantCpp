@@ -3464,8 +3464,9 @@ long IRStructuredSwap(
     for (i = 0; i < RcvLeg->NReference; i++)
     {
         idx = CurveIdx_Rcv[i];
-        if (RcvLeg->DaysForwardStart[RcvLeg->CurrentIdx] <= 0 && RcvLeg->DaysForwardEnd[RcvLeg->CurrentIdx] > 0)
+        if (RcvLeg->DaysForwardStart[RcvLeg->CurrentIdx] <= 0 && RcvLeg->DaysForwardEnd[RcvLeg->CurrentIdx] > 0 && RcvLeg->Reference_Inform[i].RefRateType == 2)
         {
+            // 에러생기는데 수정해야함 나중에
             SOFRComp0_Rcv[i] = SOFR_ForwardRate_Compound(Simul->NRateTerm[idx], Simul->RateTerm[idx], Simul->Rate[idx], RcvLeg->DaysForwardStart[RcvLeg->CurrentIdx], RcvLeg->DaysForwardEnd[RcvLeg->CurrentIdx],
                 0, 0, 0, RcvLeg->HolidayCalcFlag[i], RcvLeg->HolidayCount[i], RcvLeg->HolidayDays[i], RcvLeg->NWeekend[i], RcvLeg->Weekend[i], 1, RcvLeg->NDayHistory[i],
                 RcvLeg->RateHistoryDateMatrix[i], RcvLeg->RateHistoryMatrix[i], Rcv_DF_Day1Y, SOFR_AnnOISRate0_Rcv[i], 1);
@@ -3475,8 +3476,6 @@ long IRStructuredSwap(
     RcvLeg->SOFR_Compound0 = SOFRComp0_Rcv;
     PayLeg->SOFR_Annualized_R0 = SOFR_AnnOISRate0_Pay;
     PayLeg->SOFR_Compound0 = SOFRComp0_Pay;
-
-
     
     ResultCode = Simulate_HW(1, PricingDateC, NAFlag, Notional, RcvLeg, PayLeg,
         Simul, HW_information,

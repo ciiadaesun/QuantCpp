@@ -158,7 +158,7 @@ public:
 					// 다음 배당 날짜의 배당을 Daily로 나눔
 					next_term = term[term_idx];
 					div_rate = min(1.0, div[term_idx] / term[term_idx]) * dt;
-					T = 0;
+					T = 0.;
 					for (i = 0; i < lengthday; i++)
 					{
 						if (T >= next_term && T < term[max(term_idx + 1, nterm - 1)])
@@ -718,33 +718,33 @@ double Pricing_HiFive_MC(
 	long LizardRedempFlag = 0;
 
 	long nK = info_hifive.nK;
-	double* SortedStrike = (double*)malloc(sizeof(double) * nK);
-	long* StrikeIdx = (long*)malloc(sizeof(long) * nK);
+	double* SortedStrike = (double*)malloc(sizeof(double) * nK);							// 메모리 1 SortedStrike
+	long* StrikeIdx = (long*)malloc(sizeof(long) * nK);										// 메모리 2 StrikeIdx
 	double RedempStrike = 0.0;
 	double RedempSlope = 0.0;
 	double RedempCPN = 0.0;
 	double RedempPayoff = 0.0;
 
 
-	TimeNode = (long*)malloc(sizeof(long) * info_simul.nstock);
-	ParityNode = (long*)malloc(sizeof(long) * info_simul.nstock);
-	StockPrice = (double*)malloc(sizeof(double) * info_simul.nstock);
-	Randn = (double*)malloc(sizeof(double) * info_simul.nstock);
-	SortedS = (double*)malloc(sizeof(double) * info_simul.nstock);
-	SortedS0 = (double*)malloc(sizeof(double) * info_simul.nstock);
-	IdxS = (long*)malloc(sizeof(long) * info_simul.nstock);
+	TimeNode = (long*)malloc(sizeof(long) * info_simul.nstock);								// 메모리 3 TimeNode
+	ParityNode = (long*)malloc(sizeof(long) * info_simul.nstock);							// 메모리 4 ParityNode
+	StockPrice = (double*)malloc(sizeof(double) * info_simul.nstock);						// 메모리 5 StockPrice
+	Randn = (double*)malloc(sizeof(double) * info_simul.nstock);							// 메모리 6 Randn
+	SortedS = (double*)malloc(sizeof(double) * info_simul.nstock);							// 메모리 7 SortedS
+	SortedS0 = (double*)malloc(sizeof(double) * info_simul.nstock);							// 메모리 8 SortedS0
+	IdxS = (long*)malloc(sizeof(long) * info_simul.nstock);									// 메모리 9 IdxS
 	for (i = 0; i < info_simul.nstock; i++)
 	{
 		SortedS0[i] = info_simul.s0[i];
 	}
 	bubble_sort(SortedS0, IdxS, info_simul.nstock);
-	DF_Array = (double*)malloc(sizeof(double) * info_hifive.NEvaluation);
+	DF_Array = (double*)malloc(sizeof(double) * info_hifive.NEvaluation);					// 메모리 10 DF_Array
 	for (i = 0; i < info_hifive.NEvaluation; i++)
 	{
 		DF_Array[i] = Calc_Discount_Factor(disc_curve.Term, disc_curve.Rate, disc_curve.nterm(), ((double)info_hifive.Days_Autocall_Pay[i]) / 365.0);
 	}
 
-	Cholesky_Matrix = Cholesky_Decomposition(info_simul.correlation, info_simul.nstock);
+	Cholesky_Matrix = Cholesky_Decomposition(info_simul.correlation, info_simul.nstock);	// 메모리 11 Cholesky_Matrix
 
 	double temp = 0.0;
 
@@ -999,18 +999,18 @@ double Pricing_HiFive_MC(
 	ResultPrice[0] = MeanPrice;
 
 	for (i = 0; i < info_simul.nstock; i++) free(Cholesky_Matrix[i]);
-	free(Cholesky_Matrix);
+	free(Cholesky_Matrix);					// 메모리 11 Cholesky_Matrix
 
-	free(TimeNode);
-	free(ParityNode);
-	free(StockPrice);
-	free(Randn);
-	free(SortedS);
-	free(IdxS);
-	free(StrikeIdx);
-	free(SortedStrike);
-	free(SortedS0);
-	free(DF_Array);
+	free(TimeNode);							// 메모리 3 TimeNode
+	free(ParityNode);						// 메모리 4 ParityNode
+	free(StockPrice);						// 메모리 5 StockPrice
+	free(Randn);							// 메모리 6 Randn
+	free(SortedS);							// 메모리 7 SortedS
+	free(IdxS);								// 메모리 9 IdxS
+	free(StrikeIdx);						// 메모리 2 StrikeIdx
+	free(SortedStrike);						// 메모리 1 SortedStrike
+	free(SortedS0);							// 메모리 8 SortedS0
+	free(DF_Array);							// 메모리 10 DF_Array
 
 	return MeanPrice;
 }
@@ -1832,6 +1832,9 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 			if (NParityVol[i] >= 4 && NTermVol[i] >= 4)
 			{
 				ImVolLocalVolFlag[i] = 0;
+				//////////////////////
+				// SABR Calibration //
+				//////////////////////
 				ResultCode = SABR_Vol(N_Rf, RfTerm, RfRate, N_Div, DivTerm,
 					DivRate, NTermforSABR, TermforSABR, NParityforSABR, ParityforSABR,
 					VolforSABR, CalcLocalVolFlag, SABRBeta, VolforSABR, TempVol, 
@@ -2144,8 +2147,11 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	free(daily_forward_rate);
 	free(daily_forward_div);
 	free(daily_forward_fxvol);
-
+#ifdef _DEBUG
 	_CrtDumpMemoryLeaks();
+#elif DEBUG
+	_CrtDumpMemoryLeaks();
+#endif
 
 	return ResultCode;
 }

@@ -48,14 +48,23 @@
 long double xBeta_Function(long double a, long double b);
 static long double Duplication_Formula(long double two_x);
 long double xGamma_Function(long double x);
-double Student_t_Distribution(double x, long n);
+double Student_t_Distribution(double x, int n);
+double erff(double x);
+double erffc(double x);
+
+#ifndef erfc
+#define erfc erffc
+#endif
+
+#ifndef erf
+#define erf erff
+#endif
+
 ////////////////////////////////////
 
 
 long GetMinor(double** src, double** dest, long row, long col, long order);
 double CalcDeterminant(double** mat, long order, double*** MinorMatrixList);
-double erff(double x);
-double erffc(double x);
 
 static long double const a_list[] = {+1.14400529453851095667309e+4L,-3.23988020152318335053598e+4L,+3.50514523505571666566083e+4L,
 									-1.81641309541260702610647e+4L,+4.63232990536666818409138e+3L,-5.36976777703356780555748e+2L,
@@ -92,27 +101,25 @@ double ran1(long* idum, long& iy, long* iv)
 	long k;
 
 	double temp;
-	double eps = 1.2e-7;
-	double rnmx = 1.0 - eps;
 
 	if (*idum <= 0 || !iy) {
 		if (-(*idum) < 1) *idum = 1;
 		else *idum = -(*idum);
 		for (j = NTAB + 7; j >= 0; j--) {
-			k = (*idum) / 127773;
-			*idum = 16807 * (*idum - k * 127773) - 2836 * k;
-			if (*idum < 0) *idum += 2147483647;
-			if (j < 32) iv[j] = *idum;
+			k = (*idum) / IQ;
+			*idum = IA * (*idum - k * IQ) - IR * k;
+			if (*idum < 0) *idum += IM;
+			if (j < NTAB) iv[j] = *idum;
 		}
 		iy = iv[0];
 	}
-	k = (*idum) / 127773;
-	*idum = 16807 * (*idum - k * 127773) - 2836 * k;
-	if (*idum < 0) *idum += 2147483647;
-	j = iy / 67108864;
+	k = (*idum) / IQ;
+	*idum = IA * (*idum - k * IQ) - IR * k;
+	if (*idum < 0) *idum += IM;
+	j = iy / NDIV;
 	iy = iv[j];
 	iv[j] = *idum;
-	if ((temp = 4.656612875245797e-10 * iy) > rnmx) return rnmx;
+	if ((temp = AM * iy) > RNMX) return RNMX;
 	else return temp;
 }
 
@@ -268,7 +275,7 @@ DLLEXPORT(double) CDF_N(double x)
 	y = fabs(x);
 	if (y > 37.0) value = 0.;
 	else {
-		Exponential = exp(-y * y / 2.0);
+		Exponential = exp(-y * y / 2);
 		if (y < 7.07106781186547) {
 			S = 3.52624965998911E-02 * y + 0.700383064443688;
 			S = S * y + 6.37396220353165;
@@ -303,7 +310,6 @@ DLLEXPORT(double) CDF_N(double x)
 // Inverse Cummulative Norm
 DLLEXPORT(double) INV_CDF_N(double p)
 {
-
 	double a1 = -39.69683028665376;
 	double a2 = 220.9460984245205;
 	double a3 = -275.9285104469687;
@@ -362,7 +368,7 @@ DLLEXPORT(double) INV_CDF_N(double p)
 	//Pseudo-code algorithm for refinement
 
 	if ((0.0 < p) && (p < 1.0)) {
-		e = 0.5 * erffc(-x / sqrt(2.0)) - p;
+		e = 0.5 * erfc(-x / sqrt(2.0)) - p;
 		u = e * sqrt(2.0 * PI) * exp(x * x / 2.0);
 		x = x - u / (1.0 + x * u / 2.0);
 	}
@@ -1210,7 +1216,7 @@ double Calc_Forward_FXVol_Daily(
 	double dt = 0.00273972602739726;
 	double T2 = T1 + dt;
 	double V1, V2;
-	double DF1, DF2, FVar, FVol;
+	double FVar, FVol;
 
 	if (T1 <= TermArray[0])
 	{
@@ -1698,11 +1704,8 @@ double** XprimeDotX(double** X, long ShapeX[2])
 	long i, j, k;
 	long ShapeXpX[2] = { ShapeX[1], ShapeX[1] };
 	long n = ShapeX[0];
-	long idx_row;
-	long idx_col;
 
 	double s = 0.0;
-	double a, b;
 
 	double** XpDotX = make_array(ShapeXpX[0], ShapeXpX[1]);
 	for (i = 0; i < ShapeXpX[0]; i++)
@@ -1728,11 +1731,9 @@ void XprimeDotX(
 	long i, j, k;
 	long ShapeXpX[2] = { ShapeX[1], ShapeX[1] };
 	long n = ShapeX[0];
-	long idx_row;
-	long idx_col;
 
 	double s = 0.0;
-	double a, b;
+
 	for (i = 0; i < ShapeXpX[0]; i++)
 		for (j = 0; j < ShapeXpX[1]; j++)
 		{
@@ -1747,7 +1748,7 @@ void XprimeDotX(
 
 long XprimeY(double** X, long shape_X[2], double* Y, long LengthY, double** XprimeYMatrix)
 {
-	long i, j, k;
+	long i, j;
 	long p = shape_X[1];
 	long n = shape_X[0];
 	double s = 0.0;
@@ -2191,43 +2192,6 @@ void Calc_Newey_West_Cov(double** x, long n, long k, double* e, long lag, double
 	free(invxTx);
 	for (i = 0; i < k; i++) free(invxTx_XTOmegaX[i]);
 	free(invxTx_XTOmegaX);
-}
-
-double Newey_West_Fstatistic(long nbeta, double* beta, double** NeweyWestCov)
-{
-	long i, j;
-	long nvariables = nbeta - 1;
-	
-	double** CovExceptConst = (double**)malloc(sizeof(double*) * nvariables);
-	for (i = 0; i < nvariables; i++) CovExceptConst[i] = (double*)malloc(sizeof(double) * nvariables);
-	for (i = 0; i < nvariables; i++) for (j = 0; j < nvariables; j++) CovExceptConst[i][j] = NeweyWestCov[i + 1][j + 1];
-
-	double* betaExceptConst = (double*)malloc(sizeof(double) * nvariables);
-	for (i = 0; i < nvariables; i++) betaExceptConst[i] = beta[i + 1];
-
-	double** invcov = (double**)malloc(sizeof(double*) * nvariables);
-	for (i = 0; i < nvariables; i++) invcov[i] = (double*)malloc(sizeof(double) * nvariables);
-
-	MatrixInversion(CovExceptConst, nvariables, invcov);
-
-	double x = 0.0, s = 0.0;
-	for (i = 0; i < nvariables; i++)
-	{
-		s = 0.0;
-		for (j = 0; j < nvariables; j++)
-		{
-			s += betaExceptConst[j] * invcov[j][i];
-		}
-		x += s * betaExceptConst[i];
-	}
-	x /= (double)nvariables;
-
-	for (i = 0; i < nvariables; i++) free(CovExceptConst[i]);
-	free(CovExceptConst);
-	free(betaExceptConst);
-	for (i = 0; i < nvariables; i++) free(invcov[i]);
-	free(invcov);
-	return x;
 }
 
 long OLSEst(
@@ -2850,7 +2814,6 @@ public:
 	double** NeweyWestCov;
 	double* HC_NeweyWest;
 	double* std_B_NeweyWest;
-	double NeweyWestFstatistic;
 	// variables informationi
 	// X -> independent Variable **Matrix (ndata , num_variables)
 	// Y -> dependent Variable *Array (ndata, )
@@ -2906,7 +2869,7 @@ public:
 
 		Eigenvalue = ResultArray + n * 3 + 11 + 2 * ndata + 4 * n * (n + 2);
 		Eigenvector = (double**)malloc(sizeof(double*) * n);
-		for (i = 0; i < n; i++) ResultArray + n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n + i * n;
+		for (i = 0; i < n; i++) Eigenvector[i] = ResultArray + n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n + i * n;
 
 		Skew = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1)];
 		Kurt = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 1];
@@ -2928,8 +2891,7 @@ public:
 		{
 			p_neweywest[i] = (1.0 - Student_t_Distribution(fabs(beta[i]/std_B_NeweyWest[i]), Df_res)) * 2.0;
 		}
-		if (NeweyWestLag > 0) NeweyWestFstatistic = Newey_West_Fstatistic(n, beta, NeweyWestCov);
-		else NeweyWestFstatistic = Fstatistic;
+
 	}
 
 
@@ -2990,7 +2952,7 @@ public:
 
 		Eigenvalue = ResultArray + n * 3 + 11 + 2 * ndata + 4 * n * (n + 2);
 		Eigenvector = (double**)malloc(sizeof(double*) * n);
-		for (i = 0; i < n; i++) ResultArray + n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n + i * n;
+		for (i = 0; i < n; i++) Eigenvector[i] = ResultArray + n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n + i * n;
 
 		Skew = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1)];
 		Kurt = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 1];
@@ -3012,9 +2974,6 @@ public:
 		{
 			p_neweywest[i] = (1.0 - Student_t_Distribution(fabs(beta[i] / std_B_NeweyWest[i]), Df_res)) * 2.0;
 		}
-		if (NeweyWestLag > 0) NeweyWestFstatistic = Newey_West_Fstatistic(n, beta, NeweyWestCov);
-		else NeweyWestFstatistic = Fstatistic;
-
 		for (i = 0; i < ndata; i++) free(X_2d[i]);
 		free(X_2d);
 	}
@@ -3035,14 +2994,11 @@ public:
 	// Python의 sm.OLS(y,x).fit().summary()와 비슷한 포멧
 	void summary()
 	{
-		double F;
-		if (NeweyWestLag > 0) F = NeweyWestFstatistic;
-		else F = Fstatistic;
 		printf("\nOLS Regression Result\n\n");
 		printf("Dep. Variables: \t y\t");
 		printf("R Squared:\t %0.5lf\n", rsquared);
 		printf("Model: \t\t\t OLS\t Adj_Rsquared:\t %0.5lf \n", rsquared_adj);
-		printf("Method: \t Least_Squares\t F_statistic:\t %0.5lf \n", F);
+		printf("Method: \t Least_Squares\t F_statistic:\t %0.5lf \n", Fstatistic);
 		printf("No_Obs: \t\t %d\t AIC:\t %0.5lf \n", nobs, AIC);
 		printf("Df_Residuals: \t\t %d\t BIC:\t %0.5lf\n", Df_res, BIC);
 		printf("Df_Model: \t\t %d\n\n", Df_model);
@@ -3284,7 +3240,7 @@ double* Error_Sum_Jacov(double** x, long* y, double* beta, long ndata, long nbet
 
 long JT_Res(double** Jacov, long shape_Jacov[2], double* Res, double* JT_Res_Array)
 {
-	long i, j, k;
+	long i, j;
 	long p = shape_Jacov[1];
 	long n = shape_Jacov[0];
 	double s = 0.0;
@@ -3871,7 +3827,7 @@ double Beta_Function(double a, double b)
 	return (beta < DBL_MAX) ? (double)beta : DBL_MAX;
 }
 
-double Student_t_Distribution(double x, long n)
+double Student_t_Distribution(double x, int n)
 {
 	double a = (double)n / 2.0;
 	double beta = Beta_Distribution(1.0 / (1.0 + x * x / n), a, 0.5);
@@ -4093,7 +4049,7 @@ void gser(double* gamser, double a, double x, double* gln)
 	long ITMAX = 100;
 	double eps = 3.0e-7;
 
-	float sum, del, ap;
+	double sum, del, ap;
 	*gln = gammln(a);
 	if (x <= 0.0) {
 		*gamser = 0.0;
@@ -4117,10 +4073,10 @@ void gser(double* gamser, double a, double x, double* gln)
 
 void gcf(double* gammcf, double a, double x, double* gln)
 {
-	long n;
+
 	long ITMAX = 100;
 	double eps = 3.0e-7;
-	double  FPMIN =1.0e-30;
+	double  FPMIN = 1.0e-30;
 	long i;
 	double an, b, c, d, del, h;
 
@@ -4140,7 +4096,7 @@ void gcf(double* gammcf, double a, double x, double* gln)
 		d = 1.0 / d;
 		del = d * c;
 		h *= del;
-		if (fabs(del - 1.0) < eps) 
+		if (fabs(del - 1.0) < eps)
 			break;
 	}
 	*gammcf = exp(-x + a * log(x) - (*gln)) * h;
@@ -4160,7 +4116,7 @@ double gammp(double a, double x)
 	}
 }
 
-double erff(double x){return x < 0.0 ? -gammp(0.5, x * x) : gammp(0.5, x * x);}
+double erff(double x) { return x < 0.0 ? -gammp(0.5, x * x) : gammp(0.5, x * x); }
 
 double gammq(double a, double x)
 {
@@ -4176,4 +4132,4 @@ double gammq(double a, double x)
 	}
 }
 
-double erffc(double x){	return x < 0.0 ? 1.0 + gammp(0.5, x * x) : gammq(0.5, x * x);}
+double erffc(double x) { return x < 0.0 ? 1.0 + gammp(0.5, x * x) : gammq(0.5, x * x); }

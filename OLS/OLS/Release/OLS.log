@@ -1,24 +1,10 @@
 ﻿  OLS.cpp
 C:\Users\ciiad\github5\OLS\OLS\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(1210,14): warning C4101: 'DF2' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(1210,9): warning C4101: 'DF1' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(1702,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(1702,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(1698,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(1699,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(1732,9): warning C4101: 'a' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(1732,12): warning C4101: 'b' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(1728,7): warning C4101: 'idx_row' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(1729,7): warning C4101: 'idx_col' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(1747,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(2868,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(2951,86): warning C4552: '+': 식의 결과가 사용되지 않습니다.
-C:\Users\ciiad\github5\OLS\OLS\Util.h(3239,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(45,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\OLS\OLS\OLS.cpp(101,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
      C:\Users\ciiad\github5\OLS\Release\OLS.lib 라이브러리 및 C:\Users\ciiad\github5\OLS\Release\OLS.exp 개체를 생성하고 있습니다.
   코드를 생성하고 있습니다.
   Previous IPDB not found, fall back to full compilation.
-  All 62 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  All 68 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   코드를 생성했습니다.
   OLS.vcxproj -> C:\Users\ciiad\github5\OLS\Release\OLS.dll

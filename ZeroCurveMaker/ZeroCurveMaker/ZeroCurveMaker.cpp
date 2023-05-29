@@ -1014,6 +1014,7 @@ DLLEXPORT(long) ZeroMakerExcel(
 	free(ForwardPayDate_C);
 	free(SwapMaturity_C);
 	free(SwapPayDate_C);
+	_CrtDumpMemoryLeaks();
 	return ResultCode;
 }
 

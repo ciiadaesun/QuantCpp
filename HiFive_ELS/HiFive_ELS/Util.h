@@ -49,6 +49,17 @@ long double xBeta_Function(long double a, long double b);
 static long double Duplication_Formula(long double two_x);
 long double xGamma_Function(long double x);
 double Student_t_Distribution(double x, int n);
+double erff(double x);
+double erffc(double x);
+
+#ifndef erfc
+#define erfc erffc
+#endif
+
+#ifndef erf
+#define erf erff
+#endif
+
 ////////////////////////////////////
 
 
@@ -299,7 +310,6 @@ DLLEXPORT(double) CDF_N(double x)
 // Inverse Cummulative Norm
 DLLEXPORT(double) INV_CDF_N(double p)
 {
-
 	double a1 = -39.69683028665376;
 	double a2 = 220.9460984245205;
 	double a3 = -275.9285104469687;
@@ -328,16 +338,16 @@ DLLEXPORT(double) INV_CDF_N(double p)
 	//Define break-points.
 
 	double p_low = 0.02425;
-	double p_high = 1 - p_low;
+	double p_high = 1.0 - p_low;
 	double  q, r, e, u;
 	double x = 0.0;
 
 
 	//Rational approximation for lower region.
 
-	if (0 < p && p < p_low) {
-		q = sqrt(-2 * log(p));
-		x = (((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) / ((((d1 * q + d2) * q + d3) * q + d4) * q + 1);
+	if (0.0 < p && p < p_low) {
+		q = sqrt(-2.0 * log(p));
+		x = (((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) / ((((d1 * q + d2) * q + d3) * q + d4) * q + 1.0);
 	}
 
 	//Rational approximation for central region.
@@ -345,22 +355,22 @@ DLLEXPORT(double) INV_CDF_N(double p)
 	if (p_low <= p && p <= p_high) {
 		q = p - 0.5;
 		r = q * q;
-		x = (((((a1 * r + a2) * r + a3) * r + a4) * r + a5) * r + a6) * q / (((((b1 * r + b2) * r + b3) * r + b4) * r + b5) * r + 1);
+		x = (((((a1 * r + a2) * r + a3) * r + a4) * r + a5) * r + a6) * q / (((((b1 * r + b2) * r + b3) * r + b4) * r + b5) * r + 1.0);
 	}
 
 	//Rational approximation for upper region.
 
-	if (p_high < p && p < 1) {
-		q = sqrt(-2 * log(1 - p));
-		x = -(((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) / ((((d1 * q + d2) * q + d3) * q + d4) * q + 1);
+	if (p_high < p && p < 1.0) {
+		q = sqrt(-2.0 * log(1.0 - p));
+		x = -(((((c1 * q + c2) * q + c3) * q + c4) * q + c5) * q + c6) / ((((d1 * q + d2) * q + d3) * q + d4) * q + 1.0);
 	}
 
 	//Pseudo-code algorithm for refinement
 
-	if ((0 < p) && (p < 1)) {
-		e = 0.5 * erfc(-x / sqrt(2)) - p;
-		u = e * sqrt(2 * PI) * exp(x * x / 2);
-		x = x - u / (1 + x * u / 2);
+	if ((0.0 < p) && (p < 1.0)) {
+		e = 0.5 * erfc(-x / sqrt(2.0)) - p;
+		u = e * sqrt(2.0 * PI) * exp(x * x / 2.0);
+		x = x - u / (1.0 + x * u / 2.0);
 	}
 
 	return x;
@@ -659,8 +669,7 @@ double** random_mvrn(long number_random, long number_variable, double** Corr)
 	double* RANDN = (double*)malloc(sizeof(double) * number_variable);
 
 	double** MVRN = (double**)malloc(sizeof(double*) * number_random);
-	for (i = 0; i < number_random; i++)
-		MVRN[i] = (double*)malloc(sizeof(double) * number_variable);
+	for (i = 0; i < number_random; i++) MVRN[i] = (double*)malloc(sizeof(double) * number_variable);
 
 	for (i = 0; i < number_random; i++)
 	{
@@ -1207,7 +1216,7 @@ double Calc_Forward_FXVol_Daily(
 	double dt = 0.00273972602739726;
 	double T2 = T1 + dt;
 	double V1, V2;
-	double DF1, DF2, FVar, FVol;
+	double FVar, FVol;
 
 	if (T1 <= TermArray[0])
 	{
@@ -1695,11 +1704,8 @@ double** XprimeDotX(double** X, long ShapeX[2])
 	long i, j, k;
 	long ShapeXpX[2] = { ShapeX[1], ShapeX[1] };
 	long n = ShapeX[0];
-	long idx_row;
-	long idx_col;
 
 	double s = 0.0;
-	double a, b;
 
 	double** XpDotX = make_array(ShapeXpX[0], ShapeXpX[1]);
 	for (i = 0; i < ShapeXpX[0]; i++)
@@ -1725,11 +1731,9 @@ void XprimeDotX(
 	long i, j, k;
 	long ShapeXpX[2] = { ShapeX[1], ShapeX[1] };
 	long n = ShapeX[0];
-	long idx_row;
-	long idx_col;
 
 	double s = 0.0;
-	double a, b;
+
 	for (i = 0; i < ShapeXpX[0]; i++)
 		for (j = 0; j < ShapeXpX[1]; j++)
 		{
@@ -1744,7 +1748,7 @@ void XprimeDotX(
 
 long XprimeY(double** X, long shape_X[2], double* Y, long LengthY, double** XprimeYMatrix)
 {
-	long i, j, k;
+	long i, j;
 	long p = shape_X[1];
 	long n = shape_X[0];
 	double s = 0.0;
@@ -2865,7 +2869,7 @@ public:
 
 		Eigenvalue = ResultArray + n * 3 + 11 + 2 * ndata + 4 * n * (n + 2);
 		Eigenvector = (double**)malloc(sizeof(double*) * n);
-		for (i = 0; i < n; i++) ResultArray + n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n + i * n;
+		for (i = 0; i < n; i++) Eigenvector[i] = ResultArray + n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n + i * n;
 
 		Skew = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1)];
 		Kurt = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 1];
@@ -2948,7 +2952,7 @@ public:
 
 		Eigenvalue = ResultArray + n * 3 + 11 + 2 * ndata + 4 * n * (n + 2);
 		Eigenvector = (double**)malloc(sizeof(double*) * n);
-		for (i = 0; i < n; i++) ResultArray + n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n + i * n;
+		for (i = 0; i < n; i++) Eigenvector[i] = ResultArray + n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n + i * n;
 
 		Skew = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1)];
 		Kurt = ResultArray[n * 3 + 11 + 2 * ndata + 4 * n * (n + 2) + n * (n + 1) + 1];
@@ -3236,7 +3240,7 @@ double* Error_Sum_Jacov(double** x, long* y, double* beta, long ndata, long nbet
 
 long JT_Res(double** Jacov, long shape_Jacov[2], double* Res, double* JT_Res_Array)
 {
-	long i, j, k;
+	long i, j;
 	long p = shape_Jacov[1];
 	long n = shape_Jacov[0];
 	double s = 0.0;
@@ -4025,3 +4029,107 @@ void gauss_hermite_normal(double* x, double* w, double mu, double sigma, long n)
 		w[i] = (w[i] / sqrtPI);
 	}
 }
+
+double gammln(double xx)
+{
+	double x, y, tmp, ser;
+	static double cof[6] = { 76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,0.1208650973866179e-2,-0.5395239384953e-5 };
+	long j;
+	y = x = xx;
+	tmp = x + 5.5;
+	tmp -= (x + 0.5) * log(tmp);
+	ser = 1.000000000190015;
+	for (j = 0; j <= 5; j++) ser += cof[j] / ++y;
+	return -tmp + log(2.5066282746310005 * ser / x);
+}
+
+void gser(double* gamser, double a, double x, double* gln)
+{
+	long n;
+	long ITMAX = 100;
+	double eps = 3.0e-7;
+
+	double sum, del, ap;
+	*gln = gammln(a);
+	if (x <= 0.0) {
+		*gamser = 0.0;
+		return;
+	}
+	else {
+		ap = a;
+		del = sum = 1.0 / a;
+		for (n = 1; n <= ITMAX; n++) {
+			++ap;
+			del *= x / ap;
+			sum += del;
+			if (fabs(del) < fabs(sum) * eps) {
+				*gamser = sum * exp(-x + a * log(x) - (*gln));
+				return;
+			}
+		}
+		return;
+	}
+}
+
+void gcf(double* gammcf, double a, double x, double* gln)
+{
+
+	long ITMAX = 100;
+	double eps = 3.0e-7;
+	double  FPMIN = 1.0e-30;
+	long i;
+	double an, b, c, d, del, h;
+
+	*gln = gammln(a);
+	b = x + 1.0 - a;
+	c = 1.0 / FPMIN;
+	d = 1.0 / b;
+	h = d;
+	for (i = 1; i <= ITMAX; i++)
+	{
+		an = -i * (i - a);
+		b += 2.0;
+		d = an * d + b;
+		if (fabs(d) < FPMIN) d = FPMIN;
+		c = b + an / c;
+		if (fabs(c) < FPMIN) c = FPMIN;
+		d = 1.0 / d;
+		del = d * c;
+		h *= del;
+		if (fabs(del - 1.0) < eps)
+			break;
+	}
+	*gammcf = exp(-x + a * log(x) - (*gln)) * h;
+}
+
+double gammp(double a, double x)
+{
+	double gamser, gammcf, gln;
+	if (x < (a + 1.0)) {
+		gser(&gamser, a, x, &gln);
+		return gamser;
+	}
+	else
+	{
+		gcf(&gammcf, a, x, &gln);
+		return 1.0 - gammcf;
+	}
+}
+
+double erff(double x) { return x < 0.0 ? -gammp(0.5, x * x) : gammp(0.5, x * x); }
+
+double gammq(double a, double x)
+{
+	double gamser, gammcf, gln;
+	if (x < (a + 1.0)) {
+		gser(&gamser, a, x, &gln);
+		return 1.0 - gamser;
+	}
+	else
+	{
+		gcf(&gammcf, a, x, &gln);
+		return gammcf;
+	}
+}
+
+double erffc(double x) { return x < 0.0 ? 1.0 + gammp(0.5, x * x) : gammq(0.5, x * x); }

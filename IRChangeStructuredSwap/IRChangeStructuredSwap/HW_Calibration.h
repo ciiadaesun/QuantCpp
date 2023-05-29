@@ -2547,7 +2547,6 @@ long HW_GradDecent_Calibration_SwaptionCap(
 )
 {
     long i;
-    long j;
 
     long k;
     long n;
