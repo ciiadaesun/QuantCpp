@@ -154,6 +154,35 @@ long MappingPaymentDates(double T_SwapMaturity, double FreqMonth, long* TempDate
     return NDates;
 }
 
+long US_Holiday_SaturSunday_Check(long HolidayYYYYMMDD)
+{
+    // US Holiday를 넣으면 토, 일 이면 대체공휴일을 리턴하고 아니면 그대로 리턴
+    long HolidayExcelType = CDateToExcelDate(HolidayYYYYMMDD);
+    long MOD7 = HolidayExcelType % 7;
+
+    long SaturSundayFlag;
+
+    if (MOD7 == 0) SaturSundayFlag = 1;
+    else if (MOD7 == 1) SaturSundayFlag = 2;
+    else SaturSundayFlag = 0;
+
+    if (SaturSundayFlag == 0)
+    {
+        // 토, 일 둘다 아닐 경우
+        return HolidayYYYYMMDD;
+    }
+    else if (SaturSundayFlag == 1)
+    {
+        // 토요일일 경우 금요일이 대체공휴일
+        return ExcelDateToCDate(HolidayExcelType - 1);
+    }
+    else
+    {
+        // 일요일일 경우 월요일이 대체공휴일
+        return ExcelDateToCDate(HolidayExcelType + 1);
+    }
+}
+
 long* Generate_CpnDate(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOneYear, long& lenArray, long& FirstCpnDate)
 {
     long i, j;

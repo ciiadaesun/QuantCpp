@@ -1,5 +1,10 @@
 ﻿  Heston.cpp
-C:\Users\ciiad\github5\Heston\Heston\CalcDate.h(4,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\Heston\Heston\CalcDate.h(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\Heston\Heston\CalcDate.h(729,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\Heston\Heston\CalcDate.h(729,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\Heston\Heston\CalcDate.h(1122,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\Heston\Heston\CalcDate.h(1162,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\Heston\Heston\CalcDate.h(1353,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\Heston\Heston\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Program Files (x86)\Windows Kits\10\Include\10.0.19041.0\ucrt\float.h(102,1): warning C4005: 'LDBL_EPSILON': 매크로 재정의
 C:\Users\ciiad\github5\Heston\Heston\Util.h(38): message : 'LDBL_EPSILON'의 이전 정의를 참조하십시오.
@@ -18,6 +23,6 @@ C:\Users\ciiad\github5\Heston\Heston\Heston.cpp(996,10): warning C4101: 'j' :참
      C:\Users\ciiad\github5\Heston\x64\Release\Heston.lib 라이브러리 및 C:\Users\ciiad\github5\Heston\x64\Release\Heston.exp 개체를 생성하고 있습니다.
   코드를 생성하고 있습니다.
   Previous IPDB not found, fall back to full compilation.
-  All 127 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  All 148 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   코드를 생성했습니다.
   Heston.vcxproj -> C:\Users\ciiad\github5\Heston\x64\Release\Heston.dll
