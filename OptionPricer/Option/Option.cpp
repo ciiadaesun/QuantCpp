@@ -8,6 +8,8 @@
 #ifndef UTILITY
 #include "Util.h"
 #endif
+#include "SABR.h"
+
 #include <crtdbg.h>
 
 double Sumation(long NArray, double* Array)
@@ -1389,7 +1391,7 @@ long ErrorCheck_OPTIONPRICING_Excel(
 		}
 	}
 
-	if (ImvolLocalVolFlag < 0 || ImvolLocalVolFlag > 2)
+	if (ImvolLocalVolFlag < 0 || ImvolLocalVolFlag > 4)
 	{
 		strcpy_s(ErrorName, "Check Vol Type");
 		return SaveErrorName(Error, ErrorName);
@@ -1454,8 +1456,8 @@ DLLEXPORT(long) OPTIONPRICING_Excel(
 	long MaturityDateExl,
 	long PayDateExl,
 	long NRateDisc,
-	double *RateTermDisc,
-	double *RateDisc,
+	double* RateTermDisc,
+	double* RateDisc,
 
 	long NRateRef,
 	double* RateTermRef,
@@ -1468,22 +1470,24 @@ DLLEXPORT(long) OPTIONPRICING_Excel(
 	long NDiv,
 	double* DivTerm,
 	double* DivRate,
-	
+
 	double QuantoCorr,
 	long NFXVol,
-	double *FXVolTerm,
-	double *FXVol,
+	double* FXVolTerm,
+	double* FXVol,
 	long ImvolLocalVolFlag,
-	
+
 	long NParity,
 	double* Parity,
 	long NTermVol,
 	double* TermVol,
 	double* VolReshaped,
-	
+
 	long GreekFlag,
 	double* ResultPrice,
-	char* Error
+	double* SABR_Params,
+	char* Error,
+	double* RMSPE
 )
 {
 	long i, j;
@@ -1491,14 +1495,42 @@ DLLEXPORT(long) OPTIONPRICING_Excel(
 	long ErrorCode;
 
 	ErrorCode = ErrorCheck_OPTIONPRICING_Excel(
-		LongShort,CallPut,OptionType,CalcDateExl,MeanStartDateExl,
-		MaturityDateExl,PayDateExl,NRateDisc,RateTermDisc,RateDisc,
-		NRateRef,RateTermRef,RateRef,StockPrice,StrikePrice,
-		MeanPrice,DivType,NDiv,DivTerm,DivRate,
-		QuantoCorr,NFXVol,FXVolTerm,FXVol,ImvolLocalVolFlag,
-		NParity,Parity,NTermVol,TermVol,VolReshaped,
-		GreekFlag,ResultPrice,Error);
+		LongShort, CallPut, OptionType, CalcDateExl, MeanStartDateExl,
+		MaturityDateExl, PayDateExl, NRateDisc, RateTermDisc, RateDisc,
+		NRateRef, RateTermRef, RateRef, StockPrice, StrikePrice,
+		MeanPrice, DivType, NDiv, DivTerm, DivRate,
+		QuantoCorr, NFXVol, FXVolTerm, FXVol, ImvolLocalVolFlag,
+		NParity, Parity, NTermVol, TermVol, VolReshaped,
+		GreekFlag, ResultPrice, Error);
 	if (ErrorCode < 0) return ErrorCode;
+	double SABRBeta = 1.0;
+
+	if (ImvolLocalVolFlag == 3 || ImvolLocalVolFlag == 4)
+	{
+		if (DivType == 2)
+		{
+			NDiv = 0;
+		}
+		long CalcLocalVolFlag = 0; // 로컬볼은 나중에계산
+		if (ImvolLocalVolFlag == 3) SABRBeta = 1.0;
+		else SABRBeta = 0.5;
+
+		double* Futures = (double*)malloc(sizeof(double) * NTermVol);
+		double* TempVol = (double*)malloc(sizeof(double) * NTermVol * NParity);
+		if (NParity >= 4 && NTermVol >= 4)
+		{
+			ImvolLocalVolFlag = 0;
+			//////////////////////
+			// SABR Calibration //
+			//////////////////////
+			ResultCode = SABR_Vol(NRateDisc, RateTermDisc, RateDisc, NDiv, DivTerm,
+				DivRate, NTermVol,TermVol, NParity, Parity,
+				VolReshaped, CalcLocalVolFlag, SABRBeta, VolReshaped, TempVol,
+				SABR_Params, Futures, RMSPE);
+		}
+		free(Futures);
+		free(TempVol);
+	}
 
 	long CalcDate = ExcelDateToCDate(CalcDateExl);
 	long MeanStartDate = ExcelDateToCDate(MeanStartDateExl);
