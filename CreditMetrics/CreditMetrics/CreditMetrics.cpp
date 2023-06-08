@@ -115,6 +115,164 @@ double prod_array(long size, double* myarray)
 	return s;
 }
 
+void CummulativeSum_TM(long Size, double** MyMatrix, double** ResultMatrix, long axis = 1)
+{
+	long i, j, k;
+	long NRow = Size;
+	long NCol = Size;
+	double s = 0.0;
+	if (axis == 1)
+	{
+		for (i = 0; i < NRow; i++)
+		{
+			for (j = 0; j < NCol; j++)
+			{
+				ResultMatrix[i][j] = MyMatrix[i][j];
+			}
+		}
+
+		for (i = 0; i < NRow; i++)
+		{
+			for (j = 1; j < NCol; j++)
+			{
+				ResultMatrix[i][j] += ResultMatrix[i][j-1];
+			}
+		}
+	}
+	else
+	{
+		for (i = 0; i < NRow; i++)
+		{
+			for (j = 0; j < NCol; j++)
+			{
+				ResultMatrix[i][j] = MyMatrix[i][j];
+			}
+		}
+
+		for (j = 0; j < NCol; j++)
+		{
+			for (i = 1; i < NRow; i++)
+			{
+				ResultMatrix[i][j] += ResultMatrix[i - 1][j];
+			}
+		}
+	}
+}
+
+void Calc_StressedTM(
+	long SizeMatrix,
+	double** TM,
+	double CCI,
+	double Beta,
+	double** ResultMatrix
+)
+{
+	long i, j;
+	long zeroflag = 0;
+	double s = 0.0;
+	double* TempMatrix = (double*)malloc(sizeof(double) * SizeMatrix);
+	for (i = 0; i < SizeMatrix; i++)
+	{
+		zeroflag = 0;
+		for (j = 0; j < SizeMatrix; j++)
+		{
+			if (TM[i][j] <= 0.0)
+			{
+				zeroflag = 1;
+				break;
+			}
+		}
+
+		if (zeroflag == 1)
+		{
+			for (j = 0; j < SizeMatrix; j++)
+			{
+				TempMatrix[j] = TM[i][j] + 1.0e-10;
+			}
+			s = 1.0 + 1.0e-10 * (double)SizeMatrix;
+			for (j = 0; j < SizeMatrix; j++)
+			{
+				TM[i][j] = TempMatrix[j] / s;
+			}
+		}
+	}
+	
+	double** CummTM = (double**)malloc(sizeof(double*) * SizeMatrix);
+	double N_inv_P;
+	double BX = CCI * Beta;
+	double sqrt_term = sqrt(1.0 - Beta * Beta);
+	double NPrev;
+	double NCurr;
+	double temptest = 0.0;
+	for (i = 0; i < SizeMatrix; i++) CummTM[i] = (double*)malloc(sizeof(double) * SizeMatrix);
+	CummulativeSum_TM(SizeMatrix, TM, CummTM, 1);
+
+	for (i = 0; i < SizeMatrix; i++)
+	{
+		for (j = 0; j < SizeMatrix; j++)
+		{
+			if (j == 0)
+			{
+				N_inv_P = INV_CDF_N(min(CummTM[i][j], 0.99999999999));
+				NCurr = CDF_N((N_inv_P + BX) / sqrt_term);
+				ResultMatrix[i][j] = NCurr;
+			}
+			else
+			{
+				NPrev = NCurr;
+				N_inv_P = INV_CDF_N(min(CummTM[i][j], 0.99999999999));
+				NCurr = CDF_N((N_inv_P + BX) / sqrt_term);
+				ResultMatrix[i][j] = NCurr - NPrev;
+			}
+		}
+	}
+	free(TempMatrix);
+	for (i = 0; i < SizeMatrix; i++) free(CummTM[i]);
+	free(CummTM);
+}
+
+DLLEXPORT(long) Calc_StressedTransitionMatrix(
+	double CCI,
+	double Beta,
+	long SizeMatrix,
+	double* TM_Reshaped,
+	double* ResultSTM_Reshaped
+)
+{
+	long i, j, k;
+	double** TM = (double**)malloc(sizeof(double*) * SizeMatrix);
+	for (i = 0; i < SizeMatrix; i++) TM[i] = (double*)malloc(sizeof(double) * SizeMatrix);
+	double** STM = (double**)malloc(sizeof(double*) * SizeMatrix);
+	for (i = 0; i < SizeMatrix; i++) STM[i] = (double*)malloc(sizeof(double) * SizeMatrix);
+
+	k = 0;
+	for (i = 0; i < SizeMatrix; i++)
+	{
+		for (j = 0; j < SizeMatrix; j++)
+		{
+			TM[i][j] = TM_Reshaped[k];
+			k++;
+		}
+	}
+	Calc_StressedTM(SizeMatrix, TM, CCI, Beta, STM);
+
+	k = 0;
+	for (i = 0; i < SizeMatrix; i++)
+	{
+		for (j = 0; j < SizeMatrix; j++)
+		{
+			ResultSTM_Reshaped[k] = STM[i][j];
+			k++;
+		}
+	}
+
+	for (i = 0; i < SizeMatrix; i++) free(TM[i]);
+	free(TM);
+	for (i = 0; i < SizeMatrix; i++) free(STM[i]);
+	free(STM);
+	return 1;
+}
+
 void Comprehensive_Adjust_Matrix(
 	long SizeMatrix,
 	double** MyMatrix,
