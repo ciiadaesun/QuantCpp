@@ -106,7 +106,7 @@ DLLEXPORT(long) OLS_Estimate(
 	for (i = 0; i < ndata; i++) free(x_before_const[i]);
 	free(x_before_const);
 
-	_CrtDumpMemoryLeaks();
+	//_CrtDumpMemoryLeaks();
 	return 1;
 }
 

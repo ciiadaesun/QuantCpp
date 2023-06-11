@@ -1272,3 +1272,156 @@ DLLEXPORT(long) Get_LifeTimePD(
 	free(MarginalSurv);
 	return ResultCode;
 }
+
+double probtologit(double p)
+{
+	return log(p / (1 - p));
+}
+
+double logittoprob(double logit)
+{
+	return 1.0 / (1.0 + exp(-logit));
+}
+
+void TempFuncOLS_ForPD(double** x, double* y, long num_data, long nvariables, long NeweyWestLag, double* ResultArray)
+{
+	long i;
+	long nbeta = nvariables + 1;
+	long n = nbeta;
+	OLS OLSClass(x, y, num_data, nvariables, NeweyWestLag);
+	for (i = 0; i < nbeta; i++) ResultArray[i] = OLSClass.beta[i];
+	for (i = 0; i < nbeta; i++) ResultArray[i + nbeta] = OLSClass.std_B[i];
+	for (i = 0; i < nbeta; i++) ResultArray[i + 2 * nbeta] = OLSClass.t_value[i];
+	ResultArray[3 * nbeta] = OLSClass.rsquared;
+	ResultArray[3 * nbeta + 1] = OLSClass.rsquared_adj;
+	ResultArray[3 * n + 2] = OLSClass.resid_std;
+	ResultArray[n * 3 + 3] = OLSClass.loglikelihood;
+	ResultArray[n * 3 + 4] = OLSClass.Df_model;
+	ResultArray[n * 3 + 5] = OLSClass.Df_res;
+	ResultArray[n * 3 + 6] = OLSClass.Fstatistic;
+	ResultArray[n * 3 + 7] = OLSClass.AIC;
+	ResultArray[n * 3 + 8] = OLSClass.BIC;
+	ResultArray[n * 3 + 9] = OLSClass.durbin_watson;
+	ResultArray[n * 3 + 10] = OLSClass.sig;
+	for (i = 0; i < num_data; i++) ResultArray[n * 3 + 11 + i] = OLSClass.estimated[i];
+	for (i = 0; i < num_data; i++) ResultArray[n * 3 + 11 + num_data + i] = OLSClass.resid[i];
+	ResultArray[n * 3 + 11 + 2 * num_data] = OLSClass.Skew;
+	ResultArray[n * 3 + 11 + 2 * num_data + 1] = OLSClass.Kurt;
+	ResultArray[n * 3 + 11 + 2 * num_data + 2] = OLSClass.JB;
+	ResultArray[n * 3 + 11 + 2 * num_data + 3] = OLSClass.centered_tss;
+	for (i = 0; i < nbeta; i++) ResultArray[n * 3 + 11 + 2 * num_data + 3 + i] = OLSClass.p[i];
+	for (i = 0; i < nbeta; i++) ResultArray[n * 3 + 11 + 2 * num_data + 3 + nbeta + i] = OLSClass.std_B_NeweyWest[i];
+	for (i = 0; i < nbeta; i++) ResultArray[n * 3 + 11 + 2 * num_data + 3 + 2 * nbeta + i] = OLSClass.p_neweywest[i];
+}
+
+DLLEXPORT(long) ProbitMeanStd(long NData, double* Data, double* Result)
+{
+	long i, j;
+	long n = 0;
+	long probflag = 0;
+	for (i = 0; i < NData; i++)
+	{
+		if (Data[i] < 0.0)
+		{
+			n = 0;
+			break;
+		}
+		if (Data[i] > 0.0 && Data[i] < 1.0) n += 1;
+	}
+
+	if (n == NData)
+	{
+		probflag = 1;
+	}
+	else
+	{
+		for (i = 0 ; i < NData; i++) Data[i] = logittoprob(Data[i]);
+	}
+
+	double mu = 0.0;
+	double std = 0.0;
+	double var = 0.0;
+	for (i = 0; i < NData; i++) Data[i] = INV_CDF_N(Data[i]);
+	for (i = 0; i < NData; i++) mu += Data[i]/(double)NData;
+	for (i = 0; i < NData; i++) var += (Data[i] - mu) * (Data[i] - mu) / (double)NData;
+	std = sqrt(var);
+	Result[0] = mu;
+	Result[1] = std;
+	Result[2] = sqrt(var / (1 + var));
+	return 1;
+}
+
+DLLEXPORT(long) OLS_Estimate_ForPD(
+	double* x_reshape,
+	double* y,
+	long ndata,
+	long nvariables,
+	long NeweyWestLag,
+	double* ResultArray)
+{
+	long i, j;
+	long n = 0;
+	for (i = 0; i < ndata; i++)
+	{
+		if (y[i] < 0.0)
+		{
+			n = 0;
+			break;
+		}
+		if (y[i] > 0.0 && y[i] < 1.0) n += 1;
+	}
+	
+	if (n == ndata)
+	{
+		for (i = 0; i < ndata; i++)
+		{
+			y[i] = probtologit(y[i]);
+		}
+	}
+
+	long shape[2] = { ndata, nvariables };
+	double** x_before_const = DataReshape(x_reshape, shape);
+	TempFuncOLS_ForPD(x_before_const, y, ndata, nvariables, NeweyWestLag, ResultArray);
+
+	for (i = 0; i < ndata; i++) free(x_before_const[i]);
+	free(x_before_const);
+
+	//_CrtDumpMemoryLeaks();
+	return 1;
+}
+
+DLLEXPORT(long) CalcEstimatedScenarioPD(long NVariables, long NData, double* XDataReshaped, double* Betas, double probitmean, double probitstd, double* Result)
+{
+	long i, j, k;
+	double s, p, cci, probit;
+	double** Data = (double**)malloc(sizeof(double*) * NData);
+	for (i = 0; i < NData; i++) Data[i] = (double*)malloc(sizeof(double) * NVariables);
+	k = 0;
+	for (i = 0; i < NData; i++)
+	{
+		for (j = 0; j < NVariables; j++)
+		{
+			Data[i][j] = XDataReshaped[k];
+			k += 1;
+		}
+	}
+
+	for (i = 0; i < NData; i++)
+	{
+		s = Betas[0];
+		for (j = 0; j < NVariables; j++)
+		{
+			s += Betas[j + 1] * Data[i][j];
+		}
+		p = logittoprob(s);
+		probit = INV_CDF_N(p);
+		cci = -(probit - probitmean) / probitstd;
+		Result[i] = s;
+		Result[i + NData] = p;
+		Result[i + NData * 2] = cci;
+	}
+
+	for (i = 0; i < NData; i++) free(Data[i]);
+	free(Data);
+	return 1;
+}
