@@ -143,6 +143,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="GetTextDump.h" />
     <ClInclude Include="Util.h" />
   </ItemGroup>
   <ItemGroup>

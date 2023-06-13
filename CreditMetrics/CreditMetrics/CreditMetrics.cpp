@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include "Util.h"
+#include "GetTextDump.h"
 
 #ifndef DLLEXPORT(A)
 #ifdef WIN32
@@ -232,18 +233,45 @@ void Calc_StressedTM(
 }
 
 DLLEXPORT(long) Calc_StressedTransitionMatrix(
-	double CCI,
-	double Beta,
-	long SizeMatrix,
-	double* TM_Reshaped,
-	double* ResultSTM_Reshaped
+	double* CCI,						// CCI
+	double Beta,						// Gamma(포트폴리오 Copula Correlation)
+	long SizeMatrix,					// 정방 매트릭스 한쪽 길이
+	double* TM_Reshaped,				// 전이행렬 Reshaped
+	double* ResultSTM_Reshaped,			// STM 1
+	double* ResultSTM_Reshaped2,		// STM 2
+	double* ResultSTM_Reshaped3,		// STM 3
+	double* TotalSTMResult,				// STM 1, STM12, STM123
+	long TextDumpFlag
 )
 {
 	long i, j, k;
+
+	char CalcFunctionName[] = "Calc_StressedTransitionMatrix";
+	char SaveFileName[100];
+
+	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+	if (TextDumpFlag == 1)
+	{
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "CCI", 3, CCI);
+		DumppingTextData(CalcFunctionName, SaveFileName, "Beta", Beta);
+		DumppingTextData(CalcFunctionName, SaveFileName, "SizeMatrix", SizeMatrix);
+		DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "TM_Reshaped", SizeMatrix, SizeMatrix, TM_Reshaped);
+	}
+
 	double** TM = (double**)malloc(sizeof(double*) * SizeMatrix);
 	for (i = 0; i < SizeMatrix; i++) TM[i] = (double*)malloc(sizeof(double) * SizeMatrix);
 	double** STM = (double**)malloc(sizeof(double*) * SizeMatrix);
 	for (i = 0; i < SizeMatrix; i++) STM[i] = (double*)malloc(sizeof(double) * SizeMatrix);
+	double** STM2 = (double**)malloc(sizeof(double*) * SizeMatrix);
+	for (i = 0; i < SizeMatrix; i++) STM2[i] = (double*)malloc(sizeof(double) * SizeMatrix);
+	double** STM3 = (double**)malloc(sizeof(double*) * SizeMatrix);
+	for (i = 0; i < SizeMatrix; i++) STM3[i] = (double*)malloc(sizeof(double) * SizeMatrix);
+
+	double** STM12 = (double**)malloc(sizeof(double*) * SizeMatrix);
+	for (i = 0; i < SizeMatrix; i++) STM12[i] = (double*)malloc(sizeof(double) * SizeMatrix);
+	double** STM123 = (double**)malloc(sizeof(double*) * SizeMatrix);
+	for (i = 0; i < SizeMatrix; i++) STM123[i] = (double*)malloc(sizeof(double) * SizeMatrix);
+
 
 	k = 0;
 	for (i = 0; i < SizeMatrix; i++)
@@ -254,7 +282,7 @@ DLLEXPORT(long) Calc_StressedTransitionMatrix(
 			k++;
 		}
 	}
-	Calc_StressedTM(SizeMatrix, TM, CCI, Beta, STM);
+	Calc_StressedTM(SizeMatrix, TM, CCI[0], Beta, STM);
 
 	k = 0;
 	for (i = 0; i < SizeMatrix; i++)
@@ -266,10 +294,68 @@ DLLEXPORT(long) Calc_StressedTransitionMatrix(
 		}
 	}
 
+	Calc_StressedTM(SizeMatrix, TM, CCI[1], Beta, STM2);
+	k = 0;
+	for (i = 0; i < SizeMatrix; i++)
+	{
+		for (j = 0; j < SizeMatrix; j++)
+		{
+			ResultSTM_Reshaped2[k] = STM2[i][j];
+			k++;
+		}
+	}
+
+	Calc_StressedTM(SizeMatrix, TM, CCI[2], Beta, STM3);
+	k = 0;
+	for (i = 0; i < SizeMatrix; i++)
+	{
+		for (j = 0; j < SizeMatrix; j++)
+		{
+			ResultSTM_Reshaped3[k] = STM3[i][j];
+			k++;
+		}
+	}
+	long shape[2] = { SizeMatrix, SizeMatrix };
+	Dot2dArray(STM, shape, STM2, shape, STM12);
+	Dot2dArray(STM12, shape, STM3, shape, STM123);
+	k = 0;
+	for (i = 0; i < SizeMatrix; i++)
+	{
+		for (j = 0; j < SizeMatrix; j++)
+		{
+			TotalSTMResult[k] = STM[i][j];
+			k++;
+		}
+	}
+	for (i = 0; i < SizeMatrix; i++)
+	{
+		for (j = 0; j < SizeMatrix; j++)
+		{
+			TotalSTMResult[k] = STM12[i][j];
+			k++;
+		}
+	}
+	for (i = 0; i < SizeMatrix; i++)
+	{
+		for (j = 0; j < SizeMatrix; j++)
+		{
+			TotalSTMResult[k] = STM123[i][j];
+			k++;
+		}
+	}
+
 	for (i = 0; i < SizeMatrix; i++) free(TM[i]);
 	free(TM);
 	for (i = 0; i < SizeMatrix; i++) free(STM[i]);
 	free(STM);
+	for (i = 0; i < SizeMatrix; i++) free(STM2[i]);
+	free(STM2);
+	for (i = 0; i < SizeMatrix; i++) free(STM3[i]);
+	free(STM3);
+	for (i = 0; i < SizeMatrix; i++) free(STM12[i]);
+	free(STM12);
+	for (i = 0; i < SizeMatrix; i++) free(STM123[i]);
+	free(STM123);
 	return 1;
 }
 
@@ -822,17 +908,32 @@ void Smooth_UpDirection(
 	}
 }
 
+// 가로 평활화
 DLLEXPORT(long) Parallel_Smoothing_Matrix(
-	long SizeMatrix,
-	double* MatrixReshaped,
-	double* ResultMatrixReshaped,
-	double* ResultMatrixSumAdj,
-	long SameValueSmoothingFlag,
-	long LargeDifferenceAdjustFlag,
-	long AdjustIfLargeThenDiag,
-	double* PD
+	long SizeMatrix,						// 전이행렬 한쪽 사이즈
+	double* MatrixReshaped,					// 전이행렬 Reshaped
+	double* ResultMatrixReshaped,			// Smoothing 후 전이행렬 Output
+	double* ResultMatrixSumAdj,				// Smoothing and 합계보정 후 Output
+	long SameValueSmoothingFlag,			// 양 옆 같은값도 보정
+	long LargeDifferenceAdjustFlag,			// 기존 매트릭스보다 너무 차이가 크면 보정
+	long AdjustIfLargeThenDiag,				// Diagonal 보다 큰 값이 있으면 보정
+	double* PD,								// PD
+	long TextDumpFlag
 )
 {
+	char CalcFunctionName[] = "Parallel_Smoothing_Matrix";
+	char SaveFileName[100];
+
+	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+	if (TextDumpFlag == 1)
+	{
+		DumppingTextData(CalcFunctionName, SaveFileName, "SizeMatrix", SizeMatrix);
+		DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "MatrixReshaped", SizeMatrix, SizeMatrix, MatrixReshaped);
+		DumppingTextData(CalcFunctionName, SaveFileName, "SameValueSmoothingFlag", SameValueSmoothingFlag);
+		DumppingTextData(CalcFunctionName, SaveFileName, "LargeDifferenceAdjustFlag", LargeDifferenceAdjustFlag);
+		DumppingTextData(CalcFunctionName, SaveFileName, "CAdjustIfLargeThenDiagCI", AdjustIfLargeThenDiag);
+	}
+
 	long i, j, k;
 	long ResultCode = 0;
 	double** MyMatrix = (double**)malloc(sizeof(double*) * SizeMatrix);
@@ -909,18 +1010,33 @@ DLLEXPORT(long) Parallel_Smoothing_Matrix(
 }
 
 DLLEXPORT(long) Vertical_Smoothing_Matrix(
-	long SizeMatrix,
-	double* MatrixReshaped,
-	double* ResultMatrixReshaped,
-	double* ResultMatrixSumAdj,
-	long SameValueSmoothingFlag,
-	long LargeDifferenceAdjustFlag,
-	long AdjustIfLargeThenDiag,
-	double* PD
+	long SizeMatrix,						// 전이행렬 한쪽 사이즈
+	double* MatrixReshaped,					// 전이행렬 Reshaped
+	double* ResultMatrixReshaped,			// Smoothing 후 전이행렬 Output
+	double* ResultMatrixSumAdj,				// Smoothing and 합계보정 후 Output
+	long SameValueSmoothingFlag,			// 양 옆 같은값도 보정
+	long LargeDifferenceAdjustFlag,			// 기존 매트릭스보다 너무 차이가 크면 보정
+	long AdjustIfLargeThenDiag,				// Diagonal 보다 큰 값이 있으면 보정
+	double* PD,								// PD
+	long TextDumpFlag
 )
 {
 	long i, j, k;
 	long ResultCode = 0;
+
+	char CalcFunctionName[] = "Vertical_Smoothing_Matrix";
+	char SaveFileName[100];
+
+	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+	if (TextDumpFlag == 1)
+	{
+		DumppingTextData(CalcFunctionName, SaveFileName, "SizeMatrix", SizeMatrix);
+		DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "MatrixReshaped", SizeMatrix, SizeMatrix, MatrixReshaped);
+		DumppingTextData(CalcFunctionName, SaveFileName, "SameValueSmoothingFlag", SameValueSmoothingFlag);
+		DumppingTextData(CalcFunctionName, SaveFileName, "LargeDifferenceAdjustFlag", LargeDifferenceAdjustFlag);
+		DumppingTextData(CalcFunctionName, SaveFileName, "CAdjustIfLargeThenDiagCI", AdjustIfLargeThenDiag);
+	}
+
 	double** MyMatrix = (double**)malloc(sizeof(double*) * SizeMatrix);
 	for (i = 0; i < SizeMatrix; i++) MyMatrix[i] = (double*)malloc(sizeof(double) * SizeMatrix);
 
@@ -995,29 +1111,44 @@ DLLEXPORT(long) Vertical_Smoothing_Matrix(
 }
 
 DLLEXPORT(long) Smoothing_Matrix(
-	long SizeMatrix,
-	double* MatrixReshaped,
-	double* ResultMatrixReshaped,
-	double* ResultMatrixSumAdj,
-	long SameValueSmoothingFlag,
-	long LargeDifferenceAdjustFlag,
-	long AdjustIfLargeThenDiag,
-	double* PD
+	long SizeMatrix,						// 전이행렬 한쪽 사이즈
+	double* MatrixReshaped,					// 전이행렬 Reshaped
+	double* ResultMatrixReshaped,			// Smoothing 후 전이행렬 Output
+	double* ResultMatrixSumAdj,				// Smoothing and 합계보정 후 Output
+	long SameValueSmoothingFlag,			// 양 옆 같은값도 보정
+	long LargeDifferenceAdjustFlag,			// 기존 매트릭스보다 너무 차이가 크면 보정
+	long AdjustIfLargeThenDiag,				// Diagonal 보다 큰 값이 있으면 보정
+	double* PD,								// PD
+	long TextDumpFlag
 )
 {
 	long ResultCode = 1;
+
+	char CalcFunctionName[] = "Smoothing_Matrix";
+	char SaveFileName[100];
+
+	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+	if (TextDumpFlag == 1)
+	{
+		DumppingTextData(CalcFunctionName, SaveFileName, "SizeMatrix", SizeMatrix);
+		DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "MatrixReshaped", SizeMatrix, SizeMatrix, MatrixReshaped);
+		DumppingTextData(CalcFunctionName, SaveFileName, "SameValueSmoothingFlag", SameValueSmoothingFlag);
+		DumppingTextData(CalcFunctionName, SaveFileName, "LargeDifferenceAdjustFlag", LargeDifferenceAdjustFlag);
+		DumppingTextData(CalcFunctionName, SaveFileName, "CAdjustIfLargeThenDiagCI", AdjustIfLargeThenDiag);
+	}
+
 	double* Result1 = (double*)malloc(sizeof(double) * SizeMatrix * SizeMatrix);
 	double* Result2 = (double*)malloc(sizeof(double) * SizeMatrix * SizeMatrix);
 	double* Result3 = (double*)malloc(sizeof(double) * SizeMatrix * SizeMatrix);
 	double* Result4 = (double*)malloc(sizeof(double) * SizeMatrix * SizeMatrix);
 	double* Result5 = (double*)malloc(sizeof(double) * SizeMatrix * SizeMatrix);
 
-	ResultCode *= Parallel_Smoothing_Matrix(SizeMatrix, MatrixReshaped, Result1, ResultMatrixSumAdj, SameValueSmoothingFlag, LargeDifferenceAdjustFlag, AdjustIfLargeThenDiag, PD);
-	ResultCode *= Vertical_Smoothing_Matrix(SizeMatrix, Result1, Result2, ResultMatrixSumAdj, SameValueSmoothingFlag, LargeDifferenceAdjustFlag, AdjustIfLargeThenDiag, PD);
-	ResultCode *= Parallel_Smoothing_Matrix(SizeMatrix, Result2, Result3, ResultMatrixSumAdj, SameValueSmoothingFlag, LargeDifferenceAdjustFlag, AdjustIfLargeThenDiag, PD);
-	ResultCode *= Vertical_Smoothing_Matrix(SizeMatrix, Result3, Result4, ResultMatrixSumAdj, SameValueSmoothingFlag, LargeDifferenceAdjustFlag, AdjustIfLargeThenDiag, PD);
-	ResultCode *= Parallel_Smoothing_Matrix(SizeMatrix, Result4, Result5, ResultMatrixSumAdj, SameValueSmoothingFlag, LargeDifferenceAdjustFlag, AdjustIfLargeThenDiag, PD);
-	ResultCode *= Vertical_Smoothing_Matrix(SizeMatrix, Result5, ResultMatrixReshaped, ResultMatrixSumAdj, SameValueSmoothingFlag, LargeDifferenceAdjustFlag, AdjustIfLargeThenDiag, PD);
+	ResultCode *= Parallel_Smoothing_Matrix(SizeMatrix, MatrixReshaped, Result1, ResultMatrixSumAdj, SameValueSmoothingFlag, LargeDifferenceAdjustFlag, AdjustIfLargeThenDiag, PD,0);
+	ResultCode *= Vertical_Smoothing_Matrix(SizeMatrix, Result1, Result2, ResultMatrixSumAdj, SameValueSmoothingFlag, LargeDifferenceAdjustFlag, AdjustIfLargeThenDiag, PD,0);
+	ResultCode *= Parallel_Smoothing_Matrix(SizeMatrix, Result2, Result3, ResultMatrixSumAdj, SameValueSmoothingFlag, LargeDifferenceAdjustFlag, AdjustIfLargeThenDiag, PD,0);
+	ResultCode *= Vertical_Smoothing_Matrix(SizeMatrix, Result3, Result4, ResultMatrixSumAdj, SameValueSmoothingFlag, LargeDifferenceAdjustFlag, AdjustIfLargeThenDiag, PD,0);
+	ResultCode *= Parallel_Smoothing_Matrix(SizeMatrix, Result4, Result5, ResultMatrixSumAdj, SameValueSmoothingFlag, LargeDifferenceAdjustFlag, AdjustIfLargeThenDiag, PD,0);
+	ResultCode *= Vertical_Smoothing_Matrix(SizeMatrix, Result5, ResultMatrixReshaped, ResultMatrixSumAdj, SameValueSmoothingFlag, LargeDifferenceAdjustFlag, AdjustIfLargeThenDiag, PD,0);
 
 	free(Result1);
 	free(Result2);
@@ -1081,10 +1212,10 @@ DLLEXPORT(long) TransitionNum_To_TransitionProb(
 		}
 	}
 
-	long** MyMatrix = (long**)malloc(sizeof(long*) * NRate);
-	for (i = 0; i < NRate; i++) MyMatrix[i] = (long*)malloc(sizeof(long) * NRate);
+	double** MyMatrix = (double**)malloc(sizeof(double*) * NRate);
+	for (i = 0; i < NRate; i++) MyMatrix[i] = (double*)malloc(sizeof(double) * NRate);
 
-	long* TotalNum = (long*)malloc(sizeof(long) * NRate);
+	double* TotalNum = (double*)malloc(sizeof(double) * NRate);
 
 	k = 0;
 	for (i = 0 ; i < NRate; i++)
@@ -1113,21 +1244,35 @@ DLLEXPORT(long) TransitionNum_To_TransitionProb(
 }
 
 DLLEXPORT(long) Get_LifeTimePD(
-	long NRate,
-	double* InputPD,
-	double* MinPD,
-	double* ResultPD,
-	double* TransitionNumberReshaped,
-	double* TransitionProbReshaped,
-	long NTermPD,
-	double* CummulativePD,
-	double* ForwardPD,
-	double* MarginalPD,
-	double* QuarterlyMarginalPD,
-	double* QuarterlyCummPD
+	long NRate,								// 신용등급개수
+	double* InputPD,						// 인풋PD
+	double* MinPD,							// 최소PD
+	double* ResultPD,						// Output1 : 결과PD
+	double* TransitionNumberReshaped,		// 전이개수 또는 전이행렬
+	double* TransitionProbReshaped,			// Output2 : 조정전이행렬
+	long NTermPD,							// 결과로 산출할 PD Term 개수
+	double* CummulativePD,					// Output3 : 연간 누적PD
+	double* ForwardPD,						// Output4 : 연간 Forward 기간PD
+	double* MarginalPD,						// Output5 : 한계PD
+	double* QuarterlyMarginalPD,			// Output6 : 분기 한계PD
+	double* QuarterlyCummPD,				// Output7 : 분기 누적PD
+	long TextDumpFlag						// 텍스트덤프 출력여부
 )
 {
 	long i, j, k, n, ResultCode = 0;
+
+	char CalcFunctionName[] = "Get_LifeTimePD";
+	char SaveFileName[100];
+
+	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+	if (TextDumpFlag == 1)
+	{
+		DumppingTextData(CalcFunctionName, SaveFileName, "NRate", NRate);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "InputPD", NRate, InputPD);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "MinPD", NRate, MinPD);
+		DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "MatrixReshaped", NRate, NRate, TransitionNumberReshaped);
+	}
+
 	double s = 0.;
 	ResultCode = Get_MasterPD(NRate, InputPD, MinPD, ResultPD);
 
@@ -1352,14 +1497,30 @@ DLLEXPORT(long) ProbitMeanStd(long NData, double* Data, double* Result)
 }
 
 DLLEXPORT(long) OLS_Estimate_ForPD(
-	double* x_reshape,
-	double* y,
-	long ndata,
-	long nvariables,
-	long NeweyWestLag,
-	double* ResultArray)
+	double* x_reshape,				// X변수 Reshaped
+	double* y,						// 종속변수
+	long ndata,						// 데이터개수
+	long nvariables,				// 변수개수
+	long NeweyWestLag,				// HAC Lag
+	double* ResultArray,			// [0~(nvar+1)-1] beta, [(nvar+1)~2(nvar+1)-1]std, [2(nvar+1)~3(nvar+1)-1]
+	long TextDumpFlag
+	)
 {
 	long i, j;
+
+	char CalcFunctionName[] = "OLS_Estimate_ForPD";
+	char SaveFileName[100];
+
+	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+	if (TextDumpFlag == 1)
+	{
+		DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "x_reshape", ndata, nvariables, x_reshape);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "y", ndata, y);
+		DumppingTextData(CalcFunctionName, SaveFileName, "ndata", ndata);
+		DumppingTextData(CalcFunctionName, SaveFileName, "nvariables", nvariables);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NeweyWestLag", NeweyWestLag);
+	}
+
 	long n = 0;
 	for (i = 0; i < ndata; i++)
 	{
