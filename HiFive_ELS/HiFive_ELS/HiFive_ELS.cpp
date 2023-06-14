@@ -1724,7 +1724,7 @@ void Logging_HiFive_ELS_MC(
 	for (i = 0; i < NStock + 1; i++) ntotalnterm += NTerm[i];
 	for (i = 0; i < NStock; i++) ntotaldiv += NDivTerm[i];
 	for (i = 0; i < NStock; i++) ntotalquanto += NTermQuanto[i];
-	for (i = 0; i < NStock + 1; i++) ntotalnterm += NTerm[i];
+
 	for (i = 0; i < NStock; i++) nparitytotal += NParityVol[i];
 	for (i = 0; i < NStock; i++) ntermvoltotal += NTermVol[i];
 	for (i = 0; i < NStock; i++) nvoltotal += NParityVol[i]*NTermVol[i];
@@ -1747,23 +1747,28 @@ void Logging_HiFive_ELS_MC(
 	DumppingTextDataArray(CalcFunctionName, SaveFileName, "NStrike", NEvaluate, NStrike);
 	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "StrikeLevel", 3, NEvaluate, StrikeLevel);
 
-	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "Slope", 3, NEvaluate, Slope);
-	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "FixedAmount", 3, NEvaluate, FixedAmount);
+	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "Slope", 3, (NEvaluate+2), Slope);
+	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "FixedAmount", 3, (NEvaluate+2), FixedAmount);
 	DumppingTextData(CalcFunctionName, SaveFileName, "NLizard", NLizard);
-	DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardFlag", NLizard, LizardFlag);
-	DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardStartDate_Excel", NLizard, LizardStartDate_Excel);
+	if (NLizard > 0)
+	{
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardFlag", NLizard, LizardFlag);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardStartDate_Excel", NLizard, LizardStartDate_Excel);
 
-	DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardEndDate_Excel", NLizard, LizardEndDate_Excel);
-	DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardBarrierLevel", NLizard, LizardBarrierLevel);
-	DumppingTextDataArray(CalcFunctionName, SaveFileName, "Now_LizardHitting", NLizard, Now_LizardHitting);
-	DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardCoupon", NLizard, LizardCoupon);
-	DumppingTextData(CalcFunctionName, SaveFileName, "NCPN", NCPN);
-
-	DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_EvaluateDate_Excel", NCPN, CPN_EvaluateDate_Excel);
-	DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_PayDate_Excel", NCPN, CPN_PayDate_Excel);
-	DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_Lower_Barrier", NCPN, CPN_Lower_Barrier);
-	DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_Upper_Barrier", NCPN, CPN_Upper_Barrier);
-	DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_Rate", NCPN, CPN_Rate);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardEndDate_Excel", NLizard, LizardEndDate_Excel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardBarrierLevel", NLizard, LizardBarrierLevel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "Now_LizardHitting", NLizard, Now_LizardHitting);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardCoupon", NLizard, LizardCoupon);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NCPN", NCPN);
+	}
+	if (NCPN > 0)
+	{
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_EvaluateDate_Excel", NCPN, CPN_EvaluateDate_Excel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_PayDate_Excel", NCPN, CPN_PayDate_Excel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_Lower_Barrier", NCPN, CPN_Lower_Barrier);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_Upper_Barrier", NCPN, CPN_Upper_Barrier);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_Rate", NCPN, CPN_Rate);
+	}
 
 	DumppingTextData(CalcFunctionName, SaveFileName, "NStock", NStock);
 	DumppingTextDataArray(CalcFunctionName, SaveFileName, "S0X0", NStock * 3, S0X0);
@@ -3716,6 +3721,220 @@ long HiFive_VaR_Excel(
 	return 1;
 }
 
+void Logging_Excel_HiFive_VaR(
+	long PricingDate_Excel,			// 가격계산날짜 ExcelType Ex) 44201(2021년01월05일)
+	long NSimul,					// 시뮬레이션개수
+	long NHistory,					// 데이터 History 개수
+	double FaceValue,				// 원금액
+	long FaceValueFlag,				// 원금설정여부
+
+	double MaxProfit,				// 최대이익
+	double MaxLoss,					// 최대손실
+	long NEvaluate,					// 조기상환 평가일개수
+	double KI_Barrier_Level,		// 낙인배리어수준
+	long Now_KI_State,				// 현재 낙인상태
+
+	long KI_Method,					// 낙인처리방법
+	long* EvalDate_Excel,			// 조기상환 ExcelType평가일 Array [ Shape = (NEvaluate , ) ]
+	long* PayDate_Excel,			// 조기상환 ExcelType지급일 Array [ Shape = (NEvaluate , ) ]
+	long* NStrike,					// 조기상환 회차별 행사가격개수 Array [ Shape = (NEvaluate , ) ]
+	double* StrikeLevel,			// 조기상환 회차별 행사가격 Array [ Shape = reshape(3 * NEvaluate) ]
+
+	double* Slope,					// 조기상환 회차별 참여율 [ Shape = reshape(3 * NEvaluate)  ]
+	double* FixedAmount,			// 조기상환 회차별 쿠폰 [ Shape = reshape(3 * NEvaluate)  ]
+	long NLizard,					// 리자드상환 평가일 개수
+	long* LizardFlag,				// 조기상환 회차별 리자드상환 평가할지 여부 Array [ Shape = (NLizard , ) ]
+	long* LizardStartDate_Excel,	// 조기상환 회차별 리자드배리어 체크 시작일 ExcelType Array [ Shape = (NLizard , ) ]
+
+	long* LizardEndDate_Excel,		// 조기상환 회차별 리자드배리어 체크 종료일 ExcelType Array [ Shape = (NLizard , ) ]
+	double* LizardBarrierLevel,		// 조기상환 회차별 리자드배리어 배리어레벨 Array
+	long* Now_LizardHitting,		// 조기상환 회차별 리자드배리어 현재 Hitting여부 Array
+	double* LizardCoupon,			// 조기상환 회차별 리자드배리어 쿠폰이자율 Array
+	long NCPN,						// 일반 쿠폰 지급 개수
+
+	long* CPN_EvaluateDate_Excel,	// 일반 쿠폰 평가일 ExcelType Array [ Shape = (NCPN , ) ]
+	long* CPN_PayDate_Excel,		// 일반 쿠폰 지급일 ExcelType Array [ Shape = (NCPN , ) ]
+	double* CPN_Lower_Barrier,		// 일반 쿠폰 하방배리어 Array [ Shape = (NCPN , ) ]
+	double* CPN_Upper_Barrier,		// 일반 쿠폰 하방배리어 Array [ Shape = (NCPN , ) ]
+	double* CPN_Rate,				// 일반 쿠폰 쿠폰이자율 Array [ Shape = (NCPN , ) ]
+
+	long NStock,					// 기초자산개수
+	double* S0,						// 기초자산 Shape = NHistory * NStock
+	double* X,						// 기준가격,최근평가일가격, 최근쿠폰평가일가격
+	double* CorrelReshaped,
+	long* NRf,
+
+	double* TermRf,
+	double* RateRf,
+	long VolFlag,
+	long* NParity,
+	long* NTermVol,
+
+	long* NVol,
+	double* Parity,
+	double* TermVol,
+	double* Vol,
+	long* DivFlag,
+
+	long* NDiv,
+	double* DivTerm,
+	double* DivRate,
+	long* QuantoFlag,
+	double* QuantoCorr,
+
+	long* NFXVol,
+	double* FXVolTerm,
+	double* FXVolRate,
+	long VaRMethod,
+	char* CalcFunctionName,
+	char* SaveFileName
+	)
+{
+	long i, j, n, nn, nnn;
+	double* n2;
+	double* n3;
+	double* n4;
+	DumppingTextData(CalcFunctionName, SaveFileName, "PricingDate_Excel", PricingDate_Excel);
+	DumppingTextData(CalcFunctionName, SaveFileName, "NSimul", NSimul);
+	DumppingTextData(CalcFunctionName, SaveFileName, "NHistory", NHistory);
+	DumppingTextData(CalcFunctionName, SaveFileName, "FaceValue", FaceValue);
+	DumppingTextData(CalcFunctionName, SaveFileName, "FaceValueFlag", FaceValueFlag);
+
+	DumppingTextData(CalcFunctionName, SaveFileName, "MaxProfit", MaxProfit);
+	DumppingTextData(CalcFunctionName, SaveFileName, "MaxLoss", MaxLoss);
+	DumppingTextData(CalcFunctionName, SaveFileName, "NEvaluate", NEvaluate);
+	DumppingTextData(CalcFunctionName, SaveFileName, "KI_Barrier_Level", KI_Barrier_Level);
+	DumppingTextData(CalcFunctionName, SaveFileName, "Now_KI_State", Now_KI_State);
+
+	DumppingTextData(CalcFunctionName, SaveFileName, "KI_Method", KI_Method);
+	DumppingTextDataArray(CalcFunctionName, SaveFileName, "EvalDate_Excel", NEvaluate, EvalDate_Excel);
+	DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayDate_Excel", NEvaluate, PayDate_Excel);
+	DumppingTextDataArray(CalcFunctionName, SaveFileName, "NStrike", NEvaluate, NStrike);
+	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "StrikeLevel", 3, NEvaluate, StrikeLevel);
+
+	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "Slope", 3, (NEvaluate + 2), Slope);
+	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "FixedAmount", 3, (NEvaluate + 2), FixedAmount);
+	DumppingTextData(CalcFunctionName, SaveFileName, "NLizard", NLizard);
+	if (NLizard > 0)
+	{
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardFlag", NLizard, LizardFlag);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardStartDate_Excel", NLizard, LizardStartDate_Excel);
+
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardEndDate_Excel", NLizard, LizardEndDate_Excel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardBarrierLevel", NLizard, LizardBarrierLevel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "Now_LizardHitting", NLizard, Now_LizardHitting);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "LizardCoupon", NLizard, LizardCoupon);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NCPN", NCPN);
+	}
+	if (NCPN > 0)
+	{
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_EvaluateDate_Excel", NCPN, CPN_EvaluateDate_Excel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_PayDate_Excel", NCPN, CPN_PayDate_Excel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_Lower_Barrier", NCPN, CPN_Lower_Barrier);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_Upper_Barrier", NCPN, CPN_Upper_Barrier);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "CPN_Rate", NCPN, CPN_Rate);
+	}
+
+	DumppingTextData(CalcFunctionName, SaveFileName, "NStock", NStock);
+	DumppingTextDataArray(CalcFunctionName, SaveFileName, "S0", NHistory * NStock, S0);
+	DumppingTextDataArray(CalcFunctionName, SaveFileName, "X", 3 * NStock, X);
+	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "Correlation", NStock* NStock, NHistory, CorrelReshaped);
+
+	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "NRf", NHistory, NStock + 1, NRf);
+	nn = 0;
+	for (i = 0; i < NHistory; i++)
+	{
+		n2 = TermRf + nn;
+		n3 = RateRf + nn;
+		n = 0;
+		for (j = 0; j < NStock + 1; j++)
+		{
+			n += (NRf + (NStock + 1) * i)[j];
+		}
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "TermRf", n, n2);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "RateRf", n, n3);
+		nn += n;
+	}
+
+	DumppingTextData(CalcFunctionName, SaveFileName, "VolFlag", VolFlag);
+	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "NParity", NHistory, NStock , NParity);
+	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "NTermVol", NHistory, NStock, NTermVol);
+	nn = 0;
+	for (i = 0; i < NHistory; i++)
+	{
+		n2 = Parity + nn;
+		n = 0;
+		for (j = 0; j < NStock; j++)
+		{
+			n += (NParity + (NStock) * i)[j];
+		}
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "Parity", n, n2);
+		nn += n;
+	}
+
+	nn = 0;
+	for (i = 0; i < NHistory; i++)
+	{
+		n2 = TermVol + nn;
+		n = 0;
+		for (j = 0; j < NStock; j++)
+		{
+			n += (NTermVol + (NStock)*i)[j];
+		}
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "TermVol", n, n2);
+		nn += n;
+	}
+
+	nn = 0;
+	for (i = 0; i < NHistory; i++)
+	{
+		n2 = Vol + nn;
+		n = 0;
+		for (j = 0; j < NStock; j++)
+		{
+			n += (NTermVol + (NStock)*i)[j] * (NParity + (NStock)*i)[j];
+		}
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "Vol", n, n2);
+		nn += n;
+	}
+
+	DumppingTextDataArray(CalcFunctionName, SaveFileName, "DivFlag",  NStock, DivFlag);
+	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "NDiv",NHistory,  NStock, NDiv);
+
+	nn = 0;
+	for (i = 0; i < NHistory; i++)
+	{
+		n2 = DivTerm + nn;
+		n3 = DivRate + nn;
+		n = 0;
+		for (j = 0; j < NStock ; j++)
+		{
+			n += (NDiv + (NStock ) * i)[j];
+		}
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "DivTerm", n, n2);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "DivRate", n, n3);
+		nn += n;
+	}
+	DumppingTextDataArray(CalcFunctionName, SaveFileName, "QuantoFlag", NStock, QuantoFlag);
+	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "QuantoCorr", NHistory, NStock, QuantoCorr);
+	DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "NFXVol", NHistory, NStock, NFXVol);
+	nn = 0;
+	for (i = 0; i < NHistory; i++)
+	{
+		n2 = FXVolTerm + nn;
+		n3 = FXVolRate + nn;
+		n = 0;
+		for (j = 0; j < NStock; j++)
+		{
+			n += (NFXVol + (NStock)*i)[j];
+		}
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "FXVolTerm", n, n2);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "FXVolRate", n, n3);
+		nn += n;
+	}
+	DumppingTextData(CalcFunctionName, SaveFileName, "VaRMethod", VaRMethod);
+}
+
 DLLEXPORT(long) Excel_HiFive_VaR(
 	long PricingDate_Excel,			// 가격계산날짜 ExcelType Ex) 44201(2021년01월05일)
 	long NSimul,					// 시뮬레이션개수
@@ -3808,6 +4027,27 @@ DLLEXPORT(long) Excel_HiFive_VaR(
 	if (ErrorCode < 0)
 	{
 		return ErrorCode;
+	}
+
+	char CalcFunctionName[] = "Excel_HiFive_VaR";
+	char SaveFileName[100];
+
+	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+	if (TextDumpFlag > 0)
+	{
+		Logging_Excel_HiFive_VaR(
+			PricingDate_Excel, NSimul, NHistory, FaceValue, FaceValueFlag,
+			MaxProfit, MaxLoss, NEvaluate, KI_Barrier_Level, Now_KI_State,
+			KI_Method, EvalDate_Excel, PayDate_Excel, NStrike, StrikeLevel,
+			Slope, FixedAmount, NLizard, LizardFlag, LizardStartDate_Excel,
+			LizardEndDate_Excel, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
+			CPN_EvaluateDate_Excel, CPN_PayDate_Excel, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
+			NStock, S0, X, CorrelReshaped, NRf,
+			TermRf, RateRf, VolFlag, NParity, NTermVol,
+			NVol, Parity, TermVol, Vol, DivFlag,
+			NDiv, DivTerm, DivRate, QuantoFlag, QuantoCorr,
+			NFXVol, FXVolTerm, FXVolRate, VaRMethod, CalcFunctionName, SaveFileName);
+
 	}
 
 	ErrorCode = HiFive_VaR_Excel(

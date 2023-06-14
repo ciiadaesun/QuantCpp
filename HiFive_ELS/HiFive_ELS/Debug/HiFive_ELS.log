@@ -21,7 +21,9 @@ C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(304,9): warning C410
 C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(309,9): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(695,9): warning C4101: 'Drift' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(696,9): warning C4101: 'Diffusion' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(3791,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(3791,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(3793,20): warning C4101: 'nnn' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(3796,10): warning C4101: 'n4' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(4010,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\HiFive_ELS.cpp(4010,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
      C:\Users\ciiad\github5\HiFive_ELS\Debug\HiFive_ELS.lib 라이브러리 및 C:\Users\ciiad\github5\HiFive_ELS\Debug\HiFive_ELS.exp 개체를 생성하고 있습니다.
   HiFive_ELS.vcxproj -> C:\Users\ciiad\github5\HiFive_ELS\Debug\HiFive_ELS.dll
