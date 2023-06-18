@@ -5,7 +5,7 @@
 
 #include "CalcDate.h"
 #include "Util.h"
-
+#include "GetTextDump.h"
 #ifndef DLLEXPORT(A)
 #ifdef WIN32
 #define DLLEXPORT(A) extern "C" __declspec(dllexport) A _stdcall
@@ -917,8 +917,8 @@ DLLEXPORT(long) ZeroMakerExcel(
 
 	long InterpFlag,				// 0: Linterp 1: Linterp + Extrap 2: Cubic
 	long CaliFlag,					// 0: Analytic, 1: Root Finder
-	char* Error						// Out: 에러메시지
-
+	char* Error,					// Out: 에러메시지
+	long TextDumpFlag
 
 )
 {
@@ -928,6 +928,38 @@ DLLEXPORT(long) ZeroMakerExcel(
 	ResultCode = ErrorCheckZeroMakerExcel(PriceDate_Excel, MarketDataFlag, NShortTerm, ShortTerm_Maturity_Excel,
 		ShortTerm_Rate, ShortTerm_OneYConvention, NForward, ForwardStart_Excel, ForwardEnd_Excel, ForwardRate, Forward_OneYConvention,
 		NSwap, SwapMaturity_Excel, NCPN_Ann, SwapRate, Swap_OneYConvention_Fix, InterpFlag, Error);
+
+	char CalcFunctionName[] = "ZeroMakerExcel";
+	char SaveFileName[100];
+
+	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+	if (TextDumpFlag == 1)
+	{
+		DumppingTextData(CalcFunctionName, SaveFileName, "PriceDate_Excel", PriceDate_Excel);
+		DumppingTextData(CalcFunctionName, SaveFileName, "MarketDataFlag", MarketDataFlag);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NShortTerm", NShortTerm);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "ShortTerm_Maturity_Excel", NShortTerm, ShortTerm_Maturity_Excel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "ShortTerm_Rate", NShortTerm, ShortTerm_Rate);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "ShortTerm_OneYConvention", NShortTerm, ShortTerm_OneYConvention);
+
+		DumppingTextData(CalcFunctionName, SaveFileName, "NForward", NForward);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "ForwardStart_Excel", NForward, ForwardStart_Excel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "ForwardEnd_Excel", NForward, ForwardEnd_Excel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "ForwardPayDate_Excel", NForward, ForwardPayDate_Excel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "ForwardRate", NForward, ForwardRate);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "Forward_OneYConvention", NForward, Forward_OneYConvention);
+
+		DumppingTextData(CalcFunctionName, SaveFileName, "NSwap", NSwap);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "SwapMaturity_Excel", NSwap, SwapMaturity_Excel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "SwapPayDate_Excel", NSwap, SwapPayDate_Excel);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "NCPN_Ann", NSwap, NCPN_Ann);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "SwapRate", NSwap, SwapRate);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "Swap_OneYConvention_Fix", NSwap, Swap_OneYConvention_Fix);
+
+		DumppingTextData(CalcFunctionName, SaveFileName, "InterpFlag", InterpFlag);
+		DumppingTextData(CalcFunctionName, SaveFileName, "CaliFlag", CaliFlag);
+
+	}
 
 	if (ResultCode < 0) return ResultCode;
 

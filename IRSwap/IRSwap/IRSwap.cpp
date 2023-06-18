@@ -4,6 +4,7 @@
 #include "CalcDate.h"
 #include "Structure.h"
 #include "Util.h"
+#include "GetTextDump.h"
 
 #ifndef DLLEXPORT(A)
 #ifdef WIN32
@@ -3212,75 +3213,87 @@ long ErrorCheckIRSwap_Excel(
 DLLEXPORT(long) IRSwap_Excel(
     long PriceDate_Exl,                // PricingDate ExcelType
     long GreekFlag,                    // Greek산출 Flag
-    long NAFlag,                    // Notional Amount 사용 Flag
+    long NAFlag,                       // Notional 교환 Flag (0:NA교환X, 1:NA교환O, 2:NA교환X TextDump, 3: NA교환O TextDump)
     long* CRS_Flag,                    // [0]CRS Pricing Flag [1]FX선도 Term 개수
-    double* CRS_Info,                // [0~FX개수-1] FX Forward Term, [FX개수-1~2*FX개수-1] FX Forward
+    double* CRS_Info,                  // [0~FX개수-1] FX Forward Term, [FX개수-1~2*FX개수-1] FX Forward
 
-    long Rcv_RefRateType,            // Rcv 기초금리 0: Libor/CD 1: Swap 2: SOFR 3:SOFR Swap
-    long Rcv_SwapYearlyNPayment,    // Rcv_RefRateType가 1, 3일 때 스왑 연 지급회수
-    double Rcv_SwapMaturity,        // Rcv_RefRateType가 1, 3일 때 스왑만기
-    long Rcv_FixFloFlag,            // Rcv Fix/Flo Flag
-    long Rcv_DayCount,                // Rcv DayCountConvention 0:Act365  1: Act360
+    long Rcv_RefRateType,              // Rcv 기초금리 0: Libor/CD 1: Swap 2: SOFR 3:SOFR Swap
+    long Rcv_SwapYearlyNPayment,       // Rcv_RefRateType가 1, 3일 때 스왑 연 지급회수
+    double Rcv_SwapMaturity,           // Rcv_RefRateType가 1, 3일 때 스왑만기
+    long Rcv_FixFloFlag,               // Rcv Fix/Flo Flag
+    long Rcv_DayCount,                 // Rcv DayCountConvention 0:Act365  1: Act360
 
     double Rcv_NotionalAMT,            // Rcv Leg Notional Amount
-    long Rcv_NotionalPayDate,        // Rcv Leg Notional Payment Date
+    long Rcv_NotionalPayDate,          // Rcv Leg Notional Payment Date
     long RcvDisc_NTerm,                // Rcv Leg 할인 금리 Term 개수
-    double* RcvDisc_Term,            // Rcv Leg 할인 금리 Term Array
-    double* RcvDisc_Rate,            // Rcv Leg 할인 금리 Rate Array 
+    double* RcvDisc_Term,              // Rcv Leg 할인 금리 Term Array
+    double* RcvDisc_Rate,              // Rcv Leg 할인 금리 Rate Array 
 
-    long RcvRef_NTerm,                // Rcv Leg 레퍼런스 금리 Term 개수
-    double* RcvRef_Term,            // Rcv Leg 레퍼런스 금리 Term Array
-    double* RcvRef_Rate,            // Rcv Leg 레퍼런스 금리 Rate Array
-    long NRcvCF,                    // Rcv Leg CashFlow 개수
-    long* RcvCashFlowSchedule,        // Rcv Forward Start, End, 기산, 기말, 지급일 ExlDate
+    long RcvRef_NTerm,                 // Rcv Leg 레퍼런스 금리 Term 개수
+    double* RcvRef_Term,               // Rcv Leg 레퍼런스 금리 Term Array
+    double* RcvRef_Rate,               // Rcv Leg 레퍼런스 금리 Rate Array
+    long NRcvCF,                       // Rcv Leg CashFlow 개수
+    long* RcvCashFlowSchedule,         // Rcv Forward Start, End, 기산, 기말, 지급일 ExlDate
 
-    double* Rcv_Slope,                // Rcv Leg 변동금리 기울기 Array
-    double* Rcv_CPN,                // Rcv Leg 고정쿠폰 Array
-    double* Rcv_FixedRefRate,        // Rcv Leg 과거 확정금리 Array
-    long Pay_RefRateType,            // Pay 기초금리 0: Libor/CD 1: Swap 2: SOFR 3:SOFR Swap
-    long Pay_SwapYearlyNPayment,    // Pay_RefRateType가 1, 3일 때 스왑 연 지급회수
+    double* Rcv_Slope,                 // Rcv Leg 변동금리 기울기 Array
+    double* Rcv_CPN,                   // Rcv Leg 고정쿠폰 Array
+    double* Rcv_FixedRefRate,          // Rcv Leg 과거 확정금리 Array
+    long Pay_RefRateType,              // Pay 기초금리 0: Libor/CD 1: Swap 2: SOFR 3:SOFR Swap
+    long Pay_SwapYearlyNPayment,       // Pay_RefRateType가 1, 3일 때 스왑 연 지급회수
 
-    double Pay_SwapMaturity,        // Pay_RefRateType가 1, 3일 때 스왑만기
-    long Pay_FixFloFlag,            // Pay Fix/Flo Flag
-    long Pay_DayCount,                // Pay DayCountConvention 0:Act365  1: Act360
-    double Pay_NotionalAMT,            // Pay Leg Notional Amount
-    long Pay_NotionalPayDate,        // Pay Leg Notional Payment Date
+    double Pay_SwapMaturity,            // Pay_RefRateType가 1, 3일 때 스왑만기
+    long Pay_FixFloFlag,                // Pay Fix/Flo Flag
+    long Pay_DayCount,                  // Pay DayCountConvention 0:Act365  1: Act360
+    double Pay_NotionalAMT,             // Pay Leg Notional Amount
+    long Pay_NotionalPayDate,           // Pay Leg Notional Payment Date
 
-    long PayDisc_NTerm,                // Pay Leg 할인 금리 Term 개수
-    double* PayDisc_Term,            // Pay Leg 할인 금리 Term Array
-    double* PayDisc_Rate,            // Pay Leg 할인 금리 Rate Array 
-    long PayRef_NTerm,                // Pay Leg 레퍼런스 금리 Term 개수
-    double* PayRef_Term,            // Pay Leg 레퍼런스 금리 Term Array
+    long PayDisc_NTerm,                 // Pay Leg 할인 금리 Term 개수
+    double* PayDisc_Term,               // Pay Leg 할인 금리 Term Array
+    double* PayDisc_Rate,               // Pay Leg 할인 금리 Rate Array 
+    long PayRef_NTerm,                  // Pay Leg 레퍼런스 금리 Term 개수
+    double* PayRef_Term,                // Pay Leg 레퍼런스 금리 Term Array
 
-    double* PayRef_Rate,            // Pay Leg 할인 금리 Rate Array 
-    long NPayCF,                    // Pay Leg CashFlow 개수
-    long* PayCashFlowSchedule,        // Pay Forward Start, End, 기산, 기말, 지급일 ExlDate
-    double* Pay_Slope,                // Pay Leg 변동금리 기울기 Array
-    double* Pay_CPN,                // Pay Leg 고정쿠폰 Array
+    double* PayRef_Rate,                // Pay Leg 할인 금리 Rate Array 
+    long NPayCF,                        // Pay Leg CashFlow 개수
+    long* PayCashFlowSchedule,          // Pay Forward Start, End, 기산, 기말, 지급일 ExlDate
+    double* Pay_Slope,                  // Pay Leg 변동금리 기울기 Array
+    double* Pay_CPN,                    // Pay Leg 고정쿠폰 Array
 
-    double* Pay_FixedRefRate,        // Pay Leg 과거 확정금리 Array
-    double* ResultPrice,            // Output 계산결과 [0] Current Swap Rate [1] Rcv Value [2] Payment Value
-    double* ResultRefRate,            // Output 기초금리 Array
-    double* ResultCPN,                // Output 추정 쿠폰 Array
-    double* ResultDF,                // Output Discount Factor Array
+    double* Pay_FixedRefRate,           // Pay Leg 과거 확정금리 Array
+    double* ResultPrice,                // Output 계산결과 [0] Current Swap Rate [1] Rcv Value [2] Payment Value
+    double* ResultRefRate,              // Output 기초금리 Array
+    double* ResultCPN,                  // Output 추정 쿠폰 Array
+    double* ResultDF,                   // Output Discount Factor Array
 
-    double* PV01,                    // Output PV01[0]RcvDisc [1]RcvRef [2]both [3]PayDisc [4]PayRef [5]both
-    double* KeyRateRcvPV01,            // Output Rcv Key Rate PV01 .rehaped(-1)
-    double* KeyRatePayPV01,            // Output Pay KeyRate PV01 .reshaped(-1)
-    long* SOFRConv,                    // [0~2] Rcv LockOut LookBackFlag [3~5] Pay LockOut LookBackFlag
-    long* HolidayCalcFlag,            // Holiday관련 인풋 Flag [0]: Rcv [1]: Pay
+    double* PV01,                       // Output PV01[0]RcvDisc [1]RcvRef [2]both [3]PayDisc [4]PayRef [5]both
+    double* KeyRateRcvPV01,             // Output Rcv Key Rate PV01 .rehaped(-1)
+    double* KeyRatePayPV01,             // Output Pay KeyRate PV01 .reshaped(-1)
+    long* SOFRConv,                     // [0~2] Rcv LockOut LookBackFlag [3~5] Pay LockOut LookBackFlag
+    long* HolidayCalcFlag,              // Holiday관련 인풋 Flag [0]: Rcv [1]: Pay
 
-    long* NHolidays,                // Holiday 개수 [0] NRcvRef [1] NPayRef
-    long* Holidays,                    // Holiday Exceltype
-    long* NHistory,                    // OverNight History 개수
-    long* HistoryDateExl,            // OverNight History ExlDate
-    double* HistoryRate                // OverNight Rate History
+    long* NHolidays,                    // Holiday 개수 [0] NRcvRef [1] NPayRef
+    long* Holidays,                     // Holiday Exceltype
+    long* NHistory,                     // OverNight History 개수
+    long* HistoryDateExl,               // OverNight History ExlDate
+    double* HistoryRate                 // OverNight Rate History
 )
 {
     long i;
     long j;
     long k;
     long ResultCode = 0;
+    long TextDumpFlag = 0;
+
+    if (NAFlag == 2)
+    {
+        NAFlag = 0;
+        TextDumpFlag = 1;
+    }
+    else if (NAFlag == 3)
+    {
+        NAFlag = 1;
+        TextDumpFlag = 1;
+    }
 
     ResultCode = ErrorCheckIRSwap_Excel(
         PriceDate_Exl, GreekFlag, NAFlag, CRS_Flag, CRS_Info,
@@ -3292,6 +3305,71 @@ DLLEXPORT(long) IRSwap_Excel(
         PayDisc_Term, PayDisc_Rate, PayRef_NTerm, PayRef_Term, PayRef_Rate,
         NPayCF, PayCashFlowSchedule, Pay_Slope, Pay_CPN, Pay_FixedRefRate, HolidayCalcFlag,
         NHolidays, Holidays);
+
+    char CalcFunctionName[] = "IRSwap_Excel";
+    char SaveFileName[100];
+
+    get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+    if (TextDumpFlag == 1)
+    {
+        DumppingTextData(CalcFunctionName, SaveFileName, "PriceDate_Exl", PriceDate_Exl);
+        DumppingTextData(CalcFunctionName, SaveFileName, "GreekFlag", GreekFlag);
+        DumppingTextData(CalcFunctionName, SaveFileName, "NAFlag", NAFlag);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "CRS_Flag", 2, CRS_Flag);
+        DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "CRS_Info", 3, CRS_Flag[1], CRS_Info);
+
+        DumppingTextData(CalcFunctionName, SaveFileName, "Rcv_RefRateType", Rcv_RefRateType);
+        DumppingTextData(CalcFunctionName, SaveFileName, "Rcv_SwapYearlyNPayment", Rcv_SwapYearlyNPayment);
+        DumppingTextData(CalcFunctionName, SaveFileName, "Rcv_SwapMaturity", Rcv_SwapMaturity);
+        DumppingTextData(CalcFunctionName, SaveFileName, "Rcv_FixFloFlag", Rcv_FixFloFlag);
+        DumppingTextData(CalcFunctionName, SaveFileName, "Rcv_DayCount", Rcv_DayCount);
+
+        DumppingTextData(CalcFunctionName, SaveFileName, "Rcv_NotionalAMT", Rcv_NotionalAMT);
+        DumppingTextData(CalcFunctionName, SaveFileName, "Rcv_NotionalPayDate", Rcv_NotionalPayDate);
+        DumppingTextData(CalcFunctionName, SaveFileName, "RcvDisc_NTerm", RcvDisc_NTerm);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvDisc_Term", RcvDisc_NTerm, RcvDisc_Term);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvDisc_Rate", RcvDisc_NTerm, RcvDisc_Rate);
+
+        DumppingTextData(CalcFunctionName, SaveFileName, "RcvRef_NTerm", RcvRef_NTerm);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvRef_Term", RcvDisc_NTerm, RcvRef_Term);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvRef_Rate", RcvDisc_NTerm, RcvRef_Rate);
+        DumppingTextData(CalcFunctionName, SaveFileName, "NRcvCF", NRcvCF);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvCashFlowSchedule", NRcvCF, RcvCashFlowSchedule);
+
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "Rcv_Slope", NRcvCF, Rcv_Slope);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "Rcv_CPN", NRcvCF, Rcv_CPN);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "Rcv_FixedRefRate", NRcvCF, Rcv_FixedRefRate);
+        DumppingTextData(CalcFunctionName, SaveFileName, "Pay_RefRateType", Pay_RefRateType);
+        DumppingTextData(CalcFunctionName, SaveFileName, "Pay_SwapYearlyNPayment", Pay_SwapYearlyNPayment);
+
+        DumppingTextData(CalcFunctionName, SaveFileName, "Pay_SwapMaturity", Pay_SwapMaturity);
+        DumppingTextData(CalcFunctionName, SaveFileName, "Pay_FixFloFlag", Pay_FixFloFlag);
+        DumppingTextData(CalcFunctionName, SaveFileName, "Pay_DayCount", Pay_DayCount);
+        DumppingTextData(CalcFunctionName, SaveFileName, "Pay_NotionalAMT", Pay_NotionalAMT);
+        DumppingTextData(CalcFunctionName, SaveFileName, "Pay_NotionalPayDate", Pay_NotionalPayDate);
+
+        DumppingTextData(CalcFunctionName, SaveFileName, "PayDisc_NTerm", PayDisc_NTerm);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayDisc_Term", PayDisc_NTerm, PayDisc_Term);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayDisc_Rate", PayDisc_NTerm, PayDisc_Rate);
+        DumppingTextData(CalcFunctionName, SaveFileName, "PayRef_NTerm", PayRef_NTerm);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayRef_Term", PayDisc_NTerm, PayRef_Term);
+
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayRef_Rate", PayDisc_NTerm, PayRef_Rate);
+        DumppingTextData(CalcFunctionName, SaveFileName, "NPayCF", NPayCF);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayCashFlowSchedule", NPayCF, PayCashFlowSchedule);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "Pay_Slope", NPayCF, Pay_Slope);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "Pay_CPN", NPayCF, Pay_CPN);
+
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "Pay_FixedRefRate", NPayCF, Pay_FixedRefRate);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "SOFRConv", 6, SOFRConv);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "NHolidays", 2, NHolidays);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "Holidays", NHolidays[0] + NHolidays[1], Holidays);
+
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "NHistory", 2, NHistory);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "HistoryDateExl", NHistory[0] + NHistory[1], HistoryDateExl);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "HistoryRate", NHistory[0] + NHistory[1], HistoryRate);
+
+    }
 
     if (ResultCode < 0) return ResultCode;
 
@@ -3835,38 +3913,74 @@ long FindZeroRate(
 }
 
 DLLEXPORT(long) OISCurveGeneratorExcel(
-    long PriceDateExl,
-    long DayCountFlag,
-    long RefRateType,
-    double TodayONRate,
-    long NOverNightHistory,
+    long PriceDateExl,                  // Pricing 시작일
+    long DayCountFlag,                  // 0: Act/365 1:Act/360
+    long RefRateType,                   // 기초금리타입 0 LIBOR CD 1: SOFR
+    double TodayONRate,                 // 오늘 오버나이트금리
+    long NOverNightHistory,             // 오버나이트금리 히스토리개수
 
-    long* OverNightHistoryExlDate,
-    double* OverNightHistoryRate,
-    long LockOutDays,
-    long LookBackDays,
+    long* OverNightHistoryExlDate,      // 오버나이트금리 히스토리 엑셀날짜
+    double* OverNightHistoryRate,       // 오버나이트금리 히스토리 이자율
+    long LockOutDays,                   // LockOutDay
+    long LookBackDays,                  // LookBackDay
     long ObservShiftFlag,
 
-    long HolidayFlag,
-    long NHoliday,
-    long* HolidayExl,
-    long NOIS,
-    long* StartIdxSchedule,
+    long HolidayFlag,                   // Holiday에 오버나이트금리 처리 0: FFill, 1 BackFill 2: Interp
+    long NHoliday,                      // Holiday날짜 넣을 개수
+    long* HolidayExl,                   // Holiday날짜 엑셀타입
+    long NOIS,                          // OIS 스왑개수
+    long* StartIdxSchedule,             // OIS 관련 Array의 Start 포인터
 
-    long* NArraySchedule,
-    long* ForwardStartExlDate,
-    long* ForwardEndExlDate,
-    long* StartExlDate,
-    long* EndExlDate,
+    long* NArraySchedule,               // 스왑별 스케줄 개수 Array
+    long* ForwardStartExlDate,          // 추정시작 길이 = sum(NArraySchedule)
+    long* ForwardEndExlDate,            // 추정종료
+    long* StartExlDate,                 // DayCount시작
+    long* EndExlDate,                   // DayCOunt종료
 
-    long* PayExlDate,
-    double* SwapRate,
+    long* PayExlDate,                   // 지급일
+    double* SwapRate,                   // 스왑레이트
     double* ResultTerm,
-    double* ResultRate
+    double* ResultRate,
+    long TextDumpFlag
 )
 {
-    long i, j;
+    long i, j, n;
+    char CalcFunctionName[] = "OISCurveGeneratorExcel";
+    char SaveFileName[100];
 
+    get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+    if (TextDumpFlag == 1)
+    {
+        DumppingTextData(CalcFunctionName, SaveFileName, "PriceDateExl", PriceDateExl);
+        DumppingTextData(CalcFunctionName, SaveFileName, "DayCountFlag", DayCountFlag);
+        DumppingTextData(CalcFunctionName, SaveFileName, "RefRateType", RefRateType);
+        DumppingTextData(CalcFunctionName, SaveFileName, "TodayONRate", TodayONRate);
+        DumppingTextData(CalcFunctionName, SaveFileName, "NOverNightHistory", NOverNightHistory);
+
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "OverNightHistoryExlDate", NOverNightHistory, OverNightHistoryExlDate);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "OverNightHistoryRate", NOverNightHistory, OverNightHistoryRate);
+        DumppingTextData(CalcFunctionName, SaveFileName, "LockOutDays", LockOutDays);
+        DumppingTextData(CalcFunctionName, SaveFileName, "LookBackDays", LookBackDays);
+        DumppingTextData(CalcFunctionName, SaveFileName, "ObservShiftFlag", ObservShiftFlag);
+
+        DumppingTextData(CalcFunctionName, SaveFileName, "HolidayFlag", HolidayFlag);
+        DumppingTextData(CalcFunctionName, SaveFileName, "NHoliday", NHoliday);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "HolidayExl", NHoliday, HolidayExl);
+        DumppingTextData(CalcFunctionName, SaveFileName, "NOIS", NOIS);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "StartIdxSchedule", NOIS, StartIdxSchedule);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "NArraySchedule", NOIS, NArraySchedule);
+        n = 0;
+        for (i = 0; i < NOIS; i++)
+        {
+            DumppingTextDataArray(CalcFunctionName, SaveFileName, "ForwardStartExlDate", NArraySchedule[i], ForwardStartExlDate + n);
+            DumppingTextDataArray(CalcFunctionName, SaveFileName, "ForwardEndExlDate", NArraySchedule[i], ForwardEndExlDate + n);
+            DumppingTextDataArray(CalcFunctionName, SaveFileName, "StartExlDate", NArraySchedule[i], StartExlDate + n);
+            DumppingTextDataArray(CalcFunctionName, SaveFileName, "EndExlDate", NArraySchedule[i], EndExlDate + n);
+            DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayExlDate", NArraySchedule[i], PayExlDate + n);
+            DumppingTextData(CalcFunctionName, SaveFileName, "SwapRate", SwapRate[i]);
+            n += NArraySchedule[i];
+        }
+    }
     long ResultCode = 0;
     double dt = 1.0 / 365.0;
 

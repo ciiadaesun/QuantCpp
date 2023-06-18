@@ -4,6 +4,7 @@
 #include <string.h>
 #include "HW_Calibration.h"
 #include "ErrorCheck.h"
+#include "GetTextDump.h"
 
 #ifndef UTILITY
 #include "Util.h"
@@ -272,7 +273,6 @@ typedef struct LegInfo {
     long NReference;                    // 기초금리개수
     REFERENCE_INFO* Reference_Inform;   // 레퍼런스금리정보
     long DiscCurveNum;                  // 할인 커브 번호
-    long DiscDayCountFlag;              // 할인 DayCountYear 0:365 1:360
 
     long NCashFlow;                     // 현금흐름지급개수
     long* ForwardStart_C;               // 금리 추정(또는 리셋) 시작일 Ctype
@@ -1831,7 +1831,13 @@ double PayoffStructure(
     long NDays;
     NumAccrual = 0;
     NDays = Leg_Inform->DaysForwardEnd[CashFlowIdx] - Leg_Inform->DaysForwardStart[CashFlowIdx];
-    dt = ((double)NDays) / 365.0;
+    dt = 0.0;
+    for (i = 0; i < Leg_Inform->NReference; i++)
+    {
+        if (Leg_Inform->Reference_Inform[i].DayCountFlag == 0) dt += ((double)NDays) / 365.0 * 1.0/(double)Leg_Inform->NReference;
+        else dt += ((double)NDays) / 360.0 * 1.0 / (double)Leg_Inform->NReference;
+    }
+    
     N = NDays; // 일단 100% Accrual부터 시작
 
     if (DailySimulFlag == 0 && Leg_Inform->AccrualFlag == 1 && Flag_Required_History == 0)
@@ -2000,20 +2006,13 @@ long Simulate_HW(
     long i;
     long j;
     long k;
+
     long idx0, idx1, idx2, idx3, idx4;
     long idxrcv, idxrcv2, idxrcv3, idxpay, idxpay2, idxpay3;
 
     long n;
     long nAccrual = 0;
     long ndates;
-
-    double Rcv_DF_Day1Y;
-    double Pay_DF_Day1Y;
-    if (RcvLeg->DiscDayCountFlag == 0) Rcv_DF_Day1Y = 365.0;
-    else Rcv_DF_Day1Y = 360.0;
-
-    if (PayLeg->DiscDayCountFlag == 0) Pay_DF_Day1Y = 365.0;
-    else Pay_DF_Day1Y = 360.0;
 
     long Curveidx;
 
@@ -2366,7 +2365,7 @@ long Simulate_HW(
                 xt = SimulShortRate[HW_Information->CurveIdx_DiscRcv][xt_idx];
                 if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[HW_Information->CurveIdx_DiscRcv][xt_idx];
 
-                if (t > 0.0) PtT = HW_Information->Rcv_DF_t_T[j] * exp(-xt * HW_Information->B_t_T_RcvDisc[j] + HW_Information->QVTerm_RcvDisc[j]);
+                if (t > 0.0) PtT= HW_Information->Rcv_DF_t_T[j] * exp(-xt * HW_Information->B_t_T_RcvDisc[j] + HW_Information->QVTerm_RcvDisc[j]);
                 else PtT = HW_Information->Rcv_DF_0_T[j];
 
             }
@@ -2376,7 +2375,7 @@ long Simulate_HW(
                 for (n = 0; n < RcvLeg->NReference; n++) RcvOutputRate[n] = 0.0;
                 nAccrual = 0;
                 Pt = 1.0;
-                PtT = HW_Information->Rcv_DF_0_T[j];
+                PtT =HW_Information->Rcv_DF_0_T[j];
             }
 
             PricePath_Rcv += Pt * PtT * RcvPayoff[j];
@@ -2501,6 +2500,7 @@ long Simulate_HW(
                             Rate = Rate1 - Rate2;
                         }
                         SimulatedRatePay[n][Dayidx] = Rate;
+
                     }
 
                 }
@@ -2587,6 +2587,7 @@ long Simulate_HW(
             }
         }
 
+        
         for (j = 0; j < PayLeg->NCashFlow; j++) PayCFFlag[j] = 0;
 
         idx2 = 0;
@@ -2597,8 +2598,8 @@ long Simulate_HW(
             Day2 = PayLeg->DaysPayDate_C[j];
             t = ((double)Day1) / 365.0;
             T = ((double)PayLeg->DaysPayDate_C[j]) / 365.0;
-            Pt = HW_Information->Pay_DF_0_t[j];
-            PT = HW_Information->Pay_DF_0_T[j];
+            Pt =  HW_Information->Pay_DF_0_t[j];
+            PT =  HW_Information->Pay_DF_0_T[j];
 
             if (Day1 >= 0)
             {
@@ -2640,7 +2641,7 @@ long Simulate_HW(
                 for (n = 0; n < PayLeg->NReference; n++) PayOutputRate[n] = 0.0;
                 nAccrual = 0;
                 Pt = 1.0;
-                PtT = HW_Information->Pay_DF_0_T[j];
+                PtT =HW_Information->Pay_DF_0_T[j];
             }
 
             PricePath_Pay += Pt * PtT * PayPayoff[j];
@@ -2902,13 +2903,6 @@ long IRStructuredSwap(
 
     for (i = 0; i < PayLeg->NReference; i++) CurveIdx_Pay[i] = FindIndex(PayLeg->Reference_Inform[i].CurveNum, Simul->SimulCurveIdx, Simul->NAsset);
 
-    double Rcv_DF_Day1Y;
-    double Pay_DF_Day1Y;
-    if (RcvLeg->DiscDayCountFlag == 0) Rcv_DF_Day1Y = 365.0;
-    else Rcv_DF_Day1Y = 360.0;
-
-    if (PayLeg->DiscDayCountFlag == 0) Pay_DF_Day1Y = 365.0;
-    else Pay_DF_Day1Y = 360.0;
 
     long CurveIdx_DiscRcv = FindIndex(RcvLeg->DiscCurveNum, Simul->SimulCurveIdx, Simul->NAsset);
     long CurveIdx_DiscPay = FindIndex(PayLeg->DiscCurveNum, Simul->SimulCurveIdx, Simul->NAsset);
@@ -2919,15 +2913,22 @@ long IRStructuredSwap(
     double t, T;
     idx1 = 0;
     idx2 = 0;
+
+
     for (i = 0; i < RcvLeg->NCashFlow; i++)
     {
-        t = ((double)RcvLeg->DaysForwardStart[i]) / Rcv_DF_Day1Y;
+        t = ((double)RcvLeg->DaysForwardStart[i]) / 365.0;
+        
         if (t < 0.0) t = 0.0;
-        T = ((double)RcvLeg->DaysPayDate_C[i]) / Rcv_DF_Day1Y;
+
+        T = ((double)RcvLeg->DaysPayDate_C[i]) / 365.0;
+
         if (T < 0.0) T = 0.0;
-        Rcv_DF_0_t[i] = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdx_DiscRcv], Simul->Rate[CurveIdx_DiscRcv], Simul->NRateTerm[CurveIdx_DiscRcv], t, &idx1);
-        Rcv_DF_0_T[i] = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdx_DiscRcv], Simul->Rate[CurveIdx_DiscRcv], Simul->NRateTerm[CurveIdx_DiscRcv], T, &idx2);
+
+        Rcv_DF_0_t[i] = Calc_Discount_Factor(Simul->RateTerm[CurveIdx_DiscRcv], Simul->Rate[CurveIdx_DiscRcv], Simul->NRateTerm[CurveIdx_DiscRcv], t);
+        Rcv_DF_0_T[i] = Calc_Discount_Factor(Simul->RateTerm[CurveIdx_DiscRcv], Simul->Rate[CurveIdx_DiscRcv], Simul->NRateTerm[CurveIdx_DiscRcv], T);
         Rcv_DF_t_T[i] = Rcv_DF_0_T[i] / Rcv_DF_0_t[i];
+
     }
 
     double* Pay_DF_0_t = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
@@ -2938,13 +2939,18 @@ long IRStructuredSwap(
     idx2 = 0;
     for (i = 0; i < PayLeg->NCashFlow; i++)
     {
-        t = ((double)PayLeg->DaysForwardStart[i]) / Pay_DF_Day1Y;
+        t = ((double)PayLeg->DaysForwardStart[i]) / 365.0;
+
         if (t < 0.0) t = 0.0;
-        T = ((double)PayLeg->DaysPayDate_C[i]) / Pay_DF_Day1Y;
+
+        T = ((double)PayLeg->DaysPayDate_C[i]) / 365.0;
+
         if (T < 0.0) T = 0.0;
-        Pay_DF_0_t[i] = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdx_DiscPay], Simul->Rate[CurveIdx_DiscPay], Simul->NRateTerm[CurveIdx_DiscPay], t, &idx1);
-        Pay_DF_0_T[i] = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdx_DiscPay], Simul->Rate[CurveIdx_DiscPay], Simul->NRateTerm[CurveIdx_DiscPay], T, &idx2);
+
+        Pay_DF_0_t[i] = Calc_Discount_Factor(Simul->RateTerm[CurveIdx_DiscPay], Simul->Rate[CurveIdx_DiscPay], Simul->NRateTerm[CurveIdx_DiscPay], t);
+        Pay_DF_0_T[i] = Calc_Discount_Factor(Simul->RateTerm[CurveIdx_DiscPay], Simul->Rate[CurveIdx_DiscPay], Simul->NRateTerm[CurveIdx_DiscPay], T);
         Pay_DF_t_T[i] = Pay_DF_0_T[i] / Pay_DF_0_t[i];
+
     }
 
     double* B_t_T_RcvDisc = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
@@ -2958,9 +2964,12 @@ long IRStructuredSwap(
 
     for (i = 0; i < RcvLeg->NCashFlow; i++)
     {
-        t = ((double)RcvLeg->DaysForwardStart[i]) / Rcv_DF_Day1Y;
+        t = ((double)RcvLeg->DaysForwardStart[i]) / 365.0;
+
         if (t < 0.0) t = 0.0;
-        T = ((double)RcvLeg->DaysPayDate_C[i]) / Rcv_DF_Day1Y;
+
+        T = ((double)RcvLeg->DaysPayDate_C[i]) / 365.0;
+        
         B_t_T_RcvDisc[i] = B_s_to_t(Simul->HWKappa[CurveIdx_DiscRcv], t, T);
         QVTerm_RcvDisc[i] = HullWhiteQVTerm(t, T, Simul->HWKappa[CurveIdx_DiscRcv], Simul->NHWVol[CurveIdx_DiscRcv], Simul->HWVolTerm[CurveIdx_DiscRcv], Simul->HWVol[CurveIdx_DiscRcv]);
         if (Simul->HWFactorFlag > 0)
@@ -2973,9 +2982,12 @@ long IRStructuredSwap(
 
     for (i = 0; i < PayLeg->NCashFlow; i++)
     {
-        t = ((double)PayLeg->DaysForwardStart[i]) / Pay_DF_Day1Y;
+        t = ((double)PayLeg->DaysForwardStart[i]) / 365.0;
+        
         if (t < 0.0) t = 0.0;
-        T = ((double)PayLeg->DaysPayDate_C[i]) / Pay_DF_Day1Y;
+
+        T = ((double)PayLeg->DaysPayDate_C[i]) / 365.0;
+        
         B_t_T_PayDisc[i] = B_s_to_t(Simul->HWKappa[CurveIdx_DiscPay], t, T);
         QVTerm_PayDisc[i] = HullWhiteQVTerm(t, T, Simul->HWKappa[CurveIdx_DiscPay], Simul->NHWVol[CurveIdx_DiscPay], Simul->HWVolTerm[CurveIdx_DiscPay], Simul->HWVol[CurveIdx_DiscPay]);
         if (Simul->HWFactorFlag > 0)
@@ -3084,17 +3096,22 @@ long IRStructuredSwap(
 
                 idxT1 = RcvLeg->CurrentIdx;
                 DayT1 = RcvLeg->DaysForwardEnd[RcvLeg->CurrentIdx];
-                T1 = ((double)DayT1) / Rcv_DF_Day1Y;
+                T1 = ((double)DayT1) / 365.0;                
+
                 idx1 = 0;
                 idx2 = 0;
                 idx3 = 0;
                 for (j = 0; j < Simul->NDays; j++)
                 {
-                    t = ((double)Simul->DaysForSimul[j]) / Rcv_DF_Day1Y;
+                    t = ((double)Simul->DaysForSimul[j]) / 365.0;                    
+
                     idxfrdstart = FindIndex(Simul->DaysForSimul[j], RcvLeg->DaysForwardStart, RcvLeg->NCashFlow, &idx3);
-                    if (idxfrdstart >= 0) T1 = ((double)RcvLeg->DaysForwardEnd[idxfrdstart]) / Rcv_DF_Day1Y;;
-                    DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx1);
-                    DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx2);
+                    if (idxfrdstart >= 0)
+                    {
+                        T1 = ((double)RcvLeg->DaysForwardEnd[idxfrdstart]) / 365.0;                       
+                    }
+                    DF_0_t = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t);
+                    DF_0_T = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1);
                     RcvRef_dt[i][j][0] = T1 - t;
                     RcvRef_DF_t_T[i][j][0] = DF_0_T / DF_0_t;
                     RcvRef_B_t_T[i][j][0] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
@@ -3112,8 +3129,8 @@ long IRStructuredSwap(
                 idx0 = 0;
                 for (j = 0; j < Simul->NDays; j++)
                 {
-                    t = ((double)(Simul->DaysForSimul[j])) / Rcv_DF_Day1Y;
-
+                    t = ((double)(Simul->DaysForSimul[j])) / 365.0;
+                    
                     ndates = ndates_Rcv[i];
 
                     if (RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann > 0) term = 1.0 / ((double)RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann);
@@ -3125,13 +3142,13 @@ long IRStructuredSwap(
                     RcvRef_B_t_T2[i][j] = (double*)malloc(sizeof(double) * ndates);
                     RcvRef_QVTerm2[i][j] = (double*)malloc(sizeof(double) * ndates);
                     RcvRef_dt[i][j] = (double*)malloc(sizeof(double) * ndates);
-                    DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx0);
+                    DF_0_t = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t);
                     idx1 = 0;
                     for (k = 0; k < ndates; k++)
                     {
                         T1 = t + term * ((double)k + 1.0);
                         RcvRef_dt[i][j][k] = term;
-                        DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx1);
+                        DF_0_T = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1);
                         RcvRef_DF_t_T[i][j][k] = DF_0_T / DF_0_t;
                         RcvRef_QVTerm[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
                         RcvRef_B_t_T[i][j][k] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
@@ -3149,8 +3166,8 @@ long IRStructuredSwap(
             idx0 = 0;
             for (j = 0; j < Simul->NDays; j++)
             {
-                t = ((double)(Simul->DaysForSimul[j])) / Rcv_DF_Day1Y;
-
+                t = ((double)(Simul->DaysForSimul[j])) / 365.0;
+                
                 ndates = ndates_Rcv[i];
                 term = 1.0 / ((double)RcvLeg->Reference_Inform[i].RefSwapNCPN_Ann);
 
@@ -3160,13 +3177,13 @@ long IRStructuredSwap(
                 RcvRef_B_t_T2[i][j] = (double*)malloc(sizeof(double) * ndates);
                 RcvRef_QVTerm2[i][j] = (double*)malloc(sizeof(double) * ndates);
                 RcvRef_dt[i][j] = (double*)malloc(sizeof(double) * ndates);
-                DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx0);
+                DF_0_t = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t);
                 idx1 = 0;
                 for (k = 0; k < ndates; k++)
                 {
                     T1 = t + term * ((double)k + 1.0);
                     RcvRef_dt[i][j][k] = term;
-                    DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx1);
+                    DF_0_T = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1);
                     RcvRef_DF_t_T[i][j][k] = DF_0_T / DF_0_t;
                     RcvRef_QVTerm[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
                     RcvRef_B_t_T[i][j][k] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
@@ -3185,7 +3202,7 @@ long IRStructuredSwap(
                 {
                     T1 = t + term * ((double)k + 1.0);
                     RcvRef_dt_PowerSpread[i][j][k] = term;
-                    DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx2);
+                    DF_0_T = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1);
                     RcvRef_DF_t_T_PowerSpread[i][j][k] = DF_0_T / DF_0_t;
                     RcvRef_QVTerm_PowerSpread[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
                     RcvRef_B_t_T_PowerSpread[i][j][k] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
@@ -3289,17 +3306,23 @@ long IRStructuredSwap(
 
                 idxT1 = PayLeg->CurrentIdx;
                 DayT1 = PayLeg->DaysForwardEnd[PayLeg->CurrentIdx];
-                T1 = ((double)DayT1) / Pay_DF_Day1Y;
+                
+                T1 = ((double)DayT1) / 365.0;
+                
                 idx1 = 0;
                 idx2 = 0;
                 idx3 = 0;
                 for (j = 0; j < Simul->NDays; j++)
                 {
-                    t = ((double)Simul->DaysForSimul[j]) / Pay_DF_Day1Y;
+                    t = ((double)Simul->DaysForSimul[j]) / 365.0;
+                    
                     idxfrdstart = FindIndex(Simul->DaysForSimul[j], PayLeg->DaysForwardStart, PayLeg->NCashFlow, &idx3);
-                    if (idxfrdstart >= 0) T1 = ((double)PayLeg->DaysForwardEnd[idxfrdstart]) / Pay_DF_Day1Y;;
-                    DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx1);
-                    DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx2);
+                    if (idxfrdstart >= 0)
+                    {
+                        T1 = ((double)PayLeg->DaysForwardEnd[idxfrdstart]) / 365.0;
+                    }
+                    DF_0_t = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t);
+                    DF_0_T = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1);
                     PayRef_dt[i][j][0] = T1 - t;
                     PayRef_DF_t_T[i][j][0] = DF_0_T / DF_0_t;
                     PayRef_B_t_T[i][j][0] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
@@ -3312,8 +3335,8 @@ long IRStructuredSwap(
                 idx0 = 0;
                 for (j = 0; j < Simul->NDays; j++)
                 {
-                    t = ((double)(Simul->DaysForSimul[j])) / Pay_DF_Day1Y;
-
+                    t = ((double)(Simul->DaysForSimul[j])) / 365.0;
+                    
                     ndates = ndates_Pay[i];
                     if (PayLeg->Reference_Inform[i].RefSwapNCPN_Ann > 0) term = 1.0 / ((double)PayLeg->Reference_Inform[i].RefSwapNCPN_Ann);
                     else term = PayLeg->Reference_Inform[i].RefSwapMaturity;
@@ -3325,13 +3348,13 @@ long IRStructuredSwap(
                     PayRef_QVTerm2[i][j] = (double*)malloc(sizeof(double) * ndates);
                     PayRef_dt[i][j] = (double*)malloc(sizeof(double) * ndates);
 
-                    DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx0);
+                    DF_0_t = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t);
                     idx1 = 0;
                     for (k = 0; k < ndates; k++)
                     {
                         T1 = t + term * ((double)k + 1.0);
                         PayRef_dt[i][j][k] = term;
-                        DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx1);
+                        DF_0_T = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1);
                         PayRef_DF_t_T[i][j][k] = DF_0_T / DF_0_t;
                         PayRef_QVTerm[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
                         PayRef_B_t_T[i][j][k] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
@@ -3344,8 +3367,8 @@ long IRStructuredSwap(
             idx0 = 0;
             for (j = 0; j < Simul->NDays; j++)
             {
-                t = ((double)(Simul->DaysForSimul[j])) / Pay_DF_Day1Y;
-
+                t = ((double)(Simul->DaysForSimul[j])) / 365.0;
+                
                 ndates = ndates_Pay[i];
                 term = 1.0 / ((double)PayLeg->Reference_Inform[i].RefSwapNCPN_Ann);
 
@@ -3355,13 +3378,13 @@ long IRStructuredSwap(
                 PayRef_B_t_T2[i][j] = (double*)malloc(sizeof(double) * ndates);
                 PayRef_QVTerm2[i][j] = (double*)malloc(sizeof(double) * ndates);
                 PayRef_dt[i][j] = (double*)malloc(sizeof(double) * ndates);
-                DF_0_t = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t, &idx0);
+                DF_0_t = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], t);
                 idx1 = 0;
                 for (k = 0; k < ndates; k++)
                 {
                     T1 = t + term * ((double)k + 1.0);
                     PayRef_dt[i][j][k] = term;
-                    DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx1);
+                    DF_0_T = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1);
                     PayRef_DF_t_T[i][j][k] = DF_0_T / DF_0_t;
                     PayRef_QVTerm[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
                     PayRef_B_t_T[i][j][k] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
@@ -3380,7 +3403,7 @@ long IRStructuredSwap(
                 {
                     T1 = t + term * ((double)k + 1.0);
                     PayRef_dt_PowerSpread[i][j][k] = term;
-                    DF_0_T = Calc_Discount_Factor_Pointer(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1, &idx2);
+                    DF_0_T = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1);
                     PayRef_DF_t_T_PowerSpread[i][j][k] = DF_0_T / DF_0_t;
                     PayRef_QVTerm_PowerSpread[i][j][k] = HullWhiteQVTerm(t, T1, Simul->HWKappa[CurveIdxRef], Simul->NHWVol[CurveIdxRef], Simul->HWVolTerm[CurveIdxRef], Simul->HWVol[CurveIdxRef]);
                     PayRef_B_t_T_PowerSpread[i][j][k] = B_s_to_t(Simul->HWKappa[CurveIdxRef], t, T1);
@@ -3461,15 +3484,16 @@ long IRStructuredSwap(
     double SOFR_AnnOISRate0_Rcv[3] = { 0.0,0.0,0.0 };
     double SOFRComp0_Pay[3] = { 0.0,0.0,0.0 };
     double SOFR_AnnOISRate0_Pay[3] = { 0.0,0.0,0.0 };
+    double tempt = 0.0;
     for (i = 0; i < RcvLeg->NReference; i++)
     {
         idx = CurveIdx_Rcv[i];
         if (RcvLeg->DaysForwardStart[RcvLeg->CurrentIdx] <= 0 && RcvLeg->DaysForwardEnd[RcvLeg->CurrentIdx] > 0 && RcvLeg->Reference_Inform[i].RefRateType == 2)
-        {
+        {            
             // 에러생기는데 수정해야함 나중에
             SOFRComp0_Rcv[i] = SOFR_ForwardRate_Compound(Simul->NRateTerm[idx], Simul->RateTerm[idx], Simul->Rate[idx], RcvLeg->DaysForwardStart[RcvLeg->CurrentIdx], RcvLeg->DaysForwardEnd[RcvLeg->CurrentIdx],
                 0, 0, 0, RcvLeg->HolidayCalcFlag[i], RcvLeg->HolidayCount[i], RcvLeg->HolidayDays[i], RcvLeg->NWeekend[i], RcvLeg->Weekend[i], 1, RcvLeg->NDayHistory[i],
-                RcvLeg->RateHistoryDateMatrix[i], RcvLeg->RateHistoryMatrix[i], Rcv_DF_Day1Y, SOFR_AnnOISRate0_Rcv[i], 1);
+                RcvLeg->RateHistoryDateMatrix[i], RcvLeg->RateHistoryMatrix[i], tempt, SOFR_AnnOISRate0_Rcv[i], 1);
         }
     }
     RcvLeg->SOFR_Annualized_R0 = SOFR_AnnOISRate0_Rcv;
@@ -3694,33 +3718,33 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     long* Holidays_Excel,               // 6 [0~sum(HolidayFlagCount[6~11])]: Holidays Rcv R1R2R3, Pay R1R2R3
 
     // Receive Leg Information
-    long* RcvFlag,                      // 7 [0]: NReference, [1]: Fix/Flo Flag, [2]: Accrual Flag, [3]: DailySimulFlag
-    double* RcvMaxLossReturn,           // 8 [0]: Max Loss [1] Max Return
-    long* RcvRefCurveNumber,            // 9 Reference Curve 번호 Array [Len = NReference]
-    long* RcvRefRateType,               // 10 기초금리 타입 0: CD/Libor (AccrualX) 1: CD/Libor, 이자율Swap 2: SOFR
-    double* RcvSwapInfo,                // 11 [짝수] 기초금리 타입이 1일 경우 연 이자 지급횟수 [홀수] 만기
-    long* RcvDayCountFlag,              // 12 DayCount 0: 365 ,  1: 360
-    double* RcvRefCondMultiple,         // 13 금리결정조건 Multiple
-    long* RcvRefPowerSpreadFlag,        // 14 파워스프레드 사용여부
-    double* RcvRefPowerSpreadMat,       // 15 [짝수] 파워스프레드 만기1 [홀수] 파워스프레드 만기2
-    double* RcvRefRange,                // 16 [짝수] Range 상한 [홀수] Range 하한
-    double* RcvPayoffMultiple,          // 17 페이오프 조건 Multiple
+    long* RcvFlag,                      // 7 길이 4 [0]: NReference, [1]: Fix/Flo Flag, [2]: Accrual Flag, [3]: DailySimulFlag
+    double* RcvMaxLossReturn,           // 8 길이 2 [0]: Max Loss [1] Max Return
+    long* RcvRefCurveNumber,            // 9 길이 4 Reference Curve 번호 Array [Len = NReference]
+    long* RcvRefRateType,               // 10 길이 3 기초금리 타입 0: CD/Libor (AccrualX) 1: CD/Libor, 이자율Swap 2: SOFR
+    double* RcvSwapInfo,                // 11 길이 6 [짝수] 기초금리 타입이 1일 경우 연 이자 지급횟수 [홀수] 만기
+    long* RcvDayCountFlag,              // 12 길이 4 DayCount 0: 365 ,  1: 360
+    double* RcvRefCondMultiple,         // 13 길이 3 금리결정조건 Multiple
+    long* RcvRefPowerSpreadFlag,        // 14 길이 3 파워스프레드 사용여부
+    double* RcvRefPowerSpreadMat,       // 15 길이 6 [짝수] 파워스프레드 만기1 [홀수] 파워스프레드 만기2
+    double* RcvRefRange,                // 16 길이 6 [짝수] Range 상한 [홀수] Range 하한
+    double* RcvPayoffMultiple,          // 17 길이 3 페이오프 조건 Multiple
     long NRcvCashFlow,                  // 18 Receive Leg CashFlow 개수
     long* RcvCashFlowScheduleExcelDate, // 19 [0~NCF-1]: ResetStart, [NCF~2*NCF-1]: ResetEnd, [2*NCF~3*NCF-1]: 기산일, [3*NCF~4*NCF-1]: 기말일, [4*NCF~5*NCF-1]: 지급일
     double* RcvCouponFixRate,           // 20 [0~NCF-1]: 고정 쿠폰, [NCF~2*NCF-1]: 확정과거금리 [2*NCF~3*NCF-1]: Range충족쿠폰Rate
 
     // Receive Leg Information
-    long* PayFlag,                      // 21 [0]: NReference, [1]: Fix/Flo Flag, [2]: Accrual Flag
-    double* PayMaxLossReturn,           // 22 [0]: Max Loss [1] Max Return
-    long* PayRefCurveNumber,            // 23 Reference Curve 번호 Array [Len = NReference]
-    long* PayRefRateType,               // 24 기초금리 타입 0: CD/Libor (AccrualX) 1: CD/Libor, 이자율Swap 2: SOFR
-    double* PaySwapInfo,                // 25 [짝수] 기초금리 타입이 1일 경우 연 이자 지급횟수 [홀수] 만기
-    long* PayDayCountFlag,              // 26 DayCount 0: 365 ,  1: 360
-    double* PayRefCondMultiple,         // 27 금리결정조건 Multiple
-    long* PayRefPowerSpreadFlag,        // 28 파워스프레드 사용여부
-    double* PayRefPowerSpreadMat,       // 29 [짝수] 파워스프레드 만기1 [홀수] 파워스프레드 만기2
-    double* PayRefRange,                // 30 [짝수] Range 상한 [홀수] Range 하한
-    double* PayPayoffMultiple,          // 31 페이오프 조건 Multiple
+    long* PayFlag,                      // 21 길이 4 [0]: NReference, [1]: Fix/Flo Flag, [2]: Accrual Flag
+    double* PayMaxLossReturn,           // 22 길이 2 [0]: Max Loss [1] Max Return
+    long* PayRefCurveNumber,            // 23 길이 4 Reference Curve 번호 Array [Len = NReference]
+    long* PayRefRateType,               // 24 길이 3 기초금리 타입 0: CD/Libor (AccrualX) 1: CD/Libor, 이자율Swap 2: SOFR
+    double* PaySwapInfo,                // 25 길이 6 [짝수] 기초금리 타입이 1일 경우 연 이자 지급횟수 [홀수] 만기
+    long* PayDayCountFlag,              // 26 길이 4 DayCount 0: 365 ,  1: 360
+    double* PayRefCondMultiple,         // 27 길이 3 금리결정조건 Multiple
+    long* PayRefPowerSpreadFlag,        // 28 길이 3 파워스프레드 사용여부
+    double* PayRefPowerSpreadMat,       // 29 길이 6 [짝수] 파워스프레드 만기1 [홀수] 파워스프레드 만기2
+    double* PayRefRange,                // 30 길이 6 [짝수] Range 상한 [홀수] Range 하한
+    double* PayPayoffMultiple,          // 31 길이 3 페이오프 조건 Multiple
     long NPayCashFlow,                  // 32 Receive Leg CashFlow 개수
     long* PayCashFlowScheduleExcelDate, // 33 [0~NCF-1]: ResetStart, [NCF~2*NCF-1]: ResetEnd, [2*NCF~3*NCF-1]: 기산일, [3*NCF~4*NCF-1]: 기말일, [4*NCF~5*NCF-1]: 지급일
     double* PayCouponFixRate,           // 34 [0~NCF-1]: 고정 쿠폰, [NCF~2*NCF-1]: 확정과거금리 [2*NCF~3*NCF-1]: Range충족쿠폰Rate
@@ -3729,7 +3753,7 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     long* NHWVolCount,                  // 35 [0~3] Hull White Vol 개수
     double* HWVolTermArray,             // 36 [0~sum(NHWVolCount)-1] Hull White Vol Term Array
     double* HWVolArray,                 // 37 [0~sum(NHWVolCount)-1] Hull White Vol Array
-    double* HWKappaArray,               // 38 [0~3] Hull White Kappa
+    double* HWKappaArray,               // 38 [0~3] Hull White Kappa. [4~7] Ull White 2F kappa, [8~11] HW2F rho
     long* NZeroRate,                    // 39 [0~3] ZeroRate 개수
     double* ZeroTerm,                   // 40 [0~sum(NZeroRate)-1] Zero Rate Term
     double* ZeroRate,                   // 41 [0~sum(NZeroRate)-1] Zero Rate
@@ -3745,11 +3769,11 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
 
     // 시뮬레이션
     long NSimul,                        // 49 시뮬레이션횟수
-    long GreekFlag,                     // 50 Greek산출여부
+    long* GreekTextFlag,                // 50 [0]Greek산출여부 [1]TextDumpping여부
 
     // 옵션관련
-    long NOption,                       // 51 옵션개수
-    long* OptionDateAndFlag,            // 52 [0~NOption-1]옵션행사일, [NOption~2NOption-1]행사조건Flag, [2NOption~3NOption-1]옵션Type
+    long NOption,                       // 51 옵션개수 길이 
+    long* OptionDateAndFlag,            // 52 [0~NOption-1]옵션행사일 [NOption]행사조건 [Noption + 1] 옵션타입(발행자, 투자자 콜)
     double* OptionKAndRange,            // 53 [0~NOption-1]옵션행사가격% [NOption~7NOption-1] Ref1~3 Range상한 및 하한 
 
     double* ResultPrice,                // 54 산출된 가격 [0] Rcv [1] Pay [2] Price [3] OptionPrice [4~
@@ -3774,7 +3798,8 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     double* HWQuantoFlag = HWQuantoInfo;
     double* HWQuantoRho = HWQuantoInfo + 4;
     double* HWQuantoFXVol = HWQuantoInfo + 8;
-    
+    long GreekFlag = GreekTextFlag[0];
+    long TextFlag = GreekTextFlag[1];
     ErrorCode = ErrorCheck_IRStructuredSwap_Excel(
         PriceDateExcel, NAFlag, Notional, PayoffStructure, HolidayFlagCount,
         Holidays_Excel, RcvFlag, RcvMaxLossReturn, RcvRefCurveNumber, RcvRefRateType,
@@ -3790,7 +3815,93 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     double* ResultPV01 = ResultPrice + 4;
     double* ResultKeyPV01 = ResultPV01 + 8;
     
+    char CalcFunctionName[] = "Pricing_IRStructuredSwap_Excel";
+    char SaveFileName[100];
+    get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+    if (TextFlag == 1)
+    {
+        DumppingTextData(CalcFunctionName, SaveFileName, "PriceDateExcel", PriceDateExcel);
+        DumppingTextData(CalcFunctionName, SaveFileName, "NAFlag", NAFlag);
+        DumppingTextData(CalcFunctionName, SaveFileName, "Notional", Notional);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayoffStructure", 2, PayoffStructure);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "HolidayFlagCount", 12, HolidayFlagCount);
+        n = 0;
+        for (i = 6; i < 12; i++) n += HolidayFlagCount[i];
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "Holidays_Excel", n, Holidays_Excel);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "HolidayFlagCount", 12, HolidayFlagCount);
 
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvFlag", 4, RcvFlag);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvMaxLossReturn", 2, RcvMaxLossReturn);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvRefCurveNumber", 4, RcvRefCurveNumber);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvRefRateType", 3, RcvRefRateType);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvSwapInfo", 6, RcvSwapInfo);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvDayCountFlag", 4, RcvDayCountFlag);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvRefCondMultiple", 3, RcvRefCondMultiple);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvRefPowerSpreadFlag", 3, RcvRefPowerSpreadFlag);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvRefPowerSpreadMat", 6, RcvRefPowerSpreadMat);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvRefRange", 6, RcvRefRange);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvPayoffMultiple", 3, RcvPayoffMultiple);
+        DumppingTextData(CalcFunctionName, SaveFileName, "NRcvCashFlow", NRcvCashFlow);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvCashFlowScheduleExcelDate", NRcvCashFlow * 5, RcvCashFlowScheduleExcelDate);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvCouponFixRate", NRcvCashFlow * 3, RcvCouponFixRate);
+
+        //
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayFlag", 4, PayFlag);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayMaxLossReturn", 2, PayMaxLossReturn);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayRefCurveNumber", 4, PayRefCurveNumber);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayRefRateType", 3, PayRefRateType);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PaySwapInfo", 6, PaySwapInfo);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayDayCountFlag", 4, PayDayCountFlag);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayRefCondMultiple", 3, PayRefCondMultiple);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayRefPowerSpreadFlag", 3, PayRefPowerSpreadFlag);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayRefPowerSpreadMat", 6, PayRefPowerSpreadMat);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayRefRange", 6, PayRefRange);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayPayoffMultiple", 3, PayPayoffMultiple);
+        DumppingTextData(CalcFunctionName, SaveFileName, "NPayCashFlow", NPayCashFlow);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayCashFlowScheduleExcelDate", NPayCashFlow * 5, PayCashFlowScheduleExcelDate);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayCouponFixRate", NPayCashFlow * 3, PayCouponFixRate);
+
+        //
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "NHWVolCount", 4, NHWVolCount);
+        n = 0;
+        for (i = 0; i < 4; i++) if (NHWVolCount[i] > 0) n += NHWVolCount[i];
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "HWVolTermArray", n, HWVolTermArray);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "HWVolArray", n, HWVolArray);
+
+        if (HWFactorFlag == 0) DumppingTextDataArray(CalcFunctionName, SaveFileName, "HWKappaArray", 4, HWKappaArray);
+        else DumppingTextDataArray(CalcFunctionName, SaveFileName, "HWKappaArray", 12, HWKappaArray);
+
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "NZeroRate", 4, NZeroRate);
+
+        n = 0;
+        for (i = 0; i < 4; i++) if (NZeroRate[i] > 0) n += NZeroRate[i];
+
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "ZeroTerm", n, ZeroTerm);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "ZeroRate", n, ZeroRate);
+        DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "Corr", 4, 4, Corr);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "NDayHistRcv", 3, NDayHistRcv);
+
+        n = 0;
+        for (i = 0; i < 3; i++) if (NDayHistRcv[i] > 0) n += NDayHistRcv[i];
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RateHistDateRcv", n, RateHistDateRcv);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RateHistRcv", n, RateHistRcv);
+
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "NDayHistPay", 3, NDayHistPay);
+        n = 0;
+        for (i = 0; i < 3; i++) if (NDayHistPay[i] > 0) n += NDayHistPay[i];
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RateHistDatePay", n, RateHistDatePay);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RateHistPay", n, RateHistPay);
+
+        DumppingTextData(CalcFunctionName, SaveFileName, "NSimul", NSimul);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "GreekTextFlag", 2, GreekTextFlag);
+        DumppingTextData(CalcFunctionName, SaveFileName, "NOption", NOption);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "OptionDateAndFlag", NOption + 2, OptionDateAndFlag);
+        DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "OptionDateAndFlag", NOption, 7, OptionKAndRange);
+        DumppingTextData(CalcFunctionName, SaveFileName, "HWFactorFlag", HWFactorFlag);
+
+
+        n = 0;
+    }
     if (ErrorCode < 0) return -1;
 
     long N_Curve_Max = 4;       // 커브 최대 개수
@@ -4507,10 +4618,15 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
         Simul_ForGreek->dt_Array = Simul->dt_Array;
         Simul_ForGreek->T_Array = Simul->T_Array;
         Simul_ForGreek->FixedRandn = FixedRandn;
+        Simul_ForGreek->FixedRandn2 = FixedRandn2;
         Simul_ForGreek->NHWVol = Simul->NHWVol ;
         Simul_ForGreek->HWKappa = Simul->HWKappa;
+        Simul_ForGreek->HWKappa2 = Simul->HWKappa2;
+
         Simul_ForGreek->HWVolTerm  = Simul->HWVolTerm ;
-        Simul_ForGreek->HWVol = Simul->HWVol  ;
+        Simul_ForGreek->HWVol = Simul->HWVol ;
+        Simul_ForGreek->HWVol2 = Simul->HWVol2;
+
         Simul_ForGreek->NRateTerm  = Simul->NRateTerm ;
         Simul_ForGreek->RateTerm = Simul->RateTerm ;
         Simul_ForGreek->Rate = (double**)malloc(sizeof(double*) * Simul->NAsset);
@@ -4518,6 +4634,8 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
         Simul_ForGreek->HWQuantoRho = Simul->HWQuantoRho;
         Simul_ForGreek->HWQuantoVol = Simul->HWQuantoVol;
         Simul_ForGreek->SimulCurveIdx = SimulateCurveIdx;
+        Simul_ForGreek->HWFactorFlag = Simul->HWFactorFlag;
+
         k = 0;
         for (i = 1; i < N_Curve_Max + 1; i++)
         {
