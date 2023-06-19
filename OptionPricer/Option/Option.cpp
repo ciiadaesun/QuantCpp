@@ -9,6 +9,7 @@
 #include "Util.h"
 #endif
 #include "SABR.h"
+#include "GetTextDump.h"
 
 #include <crtdbg.h>
 
@@ -44,22 +45,611 @@ long SaveErrorName(char* Error, char ErrorName[100])
 	}
 	return -1;
 }
-/*
-double Call_Down_In(
-	double S,
-	double X,
-	double H,
-	double T,
-	double r_disc,
-	double r_ref,
-	double q,
+
+double Call_Down(
+	long in0out1flag,			// 0 : Down And In, 1: Down And Out 
+	double S,					// 현재주가
+	double X,					// 행사가격
+	double H,					// 배리어
+	double T,					// 만기
+	double r_disc,				// 할인이자율
+	double r_ref,				// 레퍼이자율
+	double rho_fx,				// fx, rf 상관계수
+	double fxvol,				// fxvol
+	long DiscreteDivFlag,		// 이산배당Flag
+	double div,					// 배당수익률 또는 이산배당의 현재가치
 	double sig
 )
 {
 	long i, j;
-	double lambda = (r_ref - q + sig * sig * 0.5) / (sig * sig);
-	double y = log( H*H/ )
-}*/
+	double rf_drift = r_ref - rho_fx * fxvol * sig;
+	double lambda;
+	double x1, y1;
+	double y;
+	double sigma_SqrT = sig * sqrt(T);
+	if (DiscreteDivFlag != 1)
+	{
+		lambda = (rf_drift - div + sig * sig * 0.5) / (sig * sig);
+		y = log(H * H / (S * X)) / sigma_SqrT + lambda * sigma_SqrT;
+		x1 = log(S / H) / sigma_SqrT + lambda * sigma_SqrT;
+		y1 = log(H / S) / sigma_SqrT + lambda * sigma_SqrT;
+	}
+	else
+	{
+		lambda = (rf_drift + sig * sig * 0.5) / (sig * sig);
+		y = log(H * H / ((S - div) * X)) / sigma_SqrT + lambda * sigma_SqrT;
+		x1 = log((S - div) / H) / sigma_SqrT + lambda * sigma_SqrT;
+		y1 = log(H / (S - div)) / sigma_SqrT + lambda * sigma_SqrT;
+	}
+
+	double c_di, c, c_do, d1, d2;
+
+	double resultvalue;
+	if (H <= X)
+	{
+		if (DiscreteDivFlag != 1)
+		{			
+			c_di = S * exp(-div * T) * pow(H / S, 2.0 * lambda) * CDF_N(y) - X * exp(-r_disc * T) * pow(H / S, 2.0 * lambda - 2.0) * CDF_N(y - sigma_SqrT);
+			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			c_do = c - c_di;
+		}
+		else
+		{
+			c_di = (S-div) * pow(H / (S-div), 2.0 * lambda) * CDF_N(y) - X * exp(-r_disc * T) * pow(H / (S-div), 2.0 * lambda - 2.0) * CDF_N(y - sigma_SqrT);
+			d1 = (log((S-div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = (S-div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			c_do = c - c_di;
+		}
+	}
+	else
+	{
+		if (DiscreteDivFlag != 1)
+		{
+			c_do = S * exp(-div * T) * CDF_N(x1) - X * exp(-r_disc * T) * CDF_N(x1 - sigma_SqrT) - S * exp(-div * T) * pow(H / S, 2.0 * lambda) * CDF_N(y1) + X * exp(-r_disc * T) * pow(H / S, 2.0 * lambda - 2.0) * CDF_N(y1 - sigma_SqrT);
+			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			c_di = c - c_do;
+		}
+		else
+		{
+			c_do = (S-div) * CDF_N(x1) - X * exp(-r_disc * T) * CDF_N(x1 - sigma_SqrT) - (S-div) * pow(H / (S-div), 2.0 * lambda) * CDF_N(y1) + X * exp(-r_disc * T) * pow(H / (S-div), 2.0 * lambda - 2.0) * CDF_N(y1 - sigma_SqrT);
+			d1 = (log((S-div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = (S-div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			c_di = c - c_do;
+		}
+	}
+	
+	if (in0out1flag == 0) resultvalue = c_di;
+	else resultvalue = c_do;
+
+	return resultvalue;
+}
+
+double Call_Up(
+	long in0out1flag,			// 0 : Down And In, 1: Down And Out 
+	double S,					// 현재주가
+	double X,					// 행사가격
+	double H,					// 배리어
+	double T,					// 만기
+	double r_disc,				// 할인이자율
+	double r_ref,				// 레퍼이자율
+	double rho_fx,				// fx, rf 상관계수
+	double fxvol,				// fxvol
+	long DiscreteDivFlag,		// 이산배당Flag
+	double div,					// 배당수익률 또는 이산배당의 현재가치
+	double sig
+)
+{
+	long i, j;
+	double rf_drift = r_ref - rho_fx * fxvol * sig;
+	double lambda;
+	double x1, y1;
+	double y;
+	double sigma_SqrT = sig * sqrt(T);
+	if (DiscreteDivFlag != 1)
+	{
+		lambda = (rf_drift - div + sig * sig * 0.5) / (sig * sig);
+		y = log(H * H / (S * X)) / sigma_SqrT + lambda * sigma_SqrT;
+		x1 = log(S / H) / sigma_SqrT + lambda * sigma_SqrT;
+		y1 = log(H / S) / sigma_SqrT + lambda * sigma_SqrT;
+	}
+	else
+	{
+		lambda = (rf_drift + sig * sig * 0.5) / (sig * sig);
+		y = log(H * H / ((S - div) * X)) / sigma_SqrT + lambda * sigma_SqrT;
+		x1 = log((S - div) / H) / sigma_SqrT + lambda * sigma_SqrT;
+		y1 = log(H / (S - div)) / sigma_SqrT + lambda * sigma_SqrT;
+	}
+
+	double c_ui, c, c_uo, d1, d2;
+
+	double resultvalue;
+	if (H <= X)
+	{
+		if (DiscreteDivFlag != 1)
+		{
+			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			c_uo = 0.0;
+			c_ui = c;
+		}
+		else
+		{
+			d1 = (log((S - div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = (S - div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			c_uo = 0.0;
+			c_ui = c;
+		}
+	}
+	else
+	{
+		if (DiscreteDivFlag != 1)
+		{
+			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			c_ui = S * CDF_N(x1) * exp(-div * T) - X * exp(-r_disc * T) * CDF_N(x1 - sigma_SqrT) - S * exp(-div * T) * pow(H / S, 2.0 * lambda) * (CDF_N(-y) - CDF_N(-y1)) + X * exp(-r_disc * T) * pow(H / S, 2.0 * lambda - 2.0) * (CDF_N(-y + sigma_SqrT) - CDF_N(-y1 + sigma_SqrT));
+			c_uo = c - c_ui;
+		}
+		else
+		{
+			d1 = (log((S - div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = (S - div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			c_ui = (S-div) * CDF_N(x1) * exp(-div * T) - X * exp(-r_disc * T) * CDF_N(x1 - sigma_SqrT) - (S - div) * exp(-div * T) * pow(H / (S - div), 2.0 * lambda) * (CDF_N(-y) - CDF_N(-y1)) + X * exp(-r_disc * T) * pow(H / (S - div), 2.0 * lambda - 2.0) * (CDF_N(-y + sigma_SqrT) - CDF_N(-y1 + sigma_SqrT));
+			c_uo = c - c_ui;
+		}
+	}
+
+	if (in0out1flag == 0) resultvalue = c_ui;
+	else resultvalue = c_uo;
+	return resultvalue;
+}
+
+double Put_Up(
+	long in0out1flag,			// 0 : Down And In, 1: Down And Out 
+	double S,					// 현재주가
+	double X,					// 행사가격
+	double H,					// 배리어
+	double T,					// 만기
+	double r_disc,				// 할인이자율
+	double r_ref,				// 레퍼이자율
+	double rho_fx,				// fx, rf 상관계수
+	double fxvol,				// fxvol
+	long DiscreteDivFlag,		// 이산배당Flag
+	double div,					// 배당수익률 또는 이산배당의 현재가치
+	double sig
+)
+{
+	// Formula Reference 
+	// J.C. Hull: Options, Futures, And Other Derivatives
+	long i, j;
+	double rf_drift = r_ref - rho_fx * fxvol * sig;
+	double lambda;
+	double x1, y1;
+	double y;
+	double sigma_SqrT = sig * sqrt(T);
+	if (DiscreteDivFlag != 1)
+	{
+		lambda = (rf_drift - div + sig * sig * 0.5) / (sig * sig);
+		y = log(H * H / (S * X)) / sigma_SqrT + lambda * sigma_SqrT;
+		x1 = log(S / H) / sigma_SqrT + lambda * sigma_SqrT;
+		y1 = log(H / S) / sigma_SqrT + lambda * sigma_SqrT;
+	}
+	else
+	{
+		lambda = (rf_drift + sig * sig * 0.5) / (sig * sig);
+		y = log(H * H / ((S-div) * X)) / sigma_SqrT + lambda * sigma_SqrT;
+		x1 = log((S-div) / H) / sigma_SqrT + lambda * sigma_SqrT;
+		y1 = log(H / (S - div)) / sigma_SqrT + lambda * sigma_SqrT;
+	}
+	
+	double c, p_ui, p_uo, d1, d2, p;
+
+	double resultvalue;
+	if (H > X)
+	{
+		if (DiscreteDivFlag != 1)
+		{
+			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			p = c + X * exp(-r_disc * T) - S * exp(-div * T);
+			p_ui = -S * exp(-div * T) * pow(H / S, 2.0 * lambda) * CDF_N(-y) + X * exp(-r_disc * T) * pow(H / S, 2.0 * lambda - 2.0) * CDF_N(-y + sigma_SqrT);
+			p_uo = p - p_ui;
+		}
+		else
+		{
+
+			d1 = (log((S - div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = (S - div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			p = c + X * exp(-r_disc * T) - (S-div);
+			p_ui = -(S-div) * exp(-div * T) * pow(H / (S-div), 2.0 * lambda) * CDF_N(-y) + X * exp(-r_disc * T) * pow(H / (S-div), 2.0 * lambda - 2.0) * CDF_N(-y + sigma_SqrT);
+			p_uo = p - p_ui;
+		}
+	}
+	else
+	{
+		if (DiscreteDivFlag != 1)
+		{
+			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			p = c + X * exp(-r_disc * T) - S * exp(-div * T);
+			p_uo = -S * CDF_N(-x1) * exp(-div * T) + X * exp(-r_disc * T) * CDF_N(-x1 + sigma_SqrT) + S * exp(-div * T) * pow(H / S, 2.0 * lambda) * CDF_N(-y1) - X * exp(-r_disc * T) * pow(H / S, 2.0 * lambda - 2.0) * CDF_N(-y1 + sigma_SqrT);
+			p_ui = p - p_uo;
+		}
+		else
+		{
+			d1 = (log((S - div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = (S - div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			p = c + X * exp(-r_disc * T) - (S - div);
+			p_uo = -(S-div) * CDF_N(-x1) * exp(-div * T) + X * exp(-r_disc * T) * CDF_N(-x1 + sigma_SqrT) + (S-div) * exp(-div * T) * pow(H / (S-div), 2.0 * lambda) * CDF_N(-y1) - X * exp(-r_disc * T) * pow(H / (S-div), 2.0 * lambda - 2.0) * CDF_N(-y1 + sigma_SqrT);
+			p_ui = p - p_uo;
+		}
+	}
+
+	if (in0out1flag == 0) resultvalue = p_ui;
+	else resultvalue = p_uo;
+
+	return resultvalue;
+}
+
+
+double Put_Down(
+	long in0out1flag,			// 0 : Down And In, 1: Down And Out 
+	double S,					// 현재주가
+	double X,					// 행사가격
+	double H,					// 배리어
+	double T,					// 만기
+	double r_disc,				// 할인이자율
+	double r_ref,				// 레퍼이자율
+	double rho_fx,				// fx, rf 상관계수
+	double fxvol,				// fxvol
+	long DiscreteDivFlag,		// 이산배당Flag
+	double div,					// 배당수익률 또는 이산배당의 현재가치
+	double sig
+)
+{
+	// Formula Reference 
+	// J.C. Hull: Options, Futures, And Other Derivatives
+	long i, j;
+	double rf_drift = r_ref - rho_fx * fxvol * sig;
+	double lambda;
+	double x1, y1;
+	double y;
+	double sigma_SqrT = sig * sqrt(T);
+	if (DiscreteDivFlag != 1)
+	{
+		lambda = (rf_drift - div + sig * sig * 0.5) / (sig * sig);
+		y = log(H * H / (S * X)) / sigma_SqrT + lambda * sigma_SqrT;
+		x1 = log(S / H) / sigma_SqrT + lambda * sigma_SqrT;
+		y1 = log(H / S) / sigma_SqrT + lambda * sigma_SqrT;
+	}
+	else
+	{
+		lambda = (rf_drift + sig * sig * 0.5) / (sig * sig);
+		y = log(H * H / ((S - div) * X)) / sigma_SqrT + lambda * sigma_SqrT;
+		x1 = log((S - div) / H) / sigma_SqrT + lambda * sigma_SqrT;
+		y1 = log(H / (S - div)) / sigma_SqrT + lambda * sigma_SqrT;
+	}
+
+	double c, p_di, p_do, d1, d2, p;
+
+	double resultvalue;
+	if (H > X)
+	{
+		if (DiscreteDivFlag != 1)
+		{
+			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			p = c + X * exp(-r_disc * T) - S * exp(-div * T);
+			p_do = 0.;
+			p_di = p;
+		}
+		else
+		{
+
+			d1 = (log((S - div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = (S - div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			p = c + X * exp(-r_disc * T) - (S - div);
+			p_do = 0.;
+			p_di = p;
+		}
+	}
+	else
+	{
+		if (DiscreteDivFlag != 1)
+		{
+			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			p = c + X * exp(-r_disc * T) - S * exp(-div * T);
+			p_di = -S * CDF_N(-x1) * exp(-div * T) + X * exp(-r_disc * T) * CDF_N(-x1 + sigma_SqrT) + S * exp(-div * T) * pow(H / S, 2.0 * lambda) * (CDF_N(y) - CDF_N(y1)) - X * exp(-r_disc * T) * pow(H / S, 2.0 * lambda - 2.0) * (CDF_N(y - sigma_SqrT) - CDF_N(y1 - sigma_SqrT));
+			p_do = p - p_di;
+		}
+		else
+		{
+			d1 = (log((S - div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
+			d2 = d1 - sigma_SqrT;
+			c = (S - div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+			p = c + X * exp(-r_disc * T) - (S - div);
+			p_di = -(S-div) * CDF_N(-x1) * exp(-div * T) + X * exp(-r_disc * T) * CDF_N(-x1 + sigma_SqrT) + (S - div) * exp(-div * T) * pow(H / (S - div), 2.0 * lambda) * (CDF_N(y) - CDF_N(y1)) - X * exp(-r_disc * T) * pow(H / (S - div), 2.0 * lambda - 2.0) * (CDF_N(y - sigma_SqrT) - CDF_N(y1 - sigma_SqrT));
+			p_do = p - p_di;
+		}
+	}
+
+	if (in0out1flag == 0) resultvalue = p_di;
+	else resultvalue = p_do;
+
+	return resultvalue;
+}
+
+double BarrierOptionDelta(
+	long in0out1flag,			// 0 : Down And In, 1: Down And Out 
+	double S,					// 현재주가
+	double X,					// 행사가격
+	double H,					// 배리어
+	double T,					// 만기
+	double r_disc,				// 할인이자율
+	double r_ref,				// 레퍼이자율
+	double rho_fx,				// fx, rf 상관계수
+	double fxvol,				// fxvol
+	long DiscreteDivFlag,		// 이산배당Flag
+	double div,					// 배당수익률 또는 이산배당의 현재가치
+	double sig,
+	double (*funcs)(long, double, double, double, double, double, double, double, double, long, double, double)
+)
+{
+	double Su = S * 1.01;
+	double Sd = S * 0.99;
+	double dS = S * 0.01;
+	double Pu, Pd;
+	Pu = funcs(in0out1flag, Su, X, H, T, r_disc, r_ref, rho_fx, fxvol, DiscreteDivFlag, div, sig);
+	Pd = funcs(in0out1flag, Sd, X, H, T, r_disc, r_ref, rho_fx, fxvol, DiscreteDivFlag, div, sig);
+	return (Pu - Pd) / (2.0 * dS);
+}
+
+double BarrierOptionGamma(
+	long in0out1flag,			// 0 : Down And In, 1: Down And Out 
+	double S,					// 현재주가
+	double X,					// 행사가격
+	double H,					// 배리어
+	double T,					// 만기
+	double r_disc,				// 할인이자율
+	double r_ref,				// 레퍼이자율
+	double rho_fx,				// fx, rf 상관계수
+	double fxvol,				// fxvol
+	long DiscreteDivFlag,		// 이산배당Flag
+	double div,					// 배당수익률 또는 이산배당의 현재가치
+	double sig,
+	double (*funcs)(long, double, double, double, double, double, double, double, double, long, double, double)
+)
+{
+	double Su = S * 1.01;
+	double Sd = S * 0.99;
+	double dS = S * 0.01;
+	double Pu, Pd, P;
+	Pu = funcs(in0out1flag, Su, X, H, T, r_disc, r_ref, rho_fx, fxvol, DiscreteDivFlag, div, sig);
+	Pd = funcs(in0out1flag, Sd, X, H, T, r_disc, r_ref, rho_fx, fxvol, DiscreteDivFlag, div, sig);
+	P = funcs(in0out1flag, S, X, H, T, r_disc, r_ref, rho_fx, fxvol, DiscreteDivFlag, div, sig);
+	return (Pu + Pd -2.0 * P) / (dS * dS);
+}
+
+double BarrierOptionVega(
+	long in0out1flag,			// 0 : Down And In, 1: Down And Out 
+	double S,					// 현재주가
+	double X,					// 행사가격
+	double H,					// 배리어
+	double T,					// 만기
+	double r_disc,				// 할인이자율
+	double r_ref,				// 레퍼이자율
+	double rho_fx,				// fx, rf 상관계수
+	double fxvol,				// fxvol
+	long DiscreteDivFlag,		// 이산배당Flag
+	double div,					// 배당수익률 또는 이산배당의 현재가치
+	double sig,
+	double (*funcs)(long, double, double, double, double, double, double, double, double, long, double, double)
+)
+{
+	double sigu = sig + 0.01;
+	double sigd = max(sig - 0.01,0.00001);
+	double dsig = 0.5 * (sigu - sigd);
+	double Pu, Pd;
+	Pu = funcs(in0out1flag, S, X, H, T, r_disc, r_ref, rho_fx, fxvol, DiscreteDivFlag, div, sigu);
+	Pd = funcs(in0out1flag, S, X, H, T, r_disc, r_ref, rho_fx, fxvol, DiscreteDivFlag, div, sigd);
+	return (Pu - Pd) / (2.0 );
+}
+
+double BarrierOptionRho(
+	long in0out1flag,			// 0 : Down And In, 1: Down And Out 
+	double S,					// 현재주가
+	double X,					// 행사가격
+	double H,					// 배리어
+	double T,					// 만기
+	double r_disc,				// 할인이자율
+	double r_ref,				// 레퍼이자율
+	double rho_fx,				// fx, rf 상관계수
+	double fxvol,				// fxvol
+	long DiscreteDivFlag,		// 이산배당Flag
+	double div,					// 배당수익률 또는 이산배당의 현재가치
+	double sig,
+	double (*funcs)(long, double, double, double, double, double, double, double, double, long, double, double)
+)
+{
+	double Pu, Pd;
+	Pu = funcs(in0out1flag, S, X, H, T, r_disc + 0.01, r_ref+0.01, rho_fx, fxvol, DiscreteDivFlag, div, sig);
+	Pd = funcs(in0out1flag, S, X, H, T, r_disc -0.01, r_ref-0.01, rho_fx, fxvol, DiscreteDivFlag, div, sig);
+	return (Pu - Pd) / (2.0);
+}
+
+double BarrierOptionTheta(
+	long in0out1flag,			// 0 : Down And In, 1: Down And Out 
+	double S,					// 현재주가
+	double X,					// 행사가격
+	double H,					// 배리어
+	double T,					// 만기
+	long n_rcv_disc,
+	double *rcv_disc_term,		
+	double *rcv_disc_rate,		// 할인이자율
+	
+	long n_rcv_ref,				
+	double *rcv_ref_term,	
+	double *rcv_ref_rate,		// 레퍼이자율
+	double rho_fx,				// fx, rf 상관계수
+	double fxvol,				// fxvol
+	long DiscreteDivFlag,		// 이산배당Flag
+	double div,					// 배당수익률 또는 이산배당의 현재가치
+	double sig,
+	double (*funcs)(long, double, double, double, double, double, double, double, double, long, double, double)
+)
+{
+	double T_u = T + 1.0 / 365.0;
+	double T_d = max(T - 1.0 / 365.0,0.00001);
+	double dT = 0.5 * (T_u - T_d);
+	double Pu, Pd;
+
+	double r_disc_Tu = Interpolate_Linear(rcv_disc_term, rcv_disc_rate, n_rcv_disc, T_u);
+	double r_disc_Td = Interpolate_Linear(rcv_disc_term, rcv_disc_rate, n_rcv_disc, T_d);
+
+	double r_ref_Tu = Interpolate_Linear(rcv_ref_term, rcv_ref_rate, n_rcv_ref, T_u);
+	double r_ref_Td = Interpolate_Linear(rcv_ref_term, rcv_ref_rate, n_rcv_ref, T_d);
+
+	Pu = funcs(in0out1flag, S, X, H, T_u, r_disc_Tu, r_ref_Tu, rho_fx, fxvol, DiscreteDivFlag, div, sig);
+	Pd = funcs(in0out1flag, S, X, H, T_d, r_disc_Td, r_ref_Td, rho_fx, fxvol, DiscreteDivFlag, div, sig);
+	return -(Pu - Pd) / (2.0);
+}
+
+long BSBarrierOption(
+	long TypeFlag,			// Option Type: 1이면 콜, 2이면 풋
+	double S0,				// 기초자산 현재가
+	double X,				// 행사가격
+	double H,				// 배리어
+	curveinfo* DiscCurve,	// 할인커브
+	curveinfo* RefCurve,	// 레퍼런스커브
+	curveinfo* DivCurve,	// 배당커브
+	double QuantoCorr,		// Quanto COrrelation
+	curveinfo* FXVolCurve,	// FXVol 커브
+	volinfo* VolMat,		// Vol 정보
+	long DivTypeFlag,		// Div 배당타입
+	double T_Ref,
+	double T_Pay,
+	double* ResultPrice,
+	long down0up1flag,
+	long in0out1flag
+)
+{
+	long i = 0;
+	long N;
+	double dvd;
+	double vol;
+	double fxvol;
+	double r, r_disc, Rf_Quanto, frate;
+	double Price, Delta, Gamma, Vega, Theta, Rho;
+
+	if (T_Ref <= 0.0) T_Ref = 0.00001;
+
+	double T_Mat_to_Pay = 0.0, r_Mat_to_Pay = 0.0, DF_Mat_to_Pay = 1.0;
+	if (T_Ref < T_Pay)
+	{
+		T_Mat_to_Pay = T_Pay - T_Ref;
+		r_Mat_to_Pay = Calc_Forward_Rate(DiscCurve->Term, DiscCurve->Rate, DiscCurve->nterm(), T_Ref, T_Pay);
+		DF_Mat_to_Pay = 1.0 / (1.0 + r_Mat_to_Pay * T_Mat_to_Pay);
+	}
+
+	if (DivTypeFlag == 0)
+	{
+		dvd = DivCurve->Rate[0];
+	}
+	else if (DivTypeFlag == 1)
+	{
+		dvd = DivCurve->Interpolated_Rate(T_Ref);
+	}
+	else if (DivTypeFlag == 2)
+	{
+		N = 0;
+		for (i = 0; i < DivCurve->nterm(); i++)
+		{
+			if (DivCurve->Term[i] > T_Ref) break;
+			N += 1;
+		}
+		dvd = 1.0 / T_Ref * Sumation(N, DivCurve->Rate) / S0;
+	}
+	vol = VolMat->Calc_Implied_Volatility(T_Ref, S0 / X);
+	fxvol = FXVolCurve->Interpolated_Rate(T_Ref);
+	r = RefCurve->Interpolated_Rate(T_Ref);
+	r_disc = DiscCurve->Interpolated_Rate(T_Ref);
+	Rf_Quanto = r - fxvol * vol * QuantoCorr;
+	// 
+	long DiscreteDivFlag = 0;
+	double discdivsum = 0.0;
+	if (DivTypeFlag == 2)
+	{
+		DiscreteDivFlag = 1;
+
+	}
+
+	if (TypeFlag == 1)
+	{
+		if (down0up1flag == 0)
+		{
+			Price = Call_Down(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol);
+			Delta = BarrierOptionDelta(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Call_Down);
+			Gamma = BarrierOptionGamma(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Call_Down);
+			Theta = BarrierOptionTheta(in0out1flag, S0, X, H, T_Ref, DiscCurve->nterm(), DiscCurve->Term, DiscCurve->Rate, RefCurve->nterm(), RefCurve->Term, RefCurve->Rate, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Call_Down);
+			Vega = BarrierOptionVega(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Call_Down);
+			Rho = BarrierOptionRho(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Call_Down);
+		}
+		else
+		{
+			Price = Call_Up(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol);
+			Delta = BarrierOptionDelta(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Call_Up);
+			Gamma = BarrierOptionGamma(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Call_Up);
+			Theta = BarrierOptionTheta(in0out1flag, S0, X, H, T_Ref, DiscCurve->nterm(), DiscCurve->Term, DiscCurve->Rate, RefCurve->nterm(), RefCurve->Term, RefCurve->Rate, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Call_Up);
+			Vega = BarrierOptionVega(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Call_Up);
+			Rho = BarrierOptionRho(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Call_Up);
+		}
+	}
+	else
+	{
+		if (down0up1flag == 0)
+		{
+			Price = Put_Down(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol);
+			Delta = BarrierOptionDelta(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Put_Down);
+			Gamma = BarrierOptionGamma(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Put_Down);
+			Theta = BarrierOptionTheta(in0out1flag, S0, X, H, T_Ref, DiscCurve->nterm(), DiscCurve->Term, DiscCurve->Rate, RefCurve->nterm(), RefCurve->Term, RefCurve->Rate, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Put_Down);
+			Vega = BarrierOptionVega(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Put_Down);
+			Rho = BarrierOptionRho(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Put_Down);
+		}
+		else
+		{
+			Price = Put_Up(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol);
+			Delta = BarrierOptionDelta(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Put_Up);
+			Gamma = BarrierOptionGamma(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Put_Up);
+			Theta = BarrierOptionTheta(in0out1flag, S0, X, H, T_Ref, DiscCurve->nterm(), DiscCurve->Term, DiscCurve->Rate, RefCurve->nterm(), RefCurve->Term, RefCurve->Rate, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Put_Up);
+			Vega = BarrierOptionVega(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Put_Up);
+			Rho = BarrierOptionRho(in0out1flag, S0, X, H, T_Ref, r_disc, r, QuantoCorr, fxvol, DiscreteDivFlag, dvd, vol, Put_Up);
+		}
+	}
+	ResultPrice[0] = Price * DF_Mat_to_Pay;
+	ResultPrice[1] = Delta;
+	ResultPrice[2] = Gamma;
+	ResultPrice[3] = Vega;
+	ResultPrice[4] = Theta;
+	ResultPrice[5] = Rho;
+	return 1;
+}
 
 long BSOption(
 	long TypeFlag,			// Option Type: 1이면 콜, 2이면 풋
@@ -534,9 +1124,9 @@ long AsianOptionSimul(
 	long i, j, k;
 	long NSimul = 10000;
 	double dt = 1.0 / 365.0;
+	randnorm(0);
 	double** FixedRandn = make_array_randn(NSimul, Days_CalcToMaturity + 10);
 	double OptPrice, OptPriceU, OptPriceD, Delta, Gamma, Vega, Theta, Rho;
-	randnorm(0);
 
 	if (GreekFlag == 0)
 	{
@@ -1184,7 +1774,8 @@ long PricingOption(
 
 	if (CallPut == 0) TypeFlag = 1;
 	else TypeFlag = 2;
-
+	long down0up1flag;
+	long in0out1flag;
 	if (OptionType == 0)
 	{
 		ResultCode = BSOption(TypeFlag,S0,X,&DiscCurve,	&RefCurve,
@@ -1214,6 +1805,43 @@ long PricingOption(
 			&VolMat, DivType, ImvolLocalVolFlag, Days_CalcToMeanStart, Days_CalcToMaturity,
 			T_CalcToPay, GreekFlag, ResultPrice);
 	}
+	else if (OptionType == 5)
+	{
+		// down and in
+		down0up1flag = 0;
+		in0out1flag = 0;
+		ResultCode = BSBarrierOption(TypeFlag, S0, X, MeanPrice , &DiscCurve, &RefCurve,
+			&DivCurve, QuantoCorr, &FXVolCurve, &VolMat, DivType,
+			T_CalcToMaturity, T_CalcToPay, ResultPrice, down0up1flag, in0out1flag);
+	}
+	else if (OptionType == 6)
+	{
+		// down and out
+		down0up1flag = 0;
+		in0out1flag = 1;
+		ResultCode = BSBarrierOption(TypeFlag, S0, X, MeanPrice, &DiscCurve, &RefCurve,
+			&DivCurve, QuantoCorr, &FXVolCurve, &VolMat, DivType,
+			T_CalcToMaturity, T_CalcToPay, ResultPrice, down0up1flag, in0out1flag);
+	}
+	else if (OptionType == 7)
+	{
+		// up and in
+		down0up1flag = 1;
+		in0out1flag = 0;
+		ResultCode = BSBarrierOption(TypeFlag, S0, X, MeanPrice, &DiscCurve, &RefCurve,
+			&DivCurve, QuantoCorr, &FXVolCurve, &VolMat, DivType,
+			T_CalcToMaturity, T_CalcToPay, ResultPrice, down0up1flag, in0out1flag);
+	}
+	else if (OptionType == 8)
+	{
+		// up and out
+		down0up1flag = 1;
+		in0out1flag = 1;
+		ResultCode = BSBarrierOption(TypeFlag, S0, X, MeanPrice, &DiscCurve, &RefCurve,
+			&DivCurve, QuantoCorr, &FXVolCurve, &VolMat, DivType,
+			T_CalcToMaturity, T_CalcToPay, ResultPrice, down0up1flag, in0out1flag);
+	}
+
 	k = 0;
 	for (i = 0 ; i < NParity; i++)
 		for (j = 0; j < NTermVol; j++)
@@ -1285,7 +1913,7 @@ long ErrorCheck_OPTIONPRICING_Excel(
 		return SaveErrorName(Error, ErrorName);
 	}
 
-	if (OptionType < 0 || OptionType > 4)
+	if (OptionType < 0 || OptionType > 8)
 	{
 		strcpy_s(ErrorName, "Check OptionType");
 		return SaveErrorName(Error, ErrorName);
@@ -1447,47 +2075,49 @@ long ErrorCheck_OPTIONPRICING_Excel(
 }
 
 DLLEXPORT(long) OPTIONPRICING_Excel(
-	long LongShort,
-	long CallPut,
-	long OptionType,
-	long CalcDateExl,
-	long MeanStartDateExl,
+	long LongShort,				// 매수0 매도1
+	long CallPut,				// 콜0 풋1
+	long OptionType,			// 0 바닐라 1디지털 2아시안 3아메리칸 4아메리칸디지털 5Down&In 6Down&Out 7Up&In 8Up&Out
+	long CalcDateExl,			// 계산일 엑셀날짜
+	long MeanStartDateExl,		// 평균시작일
 
-	long MaturityDateExl,
-	long PayDateExl,
-	long NRateDisc,
-	double* RateTermDisc,
-	double* RateDisc,
+	long MaturityDateExl,		// 만기일
+	long PayDateExl,			// 지급일
+	long NRateDisc,				// 할인커브개수
+	double* RateTermDisc,		// 할인커브Term
+	double* RateDisc,			// 할인커브Rate
 
-	long NRateRef,
-	double* RateTermRef,
-	double* RateRef,
-	double StockPrice,
-	double StrikePrice,
+	long NRateRef,				// 레퍼커브개수
+	double* RateTermRef,		// 레퍼커브Term
+	double* RateRef,			// 레퍼커브Rate
+	double StockPrice,			// 주식가격
+	double StrikePrice,			// 행사가격
 
-	double MeanPrice,
-	long DivType,
-	long NDiv,
-	double* DivTerm,
-	double* DivRate,
+	double MeanPrice,			// 아시안옵션의 경우 현재까지 평균가격 또는 배리어옵션의 경우 배리어레벨
+	long DivType,				// 배당타입
+	long NDiv,					// 배당개수
+	double* DivTerm,			// 배당Term Act/365로 입력
+	double* DivRate,			// 배당Rate, 이산배당의 경우 배당액
 
-	double QuantoCorr,
-	long NFXVol,
-	double* FXVolTerm,
-	double* FXVol,
-	long ImvolLocalVolFlag,
+	double QuantoCorr,			// 콴토상관계수
+	long NFXVol,				// FX Vol 개수
+	double* FXVolTerm,			// FX Vol Term
+	double* FXVol,				// FX Vol
+	long ImvolLocalVolFlag,		// 0: Imvol입력->Local vol계산, 1:LocalVol, 2:SImple Vol, 3:SABR Beta 1.0, 4:SABR Beta 0.5
 
-	long NParity,
-	double* Parity,
-	long NTermVol,
-	double* TermVol,
-	double* VolReshaped,
+	long NParity,				// Parity 개수
+	double* Parity,				// Parity(Moneyness)
+	long NTermVol,				// 입력 Vol 만기 개수
+	double* TermVol,			// 입력 Vol Term
+	double* VolReshaped,		// 입력 Vol Reshaped
 
-	long GreekFlag,
-	double* ResultPrice,
-	double* SABR_Params,
-	char* Error,
-	double* RMSPE
+	long GreekFlag,				// Greek산출
+	double* ResultPrice,		// 0 가격, 1 델타, 2감마, 3베가, 4세타, 5로
+	double* SABR_Params,		// 길이 : (입력 Vol 만기 개수) x 3 
+	char* Error,				
+	double* RMSPE,				// 길이 1 RMSPE
+
+	long TextFlag
 )
 {
 	long i, j;
@@ -1504,6 +2134,50 @@ DLLEXPORT(long) OPTIONPRICING_Excel(
 		GreekFlag, ResultPrice, Error);
 	if (ErrorCode < 0) return ErrorCode;
 	double SABRBeta = 1.0;
+
+	char CalcFunctionName[] = "OPTIONPRICING_Excel";
+	char SaveFileName[100];
+
+	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+	if (TextFlag == 1)
+	{
+		DumppingTextData(CalcFunctionName, SaveFileName, "Long0Short1", LongShort);
+		DumppingTextData(CalcFunctionName, SaveFileName, "Call0Put1", CallPut);
+		DumppingTextData(CalcFunctionName, SaveFileName, "OptionType", OptionType);
+		DumppingTextData(CalcFunctionName, SaveFileName, "CalcDateExl", CalcDateExl);
+		DumppingTextData(CalcFunctionName, SaveFileName, "MeanStartDateExl", MeanStartDateExl);
+		DumppingTextData(CalcFunctionName, SaveFileName, "MaturityDateExl", MaturityDateExl);
+		DumppingTextData(CalcFunctionName, SaveFileName, "PayDateExl", PayDateExl);
+
+		DumppingTextData(CalcFunctionName, SaveFileName, "NRateDisc", NRateDisc);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "RateTermDisc", NRateDisc, RateTermDisc);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "RateDisc", NRateDisc, RateDisc);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NRateRef", NRateRef);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "RateTermRef", NRateRef, RateTermRef);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "RateRef", NRateRef, RateRef);
+
+		DumppingTextData(CalcFunctionName, SaveFileName, "StockPrice", StockPrice);
+		DumppingTextData(CalcFunctionName, SaveFileName, "StrikePrice", StrikePrice);
+		DumppingTextData(CalcFunctionName, SaveFileName, "MeanPrice", MeanPrice);
+		DumppingTextData(CalcFunctionName, SaveFileName, "DivType", DivType);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NDiv", NDiv);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "DivTerm", NDiv, DivTerm);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "DivRate", NDiv, DivRate);
+		DumppingTextData(CalcFunctionName, SaveFileName, "QuantoCorr", QuantoCorr);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NFXVol", NFXVol);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "FXVolTerm", NFXVol, FXVolTerm);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "FXVol", NFXVol, FXVol);
+		DumppingTextData(CalcFunctionName, SaveFileName, "ImvolLocalVolFlag", ImvolLocalVolFlag);
+
+		DumppingTextData(CalcFunctionName, SaveFileName, "NParity", NParity);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "Parity", NParity, Parity);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NTermVol", NTermVol);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "TermVol", NTermVol, TermVol);
+		DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "Vol", NParity, NTermVol, VolReshaped);
+
+		DumppingTextData(CalcFunctionName, SaveFileName, "GreekFlag", GreekFlag);
+	}
+
 
 	if (ImvolLocalVolFlag == 3 || ImvolLocalVolFlag == 4)
 	{
