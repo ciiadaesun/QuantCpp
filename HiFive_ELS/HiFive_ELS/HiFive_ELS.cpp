@@ -5,20 +5,19 @@
 
 #include "CalcDate.h"
 #include "GetTextDump.h"
-#ifndef UTILITY
-#include "Util.h"
-#endif
-
-#ifndef STRUCTURE
-#include "Structure.h"
-#endif
 
 #ifndef NULL
 #define NULL 0
 #endif
 
 #include "SABR.h"
+#ifndef UTILITY
+#define UTILITY 1
+#endif
 
+#ifndef STRUCTURE
+#define STRUCTURE 1
+#endif
 
 #include <crtdbg.h>
 

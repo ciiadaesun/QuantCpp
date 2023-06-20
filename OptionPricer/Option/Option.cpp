@@ -4,11 +4,17 @@
 #include <string.h>
 
 #include "CalcDate.h"
-#include "Structure.h"
+
+#include "SABR.h"
 #ifndef UTILITY
 #include "Util.h"
+#define UTILITY 1
 #endif
-#include "SABR.h"
+
+#ifndef STRUCTURE
+#include "Structure.h"
+#define STRUCTURE 1
+#endif
 #include "GetTextDump.h"
 
 #include <crtdbg.h>

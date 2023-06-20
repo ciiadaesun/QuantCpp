@@ -243,7 +243,7 @@ double HW_Swaption(
     double d1, d2;
     double value;
 
-    if (kappa < Tiny_Value) kappa = Tiny_Value;
+    if (kappa < -0.002) kappa = -0.002;
 
     for (i = 0; i < nVol; i++) {
         if (Vol[i] < 0.0) Vol[i] = -Vol[i];
@@ -314,7 +314,7 @@ double HW_Swaption(
     double d1, d2;
     double value;
 
-    if (kappa < Tiny_Value) kappa = Tiny_Value;
+    if (kappa < -0.002) kappa = -0.002;
 
     for (i = 0; i < nVol; i++) {
         if (Vol[i] < 0.0) Vol[i] = -Vol[i];
@@ -375,7 +375,7 @@ double HW_Cap(
     double BP, u;
     double value;
 
-    if (kappa < Tiny_Value) kappa = Tiny_Value;
+    if (kappa < -0.002) kappa = -0.002;
 
     for (i = 0; i < nVol; i++) {
         if (Vol[i] < 0.0) Vol[i] = -Vol[i];
@@ -432,7 +432,7 @@ double HW_Cap(
     double BP, u;
     double value;
 
-    if (kappa < Tiny_Value) kappa = Tiny_Value;
+    if (kappa < -0.002) kappa = -0.002;
 
     for (i = 0; i < nVol; i++) {
         if (Vol[i] < 0.0) Vol[i] = -Vol[i];
@@ -477,7 +477,8 @@ double BS_Swaption(
     long NTerm,
     double T_Option,
     double Tenor,
-    double FreqMonth
+    double FreqMonth,
+    long VolFlag
 )
 {
     long i;
@@ -497,11 +498,21 @@ double BS_Swaption(
         Ti = T_Option + Tenor - (double)i * dT;
         Annuity += dT * Calc_Discount_Factor(Term, Rate, NTerm, Ti);
     }
+    double value;
 
-    d1 = (log(ForwardSwapRate / StrikePrice) + 0.5 * Vol * Vol * T_Option) / (Vol * sqrt(T_Option));
-    d2 = d1 - Vol * sqrt(T_Option);
+    if (VolFlag == 0)
+    {
+        d1 = (log(ForwardSwapRate / StrikePrice) + 0.5 * Vol * Vol * T_Option) / (Vol * sqrt(T_Option));
+        d2 = d1 - Vol * sqrt(T_Option);
 
-    double value = Annuity * (ForwardSwapRate * CDF_N(d1) - StrikePrice * CDF_N(d2));
+        value = Annuity * (ForwardSwapRate * CDF_N(d1) - StrikePrice * CDF_N(d2));
+    }
+    else
+    {
+        d1 = (ForwardSwapRate - StrikePrice) / (Vol * sqrt(T_Option));
+
+        value = Annuity * ((ForwardSwapRate - StrikePrice) * CDF_N(d1) + Vol * sqrt(T_Option) * (exp(-d1 * d1 / 2.0) / 2.506628274631));
+    }
     return NA * value;
 }
 
@@ -514,7 +525,8 @@ double BS_Cap(
     double StrikeRate,    // 행사금리
     double Swaption_Mat,        // 입력: 각 스왑션(캡)의 만기(연환산) 
     double Swap_Mat,            // 입력: 각 스왑션(캡)의 기초자산(스왑) 만기(연환산)
-    double Swap_Period        // 입력: 각 스왑션의 기초자산인 스왑(캡) 지급 주기(월환산)
+    double Swap_Period,        // 입력: 각 스왑션의 기초자산인 스왑(캡) 지급 주기(월환산)
+    long VolFlag
 )
 {
     long i;
@@ -543,10 +555,18 @@ double BS_Cap(
             if (F > StrikeRate) value = delta * Disc * (F - StrikeRate);
         }
         else {
-            d1 = (log(F / StrikeRate) + 0.5 * Vol * Vol * PrevT) / (Vol * sqrt(PrevT));
-            d2 = d1 - Vol * sqrt(PrevT);
+            if (VolFlag == 0)
+            {
+                d1 = (log(F / StrikeRate) + 0.5 * Vol * Vol * PrevT) / (Vol * sqrt(PrevT));
+                d2 = d1 - Vol * sqrt(PrevT);
 
-            value += delta * Disc * (F * CDF_N(d1) - StrikeRate * CDF_N(d2));
+                value += delta * Disc * (F * CDF_N(d1) - StrikeRate * CDF_N(d2));
+            }
+            else
+            {
+                d1 = (F - StrikeRate) / (Vol * sqrt(PrevT));
+                value += delta * Disc * (F - StrikeRate * CDF_N(d1) + Vol * sqrt(PrevT) * exp(-d1 * d1 / 2.0) / 2.50662874631);
+            }
         }
 
         PrevT = T;
@@ -1199,7 +1219,8 @@ long Calibration(
     double Fixed_Kappa,
     double* tHW_Vol,            // 입력: HW 변동성 기간 구조 시점
     double* HW_Vol,            // 입력/결과: HW 변동성
-    long nHW_Vol                // 입력: HW 변동성 기간 구조 개수
+    long nHW_Vol,                // 입력: HW 변동성 기간 구조 개수
+    long lognormalvol0normalvol1
 
 )
 {
@@ -1220,19 +1241,19 @@ long Calibration(
     for (i = 0; i < nSwaption; i++) {
 
         if (Swaption_Mat[i] > 0.0) {
-            Swaption_Price[i] = BS_Swaption(Notional_Amount, Swaption_Vol[i], Strike_Rate[i], t, r, nr, Swaption_Mat[i], Swap_Mat[i], Swap_Period[i]);
+            Swaption_Price[i] = BS_Swaption(Notional_Amount, Swaption_Vol[i], Strike_Rate[i], t, r, nr, Swaption_Mat[i], Swap_Mat[i], Swap_Period[i], lognormalvol0normalvol1);
 
         }
         else {
             Swaption_Price[i] = BS_Cap(Notional_Amount, Swaption_Vol[i], t, r, nr,
-                Strike_Rate[i], Swaption_Mat[i], Swap_Mat[i], Swap_Period[i]);
+                Strike_Rate[i], Swaption_Mat[i], Swap_Mat[i], Swap_Period[i], lognormalvol0normalvol1);
         }
 
     }
 
 
     for (i = 0; i < nCap; i++) {
-        Cap_Price[i] = BS_Cap(Notional_Amount, Cap_Vol[i], t, r, nr, Cap_Strike[i], 0.0, Cap_Mat[i], Cap_Tenor[i]);
+        Cap_Price[i] = BS_Cap(Notional_Amount, Cap_Vol[i], t, r, nr, Cap_Strike[i], 0.0, Cap_Mat[i], Cap_Tenor[i], lognormalvol0normalvol1);
 
     }
 
@@ -1465,7 +1486,8 @@ DLLEXPORT(long) HW_Calibration_ATM(
     double* HW_Vol,                // 입력/결과: HW 변동성
     long nHW_Vol,                // 입력: HW 변동성 기간 구조 개수
 
-    char* Error
+    char* Error,
+    long lognormalvol0normalvol1
 )
 {
 
@@ -1511,7 +1533,7 @@ DLLEXPORT(long) HW_Calibration_ATM(
     if (Result > 0)
     {
         Result = Calibration(t, r, nr, CaliFlag, Swaption_Mat, Swap_Mat, Swap_Rate, Swap_Period, Swaption_Vol, nSwaption, Cap_Mat, Cap_Tenor, Cap_Strike, Cap_Vol, nCap,
-            HW_Kappa, HW_Kappa_Flag, Fixed_Kappa, tHW_Vol, HW_Vol, nHW_Vol);
+            HW_Kappa, HW_Kappa_Flag, Fixed_Kappa, tHW_Vol, HW_Vol, nHW_Vol, lognormalvol0normalvol1);
     }
 
     if (Cap_Tenor) free(Cap_Tenor);
@@ -2543,7 +2565,8 @@ long HW_GradDecent_Calibration_SwaptionCap(
     double* HWVol,
     double& kappa,
     long FixedKappaFlag,
-    double FixedKappa
+    double FixedKappa,
+    long lognormalvol0normalvol1
 )
 {
     long i;
@@ -2575,12 +2598,12 @@ long HW_GradDecent_Calibration_SwaptionCap(
     for (k = 0; k < NSwap * NOpt; k++)
     {
         Strike[k] = FSR(ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth);
-        BSSwaptionPrice[k] = BS_Swaption(1.0, SwaptionVol[k], Strike[k], ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth);
+        BSSwaptionPrice[k] = BS_Swaption(1.0, SwaptionVol[k], Strike[k], ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth, lognormalvol0normalvol1);
     }
     for (k = NSwap * NOpt; k < NSwap * NOpt + NCap; k++)
     {
         Strike[k] = FSR(ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonthCap);
-        BSSwaptionPrice[k] = BS_Cap(1.0, CapVol[k - NSwap * NOpt], ZeroTerm, ZeroRate, NZero, Strike[k], TermOptNew[k], TermSwapNew[k], FreqMonthCap);
+        BSSwaptionPrice[k] = BS_Cap(1.0, CapVol[k - NSwap * NOpt], ZeroTerm, ZeroRate, NZero, Strike[k], TermOptNew[k], TermSwapNew[k], FreqMonthCap, lognormalvol0normalvol1);
     }
 
     long* OptMaturityDates = (long*)malloc(sizeof(long) * (NSwap * NOpt + NCap));
@@ -2692,7 +2715,8 @@ long HW_LevMarq_Calibration_SwaptionCap(
     double* HWVol,
     double& kappa,
     long FixedKappaFlag,
-    double FixedKappa
+    double FixedKappa,
+    long lognormalvol0normalvol1
 )
 {
     long i;
@@ -2716,10 +2740,10 @@ long HW_LevMarq_Calibration_SwaptionCap(
     for (k = 0; k < NSwap * NOpt + NCap; k++)
     {
         Strike[k] = FSR(ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth);
-        if (TermOptNew[k] > 0.0) BSSwaptionPrice[k] = BS_Swaption(1.0, SwaptionVol[k], Strike[k], ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth);
+        if (TermOptNew[k] > 0.0) BSSwaptionPrice[k] = BS_Swaption(1.0, SwaptionVol[k], Strike[k], ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth, lognormalvol0normalvol1);
         else
         {
-            BSSwaptionPrice[k] = BS_Cap(1.0, CapVol[n], ZeroTerm, ZeroRate, NZero, Strike[k], TermOptNew[k], CapTerm[n], FreqMonth);
+            BSSwaptionPrice[k] = BS_Cap(1.0, CapVol[n], ZeroTerm, ZeroRate, NZero, Strike[k], TermOptNew[k], CapTerm[n], FreqMonth, lognormalvol0normalvol1);
             n++;
         }
     }
@@ -2825,7 +2849,8 @@ long HW_LevMarq_Calibration_Swaption(
     double* HWVol,
     double& kappa,
     long FixedKappaFlag,
-    double FixedKappa
+    double FixedKappa,
+    long lognormalvol0normalvol1
 )
 {
     long i;
@@ -2846,7 +2871,7 @@ long HW_LevMarq_Calibration_Swaption(
     for (k = 0; k < NSwap * NOpt; k++)
     {
         Strike[k] = FSR(ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth);
-        BSSwaptionPrice[k] = BS_Swaption(1.0, SwaptionVol[k], Strike[k], ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth);
+        BSSwaptionPrice[k] = BS_Swaption(1.0, SwaptionVol[k], Strike[k], ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth, lognormalvol0normalvol1);
     }
 
     long* OptMaturityDates = (long*)malloc(sizeof(long) * NOpt * NSwap);
@@ -2954,7 +2979,8 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration(
     double* HWVol_initial,
     double* initial_kappa,
     long FixedKappaFlag,
-    double FixedKappa
+    double FixedKappa,
+    long lognormalvol0normalvol1
 )
 {
     long i;
@@ -2975,7 +3001,7 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration(
         for (i = 0; i < NHW; i++) HWVol[i] = max(0.001, HWVol_initial[i]);
         ResultCode = HW_LevMarq_Calibration_Swaption(NZero, ZeroTerm, ZeroRate,
             NOpt, TermOpt, NSwap, TermSwap, SwaptionVol, Strike, FreqMonthSwaption,
-            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa);
+            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa, lognormalvol0normalvol1);
         for (i = 0; i < NHW; i++)
         {
             HWTerm_initial[i] = HWTerm[i];
@@ -3003,7 +3029,7 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration(
         ResultCode = HW_GradDecent_Calibration_SwaptionCap(NZero, ZeroTerm, ZeroRate,
             NOpt, TermOpt, NSwap, TermSwap, SwaptionVol, Strike,
             NCap, TermCap, CapVol, FreqMonthCap, FreqMonthCap,
-            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa);
+            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa, lognormalvol0normalvol1);
         for (i = 0; i < NHW; i++)
         {
             HWTerm_initial[i] = HWTerm[i];
@@ -3027,7 +3053,7 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration(
         for (i = 0; i < NHW; i++) HWVol[i] = max(0.001, HWVol_initial[i]);
         ResultCode = HW_LevMarq_Calibration_SwaptionCap(NZero, ZeroTerm, ZeroRate,
             NOpt, TermOpt, NSwap, TermSwap, SwaptionVol, Strike, FreqMonthSwaption, NCap, TermCap, CapVol,
-            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa);
+            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa, lognormalvol0normalvol1);
         for (i = 0; i < NHW; i++)
         {
             HWTerm_initial[i] = HWTerm[i];
@@ -3599,7 +3625,8 @@ DLLEXPORT(long) HWCapHWSwaption_2FCalibration(
     double* initial_kappa2,
     long FixedKappaFlag,
     double FixedKappa,
-    double  FixedKappa2
+    double  FixedKappa2,
+    long lognormalvol0normalvol1
 )
 {
     long i;
@@ -3620,7 +3647,7 @@ DLLEXPORT(long) HWCapHWSwaption_2FCalibration(
         for (i = 0; i < NHW; i++) HWVol[i] = max(0.001, HWVol_initial[i]);
         ResultCode = HW_LevMarq_Calibration_Swaption(NZero, ZeroTerm, ZeroRate,
             NOpt, TermOpt, NSwap, TermSwap, SwaptionVol, Strike, FreqMonthSwaption,
-            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa);
+            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa, lognormalvol0normalvol1);
         for (i = 0; i < NHW; i++)
         {
             HWTerm_initial[i] = HWTerm[i];
@@ -3647,7 +3674,7 @@ DLLEXPORT(long) HWCapHWSwaption_2FCalibration(
         ResultCode = HW_GradDecent_Calibration_SwaptionCap(NZero, ZeroTerm, ZeroRate,
             NOpt, TermOpt, NSwap, TermSwap, SwaptionVol, Strike,
             NCap, TermCap, CapVol, FreqMonthSwaption, FreqMonthCap,
-            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa);
+            NHW, HWTerm, HWVol, kappa, FixedKappaFlag, FixedKappa, lognormalvol0normalvol1);
         for (i = 0; i < NHW; i++)
         {
             HWTerm_initial[i] = HWTerm[i];
@@ -4317,7 +4344,8 @@ long HW2F_LevMarq_Calibration_SwaptionCap(
     double rho,
     long FixedKappaFlag,
     double FixedKappa,
-    double FixedKappa2
+    double FixedKappa2,
+    long lognormalvol0normalvol1
 )
 {
     long i;
@@ -4341,10 +4369,10 @@ long HW2F_LevMarq_Calibration_SwaptionCap(
     for (k = 0; k < NSwap * NOpt + NCap; k++)
     {
         Strike[k] = FSR(ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth);
-        if (TermOptNew[k] > 0.0) BSSwaptionPrice[k] = BS_Swaption(1.0, SwaptionVol[k], Strike[k], ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth);
+        if (TermOptNew[k] > 0.0) BSSwaptionPrice[k] = BS_Swaption(1.0, SwaptionVol[k], Strike[k], ZeroTerm, ZeroRate, NZero, TermOptNew[k], TermSwapNew[k], FreqMonth, lognormalvol0normalvol1);
         else
         {
-            BSSwaptionPrice[k] = BS_Cap(1.0, CapVol[n], ZeroTerm, ZeroRate, NZero, Strike[k], TermOptNew[k], TermCap[n], FreqMonth);
+            BSSwaptionPrice[k] = BS_Cap(1.0, CapVol[n], ZeroTerm, ZeroRate, NZero, Strike[k], TermOptNew[k], TermCap[n], FreqMonth, lognormalvol0normalvol1);
             n++;
         }
     }
@@ -4499,7 +4527,8 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration2F(
     long FixedKappaFlag,
     double FixedKappa,
     double FixedKappa2,
-    double rho
+    double rho,
+    long lognormalvol0normalvol1
 )
 {
     long i;
@@ -4537,7 +4566,7 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration2F(
             NHW, HWTerm, HWVol, HWVol2,
             kappa, kappa2, rho,
             FixedKappaFlag,
-            FixedKappa, FixedKappa2);
+            FixedKappa, FixedKappa2, lognormalvol0normalvol1);
 
         for (i = 0; i < NHW; i++)
         {
@@ -4574,7 +4603,7 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration2F(
             NHW, HWTerm, HWVol, HWVol2,
             kappa, kappa2, rho,
             FixedKappaFlag,
-            FixedKappa, FixedKappa2);
+            FixedKappa, FixedKappa2, lognormalvol0normalvol1);
 
         for (i = 0; i < NHW; i++)
         {
@@ -4615,7 +4644,7 @@ DLLEXPORT(long) HWCapHWSwaptionCalibration2F(
             NHW, HWTerm, HWVol, HWVol2,
             kappa, kappa2, rho,
             FixedKappaFlag,
-            FixedKappa, FixedKappa2);
+            FixedKappa, FixedKappa2, lognormalvol0normalvol1);
 
         for (i = 0; i < NHW; i++)
         {

@@ -4,3 +4,4 @@ EXPORTS
 	ExcelDateToCDate          @2
 	Excel_HiFive_ELS_MC     @3
 	Excel_HiFive_VaR		@4
+	Excel_SABR_Vol			@5

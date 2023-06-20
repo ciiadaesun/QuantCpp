@@ -4,10 +4,44 @@
 
 #ifndef UTILITY
 #include "Util.h"
+#define UTILITY 1
 #endif
 
+#ifndef STRUCTURE
 #include "Structure.h"
-#include <crtdbg.h>
+#define STRUCTURE 1
+#endif
+
+double Linterp(double* x, double* fx, long nx, double targetx)
+{
+	long i;
+	double result = 0.0;
+	if (nx == 1 || targetx == x[0]) return fx[0];
+	else if (targetx == x[nx - 1])return fx[nx - 1];
+
+
+	if (targetx <= x[0])
+	{
+		return fx[0];
+	}
+	else if (targetx >= x[nx - 1])
+	{
+		return fx[nx - 1];
+	}
+	else
+	{
+		for (i = 1; i < nx; i++)
+		{
+			if (targetx < x[i])
+			{
+				result = (fx[i] - fx[i - 1]) / (x[i] - x[i - 1]) * (targetx - x[i - 1]) + fx[i - 1];
+				break;
+			}
+		}
+		return result;
+	}
+}
+
 double SABRIV(double alpha, double beta, double v, double rho, double Fut, double K, double T)
 {
 	long i;
@@ -77,10 +111,6 @@ void make_Jacov_SABR(
 	{
 		for (j = 0; j < NParams; j++)
 		{
-			if (i == 80)
-			{
-				temp = 0;
-			}
 
 			for (n = 0; n < NParams; n++)
 			{
@@ -117,7 +147,7 @@ void make_Jacov_SABR(
 				ParamsUp[j] = Params[j] + dparam_up;
 				ParamsDn[j] = Params[j] - dparam_up;
 			}
-			Futures = Interpolate_Linear(TermFuturesArray, FuturesArray, NTermFutures, TermVolNew[i]);
+			Futures = Linterp(TermFuturesArray, FuturesArray, NTermFutures, TermVolNew[i]);
 			Pup = SABRIV(Beta, ParamsUp, Futures, ParityVolNew[i], TermVolNew[i]);
 			ErrorUp = VolNew[i] - Pup;
 			Pdn = SABRIV(Beta, ParamsDn, Futures, ParityVolNew[i], TermVolNew[i]);
@@ -149,7 +179,7 @@ void make_Residual_SABR(
 	double Futures = 1.0;
 	for (i = 0; i < NResidual; i++)
 	{
-		Futures = Interpolate_Linear(TermFuturesArray, FuturesArray, NTermFutures, TermVolNew[i]);
+		Futures = Linterp(TermFuturesArray, FuturesArray, NTermFutures, TermVolNew[i]);
 		SABRVolNew[i] = SABRIV( Beta, Params, Futures, ParityVolNew[i], TermVolNew[i]);
 	}
 	for (i = 0; i < NResidual; i++) ResidualArray[i] = VolNew[i] - SABRVolNew[i];
@@ -375,8 +405,8 @@ long SABR_Vol(
 	double* FuturesArray = (double*)malloc(sizeof(double) * NTermFutures);
 	for (i = 0; i < NTermFutures; i++)
 	{
-		r = Interpolate_Linear(RfTerm, RfRate, N_Rf, TermFuturesArray[i]);
-		d = Interpolate_Linear(DivTerm, DivRate, N_Div, TermFuturesArray[i]);
+		r = Linterp(RfTerm, RfRate, N_Rf, TermFuturesArray[i]);
+		d = Linterp(DivTerm, DivRate, N_Div, TermFuturesArray[i]);
 		FuturesArray[i] = exp(r - d);
 		Futures[i] = FuturesArray[i];
 	}
