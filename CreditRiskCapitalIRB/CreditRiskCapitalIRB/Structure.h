@@ -45,18 +45,15 @@ public:
 
 	void initialize(long length_term, double* termarray, double* ratearray)
 	{
-		if ((!Term) && (!Rate))
+		long i;
+		dynamicflag = 1;
+		N_Term = length_term;
+		Term = (double*)malloc(sizeof(double) * length_term);
+		Rate = (double*)malloc(sizeof(double) * length_term);
+		for (i = 0; i < length_term; i++)
 		{
-			long i;
-			dynamicflag = 1;
-			N_Term = length_term;
-			Term = (double*)malloc(sizeof(double) * length_term);
-			Rate = (double*)malloc(sizeof(double) * length_term);
-			for (i = 0; i < length_term; i++)
-			{
-				Term[i] = termarray[i];
-				Rate[i] = ratearray[i];
-			}
+			Term[i] = termarray[i];
+			Rate[i] = ratearray[i];
 		}
 	}
 
@@ -241,28 +238,25 @@ public:
 
 	void hardcopyUp(long length_parity, double* parityarray, long length_term, double* termarray, double* reshapedvol, double percentpoint)
 	{
-		if ((!Term) && (!Parity))
+		long i, j, k;
+		dynamicflag = 2;
+		N_Parity = length_parity;
+		N_Term = length_term;
+		Term = (double*)malloc(sizeof(double) * N_Term);
+		for (i = 0; i < N_Term; i++) Term[i] = termarray[i];
+
+		Parity = (double*)malloc(sizeof(double) * N_Parity);
+		for (i = 0; i < N_Parity; i++) Parity[i] = parityarray[i];
+
+		Vol_Matrix = (double**)malloc(sizeof(double*) * N_Parity);
+		k = 0;
+		for (i = 0; i < N_Parity; i++)
 		{
-			long i, j, k;
-			dynamicflag = 2;
-			N_Parity = length_parity;
-			N_Term = length_term;
-			Term = (double*)malloc(sizeof(double) * N_Term);
-			for (i = 0; i < N_Term; i++) Term[i] = termarray[i];
-
-			Parity = (double*)malloc(sizeof(double) * N_Parity);
-			for (i = 0; i < N_Parity; i++) Parity[i] = parityarray[i];
-
-			Vol_Matrix = (double**)malloc(sizeof(double*) * N_Parity);
-			k = 0;
-			for (i = 0; i < N_Parity; i++)
+			Vol_Matrix[i] = (double*)malloc(sizeof(double) * N_Term);
+			for (j = 0; j < N_Term; j++)
 			{
-				Vol_Matrix[i] = (double*)malloc(sizeof(double) * N_Term);
-				for (j = 0; j < N_Term; j++)
-				{
-					Vol_Matrix[i][j] = max(0.0001, reshapedvol[k] + percentpoint);
-					k++;
-				}
+				Vol_Matrix[i][j] = max(0.0001, reshapedvol[k] + percentpoint);
+				k++;
 			}
 		}
 	}
