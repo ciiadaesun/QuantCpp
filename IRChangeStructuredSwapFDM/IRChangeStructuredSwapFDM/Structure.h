@@ -14,6 +14,10 @@
 #define STRUCTURE 1
 #endif
 
+#ifndef NULL
+#define NULL 0
+#endif
+
 double dw_over_dt(double** w, long n_parity, long n_term, long p, long q, double dt);
 double dw_over_dy(double** w, long n_parity, long n_term, long p, long q, double* k, double dk);
 double dwdw_over_dydy(double** w, long n_parity, long n_term, long p, long q, double* k, double dk);
@@ -27,16 +31,21 @@ void fillna_Interpolate(double** Matrix, long N_Index, long N_Column);
 class curveinfo {
 private:
 	long N_Term;
-	long dynamicflag; // Implied vol dynamic flag 0: 할당되지 않음  1: 완전 Copy 할당
 public:
+	long dynamicflag; // Implied vol dynamic flag 0: 할당되지 않음  1: 완전 Copy 할당
 	double* Term;
 	double* Rate;
 
-	curveinfo() { dynamicflag = 0; }
+	curveinfo() 
+	{ 
+		dynamicflag = 0; 
+		Term = NULL;
+		Rate = NULL;
+	}
 
 	void initialize(long length_term, double* termarray, double* ratearray)
 	{
-		if (dynamicflag == 0)
+		if ((!Term) && (!Rate))
 		{
 			long i;
 			dynamicflag = 1;
@@ -61,8 +70,8 @@ public:
 	{
 		if (dynamicflag != 0)
 		{
-			free(Term);
-			free(Rate);
+			if (Term) free(Term);
+			if (Rate) free(Rate);
 		}
 	}
 
@@ -77,18 +86,15 @@ public:
 		double result = 0.0;
 		if (dynamicflag != 0)
 		{
-			if (N_Term == 1 || targetx == Term[0])
-				return Rate[0];
-			else if (targetx == Term[N_Term - 1])
-				return Rate[N_Term - 1];
+			if (N_Term == 1 || targetx == Term[0]) return Rate[0];
+			else if (targetx == Term[N_Term - 1]) return Rate[N_Term - 1];
 
-
-			if (targetx < Term[0])
+			if (targetx <= Term[0])
 			{
 				if (extrapolateflag == 0) return Rate[0];
 				else return (Rate[1] - Rate[0]) / (Term[1] - Term[0]) * (targetx - Term[0]) + Rate[0];
 			}
-			else if (targetx > Term[N_Term - 1])
+			else if (targetx >= Term[N_Term - 1])
 			{
 				if (extrapolateflag == 0) return Rate[N_Term - 1];
 				else return (Rate[N_Term - 1] - Rate[N_Term - 2]) / (Term[N_Term - 1] - Term[N_Term - 2]) * (targetx - Term[N_Term - 1]) + Rate[N_Term - 1];
@@ -133,10 +139,10 @@ class volinfo {
 private:
 	long N_Parity;
 	long N_Term;
-	long dynamicflag;          // Implied vol dynamic flag 0: 할당되지 않음 1:포인터 위치로 할당 2: 완전 Copy
-	long localvol_dynamicflag; // local vol dynamic flag 0: 계산되지 않음 1:계산되어 할당됨
 
 public:
+	long dynamicflag;          // Implied vol dynamic flag 0: 할당되지 않음 1:포인터 위치로 할당 2: 완전 Copy
+	long localvol_dynamicflag; // local vol dynamic flag 0: 계산되지 않음 1:계산되어 할당됨
 	double** Vol_Matrix;       //ImpliedVolatily
 	double** LocalVolMat;      //LocalVolatility
 	double* Term;
@@ -181,6 +187,12 @@ public:
 	{
 		dynamicflag = 0;
 		localvol_dynamicflag = 0;
+		Vol_Matrix = NULL;
+		LocalVolMat = NULL;
+		Term = NULL;
+		Parity = NULL;
+		Term_Locvol = NULL;
+		Parity_Locvol = NULL;
 	}
 
 	// 포인터로 할당
@@ -209,15 +221,11 @@ public:
 		N_Parity = length_parity;
 		N_Term = length_term;
 		Term = (double*)malloc(sizeof(double) * N_Term);
-		for (i = 0; i < N_Term; i++)
-		{
-			Term[i] = termarray[i];
-		}
+		for (i = 0; i < N_Term; i++) Term[i] = termarray[i];
+
 		Parity = (double*)malloc(sizeof(double) * N_Parity);
-		for (i = 0; i < N_Parity; i++)
-		{
-			Parity[i] = parityarray[i];
-		}
+		for (i = 0; i < N_Parity; i++) Parity[i] = parityarray[i];
+
 		Vol_Matrix = (double**)malloc(sizeof(double*) * N_Parity);
 		k = 0;
 		for (i = 0; i < N_Parity; i++)
@@ -233,22 +241,18 @@ public:
 
 	void hardcopyUp(long length_parity, double* parityarray, long length_term, double* termarray, double* reshapedvol, double percentpoint)
 	{
-		if (dynamicflag == 0)
+		if ((!Term) && (!Parity))
 		{
 			long i, j, k;
 			dynamicflag = 2;
 			N_Parity = length_parity;
 			N_Term = length_term;
 			Term = (double*)malloc(sizeof(double) * N_Term);
-			for (i = 0; i < N_Term; i++)
-			{
-				Term[i] = termarray[i];
-			}
+			for (i = 0; i < N_Term; i++) Term[i] = termarray[i];
+
 			Parity = (double*)malloc(sizeof(double) * N_Parity);
-			for (i = 0; i < N_Parity; i++)
-			{
-				Parity[i] = parityarray[i];
-			}
+			for (i = 0; i < N_Parity; i++) Parity[i] = parityarray[i];
+
 			Vol_Matrix = (double**)malloc(sizeof(double*) * N_Parity);
 			k = 0;
 			for (i = 0; i < N_Parity; i++)
@@ -652,10 +656,8 @@ public:
 					A = v * v + 2.0 * v * T * (dv_dt + (Rf - Div) * K * dv_dk);
 					B = (1.0 + K * d_1 * dv_dk * sqrt(T)) * (1.0 + K * d_1 * dv_dk * sqrt(T)) + v * K * K * T * (dvdv_dkdk - d_1 * dv_dk * dv_dk * sqrt(T));
 					LocVar = A / B;
-					if (LocVar > 0)
-						LocalVolMat[i][j] = max(min(sqrt(LocVar), MAXVOL), MINVOL);
-					else
-						LocalVolMat[i][j] = -9999999.99;
+					if (LocVar > 0.) LocalVolMat[i][j] = max(min(sqrt(LocVar), MAXVOL), MINVOL);
+					else LocalVolMat[i][j] = -9999999.99;
 				}
 			}
 

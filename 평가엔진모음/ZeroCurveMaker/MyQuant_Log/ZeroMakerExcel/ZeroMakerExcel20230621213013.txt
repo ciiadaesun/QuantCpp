@@ -1,0 +1,40 @@
+PriceDate_Excel : 44630
+MarketDataFlag : 0
+NShortTerm : 7
+ShortTerm_Maturity_Excel : 44631, 44665, 44722, 44814, 44905, 44995, 45179
+ShortTerm_Rate : 0.038630, 0.043400, 0.059050, 0.073050, 0.080050, 0.085350, 0.088500
+ShortTerm_OneYConvention : 360, 360, 360, 360, 360, 360, 360
+NForward : 0
+ForwardStart_Excel : 
+ForwardEnd_Excel : 
+ForwardPayDate_Excel : 
+ForwardRate : 
+Forward_OneYConvention : 
+NSwap : 9
+SwapMaturity_Excel : 45361, 45726, 46091, 46456, 46822, 47187, 47552, 47917, 48283
+SwapPayDate_Excel : 45361, 45726, 46091, 46456, 46822, 47187, 47552, 47917, 48283
+NCPN_Ann : 4, 4, 4, 4, 4, 4, 4, 4, 4
+SwapRate : 0.084050, 0.083350, 0.082600, 0.081800, 0.081850, 0.081998, 0.081300, 0.082100, 0.082349
+Swap_OneYConvention_Fix : 360, 360, 360, 360, 360, 360, 360, 360, 360
+InterpFlag : 0
+CaliFlag : 1
+PriceDate_Excel : 44630
+MarketDataFlag : 0
+NShortTerm : 7
+ShortTerm_Maturity_Excel : 44631, 44665, 44722, 44814, 44905, 44995, 45179
+ShortTerm_Rate : 0.038630, 0.043400, 0.059050, 0.073050, 0.080050, 0.085350, 0.088500
+ShortTerm_OneYConvention : 360, 360, 360, 360, 360, 360, 360
+NForward : 0
+ForwardStart_Excel : 
+ForwardEnd_Excel : 
+ForwardPayDate_Excel : 
+ForwardRate : 
+Forward_OneYConvention : 
+NSwap : 9
+SwapMaturity_Excel : 45361, 45726, 46091, 46456, 46822, 47187, 47552, 47917, 48283
+SwapPayDate_Excel : 45361, 45726, 46091, 46456, 46822, 47187, 47552, 47917, 48283
+NCPN_Ann : 4, 4, 4, 4, 4, 4, 4, 4, 4
+SwapRate : 0.084050, 0.083350, 0.082600, 0.081800, 0.081850, 0.081998, 0.081300, 0.082100, 0.082349
+Swap_OneYConvention_Fix : 360, 360, 360, 360, 360, 360, 360, 360, 360
+InterpFlag : 0
+CaliFlag : 1

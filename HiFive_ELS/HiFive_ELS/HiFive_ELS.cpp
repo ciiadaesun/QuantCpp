@@ -1605,7 +1605,7 @@ long Preprocessing_HiFive_MC_Excel(
 	}
 
 	double* CF = (double*)calloc((NEvaluate + 2 + NLizard), sizeof(double));			// 14
-
+	
 	long pricingonly = 1;
 	if (GreekFlag == 0) pricingonly = 1;
 	else pricingonly = 0;
