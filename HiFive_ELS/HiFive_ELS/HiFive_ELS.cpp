@@ -1541,9 +1541,9 @@ long Preprocessing_HiFive_MC_Excel(
 
 	curveinfo disc_curve(N_TermDisc, TermDisc, RateDisc);   // Discount Curve Setting
 
-	curveinfo* rf_curves = new curveinfo[NStock];           // RiskFree Curve Setting
-	curveinfo* div_curves = new curveinfo[NStock];          // Dividend Setting
-	curveinfo* quanto_curves = new curveinfo[NStock];       // Quanto Setting 
+	curveinfo* rf_curves = (curveinfo*)malloc(sizeof(curveinfo) * NStock);//new curveinfo[NStock];           // RiskFree Curve Setting
+	curveinfo* div_curves = (curveinfo*)malloc(sizeof(curveinfo) * NStock);// new curveinfo[NStock];          // Dividend Setting
+	curveinfo* quanto_curves = (curveinfo*)malloc(sizeof(curveinfo) * NStock);// new curveinfo[NStock];       // Quanto Setting 
 
 	nterm_rf = 0;
 	nterm_div = 0;
@@ -1564,7 +1564,7 @@ long Preprocessing_HiFive_MC_Excel(
 	// Imvol, LocalVol Setting
 	//////////////////////////
 
-	volinfo* VolMatrixList = new volinfo[NStock];
+	volinfo* VolMatrixList = (volinfo*)malloc(sizeof(volinfo) * NStock); // new volinfo[NStock];
 	double* Parity_AfterAdj;
 	nterm_vol = 0;
 	nparity = 0;
@@ -1628,10 +1628,10 @@ long Preprocessing_HiFive_MC_Excel(
 	free(SortedStrike);
 	free(StrikeIdx);
 
-	delete[] rf_curves;
-	delete[] div_curves;
-	delete[] quanto_curves;
-	delete[] VolMatrixList;
+	if (rf_curves) free(rf_curves);
+	if (div_curves) free(div_curves);
+	if (quanto_curves) free(quanto_curves);
+	if (VolMatrixList) free(VolMatrixList);
 
 	free(Days_Autocall_Eval);
 	free(Days_Autocall_Pay);
@@ -2447,9 +2447,9 @@ double Preprocessing_HiFiVe_VaR(
 
 	curveinfo disc_curve(N_TermDisc, TermDisc, RateDisc);   // Discount Curve Setting		
 
-	curveinfo* rf_curves = new curveinfo[NStock];           // RiskFree Curve Setting		//클래스 할당1
-	curveinfo* div_curves = new curveinfo[NStock];          // Dividend Setting				//클래스 할당2
-	curveinfo* quanto_curves = new curveinfo[NStock];       // Quanto Setting				//클래스 할당3
+	curveinfo* rf_curves = (curveinfo*)malloc(sizeof(curveinfo) * NStock);//new curveinfo[NStock];           // RiskFree Curve Setting
+	curveinfo* div_curves = (curveinfo*)malloc(sizeof(curveinfo) * NStock);// new curveinfo[NStock];          // Dividend Setting
+	curveinfo* quanto_curves = (curveinfo*)malloc(sizeof(curveinfo) * NStock);// new curveinfo[NStock];       // Quanto Setting 
 
 	long nterm_rf = 0;
 	long nterm_div = 0;
@@ -2470,7 +2470,7 @@ double Preprocessing_HiFiVe_VaR(
 	// Imvol, LocalVol Setting
 	//////////////////////////
 
-	volinfo* VolMatrixList = new volinfo[NStock];											// 클래스 할당4
+	volinfo* VolMatrixList = (volinfo*)malloc(sizeof(volinfo) * NStock); // new volinfo[NStock];
 
 	long nterm_vol = 0;
 	long nparity = 0;
@@ -2519,10 +2519,10 @@ double Preprocessing_HiFiVe_VaR(
 			quanto_curves, VolMatrixList, ResultPrice, pricingonly, AutocallProb + Evaluation_Idx, CF + Evaluation_Idx, CPNProb);
 	}
 
-	delete[] rf_curves;
-	delete[] div_curves;
-	delete[] quanto_curves;
-	delete[] VolMatrixList;
+	if (rf_curves) free(rf_curves);
+	if (div_curves) free(div_curves);
+	if (quanto_curves) free(quanto_curves);
+	if (VolMatrixList) free(VolMatrixList);
 
 	free(AdjStrike);				// 1
 	free(AdjSlope);					// 2

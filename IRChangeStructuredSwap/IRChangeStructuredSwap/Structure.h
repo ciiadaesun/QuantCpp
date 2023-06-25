@@ -18,14 +18,236 @@
 #define NULL 0
 #endif
 
-double dw_over_dt(double** w, long n_parity, long n_term, long p, long q, double dt);
-double dw_over_dy(double** w, long n_parity, long n_term, long p, long q, double* k, double dk);
-double dwdw_over_dydy(double** w, long n_parity, long n_term, long p, long q, double* k, double dk);
-double d1(double S, double K, double T, double r, double div, double Vol);
-double dImvol_over_dK(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dK);
-double dImvoldImvol_over_dKdK(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dK);
-double dImvol_over_dT(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dT);
-void fillna_Interpolate(double** Matrix, long N_Index, long N_Column);
+double dw_over_dt(double** w, long n_parity, long n_term, long p, long q, double dt)
+{
+	double w_t;
+	if (q == 0)
+	{
+		w_t = (w[p][q + 1] - w[p][q]) / dt;   // Forward Diff
+	}
+	else if (q == n_term - 1)
+	{
+		w_t = (w[p][q] - w[p][q - 1]) / dt;   // Backward Diff
+	}
+	else
+	{
+		w_t = (w[p][q + 1] - w[p][q - 1]) / (2.0 * dt);  // Central Diff
+	}
+	return w_t;
+}
+
+double dw_over_dy(double** w, long n_parity, long n_term, long p, long q, double* k, double dk)
+{
+	double w_y;
+	if (p == 0)
+	{
+		w_y = (w[p + 1][q] - w[p][q]) / (dk)*k[p];   // Forward Diff
+	}
+	else if (p == n_parity - 1)
+	{
+		w_y = (w[p][q] - w[p - 1][q]) / (dk)*k[p];  // Backward Diff
+	}
+	else
+	{
+		w_y = (w[p + 1][q] - w[p - 1][q]) / (2.0 * dk) * k[p]; // Central Diff
+	}
+	return w_y;
+}
+
+double dwdw_over_dydy(double** w, long n_parity, long n_term, long p, long q, double* k, double dk)
+{
+	double w_yy;
+	if (p == 0)
+	{
+		w_yy = (w[p + 2][q] + w[p][q] - 2.0 * w[p + 1][q]) / (dk * dk) * k[p + 1] * k[p + 1]; // 다음 노드의 감마를 대체로 사용
+	}
+	else if (p == n_parity - 1)
+	{
+		w_yy = (w[p][q] + w[p - 2][q] - 2.0 * w[p - 1][q]) / (dk * dk) * k[p - 1] * k[p - 1]; // 이전 노드의 감마를 대체로 사용
+	}
+	else
+	{
+		w_yy = (w[p + 1][q] + w[p - 1][q] - 2.0 * w[p][q]) / (dk * dk) * k[p] * k[p];
+	}
+	return w_yy;
+}
+
+// Matrix 안의 NaN값을 Interpolate한다.
+// [0.5,   -999.99,     -999.99,  0.52]      [0.5,    0.51,       0.515,    0.52]
+// [0.43,  -999.99,     0.43,     0.43]   >> [0.43,   0.39,       0.43,     0.43]
+// [0.20,  -999.99,     0.22,     0.21]      [0.20,   0.27,       0.22,     0.21]
+// [0.15,  -999.99,     0.15,     0.16]      [0.15,   0.15,       0.15,     0.16]
+void fillna_Interpolate(double** Matrix, long N_Index, long N_Column)
+{
+	long i, j;
+	long idx_i1;
+	long idx_i2;
+	long idx_j1;
+	long idx_j2;
+	double value;
+	double value0;
+	double value00;
+	double value01;
+	double value1;
+	double value10;
+	double value11;
+	for (i = 0; i < N_Index; i++)
+		for (j = 0; j < N_Column; j++)
+			if (Matrix[i][j] < 0.0)
+			{
+				value0 = 0.0;
+				value00 = 0.0;
+				value01 = 0.0;
+				value1 = 0.0;
+				value10 = 0.0;
+				value11 = 0.0;
+				idx_i1 = i;
+				idx_i2 = i;
+				idx_j1 = j;
+				idx_j2 = j;
+				for (idx_i1 = i; idx_i1 >= 0; idx_i1--)
+				{
+					if (Matrix[idx_i1][j] > 0.0)
+					{
+						value0 = Matrix[idx_i1][j];
+						break;
+					}
+				}
+
+				if (idx_i1 < 0)
+				{
+					idx_i1 = 0;
+					for (idx_j1 = j; idx_j1 >= 0; idx_j1--)
+					{
+						if (Matrix[idx_i1][idx_j1] > 0.0)
+						{
+							value00 = Matrix[idx_i1][idx_j1];
+							break;
+						}
+					}
+
+					for (idx_j2 = j; idx_j2 < N_Column; idx_j2++)
+					{
+						if (Matrix[idx_i1][idx_j2] > 0.0)
+						{
+							value01 = Matrix[idx_i1][idx_j2];
+							break;
+						}
+					}
+					value0 = 0.5 * value00 + 0.5 * value01;
+				}
+
+				for (idx_i2 = i; idx_i2 < N_Index; idx_i2++)
+				{
+					if (Matrix[idx_i2][j] > 0.0)
+					{
+						value1 = Matrix[idx_i2][j];
+						break;
+					}
+				}
+
+				if (idx_i2 == N_Index)
+				{
+					idx_i2 = N_Index - 1;
+					for (idx_j1 = j; idx_j1 >= 0; idx_j1--)
+					{
+						if (Matrix[idx_i2][idx_j1] > 0.0)
+						{
+							value10 = Matrix[idx_i2][idx_j1];
+							break;
+						}
+					}
+
+					for (idx_j2 = j; idx_j2 < N_Column; idx_j2++)
+					{
+						if (Matrix[idx_i2][idx_j2] > 0.0)
+						{
+							value11 = Matrix[idx_i2][idx_j2];
+							break;
+						}
+					}
+
+					value1 = value10 * 0.5 + value11 * 0.5;
+				}
+				if (idx_i2 != idx_i1)
+				{
+					value = (value1 - value0) / ((double)idx_i2 - (double)idx_i1) * ((double)i - (double)idx_i1) + value0;
+				}
+				else
+				{
+					value = -99999.99;
+				}
+				Matrix[i][j] = value;
+
+			}
+}
+
+double d1(double S, double K, double T, double r, double div, double Vol)
+{
+	double d1;
+	d1 = (log(S / K) + (r - div + 0.5 * Vol * Vol) * T) / (Vol * sqrt(T));
+	return d1;
+}
+
+double dImvol_over_dK(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dK)
+{
+	double dImvol;
+	if (idx_parity == 0)
+	{
+		dImvol = ImVol[1][idx_term] - ImVol[0][idx_term];
+		return dImvol / dK;
+	}
+	else if (idx_parity == NParity - 1)
+	{
+		dImvol = ImVol[NParity - 1][idx_term] - ImVol[NParity - 2][idx_term];
+		return dImvol / dK;
+	}
+	else
+	{
+		dImvol = ImVol[idx_parity + 1][idx_term] - ImVol[idx_parity - 1][idx_term];
+		return dImvol / (2.0 * dK);
+	}
+}
+
+double dImvoldImvol_over_dKdK(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dK)
+{
+	double dImvoldImvol;
+	if (idx_parity == 0)
+	{
+		dImvoldImvol = ImVol[2][idx_term] + ImVol[0][idx_term] - 2.0 * ImVol[1][idx_term];
+		return dImvoldImvol / (dK * dK);
+	}
+	else if (idx_parity == NParity - 1)
+	{
+		dImvoldImvol = ImVol[NParity - 1][idx_term] + ImVol[NParity - 3][idx_term] - 2.0 * ImVol[NParity - 2][idx_term];
+		return dImvoldImvol / (dK * dK);
+	}
+	else
+	{
+		dImvoldImvol = ImVol[idx_parity + 1][idx_term] + ImVol[idx_parity - 1][idx_term] - 2.0 * ImVol[idx_parity][idx_term];
+		return dImvoldImvol / (dK * dK);
+	}
+}
+
+double dImvol_over_dT(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dT)
+{
+	double dImvol;
+	if (idx_term == 0)
+	{
+		dImvol = ImVol[idx_parity][1] - ImVol[idx_parity][0];
+		return dImvol / dT;
+	}
+	else if (idx_term == NTerm - 1)
+	{
+		dImvol = ImVol[idx_parity][NTerm - 1] - ImVol[idx_parity][NTerm - 2];
+		return dImvol / dT;
+	}
+	else
+	{
+		dImvol = ImVol[idx_parity][idx_term + 1] - ImVol[idx_parity][idx_term - 1];
+		return dImvol / (2.0 * dT);
+	}
+}
 
 //커브정보
 class curveinfo {
@@ -696,233 +918,3 @@ public:
 	}
 };
 
-double dw_over_dt(double** w, long n_parity, long n_term, long p, long q, double dt)
-{
-	double w_t;
-	if (q == 0)
-	{
-		w_t = (w[p][q + 1] - w[p][q]) / dt;   // Forward Diff
-	}
-	else if (q == n_term - 1)
-	{
-		w_t = (w[p][q] - w[p][q - 1]) / dt;   // Backward Diff
-	}
-	else
-	{
-		w_t = (w[p][q + 1] - w[p][q - 1]) / (2.0 * dt);  // Central Diff
-	}
-	return w_t;
-}
-
-double dw_over_dy(double** w, long n_parity, long n_term, long p, long q, double* k, double dk)
-{
-	double w_y;
-	if (p == 0)
-	{
-		w_y = (w[p + 1][q] - w[p][q]) / (dk)*k[p];   // Forward Diff
-	}
-	else if (p == n_parity - 1)
-	{
-		w_y = (w[p][q] - w[p - 1][q]) / (dk)*k[p];  // Backward Diff
-	}
-	else
-	{
-		w_y = (w[p + 1][q] - w[p - 1][q]) / (2.0 * dk) * k[p]; // Central Diff
-	}
-	return w_y;
-}
-
-double dwdw_over_dydy(double** w, long n_parity, long n_term, long p, long q, double* k, double dk)
-{
-	double w_yy;
-	if (p == 0)
-	{
-		w_yy = (w[p + 2][q] + w[p][q] - 2.0 * w[p + 1][q]) / (dk * dk) * k[p + 1] * k[p + 1]; // 다음 노드의 감마를 대체로 사용
-	}
-	else if (p == n_parity - 1)
-	{
-		w_yy = (w[p][q] + w[p - 2][q] - 2.0 * w[p - 1][q]) / (dk * dk) * k[p - 1] * k[p - 1]; // 이전 노드의 감마를 대체로 사용
-	}
-	else
-	{
-		w_yy = (w[p + 1][q] + w[p - 1][q] - 2.0 * w[p][q]) / (dk * dk) * k[p] * k[p];
-	}
-	return w_yy;
-}
-
-// Matrix 안의 NaN값을 Interpolate한다.
-// [0.5,   -999.99,     -999.99,  0.52]      [0.5,    0.51,       0.515,    0.52]
-// [0.43,  -999.99,     0.43,     0.43]   >> [0.43,   0.39,       0.43,     0.43]
-// [0.20,  -999.99,     0.22,     0.21]      [0.20,   0.27,       0.22,     0.21]
-// [0.15,  -999.99,     0.15,     0.16]      [0.15,   0.15,       0.15,     0.16]
-void fillna_Interpolate(double** Matrix, long N_Index, long N_Column)
-{
-	long i, j;
-	long idx_i1;
-	long idx_i2;
-	long idx_j1;
-	long idx_j2;
-	double value;
-	double value0;
-	double value00;
-	double value01;
-	double value1;
-	double value10;
-	double value11;
-	for (i = 0; i < N_Index; i++)
-		for (j = 0; j < N_Column; j++)
-			if (Matrix[i][j] < 0.0)
-			{
-				value0 = 0.0;
-				value00 = 0.0;
-				value01 = 0.0;
-				value1 = 0.0;
-				value10 = 0.0;
-				value11 = 0.0;
-				idx_i1 = i;
-				idx_i2 = i;
-				idx_j1 = j;
-				idx_j2 = j;
-				for (idx_i1 = i; idx_i1 >= 0; idx_i1--)
-				{
-					if (Matrix[idx_i1][j] > 0.0)
-					{
-						value0 = Matrix[idx_i1][j];
-						break;
-					}
-				}
-
-				if (idx_i1 < 0)
-				{
-					idx_i1 = 0;
-					for (idx_j1 = j; idx_j1 >= 0; idx_j1--)
-					{
-						if (Matrix[idx_i1][idx_j1] > 0.0)
-						{
-							value00 = Matrix[idx_i1][idx_j1];
-							break;
-						}
-					}
-
-					for (idx_j2 = j; idx_j2 < N_Column; idx_j2++)
-					{
-						if (Matrix[idx_i1][idx_j2] > 0.0)
-						{
-							value01 = Matrix[idx_i1][idx_j2];
-							break;
-						}
-					}
-					value0 = 0.5 * value00 + 0.5 * value01;
-				}
-
-				for (idx_i2 = i; idx_i2 < N_Index; idx_i2++)
-				{
-					if (Matrix[idx_i2][j] > 0.0)
-					{
-						value1 = Matrix[idx_i2][j];
-						break;
-					}
-				}
-
-				if (idx_i2 == N_Index)
-				{
-					idx_i2 = N_Index - 1;
-					for (idx_j1 = j; idx_j1 >= 0; idx_j1--)
-					{
-						if (Matrix[idx_i2][idx_j1] > 0.0)
-						{
-							value10 = Matrix[idx_i2][idx_j1];
-							break;
-						}
-					}
-
-					for (idx_j2 = j; idx_j2 < N_Column; idx_j2++)
-					{
-						if (Matrix[idx_i2][idx_j2] > 0.0)
-						{
-							value11 = Matrix[idx_i2][idx_j2];
-							break;
-						}
-					}
-
-					value1 = value10 * 0.5 + value11 * 0.5;
-				}
-				if (idx_i2 != idx_i1)
-				{
-					value = (value1 - value0) / ((double)idx_i2 - (double)idx_i1) * ((double)i - (double)idx_i1) + value0;
-				}
-				else
-				{
-					value = -99999.99;
-				}
-				Matrix[i][j] = value;
-
-			}
-}
-
-double d1(double S, double K, double T, double r, double div, double Vol)
-{
-	double d1;
-	d1 = (log(S / K) + (r - div + 0.5 * Vol * Vol) * T) / (Vol * sqrt(T));
-	return d1;
-}
-
-double dImvol_over_dK(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dK)
-{
-	double dImvol;
-	if (idx_parity == 0)
-	{
-		dImvol = ImVol[1][idx_term] - ImVol[0][idx_term];
-		return dImvol / dK;
-	}
-	else if (idx_parity == NParity - 1)
-	{
-		dImvol = ImVol[NParity - 1][idx_term] - ImVol[NParity - 2][idx_term];
-		return dImvol / dK;
-	}
-	else
-	{
-		dImvol = ImVol[idx_parity + 1][idx_term] - ImVol[idx_parity - 1][idx_term];
-		return dImvol / (2.0 * dK);
-	}
-}
-
-double dImvoldImvol_over_dKdK(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dK)
-{
-	double dImvoldImvol;
-	if (idx_parity == 0)
-	{
-		dImvoldImvol = ImVol[2][idx_term] + ImVol[0][idx_term] - 2.0 * ImVol[1][idx_term];
-		return dImvoldImvol / (dK * dK);
-	}
-	else if (idx_parity == NParity - 1)
-	{
-		dImvoldImvol = ImVol[NParity - 1][idx_term] + ImVol[NParity - 3][idx_term] - 2.0 * ImVol[NParity - 2][idx_term];
-		return dImvoldImvol / (dK * dK);
-	}
-	else
-	{
-		dImvoldImvol = ImVol[idx_parity + 1][idx_term] + ImVol[idx_parity - 1][idx_term] - 2.0 * ImVol[idx_parity][idx_term];
-		return dImvoldImvol / (dK * dK);
-	}
-}
-
-double dImvol_over_dT(double** ImVol, long NParity, long NTerm, long idx_parity, long idx_term, double dT)
-{
-	double dImvol;
-	if (idx_term == 0)
-	{
-		dImvol = ImVol[idx_parity][1] - ImVol[idx_parity][0];
-		return dImvol / dT;
-	}
-	else if (idx_term == NTerm - 1)
-	{
-		dImvol = ImVol[idx_parity][NTerm - 1] - ImVol[idx_parity][NTerm - 2];
-		return dImvol / dT;
-	}
-	else
-	{
-		dImvol = ImVol[idx_parity][idx_term + 1] - ImVol[idx_parity][idx_term - 1];
-		return dImvol / (2.0 * dT);
-	}
-}

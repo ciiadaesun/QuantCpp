@@ -19,14 +19,14 @@ C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(239,10): warning C4101: 'j
 C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(239,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(331,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(331,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(564,31): warning C4101: 'frate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(967,30): warning C4101: 'T_Simul_To_Maturity' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(1353,29): warning C4101: 'T2' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(1359,14): warning C4101: 'Rf_Quanto' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(1350,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(1351,7): warning C4101: 'idx' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(1359,25): warning C4101: 'r' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(2129,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(2129,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(797,31): warning C4101: 'frate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(1200,30): warning C4101: 'T_Simul_To_Maturity' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(1586,29): warning C4101: 'T2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(1592,14): warning C4101: 'Rf_Quanto' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(1583,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(1584,7): warning C4101: 'idx' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(1592,25): warning C4101: 'r' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(2362,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\Option.cpp(2362,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
      C:\Users\ciiad\github5\OptionPricer\Debug\Option.lib 라이브러리 및 C:\Users\ciiad\github5\OptionPricer\Debug\Option.exp 개체를 생성하고 있습니다.
   Option.vcxproj -> C:\Users\ciiad\github5\OptionPricer\Debug\Option.dll
