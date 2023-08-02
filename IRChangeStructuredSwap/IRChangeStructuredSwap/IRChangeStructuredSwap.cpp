@@ -10,7 +10,9 @@
 #include "Util.h"
 #endif
 
+#ifndef DateFunction
 #include "CalcDate.h"
+#endif 
 #include "Structure.h"
 #include <crtdbg.h>
 

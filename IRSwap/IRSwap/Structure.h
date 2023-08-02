@@ -21,54 +21,30 @@
 double dw_over_dt(double** w, long n_parity, long n_term, long p, long q, double dt)
 {
 	double w_t;
-	if (q == 0)
-	{
-		w_t = (w[p][q + 1] - w[p][q]) / dt;   // Forward Diff
-	}
-	else if (q == n_term - 1)
-	{
-		w_t = (w[p][q] - w[p][q - 1]) / dt;   // Backward Diff
-	}
-	else
-	{
-		w_t = (w[p][q + 1] - w[p][q - 1]) / (2.0 * dt);  // Central Diff
-	}
+	if (q == 0) w_t = (w[p][q + 1] - w[p][q]) / dt;   // Forward Diff
+	else if (q == n_term - 1) w_t = (w[p][q] - w[p][q - 1]) / dt;   // Backward Diff
+	else w_t = (w[p][q + 1] - w[p][q - 1]) / (2.0 * dt);  // Central Diff
+
 	return w_t;
 }
 
 double dw_over_dy(double** w, long n_parity, long n_term, long p, long q, double* k, double dk)
 {
 	double w_y;
-	if (p == 0)
-	{
-		w_y = (w[p + 1][q] - w[p][q]) / (dk)*k[p];   // Forward Diff
-	}
-	else if (p == n_parity - 1)
-	{
-		w_y = (w[p][q] - w[p - 1][q]) / (dk)*k[p];  // Backward Diff
-	}
-	else
-	{
-		w_y = (w[p + 1][q] - w[p - 1][q]) / (2.0 * dk) * k[p]; // Central Diff
-	}
+	if (p == 0)	w_y = (w[p + 1][q] - w[p][q]) / (dk)*k[p];   // Forward Diff
+	else if (p == n_parity - 1) w_y = (w[p][q] - w[p - 1][q]) / (dk)*k[p];  // Backward Diff
+	else w_y = (w[p + 1][q] - w[p - 1][q]) / (2.0 * dk) * k[p]; // Central Diff
+
 	return w_y;
 }
 
 double dwdw_over_dydy(double** w, long n_parity, long n_term, long p, long q, double* k, double dk)
 {
 	double w_yy;
-	if (p == 0)
-	{
-		w_yy = (w[p + 2][q] + w[p][q] - 2.0 * w[p + 1][q]) / (dk * dk) * k[p + 1] * k[p + 1]; // 다음 노드의 감마를 대체로 사용
-	}
-	else if (p == n_parity - 1)
-	{
-		w_yy = (w[p][q] + w[p - 2][q] - 2.0 * w[p - 1][q]) / (dk * dk) * k[p - 1] * k[p - 1]; // 이전 노드의 감마를 대체로 사용
-	}
-	else
-	{
-		w_yy = (w[p + 1][q] + w[p - 1][q] - 2.0 * w[p][q]) / (dk * dk) * k[p] * k[p];
-	}
+	if (p == 0) w_yy = (w[p + 2][q] + w[p][q] - 2.0 * w[p + 1][q]) / (dk * dk) * k[p + 1] * k[p + 1]; // 다음 노드의 감마를 대체로 사용
+	else if (p == n_parity - 1) w_yy = (w[p][q] + w[p - 2][q] - 2.0 * w[p - 1][q]) / (dk * dk) * k[p - 1] * k[p - 1]; // 이전 노드의 감마를 대체로 사용
+	else w_yy = (w[p + 1][q] + w[p - 1][q] - 2.0 * w[p][q]) / (dk * dk) * k[p] * k[p];
+
 	return w_yy;
 }
 
@@ -92,7 +68,9 @@ void fillna_Interpolate(double** Matrix, long N_Index, long N_Column)
 	double value10;
 	double value11;
 	for (i = 0; i < N_Index; i++)
+	{
 		for (j = 0; j < N_Column; j++)
+		{
 			if (Matrix[i][j] < 0.0)
 			{
 				value0 = 0.0;
@@ -169,17 +147,15 @@ void fillna_Interpolate(double** Matrix, long N_Index, long N_Column)
 
 					value1 = value10 * 0.5 + value11 * 0.5;
 				}
-				if (idx_i2 != idx_i1)
-				{
-					value = (value1 - value0) / ((double)idx_i2 - (double)idx_i1) * ((double)i - (double)idx_i1) + value0;
-				}
-				else
-				{
-					value = -99999.99;
-				}
+
+				if (idx_i2 != idx_i1) value = (value1 - value0) / ((double)idx_i2 - (double)idx_i1) * ((double)i - (double)idx_i1) + value0;
+				else value = -99999.99;
+
 				Matrix[i][j] = value;
 
 			}
+		}
+	}
 }
 
 double d1(double S, double K, double T, double r, double div, double Vol)

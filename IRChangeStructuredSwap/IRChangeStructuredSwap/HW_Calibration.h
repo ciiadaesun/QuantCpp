@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "Util.h"
-
+#include "CalcDate.h"
 #include <crtdbg.h>
 
 
@@ -565,7 +565,7 @@ double BS_Cap(
             else
             {
                 d1 = (F - StrikeRate) / (Vol * sqrt(PrevT));
-                value += delta * Disc * (F - StrikeRate * CDF_N(d1) + Vol * sqrt(PrevT) * exp(-d1 * d1 / 2.0) / 2.50662874631);
+                value += delta * Disc * ((F - StrikeRate) * CDF_N(d1) + Vol * sqrt(PrevT) * exp(-d1 * d1 / 2.0) / 2.50662874631);
             }
         }
 

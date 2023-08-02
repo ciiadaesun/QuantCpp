@@ -4133,3 +4133,34 @@ double gammq(double a, double x)
 }
 
 double erffc(double x) { return x < 0.0 ? 1.0 + gammp(0.5, x * x) : gammq(0.5, x * x); }
+
+// 파생관련 간이 계산
+DLLEXPORT(double) Calc_Current_FXForward(double Spot, double T, long NDomestic, double* DomesticTerm, double* DomesticRate, long NForeign, double* ForeignTerm, double* ForeignRate)
+{
+	double r_d = Interpolate_Linear(DomesticTerm, DomesticRate, NDomestic, T);
+	double r_f = Interpolate_Linear(ForeignTerm, ForeignRate, NForeign, T);
+	double DF_d = exp(-r_d * T);
+	double DF_f = exp(-r_f * T);
+	return Spot * DF_f / DF_d;
+}
+
+DLLEXPORT(double) Calc_Value_FXForward(double K, double Spot, double T, long NDomestic, double* DomesticTerm, double* DomesticRate, long NForeign, double* ForeignTerm, double* ForeignRate, long long0short1)
+{
+	double r_d = Interpolate_Linear(DomesticTerm, DomesticRate, NDomestic, T);
+	double DF_d = exp(-r_d * T);
+	double P = (Calc_Current_FXForward(Spot, T, NDomestic, DomesticTerm, DomesticRate, NForeign, ForeignTerm, ForeignRate) - K) * DF_d;
+	if (long0short1 == 0) return P;
+	else return -P;
+}
+
+DLLEXPORT(double) Calc_Value_FXSwap(double K1, double K2, double Spot, double T1, double T2, 
+									long NDomestic, double* DomesticTerm, double* DomesticRate, long NForeign, double* ForeignTerm, 
+									double* ForeignRate, long long0short1)
+{
+	double v_F_t1 = Calc_Value_FXForward(K1, Spot, T1, NDomestic, DomesticTerm, DomesticRate, NForeign, ForeignTerm, ForeignRate, 0);
+	double v_F_t2 = Calc_Value_FXForward(K2, Spot, T2, NDomestic, DomesticTerm, DomesticRate, NForeign, ForeignTerm, ForeignRate, 0);
+	double P = v_F_t1 - v_F_t2;
+	if (long0short1 == 0) return P;
+	else return -P;
+}
+
