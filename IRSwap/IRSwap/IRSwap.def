@@ -7,3 +7,4 @@ EXPORTS
 	ResultCpnMapping			@004
 	Number_Holiday				@005
 	Mapping_Holiday_ExcelType	@006
+	Mapping_Holiday_CType		@007
