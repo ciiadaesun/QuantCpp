@@ -726,7 +726,7 @@ DLLEXPORT(long) ResultCpnMappingCDate(
 
 			if (NBDayFromEndDate == 0)
 			{
-				ResultPayDate[i] = ExcelDateToCDate(ResultForwardEnd[i]);
+				ResultPayDate[i] = ResultForwardEnd[i];
 			}
 			else
 			{
@@ -864,6 +864,7 @@ double InflationLeg(
 		T_EstStart = DayCountAtoB(PriceDateInflation, EstStartDate[i]) / 365.0;
 		T_EstEnd = DayCountAtoB(PriceDateInflation, EstEndDate[i]) / 365.0;
 
+		// 이자율 추정시작
 		if (StartDateInfla[i] != 0) T_EstRateStart = DayCountAtoB(PriceDate, StartDateInfla[i]) / 365.0;
 		if (EndDateInfla[i] != 0) T_EstRateEnd = DayCountAtoB(PriceDate, EndDateInfla[i]) / 365.0;
 
@@ -1307,6 +1308,10 @@ DLLEXPORT(long) InflationCurveGenerate(
 	double CurrentCPI,					// 현재 CPI(PriceDateInflation)
 	long InflationLaggingMonth,			// Inflation Lagging Month
 
+	long NZeroRate,
+	double* ZeroTerm,
+	double* ZeroRate,
+
 	double* ResultCurveCPI,				// Length = NZC + NYOY
 	double* ResultCurveRate,			// Length = NZC + NYOY
 	double* ResultCurveTerm				// Length = NZC + NYOY
@@ -1342,10 +1347,21 @@ DLLEXPORT(long) InflationCurveGenerate(
 	double MinRate;
 	double TargetRate;
 	double tau, t;
-
-	long NZeroRate = 1;
-	double ZeroRateTermTemp[1] = { 1.0 };
-	double ZeroRateTemp[1] = { 0.01 };
+	double* ZeroRateTermTemp;
+	double* ZeroRateTemp;
+	if (NZeroRate == 0)
+	{
+		NZeroRate = 1;
+		double ZeroRateTermTemp2[1] = { 1.0 };
+		double ZeroRateTemp2[1] = { 0.01 };
+		ZeroRateTermTemp = ZeroRateTermTemp2;
+		ZeroRateTemp = ZeroRateTemp2;
+	}
+	else
+	{
+		ZeroRateTermTemp = ZeroTerm; 
+		ZeroRateTemp = ZeroRate;
+	}
 
 	long* InflationZC_Maturity = (long*)malloc(sizeof(long) * NInflationZC);						// 할당 1 InflationZC_Maturity
 	for (i = 0; i < NInflationZC; i++) InflationZC_Maturity[i] = EDate_Cpp(InflationZC_StartDate[i], InflationZC_ToMaturity_Month[i]);
@@ -1451,7 +1467,7 @@ DLLEXPORT(long) InflationCurveGenerate(
 			if (CpnFrac == 1) CPI_T = CPI_0 * pow(1.0 + InflationZC_Quote_Rate[i], deltat);
 			else CPI_T = CPI_0 * (1.0 + InflationZC_Quote_Rate[i] * deltat);
 
-			TEND = DayCountAtoB(PriceDate, ResultForwardEndDateZC_Flo[i][0]) / 365.0;
+			TEND = DayCountAtoB(PriceDateInflation, ResultForwardEndDateZC_Flo[i][0]) / 365.0;
 			r_zc_infla = 1.0 / TEND * log(CPI_T / CurrentCPI);
 
 			ResultCurveCPI[i] = CPI_T;
@@ -1610,8 +1626,8 @@ DLLEXPORT(long) InflationCurveGenerate(
 			free(Term);
 
 			ResultCurveRate[k] = TargetRate;
-			ResultCurveTerm[k] = tau / 365.0;
-			ResultCurveCPI[k] = CurrentCPI*exp(TargetRate * tau / 365.0);
+			ResultCurveTerm[k] = (double)(DayCountAtoB(PriceDateInflation, ResultForwardEndDateYOY_Flo[i][max(0, NumberofCpn_Swap[i] - 1)])) / 365.0;
+			ResultCurveCPI[k] = CurrentCPI*exp(TargetRate * ResultCurveTerm[k]);
 
 			k++;
 		}

@@ -9,8 +9,8 @@ C:\Users\ciiad\github5\InflationSwap\InflationSwap\InflationSwap\CalcDate.h(1466
 C:\Users\ciiad\github5\InflationSwap\InflationSwap\InflationSwap\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\InflationSwap\InflationSwap\InflationSwap\InflationSwap.cpp(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\InflationSwap\InflationSwap\InflationSwap\InflationSwap.cpp(43,7): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\InflationSwap\InflationSwap\InflationSwap\InflationSwap.cpp(1020,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\InflationSwap\InflationSwap\InflationSwap\InflationSwap.cpp(1384,7): warning C4101: 'EstStart' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\InflationSwap\InflationSwap\InflationSwap\InflationSwap.cpp(1384,17): warning C4101: 'EstEnd' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\InflationSwap\InflationSwap\InflationSwap\InflationSwap.cpp(1021,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\InflationSwap\InflationSwap\InflationSwap\InflationSwap.cpp(1400,7): warning C4101: 'EstStart' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\InflationSwap\InflationSwap\InflationSwap\InflationSwap.cpp(1400,17): warning C4101: 'EstEnd' :참조되지 않은 지역 변수입니다.
      C:\Users\ciiad\github5\InflationSwap\InflationSwap\x64\Debug\InflationSwap.lib 라이브러리 및 C:\Users\ciiad\github5\InflationSwap\InflationSwap\x64\Debug\InflationSwap.exp 개체를 생성하고 있습니다.
   InflationSwap.vcxproj -> C:\Users\ciiad\github5\InflationSwap\InflationSwap\x64\Debug\InflationSwap.dll
