@@ -1083,6 +1083,57 @@ double PayoffStructure(
     return Payoff * dt;
 }
 
+double SOFR_Compounded_Rate(
+    long PriceDate,
+    long EstStartDate,
+    long EstEndDate,
+    double DF_to_EstEndDate,
+    long NHistory,
+    long* HistoryDate,
+    double* HistoryRate,
+    long NHoliday,
+    long* Holiday,
+    double DefaultOverNightRate,
+    long DayCountFlag,
+    double& CompValue
+)
+{
+    long i, j, TempDate;
+    long EstStartDateExl, EstEndDateExl, PriceDateExl;
+    long NNextHoliday;
+    double DayFrac = DayCountFractionAtoB(EstStartDate, EstEndDate, DayCountFlag);
+    EstStartDateExl = CDateToExcelDate(EstStartDate);
+    EstEndDateExl = CDateToExcelDate(EstEndDate);
+    PriceDateExl = CDateToExcelDate(PriceDate);
+    long HistoryDateExl, NextDayExl, CDate, idx;
+    double dt = 1.0 / 365.0;
+    double Compounded = 1.0;
+    double r = 0.;
+    for (TempDate = EstStartDateExl; TempDate < PriceDateExl; TempDate++)
+    {
+        CDate = ExcelDateToCDate(TempDate);
+        if (isinFindIndex(CDate, HistoryDate, NHistory, idx) > 0) r = HistoryRate[idx];
+        else r = DefaultOverNightRate;
+
+        NNextHoliday = 0;
+        if (isweekend(ExcelDateToCDate(TempDate + 1)) == 1 || isin(ExcelDateToCDate(TempDate + 1), Holiday, NHoliday))
+        {
+            // 내일이 주말이거나 Holiday일 경우
+            NNextHoliday = 0;
+            for (NextDayExl = TempDate + 1; NextDayExl < TempDate + 10; NextDayExl++)
+            {
+                if (isweekend(ExcelDateToCDate(NextDayExl)) == 1 || isin(ExcelDateToCDate(NextDayExl), Holiday, NHoliday)) NNextHoliday += 1;
+                else break;
+            }
+        }
+        Compounded *= (1.0 + r * dt * (double)(NNextHoliday + 1));
+    }
+    Compounded *= 1.0 / DF_to_EstEndDate;
+    CompValue = Compounded;
+    return (Compounded - 1.0) * 1.0 / DayFrac;
+}
+
+
 long Simulate_HW(
     long PricingOnly,
     long PricingDateC,
@@ -1109,7 +1160,77 @@ long Simulate_HW(
     long i;
     long j;
     long k;
+    // SOFR 관련
+    long CurveIdxRef;
+    double t, T, T1, T2, Pt, PT, PtT;
+    double r_sofr, compvalue, r0;
+    double SOFRComp0_Rcv[5] = { 0.0,0.0,0.0 };
+    double SOFR_AnnOISRate0_Rcv[5] = { 0.0,0.0,0.0 };
+    double SOFRComp0_Pay[5] = { 0.0,0.0,0.0 };
+    double SOFR_AnnOISRate0_Pay[5] = { 0.0,0.0,0.0 };
+    double DF_to_EstEnd;
+    for (i = 0; i < RcvLeg->NReference; i++)
+    {
+        if (RcvLeg->Reference_Inform[i].RefRateType == 2)
+        {
+            for (j = 0; j < RcvLeg->NCashFlow; j++)
+            {
+                if (PricingDateC > RcvLeg->ForwardStart_C[j] && PricingDateC < RcvLeg->ForwardEnd_C[j])
+                {
+                    CurveIdxRef = CurveIdx_Rcv[i];
+                    T1 = ((double)DayCountAtoB(PricingDateC, RcvLeg->ForwardEnd_C[j])) / 365.0;
+                    r0 = Simul->Rate[CurveIdxRef][0];
+                    DF_to_EstEnd = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1);
+                    r_sofr = SOFR_Compounded_Rate(PricingDateC, RcvLeg->ForwardStart_C[j], RcvLeg->ForwardEnd_C[j], DF_to_EstEnd, RcvLeg->NDayHistory[i],
+                        RcvLeg->RateHistoryDateMatrix[i], RcvLeg->RateHistoryMatrix[i], RcvLeg->HolidayCount[i], RcvLeg->HolidayDays[i], r0, RcvLeg->Reference_Inform[i].DayCountFlag, compvalue);
+                    SOFRComp0_Rcv[i] = compvalue;
+                    SOFR_AnnOISRate0_Rcv[i] = r_sofr;
+                    SimulatedRateRcv[i][j] = r_sofr;
+                    for (k = 0; k < RcvLeg->NDayHistory[i] - 1; k++)
+                    {
+                        if (RcvLeg->RateHistoryDateMatrix[i][k] <= RcvLeg->ForwardStart_C[j] && RcvLeg->RateHistoryDateMatrix[i][k + 1] > RcvLeg->ForwardStart_C[j])
+                        {
+                            RcvLeg->RateHistoryDateMatrix[i][k] = r_sofr;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
 
+    for (i = 0; i < PayLeg->NReference; i++)
+    {
+        if (PayLeg->Reference_Inform[i].RefRateType == 2)
+        {
+            for (j = 0; j < PayLeg->NCashFlow; j++)
+            {
+                if (PricingDateC > PayLeg->ForwardStart_C[j] && PricingDateC < PayLeg->ForwardEnd_C[j])
+                {
+                    CurveIdxRef = CurveIdx_Pay[i];
+                    T1 = ((double)DayCountAtoB(PricingDateC, PayLeg->ForwardEnd_C[j])) / 365.0;
+                    r0 = Simul->Rate[CurveIdxRef][0];
+                    DF_to_EstEnd = Calc_Discount_Factor(Simul->RateTerm[CurveIdxRef], Simul->Rate[CurveIdxRef], Simul->NRateTerm[CurveIdxRef], T1);
+                    r_sofr = SOFR_Compounded_Rate(PricingDateC, PayLeg->ForwardStart_C[j], PayLeg->ForwardEnd_C[j], DF_to_EstEnd, PayLeg->NDayHistory[i],
+                        PayLeg->RateHistoryDateMatrix[i], PayLeg->RateHistoryMatrix[i], PayLeg->HolidayCount[i], PayLeg->HolidayDays[i], r0, PayLeg->Reference_Inform[i].DayCountFlag, compvalue);
+                    SOFRComp0_Pay[i] = compvalue;
+                    SOFR_AnnOISRate0_Pay[i] = r_sofr;
+                    SimulatedRatePay[i][j] = r_sofr;
+                    for (k = 0; k < PayLeg->NDayHistory[i] - 1; k++)
+                    {
+                        if (PayLeg->RateHistoryDateMatrix[i][k] <= PayLeg->ForwardStart_C[j] && PayLeg->RateHistoryDateMatrix[i][k + 1] > PayLeg->ForwardStart_C[j])
+                        {
+                            PayLeg->RateHistoryDateMatrix[i][k] = r_sofr;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    
     long idx0, idx1, idx2, idx3, idx4;
     long idxrcv, idxrcv2, idxrcv3, idxpay, idxpay2, idxpay3;
 
@@ -1125,7 +1246,6 @@ long Simulate_HW(
     long RateHistoryUseFlag = 0;
     double PricePath_Rcv, PricePath_Pay;
     double RcvPrice, PayPrice;
-    double t, T, T1, T2, Pt, PT, PtT;
     double kappa;
     double xt = 0.0;
     double Rate = 0.0, Rate1 = 0.0, Rate2 = 0.0;
@@ -3706,6 +3826,170 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
     }
 
     ResultCode = IRStructuredSwap(PriceDate, NAFlag, Notional, RcvLeg, PayLeg, Simul, GreekFlag, ResultPrice, ResultRcv, ResultPay);
+
+    if (GreekFlag == 1)
+    {
+        long idxtemp = 0;
+        long idxtermup = 0;
+        long kk = 0;
+        long h = 0;
+        long NTotalZeroRate = 0;
+        long PointerZero[5] = { 0,0,0,0,0 };
+        long idxstart, idxend;
+        long UselessTermFlag = 0;
+        double RcvValue, PayValue;
+        double PV01Rcv, PV01Pay;
+        double TempResultPrice[5] = { 0.0, 0.0,0.0,0.0 };
+        double* TempResultRcv = (double*)malloc(sizeof(double) * (NRcvCashFlow * 7));
+        double* TempResultPay = (double*)malloc(sizeof(double) * (NPayCashFlow * 7));
+        double* KeyPV01Rcv;
+        double* KeyPV01Pay;
+        RcvValue = ResultPrice[0];
+        PayValue = ResultPrice[1];
+        for (i = 0; i < N_Curve_Max; i++)
+        {
+            NTotalZeroRate += NZeroRate[i];
+            PointerZero[i + 1] = NTotalZeroRate;
+        }
+
+        double* ZeroRateParallelUp = (double*)malloc(sizeof(double) * NTotalZeroRate);
+        double* ZeroRateKeyUp = (double*)malloc(sizeof(double) * NTotalZeroRate);
+        double** ZeroRateMatrixParralelUp = (double**)malloc(sizeof(double*) * N_Curve_Max);
+        n = 0;
+        for (i = 0; i < N_Curve_Max; i++)
+        {
+            ZeroRateMatrixParralelUp[i] = ZeroRateParallelUp + n;
+            n = n + NZeroRate[i];
+        }
+
+        SIMUL_INFO* Simul_ForGreek = new SIMUL_INFO;
+        Simul_ForGreek->YYYYMMDDForSimul = YYYYMMDDForSimul;
+        Simul_ForGreek->NSimul = Simul->NSimul;
+        Simul_ForGreek->DailySimulFlag = Simul->DailySimulFlag;
+        Simul_ForGreek->NDays = Simul->NDays;
+        Simul_ForGreek->NAsset = Simul->NAsset;
+        Simul_ForGreek->DaysForSimul = Simul->DaysForSimul;
+
+        Simul_ForGreek->dt_Array = Simul->dt_Array;
+        Simul_ForGreek->T_Array = Simul->T_Array;
+        Simul_ForGreek->FixedRandn = FixedRandn;
+        Simul_ForGreek->FixedRandn2 = FixedRandn2;
+        Simul_ForGreek->NHWVol = Simul->NHWVol;
+        Simul_ForGreek->HWKappa = Simul->HWKappa;
+        Simul_ForGreek->HWKappa2 = Simul->HWKappa2;
+
+        Simul_ForGreek->HWVolTerm = Simul->HWVolTerm;
+        Simul_ForGreek->HWVol = Simul->HWVol;
+        Simul_ForGreek->HWVol2 = Simul->HWVol2;
+
+        Simul_ForGreek->NRateTerm = Simul->NRateTerm;
+        Simul_ForGreek->RateTerm = Simul->RateTerm;
+        Simul_ForGreek->Rate = (double**)malloc(sizeof(double*) * Simul->NAsset);
+        Simul_ForGreek->HWQuantoFlag = Simul->HWQuantoFlag;
+        Simul_ForGreek->HWQuantoRho = Simul->HWQuantoRho;
+        Simul_ForGreek->HWQuantoVol = Simul->HWQuantoVol;
+        Simul_ForGreek->SimulCurveIdx = SimulateCurveIdx;
+        Simul_ForGreek->HWFactorFlag = Simul->HWFactorFlag;
+
+        k = 0;
+        for (i = 1; i < N_Curve_Max + 1; i++)
+        {
+            if (isin(i, Simul->SimulCurveIdx, Simul->NAsset))
+            {
+                idxstart = PointerZero[i - 1];
+                idxend = PointerZero[i];
+
+                for (j = 0; j < NTotalZeroRate; j++)
+                {
+                    if (j >= idxstart && j < idxend) ZeroRateParallelUp[j] = ZeroRate[j] + 0.0001;
+                    else ZeroRateParallelUp[j] = ZeroRate[j];
+                }
+
+
+                kk = 0;
+                for (idxtemp = 0; idxtemp < N_Curve_Max; idxtemp++)
+                {
+                    if (isin(idxtemp + 1, SimulateCurveIdx, nSimulateCurve))
+                    {
+                        Simul_ForGreek->Rate[kk] = ZeroRateMatrixParralelUp[idxtemp];
+                        kk = kk + 1;
+                    }
+                }
+
+                ResultCode = IRStructuredSwap(PriceDate, NAFlag, Notional, RcvLeg, PayLeg, Simul_ForGreek, GreekFlag, TempResultPrice, TempResultRcv, TempResultPay);
+
+                PV01Rcv = TempResultPrice[0] - RcvValue;
+                PV01Pay = TempResultPrice[1] - PayValue;
+                ResultPV01[i - 1] = PV01Rcv;
+                ResultPV01[i - 1 + 4] = PV01Pay;
+                k = k + 1;
+            }
+        }
+
+        k = 0;
+        for (i = 1; i < N_Curve_Max + 1; i++)
+        {
+            KeyPV01Rcv = ResultKeyPV01 + PointerZero[i - 1];
+            KeyPV01Pay = ResultKeyPV01 + NTotalZeroRate + PointerZero[i - 1];
+            if (isin(i, Simul->SimulCurveIdx, Simul->NAsset))
+            {
+                idxstart = PointerZero[i - 1];
+                idxend = PointerZero[i];
+                for (idxtermup = idxstart; idxtermup < idxend; idxtermup++)
+                {
+                    for (j = 0; j < NTotalZeroRate; j++)
+                    {
+                        if (j == idxtermup) ZeroRateParallelUp[j] = ZeroRate[j] + 0.0001;
+                        else ZeroRateParallelUp[j] = ZeroRate[j];
+                    }
+
+                    kk = 0;
+                    for (idxtemp = 0; idxtemp < N_Curve_Max; idxtemp++)
+                    {
+                        if (isin(idxtemp + 1, SimulateCurveIdx, nSimulateCurve))
+                        {
+                            Simul_ForGreek->Rate[kk] = ZeroRateMatrixParralelUp[idxtemp];
+                            kk = kk + 1;
+                        }
+                    }
+
+                    UselessTermFlag = 0;
+                    if (NZeroRate[i] > 2)
+                    {
+                        ////////////////////////////////////////////////////
+                        // 스왑 만기보다 너무 Term이 길면 노트 가격 영향 없다
+                        ////////////////////////////////////////////////////
+                        if (ZeroTerm[idxtermup - 1] > Simul_ForGreek->T_Array[Simul_ForGreek->NDays - 1]) UselessTermFlag = 1;
+                    }
+
+                    if (UselessTermFlag == 1)
+                    {
+                        KeyPV01Rcv[idxtermup - idxstart] = 0.0;
+                        KeyPV01Pay[idxtermup - idxstart] = 0.0;
+                    }
+                    else
+                    {
+                        ResultCode = IRStructuredSwap(PriceDate, NAFlag, Notional, RcvLeg, PayLeg, Simul_ForGreek, GreekFlag, TempResultPrice, TempResultRcv, TempResultPay);
+
+                        PV01Rcv = TempResultPrice[0] - RcvValue;
+                        PV01Pay = TempResultPrice[1] - PayValue;
+                        KeyPV01Rcv[idxtermup - idxstart] = PV01Rcv;
+                        KeyPV01Pay[idxtermup - idxstart] = PV01Pay;
+                    }
+                    k = k + 1;
+                }
+            }
+        }
+
+        free(TempResultRcv);
+        free(TempResultPay);
+        free(ZeroRateParallelUp);
+        free(ZeroRateKeyUp);
+        free(ZeroRateMatrixParralelUp);
+        free(Simul_ForGreek->Rate);
+        delete(Simul_ForGreek);
+    }
+
 
     //////////////////
     // 할당 해제
