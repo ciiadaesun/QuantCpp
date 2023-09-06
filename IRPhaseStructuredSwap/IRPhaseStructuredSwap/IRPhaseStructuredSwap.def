@@ -1,0 +1,11 @@
+LIBRARY "IRPhaseStructuredSwap"
+EXPORTS
+
+	HW_Calibration_ATM					@1
+	isin								@2
+	Pricing_IRPhaseStructuredSwap		@3
+	HWCapHWSwaptionCalibration			@4
+
+	HWCapHWSwaption_2FCalibration		@5
+	HWCapHWSwaptionCalibration2F			@6
+	

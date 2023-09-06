@@ -2041,7 +2041,7 @@ long Simulate_HW(
     double* RcvPayoff = (double*)malloc((RcvLeg->NCashFlow + 1) * sizeof(double));             // 3
     double* PayPayoff = (double*)malloc((PayLeg->NCashFlow + 1) * sizeof(double));             // 4
     long* RcvCFFlag = (long*)malloc(RcvLeg->NCashFlow * sizeof(long));             // 5
-    long* PayCFFlag = (long*)malloc(RcvLeg->NCashFlow * sizeof(long));             // 6
+    long* PayCFFlag = (long*)malloc(PayLeg->NCashFlow * sizeof(long));             // 6
 
     RcvPrice = 0.0;
     PayPrice = 0.0;
@@ -2933,9 +2933,9 @@ long IRStructuredSwap(
 
     }
 
-    double* Pay_DF_0_t = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
-    double* Pay_DF_0_T = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
-    double* Pay_DF_t_T = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
+    double* Pay_DF_0_t = (double*)malloc(PayLeg->NCashFlow * sizeof(double));
+    double* Pay_DF_0_T = (double*)malloc(PayLeg->NCashFlow * sizeof(double));
+    double* Pay_DF_t_T = (double*)malloc(PayLeg->NCashFlow * sizeof(double));
 
     idx1 = 0;
     idx2 = 0;
@@ -4372,11 +4372,11 @@ DLLEXPORT(long) Pricing_IRStructuredSwap_Excel(
     }
     for (i = 0; i < PayLeg->NCashFlow; i++)
     {
-        if (PriceDateC <= PayLeg->ForwardStart_C[i]) AllDays[RcvLeg->NCashFlow * 2 + i] = DayCountAtoB(PriceDateC, PayLeg->ForwardStart_C[i]);
-        else AllDays[RcvLeg->NCashFlow * 2 + i] = 0;
+        if (PriceDateC <= PayLeg->ForwardStart_C[i]) AllDays[RcvLeg->NCashFlow * 2 + 2 * i] = DayCountAtoB(PriceDateC, PayLeg->ForwardStart_C[i]);
+        else AllDays[RcvLeg->NCashFlow * 2 + 2 * i] = 0;
 
-        if (PriceDateC <= PayLeg->ForwardEnd_C[i]) AllDays[RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow + i] = DayCountAtoB(PriceDateC, PayLeg->ForwardEnd_C[i]);
-        else AllDays[RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow + i] = 0;
+        if (PriceDateC <= PayLeg->ForwardEnd_C[i]) AllDays[RcvLeg->NCashFlow * 2 + 2 * i + 1] = DayCountAtoB(PriceDateC, PayLeg->ForwardEnd_C[i]);
+        else AllDays[RcvLeg->NCashFlow * 2 +  2 * i + 1] = 0;
     }
     bubble_sort_long(AllDays, (RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2), 1);
     long* DaysForSimul;

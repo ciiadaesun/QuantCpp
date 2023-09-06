@@ -52,6 +52,119 @@ long SaveErrorName(char* Error, char ErrorName[100])
 	return -1;
 }
 
+double SimpleBSCall(double S, double X, double r_drift, double T, double d, double r_disc, double Sigma)
+{
+	double d1 = (log(S / X) + (r_drift + 0.5 * Sigma * Sigma) * T) / (Sigma * sqrt(T));
+	double d2 = d1 - Sigma * sqrt(T);
+	return S * exp(-d * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
+}
+
+double SimpleBSPut(double S, double X, double r_drift, double T, double d, double r_disc, double Sigma)
+{
+	double d1 = (log(S / X) + (r_drift + 0.5 * Sigma * Sigma) * T) / (Sigma * sqrt(T));
+	double d2 = d1 - Sigma * sqrt(T);
+	return -S * exp(-d * T) * CDF_N(-d1) + X * exp(-r_disc * T) * CDF_N(-d2);
+}
+
+
+double CalcMu(double b, double Sigma)
+{
+	return (b - 0.5 * Sigma * Sigma) / (Sigma * Sigma);
+}
+
+double CalcLambda(double mu, double r, double Sigma)
+{
+	return sqrt(mu * mu + 2.0 * r / (Sigma * Sigma));
+}
+
+double CalcZ(double H, double K, double Sigma, double T, double Lambda)
+{
+	return log(H / K) / (Sigma * sqrt(T)) + Lambda * Sigma * sqrt(T);
+}
+
+double CalcX1(double S, double K, double Sigma, double T, double Mu)
+{
+	return log(S / K) / (Sigma * sqrt(T)) + (1.0 + Mu) * Sigma * sqrt(T);
+}
+
+double CalcX2(double S, double H, double Sigma, double T, double Mu)
+{
+	return log(S / H) / (Sigma * sqrt(T)) + (1.0 + Mu) * Sigma * sqrt(T);
+}
+
+double CalcY1(double S, double H, double K, double Sigma, double T, double Mu)
+{
+	return log(H * H / (S * K)) / (Sigma * sqrt(T)) + (1.0 + Mu) * Sigma * sqrt(T);
+}
+
+double CalcY2(double S, double H, double Sigma, double T, double Mu)
+{
+	return log(H / S) / (Sigma * sqrt(T)) + (1.0 + Mu) * Sigma * sqrt(T);
+}
+
+double CalcA(double phi, double S, double b, double T, double x1, double X, double r, double Sigma)
+{
+	return phi * S * exp(-(b-r) * T) * CDF_N(phi * x1) - phi * X * exp(-r * T) * CDF_N(phi * x1 - phi * Sigma * sqrt(T));
+}
+
+double CalcB(double phi, double S, double b, double T, double x2, double K, double r, double Sigma)
+{
+	return phi * S * exp(-(b-r) * T) * CDF_N(phi * x2) - phi * K * exp(-r * T) * CDF_N(phi * x2 - phi * Sigma * sqrt(T));
+}
+
+double CalcC(double phi, double S, double b, double T, double H, double mu, double n, double y1, double K, double r, double Sigma)
+{
+	return phi * S * exp(-(b-r) * T) * pow(H / S, 2 * (mu + 1.0)) * CDF_N(n * y1) - phi * K * exp(-r * T) * pow(H / S, 2.0 * mu) * CDF_N(n * y1 - n * Sigma * sqrt(T));
+}
+
+double CalcD(double phi, double S, double b, double T, double H, double mu, double n, double y2, double K, double r, double Sigma)
+{
+	return phi * S * exp(-(b-r) * T) * pow(H / S, 2 * (mu + 1.0)) * CDF_N(n * y2) - phi * K * exp(-r * T) * pow(H / S, 2.0 * mu) * CDF_N(n * y2 - n * Sigma * sqrt(T));
+}
+
+double CalcE(double Reb, double r, double T, double n, double x2, double Sigma, double H, double S, double mu, double y2)
+{
+	return Reb * exp(-r * T) * (CDF_N(n * x2 - n * Sigma * sqrt(T)) - pow(H / S, 2.0 * mu) * CDF_N(n * y2 - n * sqrt(T)));
+}
+
+double CalcF(double Reb, double H, double S, double mu, double Lambda, double n, double z, double Sigma, double T)
+{
+	return Reb * (pow(H / S, mu + Lambda) * CDF_N(n * z) + pow(H / S, mu - Lambda) * CDF_N(n * z - 2.0 * n * Lambda * Sigma * sqrt(T)));
+}
+
+double C_out(double n, double x1, double x2, double y1, double y2, double CalcA, double CalcB, double CalcC, double CalcD, double S, double X, double H)
+{
+	double Co;
+	if (n == 1)
+	{
+		if (X > H) Co = CalcA - CalcC;
+		else Co = CalcB - CalcD;
+	}
+	else
+	{
+		if (X > H) Co = 0;
+		else Co = CalcA - CalcB + CalcC - CalcD;
+	}
+	return Co;
+}
+
+double P_out(double n, double x1, double x2, double y1, double y2, double CalcA, double CalcB, double CalcC, double CalcD, double S, double X, double H)
+{
+	double Po;
+	if (n == 1)
+	{
+		if (X > H) Po = CalcA -CalcB+ CalcC-CalcD;
+		else Po = 0.;
+	}
+	else
+	{
+		if (X > H) Po = CalcB- CalcD;
+		else Po = CalcA - CalcC;
+	}
+	return Po;
+}
+
+
 double Call_Down(
 	long in0out1flag,			// 0 : Down And In, 1: Down And Out 
 	double S,					// 현재주가
@@ -68,70 +181,55 @@ double Call_Down(
 )
 {
 	long i, j;
-	double rf_drift = r_ref - rho_fx * fxvol * sig;
-	double lambda;
-	double x1, y1;
-	double y;
-	double sigma_SqrT = sig * sqrt(T);
-	if (DiscreteDivFlag != 1)
+	double b;
+	if (DiscreteDivFlag == 1) b = r_ref - rho_fx * fxvol * sig;
+	else b = r_ref - rho_fx * fxvol * sig - div;
+	double phi, n;
+	phi = 1; // Call 1 Put -1
+	n = 1;	 // Down 1 Up -1
+
+	double x1, x2, y1, y2, z, mu, lambda;	
+	double Sigma = sig;	
+	double r = r_disc;
+	if (DiscreteDivFlag == 1)
 	{
-		lambda = (rf_drift - div + sig * sig * 0.5) / (sig * sig);
-		y = log(H * H / (S * X)) / sigma_SqrT + lambda * sigma_SqrT;
-		x1 = log(S / H) / sigma_SqrT + lambda * sigma_SqrT;
-		y1 = log(H / S) / sigma_SqrT + lambda * sigma_SqrT;
+		S = (S -div);
 	}
-	else
-	{
-		lambda = (rf_drift + sig * sig * 0.5) / (sig * sig);
-		y = log(H * H / ((S - div) * X)) / sigma_SqrT + lambda * sigma_SqrT;
-		x1 = log((S - div) / H) / sigma_SqrT + lambda * sigma_SqrT;
-		y1 = log(H / (S - div)) / sigma_SqrT + lambda * sigma_SqrT;
-	}
+
+	mu = CalcMu(b, Sigma);
+	lambda = CalcLambda(mu, r, Sigma);
+	z = CalcZ(H, X, Sigma, T, lambda);
+	x1 = CalcX1(S, X, Sigma, T, mu);
+	x2 = CalcX2(S, H, Sigma, T, mu);
+	y1 = CalcY1(S, H, X, Sigma, T, mu);
+	y2 = CalcY2(S, H, Sigma, T, mu);
+
+	double A, B, C, D, E, F;
+	E = 0.;
+	F = 0.;
+
+	A = CalcA(phi, S, b, T, x1, X, r, Sigma);
+	B = CalcB(phi, S, b, T, x2, X, r, Sigma);
+	C = CalcC(phi, S, b, T, H, mu, n, y1, X, r, Sigma);
+	D = CalcD(phi, S, b, T, H, mu, n, y2, X, r, Sigma);
 
 	double c_di, c, c_do, d1, d2;
+	if (X > H) c_do = A - C + F;
+	else c_do = B - D + F;
 
 	double resultvalue;
-	if (H <= X)
+	double bscall;
+	if (in0out1flag == 0)
 	{
-		if (DiscreteDivFlag != 1)
-		{			
-			c_di = S * exp(-div * T) * pow(H / S, 2.0 * lambda) * CDF_N(y) - X * exp(-r_disc * T) * pow(H / S, 2.0 * lambda - 2.0) * CDF_N(y - sigma_SqrT);
-			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			c_do = c - c_di;
-		}
-		else
-		{
-			c_di = (S-div) * pow(H / (S-div), 2.0 * lambda) * CDF_N(y) - X * exp(-r_disc * T) * pow(H / (S-div), 2.0 * lambda - 2.0) * CDF_N(y - sigma_SqrT);
-			d1 = (log((S-div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = (S-div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			c_do = c - c_di;
-		}
+		if (DiscreteDivFlag == 1) bscall = SimpleBSCall(S, X, b, T, 0., r, Sigma);
+		else bscall = SimpleBSCall(S, X, b, T, div, r, Sigma);
+		c_di = bscall - c_do;
+		resultvalue = c_di;
 	}
 	else
 	{
-		if (DiscreteDivFlag != 1)
-		{
-			c_do = S * exp(-div * T) * CDF_N(x1) - X * exp(-r_disc * T) * CDF_N(x1 - sigma_SqrT) - S * exp(-div * T) * pow(H / S, 2.0 * lambda) * CDF_N(y1) + X * exp(-r_disc * T) * pow(H / S, 2.0 * lambda - 2.0) * CDF_N(y1 - sigma_SqrT);
-			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			c_di = c - c_do;
-		}
-		else
-		{
-			c_do = (S-div) * CDF_N(x1) - X * exp(-r_disc * T) * CDF_N(x1 - sigma_SqrT) - (S-div) * pow(H / (S-div), 2.0 * lambda) * CDF_N(y1) + X * exp(-r_disc * T) * pow(H / (S-div), 2.0 * lambda - 2.0) * CDF_N(y1 - sigma_SqrT);
-			d1 = (log((S-div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = (S-div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			c_di = c - c_do;
-		}
-	}
-	
-	if (in0out1flag == 0) resultvalue = c_di;
-	else resultvalue = c_do;
+		resultvalue = c_do;
+	}	
 
 	return resultvalue;
 }
@@ -152,70 +250,54 @@ double Call_Up(
 )
 {
 	long i, j;
-	double rf_drift = r_ref - rho_fx * fxvol * sig;
-	double lambda;
-	double x1, y1;
-	double y;
-	double sigma_SqrT = sig * sqrt(T);
-	if (DiscreteDivFlag != 1)
+	double b;
+	if (DiscreteDivFlag == 1) b = r_ref - rho_fx * fxvol * sig;
+	else b = r_ref - rho_fx * fxvol * sig - div;
+	double phi, n;
+	phi = 1; // Call 1 Put -1
+	n = 1;	 // Down 1 Up -1
+
+	double x1, x2, y1, y2, z, mu, lambda;
+	double Sigma = sig;
+	double r = r_disc;
+	if (DiscreteDivFlag == 1)
 	{
-		lambda = (rf_drift - div + sig * sig * 0.5) / (sig * sig);
-		y = log(H * H / (S * X)) / sigma_SqrT + lambda * sigma_SqrT;
-		x1 = log(S / H) / sigma_SqrT + lambda * sigma_SqrT;
-		y1 = log(H / S) / sigma_SqrT + lambda * sigma_SqrT;
+		S = (S - div);
 	}
-	else
-	{
-		lambda = (rf_drift + sig * sig * 0.5) / (sig * sig);
-		y = log(H * H / ((S - div) * X)) / sigma_SqrT + lambda * sigma_SqrT;
-		x1 = log((S - div) / H) / sigma_SqrT + lambda * sigma_SqrT;
-		y1 = log(H / (S - div)) / sigma_SqrT + lambda * sigma_SqrT;
-	}
+
+	mu = CalcMu(b, Sigma);
+	lambda = CalcLambda(mu, r, Sigma);
+	z = CalcZ(H, X, Sigma, T, lambda);
+	x1 = CalcX1(S, X, Sigma, T, mu);
+	x2 = CalcX2(S, H, Sigma, T, mu);
+	y1 = CalcY1(S, H, X, Sigma, T, mu);
+	y2 = CalcY2(S, H, Sigma, T, mu);
+	double A, B, C, D, E, F;
+	E = 0.;
+	F = 0.;
+
+	A = CalcA(phi, S, b, T, x1, X, r, Sigma);
+	B = CalcB(phi, S, b, T, x2, X, r, Sigma);
+	C = CalcC(phi, S, b, T, H, mu, n, y1, X, r, Sigma);
+	D = CalcD(phi, S, b, T, H, mu, n, y2, X, r, Sigma);
 
 	double c_ui, c, c_uo, d1, d2;
+	if (X > H) c_uo = F;
+	else c_uo = A-B+C-D+F;
 
 	double resultvalue;
-	if (H <= X)
+	double bscall;
+	if (in0out1flag == 0)
 	{
-		if (DiscreteDivFlag != 1)
-		{
-			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			c_uo = 0.0;
-			c_ui = c;
-		}
-		else
-		{
-			d1 = (log((S - div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = (S - div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			c_uo = 0.0;
-			c_ui = c;
-		}
+		if (DiscreteDivFlag == 1) bscall = SimpleBSCall(S, X, b, T, 0., r, Sigma);
+		else bscall = SimpleBSCall(S, X, b, T, div, r, Sigma);
+		c_ui = bscall - c_uo;
+		resultvalue = c_ui;
 	}
 	else
 	{
-		if (DiscreteDivFlag != 1)
-		{
-			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			c_ui = S * CDF_N(x1) * exp(-div * T) - X * exp(-r_disc * T) * CDF_N(x1 - sigma_SqrT) - S * exp(-div * T) * pow(H / S, 2.0 * lambda) * (CDF_N(-y) - CDF_N(-y1)) + X * exp(-r_disc * T) * pow(H / S, 2.0 * lambda - 2.0) * (CDF_N(-y + sigma_SqrT) - CDF_N(-y1 + sigma_SqrT));
-			c_uo = c - c_ui;
-		}
-		else
-		{
-			d1 = (log((S - div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = (S - div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			c_ui = (S-div) * CDF_N(x1) * exp(-div * T) - X * exp(-r_disc * T) * CDF_N(x1 - sigma_SqrT) - (S - div) * exp(-div * T) * pow(H / (S - div), 2.0 * lambda) * (CDF_N(-y) - CDF_N(-y1)) + X * exp(-r_disc * T) * pow(H / (S - div), 2.0 * lambda - 2.0) * (CDF_N(-y + sigma_SqrT) - CDF_N(-y1 + sigma_SqrT));
-			c_uo = c - c_ui;
-		}
+		resultvalue = c_uo;
 	}
-
-	if (in0out1flag == 0) resultvalue = c_ui;
-	else resultvalue = c_uo;
 	return resultvalue;
 }
 
@@ -234,78 +316,55 @@ double Put_Up(
 	double sig
 )
 {
-	// Formula Reference 
-	// J.C. Hull: Options, Futures, And Other Derivatives
 	long i, j;
-	double rf_drift = r_ref - rho_fx * fxvol * sig;
-	double lambda;
-	double x1, y1;
-	double y;
-	double sigma_SqrT = sig * sqrt(T);
-	if (DiscreteDivFlag != 1)
+	double b;
+	if (DiscreteDivFlag == 1) b = r_ref - rho_fx * fxvol * sig;
+	else b = r_ref - rho_fx * fxvol * sig - div;
+	double phi, n;
+	phi = 1; // Call 1 Put -1
+	n = 1;	 // Down 1 Up -1
+
+	double x1, x2, y1, y2, z, mu, lambda;
+	double Sigma = sig;
+	double r = r_disc;
+	if (DiscreteDivFlag == 1)
 	{
-		lambda = (rf_drift - div + sig * sig * 0.5) / (sig * sig);
-		y = log(H * H / (S * X)) / sigma_SqrT + lambda * sigma_SqrT;
-		x1 = log(S / H) / sigma_SqrT + lambda * sigma_SqrT;
-		y1 = log(H / S) / sigma_SqrT + lambda * sigma_SqrT;
+		S = (S - div);
 	}
-	else
-	{
-		lambda = (rf_drift + sig * sig * 0.5) / (sig * sig);
-		y = log(H * H / ((S-div) * X)) / sigma_SqrT + lambda * sigma_SqrT;
-		x1 = log((S-div) / H) / sigma_SqrT + lambda * sigma_SqrT;
-		y1 = log(H / (S - div)) / sigma_SqrT + lambda * sigma_SqrT;
-	}
-	
+
+	mu = CalcMu(b, Sigma);
+	lambda = CalcLambda(mu, r, Sigma);
+	z = CalcZ(H, X, Sigma, T, lambda);
+	x1 = CalcX1(S, X, Sigma, T, mu);
+	x2 = CalcX2(S, H, Sigma, T, mu);
+	y1 = CalcY1(S, H, X, Sigma, T, mu);
+	y2 = CalcY2(S, H, Sigma, T, mu);
+	double A, B, C, D, E, F;
+	E = 0.;
+	F = 0.;
+
+	A = CalcA(phi, S, b, T, x1, X, r, Sigma);
+	B = CalcB(phi, S, b, T, x2, X, r, Sigma);
+	C = CalcC(phi, S, b, T, H, mu, n, y1, X, r, Sigma);
+	D = CalcD(phi, S, b, T, H, mu, n, y2, X, r, Sigma);
 	double c, p_ui, p_uo, d1, d2, p;
 
-	double resultvalue;
-	if (H > X)
-	{
-		if (DiscreteDivFlag != 1)
-		{
-			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			p = c + X * exp(-r_disc * T) - S * exp(-div * T);
-			p_ui = -S * exp(-div * T) * pow(H / S, 2.0 * lambda) * CDF_N(-y) + X * exp(-r_disc * T) * pow(H / S, 2.0 * lambda - 2.0) * CDF_N(-y + sigma_SqrT);
-			p_uo = p - p_ui;
-		}
-		else
-		{
+	if (X > H) p_uo = B-D+F;
+	else p_uo = A - C+F;
 
-			d1 = (log((S - div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = (S - div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			p = c + X * exp(-r_disc * T) - (S-div);
-			p_ui = -(S-div) * exp(-div * T) * pow(H / (S-div), 2.0 * lambda) * CDF_N(-y) + X * exp(-r_disc * T) * pow(H / (S-div), 2.0 * lambda - 2.0) * CDF_N(-y + sigma_SqrT);
-			p_uo = p - p_ui;
-		}
+	double resultvalue;
+	double bsput;
+	if (in0out1flag == 0)
+	{
+		if (DiscreteDivFlag == 1) bsput = SimpleBSPut(S, X, b, T, 0., r, Sigma);
+		else bsput = SimpleBSPut(S, X, b, T, div, r, Sigma);
+		p_ui = bsput - p_uo;
+		resultvalue = p_ui;
 	}
 	else
 	{
-		if (DiscreteDivFlag != 1)
-		{
-			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			p = c + X * exp(-r_disc * T) - S * exp(-div * T);
-			p_uo = -S * CDF_N(-x1) * exp(-div * T) + X * exp(-r_disc * T) * CDF_N(-x1 + sigma_SqrT) + S * exp(-div * T) * pow(H / S, 2.0 * lambda) * CDF_N(-y1) - X * exp(-r_disc * T) * pow(H / S, 2.0 * lambda - 2.0) * CDF_N(-y1 + sigma_SqrT);
-			p_ui = p - p_uo;
-		}
-		else
-		{
-			d1 = (log((S - div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = (S - div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			p = c + X * exp(-r_disc * T) - (S - div);
-			p_uo = -(S-div) * CDF_N(-x1) * exp(-div * T) + X * exp(-r_disc * T) * CDF_N(-x1 + sigma_SqrT) + (S-div) * exp(-div * T) * pow(H / (S-div), 2.0 * lambda) * CDF_N(-y1) - X * exp(-r_disc * T) * pow(H / (S-div), 2.0 * lambda - 2.0) * CDF_N(-y1 + sigma_SqrT);
-			p_ui = p - p_uo;
-		}
+		resultvalue = p_uo;
 	}
-
-	if (in0out1flag == 0) resultvalue = p_ui;
-	else resultvalue = p_uo;
 
 	return resultvalue;
 }
@@ -326,78 +385,55 @@ double Put_Down(
 	double sig
 )
 {
-	// Formula Reference 
-	// J.C. Hull: Options, Futures, And Other Derivatives
 	long i, j;
-	double rf_drift = r_ref - rho_fx * fxvol * sig;
-	double lambda;
-	double x1, y1;
-	double y;
-	double sigma_SqrT = sig * sqrt(T);
-	if (DiscreteDivFlag != 1)
+	double b;
+	if (DiscreteDivFlag == 1) b = r_ref - rho_fx * fxvol * sig;
+	else b = r_ref - rho_fx * fxvol * sig - div;
+	double phi, n;
+	phi = 1; // Call 1 Put -1
+	n = 1;	 // Down 1 Up -1
+
+	double x1, x2, y1, y2, z, mu, lambda;
+	double Sigma = sig;
+	double r = r_disc;
+	if (DiscreteDivFlag == 1)
 	{
-		lambda = (rf_drift - div + sig * sig * 0.5) / (sig * sig);
-		y = log(H * H / (S * X)) / sigma_SqrT + lambda * sigma_SqrT;
-		x1 = log(S / H) / sigma_SqrT + lambda * sigma_SqrT;
-		y1 = log(H / S) / sigma_SqrT + lambda * sigma_SqrT;
-	}
-	else
-	{
-		lambda = (rf_drift + sig * sig * 0.5) / (sig * sig);
-		y = log(H * H / ((S - div) * X)) / sigma_SqrT + lambda * sigma_SqrT;
-		x1 = log((S - div) / H) / sigma_SqrT + lambda * sigma_SqrT;
-		y1 = log(H / (S - div)) / sigma_SqrT + lambda * sigma_SqrT;
+		S = (S - div);
 	}
 
+	mu = CalcMu(b, Sigma);
+	lambda = CalcLambda(mu, r, Sigma);
+	z = CalcZ(H, X, Sigma, T, lambda);
+	x1 = CalcX1(S, X, Sigma, T, mu);
+	x2 = CalcX2(S, H, Sigma, T, mu);
+	y1 = CalcY1(S, H, X, Sigma, T, mu);
+	y2 = CalcY2(S, H, Sigma, T, mu);
+	double A, B, C, D, E, F;
+	E = 0.;
+	F = 0.;
+
+	A = CalcA(phi, S, b, T, x1, X, r, Sigma);
+	B = CalcB(phi, S, b, T, x2, X, r, Sigma);
+	C = CalcC(phi, S, b, T, H, mu, n, y1, X, r, Sigma);
+	D = CalcD(phi, S, b, T, H, mu, n, y2, X, r, Sigma);
 	double c, p_di, p_do, d1, d2, p;
 
 	double resultvalue;
-	if (H > X)
-	{
-		if (DiscreteDivFlag != 1)
-		{
-			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			p = c + X * exp(-r_disc * T) - S * exp(-div * T);
-			p_do = 0.;
-			p_di = p;
-		}
-		else
-		{
+	if (X > H) p_do = A-B +C- D + F;
+	else p_do = F;
 
-			d1 = (log((S - div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = (S - div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			p = c + X * exp(-r_disc * T) - (S - div);
-			p_do = 0.;
-			p_di = p;
-		}
+	double bsput;
+	if (in0out1flag == 0)
+	{
+		if (DiscreteDivFlag == 1) bsput = SimpleBSPut(S, X, b, T, 0., r, Sigma);
+		else bsput = SimpleBSPut(S, X, b, T, div, r, Sigma);
+		p_di = bsput - p_do;
+		resultvalue = p_di;
 	}
 	else
 	{
-		if (DiscreteDivFlag != 1)
-		{
-			d1 = (log(S / X) + (rf_drift - div + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = S * exp(-div * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			p = c + X * exp(-r_disc * T) - S * exp(-div * T);
-			p_di = -S * CDF_N(-x1) * exp(-div * T) + X * exp(-r_disc * T) * CDF_N(-x1 + sigma_SqrT) + S * exp(-div * T) * pow(H / S, 2.0 * lambda) * (CDF_N(y) - CDF_N(y1)) - X * exp(-r_disc * T) * pow(H / S, 2.0 * lambda - 2.0) * (CDF_N(y - sigma_SqrT) - CDF_N(y1 - sigma_SqrT));
-			p_do = p - p_di;
-		}
-		else
-		{
-			d1 = (log((S - div) / X) + (rf_drift + 0.5 * sig * sig) * T) / sigma_SqrT;
-			d2 = d1 - sigma_SqrT;
-			c = (S - div) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
-			p = c + X * exp(-r_disc * T) - (S - div);
-			p_di = -(S-div) * CDF_N(-x1) * exp(-div * T) + X * exp(-r_disc * T) * CDF_N(-x1 + sigma_SqrT) + (S - div) * exp(-div * T) * pow(H / (S - div), 2.0 * lambda) * (CDF_N(y) - CDF_N(y1)) - X * exp(-r_disc * T) * pow(H / (S - div), 2.0 * lambda - 2.0) * (CDF_N(y - sigma_SqrT) - CDF_N(y1 - sigma_SqrT));
-			p_do = p - p_di;
-		}
+		resultvalue = p_do;
 	}
-
-	if (in0out1flag == 0) resultvalue = p_di;
-	else resultvalue = p_do;
 
 	return resultvalue;
 }
@@ -1107,7 +1143,7 @@ long BSDigitalOption(
 		{ //call
 			if (X <= 0.0)
 			{
-				Price = fix_amt * exp(-Rf_Quanto * T_Ref);
+				Price = fix_amt * exp(-r_disc * T_Ref);
 				Delta = 0.0;
 				Gamma = 0.0;
 				Vega = 0.0;
@@ -1116,12 +1152,12 @@ long BSDigitalOption(
 			}
 			else
 			{
-				Price = fix_amt * exp(-Rf_Quanto * T_Ref) * CDF_N(d2) ;
-				Delta = fix_amt * exp(-Rf_Quanto * T_Ref) * PDF_N(d2) / (vol * sqrt(T_Ref) * S0);
-				Gamma = -fix_amt * exp(-Rf_Quanto * T_Ref) * PDF_N(d2) / (vol * vol * (T_Ref)*S0 * S0) * (d2 + (vol * sqrt(T_Ref)));
-				Vega = -fix_amt * exp(-Rf_Quanto * T_Ref) * PDF_N(d2) * (sqrt(T_Ref) + d2 / vol);
-				Theta = fix_amt * exp(-Rf_Quanto * T_Ref) * (Rf_Quanto * CDF_N(d2) + PDF_N(d2) * theta_d2);
-				Rho = -fix_amt * exp(-Rf_Quanto * T_Ref) * (T_Ref * CDF_N(d2) - PDF_N(d2) * sqrt(T_Ref) / vol);
+				Price = fix_amt * exp(-r_disc * T_Pay) * CDF_N(d2) ;
+				Delta = fix_amt * exp(-r_disc * T_Pay) * PDF_N(d2) / (vol * sqrt(T_Ref) * S0);
+				Gamma = -fix_amt * exp(-r_disc * T_Pay) * PDF_N(d2) / (vol * vol * (T_Ref)*S0 * S0) * (d2 + (vol * sqrt(T_Ref)));
+				Vega = -fix_amt * exp(-r_disc * T_Pay) * PDF_N(d2) * (sqrt(T_Ref) + d2 / vol);
+				Theta = fix_amt * exp(-r_disc * T_Pay) * (Rf_Quanto * CDF_N(d2) + PDF_N(d2) * theta_d2);
+				Rho = -fix_amt * exp(-r_disc * T_Pay) * (T_Ref * CDF_N(d2) - PDF_N(d2) * sqrt(T_Ref) / vol);
 			}
 		}
 		else
@@ -1137,12 +1173,12 @@ long BSDigitalOption(
 			}
 			else
 			{
-				Price = fix_amt * exp(-Rf_Quanto * T_Ref) * CDF_N(-d2);
-				Delta = -fix_amt * exp(-Rf_Quanto * T_Ref) * PDF_N(d2) / (vol * sqrt(T_Ref) * S0);
-				Gamma = fix_amt*exp(-Rf_Quanto * T_Ref) * PDF_N(d2) / (vol * vol * (T_Ref)*S0 * S0) * (d2 + (vol * sqrt(T_Ref)));
-				Vega = fix_amt* exp(-Rf_Quanto * T_Ref)* PDF_N(d2)* (sqrt(T_Ref) + d2 / vol);
-				Theta = fix_amt * exp(-Rf_Quanto * T_Ref) * (Rf_Quanto * CDF_N(-d2) - PDF_N(d2) * theta_d2);
-				Rho = -(fix_amt * (exp(-Rf_Quanto * T_Ref) * (PDF_N(d2) * sqrt(T_Ref) / vol - T_Ref * CDF_N(-1.0 * d2))));
+				Price = fix_amt * exp(-r_disc * T_Pay) * CDF_N(-d2);
+				Delta = -fix_amt * exp(-r_disc * T_Pay) * PDF_N(d2) / (vol * sqrt(T_Ref) * S0);
+				Gamma = fix_amt*exp(-r_disc * T_Pay) * PDF_N(d2) / (vol * vol * (T_Ref)*S0 * S0) * (d2 + (vol * sqrt(T_Ref)));
+				Vega = fix_amt* exp(-r_disc * T_Pay)* PDF_N(d2)* (sqrt(T_Ref) + d2 / vol);
+				Theta = fix_amt * exp(-r_disc * T_Pay) * (Rf_Quanto * CDF_N(-d2) - PDF_N(d2) * theta_d2);
+				Rho = -(fix_amt * (exp(-r_disc * T_Pay) * (PDF_N(d2) * sqrt(T_Ref) / vol - T_Ref * CDF_N(-1.0 * d2))));
 			}
 		}
 		if (T_Pay - T_Ref <= 0.0) frate = 0.0;
@@ -1527,7 +1563,7 @@ double an(
 {
 	double value;
 	double n = (double)GreedIdx;
-	value = 0.5 * dt * ((Rf - Div - QuantoCorr * FXVol * Vol) * n - Vol * Vol * n * n);
+	value = 0.5 * dt * ((Rf - QuantoCorr * FXVol * Vol - Div) * n - Vol * Vol * n * n);
 	return value;
 }
 
@@ -1540,7 +1576,7 @@ double bn(
 {
 	double value;
 	double n = (double)GreedIdx;
-	value = 1.0 + dt * (Rf_Disc + Vol * Vol * n * n);
+	value = 1 + dt * (Rf_Disc + Vol * Vol * n * n);
 	return value;
 }
 
@@ -1556,7 +1592,7 @@ double cn(
 {
 	double value;
 	double n = (double)GreedIdx;
-	value = 0.5 * dt * (-(Rf - Div - QuantoCorr * Vol * FXVol) * n - Vol * Vol * n * n);
+	value = 0.5 * dt * (-(Rf - QuantoCorr * Vol * FXVol - Div) * n - Vol * Vol * n * n);
 	return value;
 }
 
@@ -1584,7 +1620,7 @@ long AmericanOptionFDM(
 	long idx;
 	double d;
 	double dt = 1.0 / 365.0, T,T2;
-	double dS = 0.01;
+	double dS = 0.01 * S0;
 	double T_Ref = ((double)Days_CalcToMaturity) / 365.0;
 	long idxT, idxS;
 	double S, fxvol, r_ref, r_disc;
@@ -1595,8 +1631,11 @@ long AmericanOptionFDM(
 	double* DailyDiscRate = (double*)malloc(sizeof(double) * Days_CalcToMaturity);
 	for (i = 0; i < Days_CalcToMaturity; i++)
 	{
-		DailyForwardRate[i] = Calc_Forward_Rate(RefCurve->Term, RefCurve->Rate, RefCurve->nterm(), ((double)(i)) * dt, ((double)(i + 1)) * dt);
-		DailyDiscRate[i] = Calc_Forward_Rate(DiscCurve->Term, DiscCurve->Rate, DiscCurve->nterm(), ((double)(i)) * dt, ((double)(i + 1)) * dt);
+		if (RefCurve->nterm() > 1) DailyForwardRate[i] = Calc_Forward_Rate(RefCurve->Term, RefCurve->Rate, RefCurve->nterm(), ((double)(i)) * dt, ((double)(i + 1)) * dt);
+		else DailyForwardRate[i] = RefCurve->Rate[0];
+
+		if (DiscCurve->nterm() > 1) DailyDiscRate[i] = Calc_Forward_Rate(DiscCurve->Term, DiscCurve->Rate, DiscCurve->nterm(), ((double)(i)) * dt, ((double)(i + 1)) * dt);
+		else DailyDiscRate[i] = DiscCurve->Rate[0];
 	}
 	double* DailyDiv = (double*)malloc(sizeof(double) * Days_CalcToMaturity);
 	if (DivTypeFlag == 0)
@@ -1653,7 +1692,7 @@ long AmericanOptionFDM(
 
 		for (j = 0; j < NGreed; j++)
 		{
-			S = (double)j * dS;
+			S = (double)j * dS/S0;
 			if (VolTypeFlag == 2) vol = VolMat->Calc_Implied_Volatility(((double)Days_CalcToMaturity) / 365.0, S0 / X);
 			else vol = VolMat->Calc_Volatility_for_Simulation(T, S, &idxT, &idxS);
 			An[i][j] = an(dt, r_ref, d, QuantoCorr, vol, fxvol, j);
@@ -1670,9 +1709,9 @@ long AmericanOptionFDM(
 		aN = An[i][NGreed - 1];
 		bN = Bn[i][NGreed - 1];
 		cN = Cn[i][NGreed - 1];
-		Bn[i][0] = 2.0 * a0 + b0;
+		Bn[i][0] = 2 * a0 + b0;
 		Cn[i][0] = c0 - a0;
-		Bn[i][NGreed - 1] = bN + 2.0 * cN;
+		Bn[i][NGreed - 1] = bN + 2 * cN;
 		An[i][NGreed - 1] = aN - cN;
 	}
 	
@@ -1681,8 +1720,8 @@ long AmericanOptionFDM(
 	{
 		for (i = 0; i < NGreed; i++)
 		{
-			if (TypeFlag == 1) Payoff[i] = max(S_Array[i] * S0 - X, 0.0);
-			else Payoff[i] = max(X - S_Array[i] * S0, 0.0);
+			if (TypeFlag == 1) Payoff[i] = max(S_Array[i]  - X, 0.0);
+			else Payoff[i] = max(X - S_Array[i], 0.0);
 		}
 	}
 	else
@@ -1691,11 +1730,11 @@ long AmericanOptionFDM(
 		{
 			if (TypeFlag == 1)
 			{
-				Payoff[i] = 1.0 * (double)(S_Array[i] * S0 - X >= 0.0);
+				Payoff[i] = 1.0 * (double)(S_Array[i] - X >= 0.0);
 			}
 			else
 			{
-				Payoff[i] = 1.0 * (double)(X - S_Array[i] * S0 >= 0.0);
+				Payoff[i] = 1.0 * (double)(X - S_Array[i] >= 0.0);
 			}
 		}
 	}
@@ -1717,16 +1756,16 @@ long AmericanOptionFDM(
 			{
 				for (j = 0; j < NGreed; j++)
 				{
-					if (TypeFlag == 1) Payoff[j] = max(Payoff[j], max(S_Array[j] * S0 - X, 0.0));
-					else Payoff[j] = max(Payoff[j], max(X - S_Array[j] * S0, 0.0));
+					if (TypeFlag == 1) Payoff[j] = max(Payoff[j], max(S_Array[j] - X, 0.0));
+					else Payoff[j] = max(Payoff[j], max(X - S_Array[j], 0.0));
 				}
 			}
 			else
 			{
 				for (j = 0; j < NGreed; j++)
 				{
-					if (TypeFlag == 1) Payoff[j] = max(Payoff[j], 1.0 * (double)(S_Array[i] * S0 - X >= 0.0));
-					else Payoff[j] = max(Payoff[j],1.0 * (double)(X - S_Array[i] * S0 >= 0.0));
+					if (TypeFlag == 1) Payoff[j] = max(Payoff[j], 1.0 * (double)(S_Array[i] - X >= 0.0));
+					else Payoff[j] = max(Payoff[j],1.0 * (double)(X - S_Array[i] >= 0.0));
 				}
 			}
 		}
@@ -1735,9 +1774,9 @@ long AmericanOptionFDM(
 	if (T_CalcToPay - T_Ref > 0.0) frate = Calc_Forward_Rate(DiscCurve->Term, DiscCurve->Rate, DiscCurve->nterm(), T_Ref, T_CalcToPay);
 	else frate = 0.0;
 	double DF_t_T = 1.0 / (1.0 + frate * (T_CalcToPay - T_Ref));
-	value = Interpolate_Linear(S_Array, Payoff, NGreed, S0 / X) * DF_t_T;
-	valueU = Interpolate_Linear(S_Array, Payoff, NGreed, S0 * 1.01 / X) * DF_t_T;
-	valueD = Interpolate_Linear(S_Array, Payoff, NGreed, S0 * 0.99 / X) * DF_t_T;
+	value = Interpolate_Linear(S_Array, Payoff, NGreed, S0) * DF_t_T;
+	valueU = Interpolate_Linear(S_Array, Payoff, NGreed, S0 * 1.01) * DF_t_T;
+	valueD = Interpolate_Linear(S_Array, Payoff, NGreed, S0 * 0.99) * DF_t_T;
 
 	ResultPrice[0] = value;
 	ResultPrice[1] = (valueU - valueD) / (2.0 * 0.01 * S0);

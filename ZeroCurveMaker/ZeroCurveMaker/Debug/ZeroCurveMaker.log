@@ -1,10 +1,10 @@
 ﻿  ZeroCurveMaker.cpp
 C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\CalcDate.h(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\CalcDate.h(729,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\CalcDate.h(729,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\CalcDate.h(1122,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\CalcDate.h(1162,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\CalcDate.h(1353,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\CalcDate.h(730,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\CalcDate.h(730,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\CalcDate.h(1123,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\CalcDate.h(1163,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\CalcDate.h(1354,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\ZeroCurveMaker.cpp(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\ZeroCurveMaker\ZeroCurveMaker\ZeroCurveMaker.cpp(271,7): warning C4101: 'n' :참조되지 않은 지역 변수입니다.

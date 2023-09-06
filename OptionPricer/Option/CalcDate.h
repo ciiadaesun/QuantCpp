@@ -653,12 +653,13 @@ DLLEXPORT(long) EDate_Cpp(long Cdate, long NMonths)
         Leap = LeapCheck(Year + PlusYear);
         if (Leap == 1)
         {
-            ResultDay = min(Day, Days_Leap[ResultMonth - 1]);
-
+            if (ResultMonth == 0) ResultDay = min(Day, Days_Leap[11]);
+            else ResultDay = min(Day, Days_Leap[ResultMonth - 1]);
         }
         else
         {
-            ResultDay = min(Day, Days[ResultMonth - 1]);
+            if (ResultMonth == 0) ResultDay = min(Day, Days[11]);
+            else ResultDay = min(Day, Days[ResultMonth - 1]);
         }
         if (TargetMonth % 12 != 0)
             return (Year + PlusYear) * 10000 + ResultMonth * 100 + ResultDay;
