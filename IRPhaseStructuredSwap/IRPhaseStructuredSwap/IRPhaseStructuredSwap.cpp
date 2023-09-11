@@ -1160,6 +1160,17 @@ long Simulate_HW(
     long i;
     long j;
     long k;
+    long NoteFlag = 0;
+    long nNaN = 0;
+    for (i = 0; i < PayLeg->NCashFlow; i++)
+    {
+        if ((PayLeg->CouponRate[i] == 0.0) && (PayLeg->FloatingFlag[i] == 0) && (PayLeg->RangeCoupon[i] == 0.0)) nNaN += 1;
+    }
+    if (nNaN == PayLeg->NCashFlow)
+    {
+        NoteFlag = 1;
+    }
+
     // SOFR ฐüทร
     long CurveIdxRef;
     double t, T, T1, T2, Pt, PT, PtT;
@@ -1351,6 +1362,40 @@ long Simulate_HW(
     double xt_interp2f;
     double* TimeOption = (double*)malloc(sizeof(double) * RcvLeg->NOption);
     for (idxoption = 0; idxoption < RcvLeg->NOption; idxoption++) TimeOption[idxoption] = ((double)DayCountAtoB(PricingDateC, RcvLeg->OptionDate[idxoption])) / 365.;
+    double* DF_Opt = (double*)malloc(sizeof(double) * max(RcvLeg->NOption, 1));
+    if (RcvLeg->OptionUseFlag == 1)
+    {
+        for (idxoption = 0; idxoption < RcvLeg->NOption; idxoption++)
+        {
+            T_Opt = TimeOption[idxoption];
+            if (RcvLeg->OptionType == 1) DF_Opt[idxoption] = Calc_Discount_Factor(Simul->RateTerm[HW_Information->CurveIdx_DiscRcv], Simul->Rate[HW_Information->CurveIdx_DiscRcv], Simul->NRateTerm[HW_Information->CurveIdx_DiscRcv], T_Opt);
+            else DF_Opt[idxoption] = Calc_Discount_Factor(Simul->RateTerm[HW_Information->CurveIdx_DiscPay], Simul->Rate[HW_Information->CurveIdx_DiscPay], Simul->NRateTerm[HW_Information->CurveIdx_DiscPay], T_Opt);
+        }
+    }
+    double dftemp1, dftemp2;
+    double** DF_OptDate_to_ForwardStartDate= (double**)malloc(sizeof(double*) * RcvLeg->NOption);
+    for (i = 0; i < RcvLeg->NOption; i++) DF_OptDate_to_ForwardStartDate[i] = (double*)malloc(sizeof(double) * RcvLeg->NCashFlow);
+    for (i = 0; i < RcvLeg->NOption; i++)
+    {
+        for (j = 0; j < RcvLeg->NCashFlow; j++)
+        {
+            T1 = TimeOption[i];
+            T2 = ((double)RcvLeg->DaysForwardStart[j]) / 365.0;
+            if (RcvLeg->OptionType == 1)
+            {
+                dftemp1 = Calc_Discount_Factor(Simul->RateTerm[HW_Information->CurveIdx_DiscRcv], Simul->Rate[HW_Information->CurveIdx_DiscRcv], Simul->NRateTerm[HW_Information->CurveIdx_DiscRcv], T1);
+                dftemp2 = Calc_Discount_Factor(Simul->RateTerm[HW_Information->CurveIdx_DiscRcv], Simul->Rate[HW_Information->CurveIdx_DiscRcv], Simul->NRateTerm[HW_Information->CurveIdx_DiscRcv], T2);
+            }
+            else
+            {
+                dftemp1 = Calc_Discount_Factor(Simul->RateTerm[HW_Information->CurveIdx_DiscPay], Simul->Rate[HW_Information->CurveIdx_DiscPay], Simul->NRateTerm[HW_Information->CurveIdx_DiscPay], T1);
+                dftemp2 = Calc_Discount_Factor(Simul->RateTerm[HW_Information->CurveIdx_DiscPay], Simul->Rate[HW_Information->CurveIdx_DiscPay], Simul->NRateTerm[HW_Information->CurveIdx_DiscPay], T2);
+            }
+
+            DF_OptDate_to_ForwardStartDate[i][j] = dftemp2 / dftemp1;         
+        }
+    }
+    
     double NotionalValue[2] = { 0.0, 0.0 };
     long SimDayYYYYMMDD;
 
@@ -1623,12 +1668,12 @@ long Simulate_HW(
                 {
                     if (RcvLeg->OptionDate[n] < Day2YYYYMMDD)
                     {
-                        Y[n][i] += PtT * RcvPayoff[j];
+                        Y[n][i] += DF_OptDate_to_ForwardStartDate[n][j] * PT * RcvPayoff[j];
                     }
 
                     if (j == RcvLeg->NCashFlow - 1 && NAFlag == 1)
                     {
-                        Y[n][i] += PtT * Notional;
+                        Y[n][i] += DF_OptDate_to_ForwardStartDate[n][j] * PT * Notional;
                     }
                 }
 
@@ -1894,17 +1939,17 @@ long Simulate_HW(
                 {
                     if (RcvLeg->OptionDate[n] < Day2YYYYMMDD)
                     {
-                        Y[n][i] -= PtT * PayPayoff[j];
+                        Y[n][i] -= DF_OptDate_to_ForwardStartDate[n][j] * PT* PayPayoff[j];
                     }
 
-                    if (j == PayLeg->NCashFlow - 1 && NAFlag == 1)
+                    if (j == PayLeg->NCashFlow - 1 && NAFlag == 1 && NoteFlag == 0)
                     {
-                        Y[n][i] -= PtT * Notional;
+                        Y[n][i] -= DF_OptDate_to_ForwardStartDate[n][j] * PT * Notional;
                     }
                 }
             }
 
-            if (j == PayLeg->NCashFlow - 1 && NAFlag == 1) NotionalValue[1] += Pt * PtT * Notional / (double)Simul->NSimul;
+            if (j == PayLeg->NCashFlow - 1 && NAFlag == 1 && NoteFlag == 0) NotionalValue[1] += Pt * PtT * Notional / (double)Simul->NSimul;
         }
 
         PayPrice += PricePath_Pay / (double)Simul->NSimul;
@@ -1913,14 +1958,41 @@ long Simulate_HW(
         {
             if (OptRangeFlag[0][i] > 0)
             {
-                if (RcvLeg->OptionType == 1) {
-                    if (Y[0][i] < 0.0) Value_By_OptTime[i] = fabs(Y[0][i]);
-                    else Value_By_OptTime[i] = 0.0;
+                if (RcvLeg->OptionType == 1) 
+                {
+                    if (NoteFlag == 0)
+                    {
+                        if (Y[0][i] < 0.0) Value_By_OptTime[i] = fabs(Y[0][i]);
+                        else Value_By_OptTime[i] = 0.0;
+                    }
+                    else
+                    {
+                        if (NoteFlag == 1 && NAFlag == 1)
+                        {
+                            if (Y[0][i] < Notional) Value_By_OptTime[i] = fabs(Notional - Y[0][i] );
+                            else Value_By_OptTime[i] = 0.0;
+                        }
+                        else
+                        {
+                            Value_By_OptTime[i] = 0.0;
+                        }
+                    }
                 }
                 else
                 {
-                    if (Y[0][i] > 0.0) Value_By_OptTime[i] = Y[0][i];
-                    else Value_By_OptTime[i] = 0.0;
+                    if (NoteFlag == 0)
+                    {
+                        if (Y[0][i] > 0.0) Value_By_OptTime[i] = Y[0][i];
+                        else Value_By_OptTime[i] = 0.0;
+                    }
+                    else
+                    {
+                        if (NoteFlag == 1 && NAFlag == 1)
+                        {
+                            if (Y[0][i] > Notional) Value_By_OptTime[i] = fabs(Y[0][i] - Notional);
+                            else Value_By_OptTime[i] = 0.0;
+                        }
+                    }
                 }
             }
             else Value_By_OptTime[i] = 0.0;
@@ -1930,18 +2002,40 @@ long Simulate_HW(
             {
                 if (RcvLeg->OptionType == 1)
                 {
-                    if (Y[n][i] < 0.0 && -Y[n][i] > Value_By_OptTime[i] && OptRangeFlag[n][i] > 0)
+                    if (NoteFlag == 0)
                     {
-                        OptimalIdx[i] = n;
-                        Value_By_OptTime[i] = -Y[n][i];
+                        if (Y[n][i] < 0.0 && -Y[n][i] > Value_By_OptTime[i] && OptRangeFlag[n][i] > 0)
+                        {
+                            OptimalIdx[i] = n;
+                            Value_By_OptTime[i] = -Y[n][i];
+                        }
+                    }
+                    else
+                    {
+                        if (Y[n][i] < Notional && Notional - Y[n][i] > Value_By_OptTime[i] && OptRangeFlag[n][i] > 0 && NAFlag == 1)
+                        {
+                            OptimalIdx[i] = n;
+                            Value_By_OptTime[i] = Notional - Y[n][i];
+                        }
                     }
                 }
                 else
                 {
-                    if (Y[n][i] > 0.0 && Y[n][i] > Value_By_OptTime[i] && OptRangeFlag[n][i] > 0)
+                    if (NoteFlag == 0)
                     {
-                        OptimalIdx[i] = n;
-                        Value_By_OptTime[i] = Y[n][i];
+                        if (Y[n][i] > 0.0 && Y[n][i] > Value_By_OptTime[i] && OptRangeFlag[n][i] > 0)
+                        {
+                            OptimalIdx[i] = n;
+                            Value_By_OptTime[i] = Y[n][i];
+                        }
+                    }
+                    else
+                    {
+                        if (Y[n][i] > Notional && Y[n][i] - Notional > Value_By_OptTime[i] && OptRangeFlag[n][i] > 0 && NAFlag == 1)
+                        {
+                            OptimalIdx[i] = n;
+                            Value_By_OptTime[i] = Y[n][i] - Notional;
+                        }
                     }
                 }
             }
@@ -1961,16 +2055,9 @@ long Simulate_HW(
     double OptionPrice = 0.0;
     double MaxLegValue;
     double ExerciseValue = 0.0;
-    double* DF_Opt = (double*)malloc(sizeof(double) * max(RcvLeg->NOption, 1));
+    
     if (RcvLeg->OptionUseFlag == 1)
     {
-        for (idxoption = 0; idxoption < RcvLeg->NOption; idxoption++)
-        {
-            T_Opt = TimeOption[idxoption];
-            if (RcvLeg->OptionType == 1) DF_Opt[idxoption] = Calc_Discount_Factor(Simul->RateTerm[HW_Information->CurveIdx_DiscRcv], Simul->Rate[HW_Information->CurveIdx_DiscRcv], Simul->NRateTerm[HW_Information->CurveIdx_DiscRcv], T_Opt);
-            else DF_Opt[idxoption] = Calc_Discount_Factor(Simul->RateTerm[HW_Information->CurveIdx_DiscPay], Simul->Rate[HW_Information->CurveIdx_DiscPay], Simul->NRateTerm[HW_Information->CurveIdx_DiscPay], T_Opt);
-        }
-
         Beta = OLSBeta(Value_By_OptTime, LengthY, InterestRate_Opt, ShapeX);
         for (i = 0; i < Simul->NSimul; i++)
         {
@@ -1985,18 +2072,40 @@ long Simulate_HW(
                 EstOptValue = max(EstOptValue, 0.0);
                 if (RcvLeg->OptionType == 1)
                 {
-                    if (Y[idxoption][i] < 0.0 && -Y[idxoption][i] > EstOptValue)
+                    if (NoteFlag == 0)
                     {
-                        OptionPrice += -(Y[idxoption][i] * DF_Opt[idxoption]) / (double)Simul->NSimul;
-                        break;
+                        if (Y[idxoption][i] < 0.0 && -Y[idxoption][i] > EstOptValue)
+                        {
+                            OptionPrice += -(Y[idxoption][i] * DF_Opt[idxoption]) / (double)Simul->NSimul;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        if (Y[idxoption][i] < Notional && Notional - Y[idxoption][i] > EstOptValue)
+                        {
+                            OptionPrice += (Notional -Y[idxoption][i]) * DF_Opt[idxoption] / (double)Simul->NSimul;
+                            break;
+                        }
                     }
                 }
                 else
                 {
-                    if (Y[idxoption][i] > 0.0 && Y[idxoption][i] > EstOptValue)
+                    if (NoteFlag == 0)
                     {
-                        OptionPrice += (Y[idxoption][i] * DF_Opt[idxoption]) / (double)Simul->NSimul;
-                        break;
+                        if (Y[idxoption][i] > 0.0 && Y[idxoption][i] > EstOptValue)
+                        {
+                            OptionPrice += (Y[idxoption][i] * DF_Opt[idxoption]) / (double)Simul->NSimul;
+                            break;
+                        }
+                    }
+                    else
+                    {
+                        if (Y[idxoption][i] > Notional && Y[idxoption][i] - Notional > EstOptValue)
+                        {
+                            OptionPrice += (Y[idxoption][i] - Notional) * DF_Opt[idxoption] / (double)Simul->NSimul;
+                            break;
+                        }
                     }
                 }
             }
@@ -2009,7 +2118,8 @@ long Simulate_HW(
     {
         ResultPrice[0] = RcvPrice + NotionalValue[0];
         ResultPrice[1] = PayPrice + NotionalValue[1];
-        ResultPrice[2] = RcvPrice - PayPrice;
+        if (NAFlag == 1) ResultPrice[2] = RcvPrice + NotionalValue[0] - PayPrice - NotionalValue[1];
+        else ResultPrice[2] = RcvPrice - PayPrice;
         if (RcvLeg->OptionUseFlag == 1)
         {
             ResultPrice[3] = OptionPrice;
@@ -2074,7 +2184,8 @@ long Simulate_HW(
     for (i = 0; i < Simul->NAsset; i++) free(Simul_QuantoTerm[i]);
     free(Simul_QuantoTerm);
     free(TimeOption);
-    
+    for (i = 0; i < RcvLeg->NOption; i++) free(DF_OptDate_to_ForwardStartDate[i]);
+    free(DF_OptDate_to_ForwardStartDate);
     return 1;
 }
 
