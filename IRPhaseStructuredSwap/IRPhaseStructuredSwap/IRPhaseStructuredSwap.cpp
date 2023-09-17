@@ -72,6 +72,7 @@ typedef struct LegInfo {
     long CallConditionFlag;             // 행사조건Flag 0:Range1&Range2&Range3 1:Range1||Range2||Range3
     long OptionType;                    // 옵션타입 0:Payer가 Call옵션 1:Receiver가 풋옵션
     long* OptionDate;                   // Option Date
+    long OptDateToPayDate;              // 옵션행사일부터 지급일까지 일수
     double* StrikeRate;                 // 옵션행사비율
     double** RangeUp;                   // Ref 123 Range 상한
     double** RangeDn;                   // Ref 123 Range 하한
@@ -219,17 +220,22 @@ double XV(
     long i;
     long nSquare = 4; // 적분구간을 nSquare만큼 나눔
     double ds = (t1 - t0) / (double)nSquare;
-    double s = ds;
+    double s = t0;
     double vol = 0.0;
     double B_k, B_k_Square;
 
     B_k_Square = 0.0;
+    /*
     for (i = 0; i < nSquare; i++)
     {
         vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, s);
         B_k_Square += exp(-2.0 * kappa * (t1 - s)) * vol * vol * ds;
         s += ds;
-    }
+    }*/
+    double vol1 = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t0);
+    double vol2 = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t1);
+    B_k_Square = (0.5 * vol1 + 0.5 * vol2) * (0.5 * vol1 + 0.5 * vol2) / (2.0 * max(0.00001, kappa)) * (1.0 - exp(-2.0 * max(0.00001, kappa) * (t1 - t0)));
+
     B_k = sqrt(B_k_Square);
     return B_k;
 }
@@ -279,7 +285,7 @@ double HullWhiteQVTerm(
     double RHS = 0.0;
     long nInteg = 4;
     double s, ds;
-
+    /*
     ds = t / (double)nInteg;
     s = ds;
 
@@ -288,9 +294,16 @@ double HullWhiteQVTerm(
         vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, s);
         Bst = B_s_to_t(kappa, s, t);
         BsT = B_s_to_t(kappa, s, T);
-        RHS += 0.5 * vol * vol * (Bst * Bst - BsT * BsT) * ds;
+        RHS += vol * vol * (Bst * Bst - BsT * BsT) * ds;
         s += ds;
     }
+    */
+    double volt, volT;
+    volt = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t);
+    volT = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, T);
+    vol = (volt + volT) / 2.0;
+    RHS = -(vol * exp(-kappa * T) - vol * exp(-kappa * t))* (vol * exp(-kappa * T) - vol * exp(-kappa * t))* (exp(2.0 * kappa * t) - 1.0) / (2.0 * kappa * kappa * kappa);
+
     return RHS;
 }
 
@@ -843,7 +856,7 @@ double HW_Rate(
         for (i = 0; i < NCfSwap; i++)
         {
             term = dt[i];
-            PtT = PV_t_T[i] * exp(-ShortRate * B_t_T[i] + QVTerm[i]);
+            PtT = PV_t_T[i] * exp(-ShortRate * B_t_T[i] +0.5 * QVTerm[i]);
             B += term * PtT;
         }
 
@@ -851,7 +864,7 @@ double HW_Rate(
     }
     else
     {
-        if (t >= 0.0) PtT = PV_t_T[0] * exp(-ShortRate * B_t_T[0] + QVTerm[0]);
+        if (t >= 0.0) PtT = PV_t_T[0] * exp(-ShortRate * B_t_T[0] + 0.5 * QVTerm[0]);
         else PtT = Calc_Discount_Factor(RateTerm, Rate, NRateTerm, T);
 
         if (dt[0] < 1.0) ResultRate = (1.0 - PtT) / (dt[0] * PtT);
@@ -906,7 +919,6 @@ double PayoffStructure(
     double** SimulatedRate,  // Reset Start Rate
     double** SimulatedRate2, // Reset End Rate
     double** DailyRate,
-    double** SimulOverNightRate,
     long CashFlowIdx,
     long Flag_Required_History,
     double* OutputRate,
@@ -1149,17 +1161,8 @@ long Simulate_HW(
     double** SimulatedRatePay2,
     double** SimulShortRate,
     double** SimulShortRate2F,
-    double** SimulOverNightRate,
     long* CurveIdx_Rcv,
     long* CurveIdx_Pay,
-    double** Rcv_B_OptT_PayT, 
-    double** Rcv_QVTerm_OptT_PayT,
-    double** Rcv_B_OptT_PayT2,
-    double** Rcv_QVTerm_OptT_PayT2,
-    double** Pay_B_OptT_PayT,
-    double** Pay_QVTerm_OptT_PayT,
-    double** Pay_B_OptT_PayT2,
-    double** Pay_QVTerm_OptT_PayT2,
     double* ResultPrice,                // 
     double* ResultRcv,                  // 
     double* ResultPay                   // 
@@ -1168,10 +1171,12 @@ long Simulate_HW(
     long i;
     long j;
     long k;
+
     long NoteFlag = 0;
     long nNaN = 0;
     for (i = 0; i < PayLeg->NCashFlow; i++)
     {
+        // Payleg 구조화금리, 쿠폰, RangeCoupon 모두 0이면 Bond평가로 간주
         if ((PayLeg->CouponRate[i] == 0.0) && (PayLeg->FloatingFlag[i] == 0) && (PayLeg->RangeCoupon[i] == 0.0)) nNaN += 1;
     }
     if (nNaN == PayLeg->NCashFlow)
@@ -1179,7 +1184,10 @@ long Simulate_HW(
         NoteFlag = 1;
     }
 
-    // SOFR 관련
+    ////////////////////
+    // SOFR Compound  //
+    ////////////////////
+
     long CurveIdxRef;
     double t, T, T1, T2, Pt, PT, PtT;
     double r_sofr, compvalue, r0;
@@ -1308,6 +1316,9 @@ long Simulate_HW(
     // LSMC Data  //
     ////////////////
 
+    double* RcvP0T = (double*)malloc(sizeof(double) * RcvLeg->NCashFlow);
+    double* PayP0T = (double*)malloc(sizeof(double) * PayLeg->NCashFlow);
+
     double*** X;
     long ShapeX[2] = { Simul->NSimul, Simul->NAsset + 1 + Simul->NAsset };
     double** Y;
@@ -1410,6 +1421,10 @@ long Simulate_HW(
         PricePath_Rcv = 0.0;
         PricePath_Pay = 0.0;
 
+        /////////////////////////////////
+        // 1. Short Rate Simulation    // 
+        /////////////////////////////////
+
         for (j = 0; j < Simul->NDays; j++)
         {
             for (n = 0; n < Simul->NAsset; n++)
@@ -1429,10 +1444,15 @@ long Simulate_HW(
             }
         }
 
+        //////////////////////////////////////
+        // 2. Xt at Option Exercise Date    // 
+        // 옵션 행사시점의 Xt               //
+        //////////////////////////////////////
+
         for (idxoption = 0; idxoption < RcvLeg->NOption; idxoption++)
         {
             T_Opt = TimeOption[idxoption];
-            for (j = 0; j < Simul->NDays - 1; j++)
+            for (j = 0; j < Simul->NDays; j++)
             {
                 if (T_Opt < Simul->T_Array[j + 1] && T_Opt >= Simul->T_Array[j])
                 {
@@ -1468,7 +1488,12 @@ long Simulate_HW(
             }
         }
 
-        // RcvLeg Reference Rate 결정
+        //////////////////////////////////////////
+        // 3~4 Calculate RcvLeg Reference Rate  //
+        // 3. Not DailySimul Case               //
+        // 4. DailySimul Case                   //
+        //////////////////////////////////////////
+
         for (n = 0; n < RcvLeg->NReference; n++)
         {
             Curveidx = CurveIdx_Rcv[n];
@@ -1481,6 +1506,12 @@ long Simulate_HW(
             idxrcv3 = 0;
             if (Simul->DailySimulFlag == 0)
             {
+                /////////////////////////////////////////
+                // 3.1 Calculation Reference Rate      //
+                // on ResetDate(DaysForwardStart[j])   //
+                // 리셋시점의 기초금리 계산            //
+                /////////////////////////////////////////
+
                 for (j = 0; j < Simul->NDays; j++)
                 {
                     if (isinFindIndex(Simul->DaysForSimul[j], RcvLeg->DaysForwardStart, RcvLeg->NCashFlow, Dayidx))
@@ -1490,6 +1521,10 @@ long Simulate_HW(
 
                         if (RcvLeg->Reference_Inform[n].PowerSpreadFlag == 0)
                         {
+                            ////////////////////////////////////////
+                            // 3.1.1 PowerSpread 상품이 아닌 경우 // 
+                            ////////////////////////////////////////
+
                             t = ((double)RcvLeg->DaysForwardStart[Dayidx]) / 365.0;
                             T = ((double)RcvLeg->DaysForwardEnd[Dayidx]) / 365.0;
                             Rate = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
@@ -1498,6 +1533,10 @@ long Simulate_HW(
                         }
                         else
                         {
+                            ///////////////////////////////////
+                            // 3.1.2 PowerSpread 상품의 경우 // 
+                            ///////////////////////////////////
+
                             t = ((double)RcvLeg->DaysForwardStart[Dayidx]) / 365.0;
                             T1 = t + RcvLeg->Reference_Inform[n].PowerSpreadMat1;
                             T2 = t + RcvLeg->Reference_Inform[n].PowerSpreadMat2;
@@ -1517,7 +1556,7 @@ long Simulate_HW(
 
                 }
             }
-            else if (Simul->DailySimulFlag == 1 )
+            else // if (Simul->DailySimulFlag == 1 )
             {
                 for (j = 0; j < Simul->NDays; j++)
                 {
@@ -1531,6 +1570,10 @@ long Simulate_HW(
                         {
                             if (RcvLeg->Reference_Inform[n].PowerSpreadFlag == 0)
                             {
+                                ////////////////////////////////////////
+                                // 4.1.1 PowerSpread 상품이 아닌 경우 // 
+                                ////////////////////////////////////////
+
                                 T = ((double)RcvLeg->DaysForwardEnd[Dayidx]) / 365.0;
                                 Rate = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n][j], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
@@ -1538,6 +1581,10 @@ long Simulate_HW(
                             }
                             else
                             {
+                                ///////////////////////////////////
+                                // 4.1.2 PowerSpread 상품의 경우 // 
+                                ///////////////////////////////////
+
                                 T1 = t + RcvLeg->Reference_Inform[n].PowerSpreadMat1;
                                 T2 = t + RcvLeg->Reference_Inform[n].PowerSpreadMat2;
 
@@ -1558,45 +1605,12 @@ long Simulate_HW(
                     }
                 }
             }
-            else
-            {
-                for (j = 0; j < Simul->NDays; j++)
-                {
-                    if (isinFindIndex(Simul->DaysForSimul[j], RcvLeg->DaysForwardStart, RcvLeg->NCashFlow, Dayidx))
-                    {
-                        SimDayYYYYMMDD = Simul->YYYYMMDDForSimul[j];
-                        xt = SimulShortRate[Curveidx][j];
-                        if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[Curveidx][j];
-
-                        if (RcvLeg->Reference_Inform[n].PowerSpreadFlag == 0)
-                        {
-                            t = ((double)RcvLeg->DaysForwardStart[Dayidx]) / 365.0;
-                            T = ((double)RcvLeg->DaysForwardEnd[Dayidx]) / 365.0;
-                            Rate = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
-                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n][j], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
-                                HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
-                        }
-                        else
-                        {
-                            t = ((double)RcvLeg->DaysForwardStart[Dayidx] / 365.0);
-                            T1 = t + RcvLeg->Reference_Inform[n].PowerSpreadMat1;
-                            T2 = t + RcvLeg->Reference_Inform[n].PowerSpreadMat2;
-
-                            Rate1 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
-                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n][j], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
-                                HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
-
-                            Rate2 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
-                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_rcv[n][j], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T_PowerSpread[n][j],
-                                HW_Information->RcvRef_QVTerm_PowerSpread[n][j], HW_Information->RcvRef_B_t_T_PowerSpread[n][j], HW_Information->RcvRef_dt_PowerSpread[n][j]);
-
-                            Rate = Rate1 - Rate2;
-                        }
-                        SimulatedRateRcv[n][Dayidx] = Rate;
-                    }
-                }
-            }
         }
+
+        //////////////////////////////////
+        // Rcv Reference Rate End       //
+        // 5. Payoff Calculation Start  //
+        //////////////////////////////////
 
         for (j = 0; j < RcvLeg->NCashFlow; j++) RcvCFFlag[j] = 0;
 
@@ -1637,7 +1651,11 @@ long Simulate_HW(
 
             if (RcvCFFlag[j] == 1)
             {
-                RcvPayoff[j] = Notional * PayoffStructure(Simul->DailySimulFlag, RcvLeg, RcvLeg->NReference, Simul->NDays, SimulatedRateRcv, SimulatedRateRcv2, RcvDailyRate, SimulOverNightRate, j, RateHistoryUseFlag, RcvOutputRate, nAccrual);
+                ////////////////////////
+                // Payoff Calculation //
+                ////////////////////////
+
+                RcvPayoff[j] = Notional * PayoffStructure(Simul->DailySimulFlag, RcvLeg, RcvLeg->NReference, Simul->NDays, SimulatedRateRcv, SimulatedRateRcv2, RcvDailyRate, j, RateHistoryUseFlag, RcvOutputRate, nAccrual);
                 xt_idx = FindIndex(Day1, Simul->DaysForSimul, Simul->NDays, &idx1);
                 xt = SimulShortRate[HW_Information->CurveIdx_DiscRcv][xt_idx];
                 if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[HW_Information->CurveIdx_DiscRcv][xt_idx];
@@ -1655,51 +1673,37 @@ long Simulate_HW(
                 PtT = HW_Information->Rcv_DF_0_T[j];
             }
 
-            PricePath_Rcv += Pt * PtT * RcvPayoff[j];
+            RcvP0T[j] = Pt * PtT;
+            PricePath_Rcv += RcvP0T[j] * RcvPayoff[j];
 
-            for (n = 0; n < RcvLeg->NReference; n++)
-            {
-                ResultRcv[j + n * RcvLeg->NCashFlow] += RcvOutputRate[n] / (double)Simul->NSimul;
-            }
+            for (n = 0; n < RcvLeg->NReference; n++) ResultRcv[j + n * RcvLeg->NCashFlow] += RcvOutputRate[n] / (double)Simul->NSimul;
+
             ResultRcv[3 * RcvLeg->NCashFlow + j] += ((double)nAccrual) / (double)Simul->NSimul;
             ResultRcv[4 * RcvLeg->NCashFlow + j] += RcvPayoff[j] / (double)Simul->NSimul;
-            ResultRcv[5 * RcvLeg->NCashFlow + j] += Pt * PtT / (double)Simul->NSimul;
-
-            if (j == RcvLeg->NCashFlow - 1 && NAFlag == 1) NotionalValue[0] += Pt * PtT * Notional / (double)Simul->NSimul;
+            ResultRcv[5 * RcvLeg->NCashFlow + j] += RcvP0T[j] / (double)Simul->NSimul;
+            if (j == RcvLeg->NCashFlow - 1 && NAFlag == 1) NotionalValue[0] += RcvP0T[j] * Notional / (double)Simul->NSimul;
         }
 
         if (RcvLeg->OptionUseFlag == 1)
         {
-            ///////////////////////////////////////////////////////////////////
-            // 해당 Payoff를 받을 수 있는 옵션날짜에 다 Payoff 할인하여 담음 //
-            ///////////////////////////////////////////////////////////////////
+            //////////////////////////////////////////////////////////////////////
+            // 6. Discount Payoff From PayoffDate to OptionDate                 //
+            // 해당 Payoff를 받을 수 있는 옵션날짜에 다 Payoff 할인하여 담음    //
+            //////////////////////////////////////////////////////////////////////
+
             for (j = 0; j < RcvLeg->NCashFlow; j++)
             {
                 for (n = 0; n < RcvLeg->NOption; n++)
                 {
                     if (RcvLeg->OptionDate[n] < RcvLeg->PayDate_C[j])
                     {
-                        if (RcvLeg->OptionType == 1)
-                        {
-                            PtTOptPay = DF_To_Pay[j] / DF_Opt[n] * exp(-X[n][i][HW_Information->CurveIdx_DiscRcv] * Rcv_B_OptT_PayT[n][j] + Rcv_QVTerm_OptT_PayT[n][j]);
-                        }
-                        else
-                        {
-                            PtTOptPay = DF_To_Pay[j] / DF_Opt[n] * exp(-X[n][i][HW_Information->CurveIdx_DiscPay] * Rcv_B_OptT_PayT[n][j] + Rcv_QVTerm_OptT_PayT[n][j]);
-                        }
+                        PtTOptPay = RcvP0T[j] / DF_Opt[n];
                         Y[n][i] += PtTOptPay * RcvPayoff[j];
                     }
 
                     if (j == RcvLeg->NCashFlow - 1 && NAFlag == 1)
                     {
-                        if (RcvLeg->OptionType == 1)
-                        {
-                            PtTOptPay = DF_To_Pay[j] / DF_Opt[n] * exp(-X[n][i][HW_Information->CurveIdx_DiscRcv] * Rcv_B_OptT_PayT[n][j] + Rcv_QVTerm_OptT_PayT[n][j]);
-                        }
-                        else
-                        {
-                            PtTOptPay = DF_To_Pay[j] / DF_Opt[n] * exp(-X[n][i][HW_Information->CurveIdx_DiscPay] * Rcv_B_OptT_PayT[n][j] + Rcv_QVTerm_OptT_PayT[n][j]);
-                        }
+                        RcvP0T[j] / DF_Opt[n];
                         Y[n][i] += PtTOptPay * Notional;
                     }
                 }
@@ -1750,7 +1754,12 @@ long Simulate_HW(
             }
         }
 
-        // PayLeg Reference Rate 결정
+        //////////////////////////////////////////
+        // 7~8 Calculate PayLeg Reference Rate  //
+        // 7. Not DailySimul Case               //
+        // 8. DailySimul Case                   //
+        //////////////////////////////////////////
+
         for (n = 0; n < PayLeg->NReference; n++)
         {
             Curveidx = CurveIdx_Pay[n];
@@ -1763,6 +1772,12 @@ long Simulate_HW(
             idxpay3 = 0;
             if (Simul->DailySimulFlag == 0)
             {
+                /////////////////////////////////////////
+                // 7.1 Calculation Reference Rate      //
+                // on ResetDate(DaysForwardStart[j])   //
+                // 리셋시점의 기초금리 계산            //
+                /////////////////////////////////////////
+
                 for (j = 0; j < Simul->NDays; j++)
                 {
                     SimDayYYYYMMDD = Simul->YYYYMMDDForSimul[j];
@@ -1773,6 +1788,10 @@ long Simulate_HW(
 
                         if (PayLeg->Reference_Inform[n].PowerSpreadFlag == 0)
                         {
+                            ////////////////////////////////////////
+                            // 7.1.1 PowerSpread 상품이 아닌 경우 // 
+                            ////////////////////////////////////////
+
                             t = ((double)PayLeg->DaysForwardStart[Dayidx]) / 365.0;
                             T = ((double)PayLeg->DaysForwardEnd[Dayidx]) / 365.0;
                             Rate = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
@@ -1781,6 +1800,10 @@ long Simulate_HW(
                         }
                         else
                         {
+                            ///////////////////////////////////
+                            // 7.1.2 PowerSpread 상품의 경우 // 
+                            ///////////////////////////////////
+
                             t = ((double)PayLeg->DaysForwardStart[Dayidx] / 365.0);
                             T1 = t + PayLeg->Reference_Inform[n].PowerSpreadMat1;
                             T2 = t + PayLeg->Reference_Inform[n].PowerSpreadMat2;
@@ -1801,7 +1824,7 @@ long Simulate_HW(
 
                 }
             }
-            else if (Simul->DailySimulFlag == 1)
+            else // if (Simul->DailySimulFlag == 1)
             {
                 for (j = 0; j < Simul->NDays; j++)
                 {
@@ -1816,6 +1839,10 @@ long Simulate_HW(
                         {
                             if (PayLeg->Reference_Inform[n].PowerSpreadFlag == 0)
                             {
+                                ////////////////////////////////////////
+                                // 8.1.1 PowerSpread 상품이 아닌 경우 // 
+                                ////////////////////////////////////////
+
                                 T = ((double)PayLeg->DaysForwardEnd[Dayidx]) / 365.0;
                                 Rate = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n][j], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
@@ -1823,6 +1850,10 @@ long Simulate_HW(
                             }
                             else
                             {
+                                ///////////////////////////////////
+                                // 8.1.2 PowerSpread 상품의 경우 // 
+                                ///////////////////////////////////
+
                                 T1 = t + PayLeg->Reference_Inform[n].PowerSpreadMat1;
                                 T2 = t + PayLeg->Reference_Inform[n].PowerSpreadMat2;
 
@@ -1844,47 +1875,13 @@ long Simulate_HW(
                     }
                 }
             }
-            else
-            {
-                for (j = 0; j < Simul->NDays; j++)
-                {
-                    if (isinFindIndex(Simul->DaysForSimul[j], PayLeg->DaysForwardStart, PayLeg->NCashFlow, Dayidx))
-                    {
-                        SimDayYYYYMMDD = Simul->YYYYMMDDForSimul[j];
-                        xt = SimulShortRate[Curveidx][j];
-                        if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[Curveidx][j];
-
-                        if (PayLeg->Reference_Inform[n].PowerSpreadFlag == 0)
-                        {
-                            t = ((double)PayLeg->DaysForwardStart[Dayidx]) / 365.0;
-                            T = ((double)PayLeg->DaysForwardEnd[Dayidx]) / 365.0;
-                            Rate = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
-                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n][j], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
-                                HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
-                        }
-                        else
-                        {
-                            t = ((double)PayLeg->DaysForwardStart[Dayidx] / 365.0);
-                            T1 = t + PayLeg->Reference_Inform[n].PowerSpreadMat1;
-                            T2 = t + PayLeg->Reference_Inform[n].PowerSpreadMat2;
-
-                            Rate1 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
-                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n][j], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
-                                HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
-
-                            Rate2 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
-                                Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_pay[n][j], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T_PowerSpread[n][j],
-                                HW_Information->PayRef_QVTerm_PowerSpread[n][j], HW_Information->PayRef_B_t_T_PowerSpread[n][j], HW_Information->PayRef_dt_PowerSpread[n][j]);
-
-                            Rate = Rate1 - Rate2;
-                        }
-                        SimulatedRatePay[n][Dayidx] = Rate;
-                    }
-
-                }
-            }
         }
 
+
+        //////////////////////////////////
+        // Pay Reference Rate End       //
+        // 9. Payoff Calculation Start  //
+        //////////////////////////////////
 
         for (j = 0; j < PayLeg->NCashFlow; j++) PayCFFlag[j] = 0;
 
@@ -1925,7 +1922,7 @@ long Simulate_HW(
 
             if (PayCFFlag[j] == 1)
             {
-                PayPayoff[j] = Notional * PayoffStructure(Simul->DailySimulFlag, PayLeg, PayLeg->NReference, Simul->NDays, SimulatedRatePay, SimulatedRatePay2, PayDailyRate, SimulOverNightRate, j, RateHistoryUseFlag, PayOutputRate, nAccrual);
+                PayPayoff[j] = Notional * PayoffStructure(Simul->DailySimulFlag, PayLeg, PayLeg->NReference, Simul->NDays, SimulatedRatePay, SimulatedRatePay2, PayDailyRate,  j, RateHistoryUseFlag, PayOutputRate, nAccrual);
                 xt_idx = FindIndex(Day1, Simul->DaysForSimul, Simul->NDays, &idx2);
                 xt = SimulShortRate[HW_Information->CurveIdx_DiscPay][xt_idx];
                 if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[HW_Information->CurveIdx_DiscPay][xt_idx];
@@ -1952,42 +1949,29 @@ long Simulate_HW(
             ResultPay[3 * PayLeg->NCashFlow + j] += ((double)nAccrual) / (double)Simul->NSimul;
             ResultPay[4 * PayLeg->NCashFlow + j] += PayPayoff[j] / (double)Simul->NSimul;
             ResultPay[5 * PayLeg->NCashFlow + j] += Pt * PtT / (double)Simul->NSimul;
-
+            PayP0T[j] = Pt * PtT;
             if (j == PayLeg->NCashFlow - 1 && NAFlag == 1 && NoteFlag == 0) NotionalValue[1] += Pt * PtT * Notional / (double)Simul->NSimul;
         }
 
         if (RcvLeg->OptionUseFlag == 1)
         {
-            ///////////////////////////////////////////////////////////////////
-            // 해당 Payoff를 받을 수 있는 옵션날짜에 다 Payoff 할인하여 담음 //
-            ///////////////////////////////////////////////////////////////////
+            //////////////////////////////////////////////////////////////////////
+            // 10. Discount Payoff From PayoffDate to OptionDate                //
+            // 해당 Payoff를 받을 수 있는 옵션날짜에 다 Payoff 할인하여 담음    //
+            //////////////////////////////////////////////////////////////////////
             for (j = 0; j < PayLeg->NCashFlow; j++)
             {
                 for (n = 0; n < RcvLeg->NOption; n++)
                 {
                     if (RcvLeg->OptionDate[n] < PayLeg->PayDate_C[j])
                     {
-                        if (RcvLeg->OptionType == 1)
-                        {
-                            PtTOptPay = DF_To_Pay[j] / DF_Opt[n] * exp(-X[n][i][HW_Information->CurveIdx_DiscRcv] * Pay_B_OptT_PayT[n][j] + Pay_QVTerm_OptT_PayT[n][j]);
-                        }
-                        else
-                        {
-                            PtTOptPay = DF_To_Pay[j] / DF_Opt[n] * exp(-X[n][i][HW_Information->CurveIdx_DiscPay] * Pay_B_OptT_PayT[n][j] + Pay_QVTerm_OptT_PayT[n][j]);
-                        }
+                        PtTOptPay = PayP0T[j] / DF_Opt[n];
                         Y[n][i] -= PtTOptPay * PayPayoff[j];
                     }
 
                     if (j == PayLeg->NCashFlow - 1 && NAFlag == 1 && NoteFlag == 0)
                     {
-                        if (RcvLeg->OptionType == 1)
-                        {
-                            PtTOptPay = DF_To_Pay[j] / DF_Opt[n] * exp(-X[n][i][HW_Information->CurveIdx_DiscRcv] * Pay_B_OptT_PayT[n][j] + Pay_QVTerm_OptT_PayT[n][j]);
-                        }
-                        else
-                        {
-                            PtTOptPay = DF_To_Pay[j] / DF_Opt[n] * exp(-X[n][i][HW_Information->CurveIdx_DiscPay] * Pay_B_OptT_PayT[n][j] + Pay_QVTerm_OptT_PayT[n][j]);
-                        }
+                        PtTOptPay = PayP0T[j] / DF_Opt[n];
                         Y[n][i] -= PtTOptPay * Notional;
                     }
                 }
@@ -1996,12 +1980,20 @@ long Simulate_HW(
 
         PayPrice += PricePath_Pay / (double)Simul->NSimul;
 
+        //////////////////////////////////////////////////////////////////////
+        // 11. Calculate Optimal Option Date, Optimal OptValue              //
+        //////////////////////////////////////////////////////////////////////
+
         if (RcvLeg->OptionUseFlag == 1)
         {
             if (OptRangeFlag[0][i] > 0)
             {
                 if (RcvLeg->OptionType == 1) 
                 {
+                    //////////////////////////////////////
+                    // 11.1 Receiver have Cancel Option //
+                    //////////////////////////////////////
+
                     if (NoteFlag == 0)
                     {
                         if (Y[0][i] < 0.0) Value_By_OptTime[i] = fabs(Y[0][i]);
@@ -2009,6 +2001,12 @@ long Simulate_HW(
                     }
                     else
                     {
+                        /////////////////////////////////
+                        // If Evauating Bond not Swap  //
+                        // Swap이 아니라               //
+                        // Bond평가할 경우             //
+                        // (PayLeg가 다 0이면 Bond)    //
+                        /////////////////////////////////
                         if (NoteFlag == 1 && NAFlag == 1)
                         {
                             if (Y[0][i] < Notional) Value_By_OptTime[i] = fabs(Notional - Y[0][i] );
@@ -2022,6 +2020,10 @@ long Simulate_HW(
                 }
                 else
                 {
+                    ///////////////////////////////////
+                    // 11.2 Payer have Cancel Option //
+                    ///////////////////////////////////
+
                     if (NoteFlag == 0)
                     {
                         if (Y[0][i] > 0.0) Value_By_OptTime[i] = Y[0][i];
@@ -2031,6 +2033,13 @@ long Simulate_HW(
                     {
                         if (NoteFlag == 1 && NAFlag == 1)
                         {
+                            /////////////////////////////////
+                            // If Evauating Bond not Swap  //
+                            // Swap이 아니라               //
+                            // Bond평가할 경우             //
+                            // (PayLeg가 다 0이면 Bond)    //
+                            /////////////////////////////////
+
                             if (Y[0][i] > Notional) Value_By_OptTime[i] = fabs(Y[0][i] - Notional);
                             else Value_By_OptTime[i] = 0.0;
                         }
@@ -2044,6 +2053,10 @@ long Simulate_HW(
             {
                 if (RcvLeg->OptionType == 1)
                 {
+                    //////////////////////////////////////
+                    // 11.1 Receiver have Cancel Option //
+                    //////////////////////////////////////
+
                     if (NoteFlag == 0)
                     {
                         if (Y[n][i] < 0.0 && -Y[n][i] > Value_By_OptTime[i] && OptRangeFlag[n][i] > 0)
@@ -2063,6 +2076,10 @@ long Simulate_HW(
                 }
                 else
                 {
+                    ///////////////////////////////////
+                    // 11.2 Payer have Cancel Option //
+                    ///////////////////////////////////
+
                     if (NoteFlag == 0)
                     {
                         if (Y[n][i] > 0.0 && Y[n][i] > Value_By_OptTime[i] && OptRangeFlag[n][i] > 0)
@@ -2084,6 +2101,11 @@ long Simulate_HW(
 
             for (n = 0; n < Simul->NAsset; n++)
             {
+                /////////////////////////////////////////////////////////////////////////
+                // InterestRate_Opt[i][n] is ShortRate[n]                              //
+                // InterestRate_Opt[i][Simul->NAsset + 1] is 1.0                       //
+                // InterestRate_Opt[i][Simul->NAsset + 1 + n] is Square ShortRate[n]   //
+                /////////////////////////////////////////////////////////////////////////
                 InterestRate_Opt[i][n] = X[OptimalIdx[i]][i][n];
                 InterestRate_Opt[i][Simul->NAsset + 1 + n] = X[OptimalIdx[i]][i][n] * X[OptimalIdx[i]][i][n];
             }
@@ -2227,6 +2249,8 @@ long Simulate_HW(
     free(Simul_QuantoTerm);
     free(TimeOption);
     free(DF_To_Pay);
+    free(RcvP0T);
+    free(PayP0T);
     return 1;
 }
 
@@ -2253,7 +2277,10 @@ long IRStructuredSwap(
 
     //////////////////////////////
     // Short Rate Parameters    //
+    // XA -> Drift,             // 
+    // XV -> Diffusion          //
     //////////////////////////////
+
     long Length_XA_Array = Simul->NDays;
     long Length_XV_Array = Simul->NDays;
     double** XA_Array = (double**)malloc(sizeof(double*) * Simul->NAsset);
@@ -2275,6 +2302,11 @@ long IRStructuredSwap(
         }
     }
     
+    //////////////////////////
+    // Result Short Rate 1F //
+    // And Short Rate 2F    //
+    //////////////////////////
+
     double** SimulatedRateRcv = (double**)malloc(sizeof(double*) * RcvLeg->NReference); 
     for (i = 0; i < RcvLeg->NReference; i++) SimulatedRateRcv[i] = (double*)malloc(sizeof(double) * RcvLeg->NCashFlow);
     for (i = 0; i < RcvLeg->NReference; i++) for (j = 0; j < RcvLeg->NCashFlow; j++) SimulatedRateRcv[i][j] = 0.0;
@@ -2296,9 +2328,6 @@ long IRStructuredSwap(
 
     double** SimulShortRate2 = (double**)malloc(sizeof(double*) * Simul->NAsset); 
     for (i = 0; i < Simul->NAsset; i++) SimulShortRate2[i] = (double*)malloc(sizeof(double) * Simul->NDays);
-
-    double** SimulOverNightRate = (double**)malloc(sizeof(double*) * Simul->NAsset);
-    for (i = 0; i < Simul->NAsset; i++) SimulOverNightRate[i] = (double*)malloc(sizeof(double) * Simul->NDays);
     
     long* CurveIdx_Rcv = (long*)malloc(sizeof(long) * RcvLeg->NReference);
     long* CurveIdx_Pay = (long*)malloc(sizeof(long) * PayLeg->NReference);
@@ -2343,6 +2372,11 @@ long IRStructuredSwap(
         Pay_DF_t_T[i] = Pay_DF_0_T[i] / Pay_DF_0_t[i];
     }
     
+    ////////////////////////////////////
+    // Hull White Bond Pricing Params //
+    // Rcv and Pay Disc               //
+    ////////////////////////////////////
+
     double* B_t_T_RcvDisc = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
     double* QVTerm_RcvDisc = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
     double* B_t_T_RcvDisc2 = (double*)malloc(RcvLeg->NCashFlow * sizeof(double));
@@ -2385,91 +2419,6 @@ long IRStructuredSwap(
             QVTerm_PayDisc2[i] = HullWhiteQVTerm(t, T, Simul->HWKappa2[CurveIdx_DiscPay], Simul->NHWVol[CurveIdx_DiscPay], Simul->HWVolTerm[CurveIdx_DiscPay], Simul->HWVol2[CurveIdx_DiscPay]);
         }
     }
-    
-    double** Rcv_B_OptT_PayT = (double**)malloc(sizeof(double*) * max(1,RcvLeg->NOption));
-    for (i = 0; i < RcvLeg->NOption; i++) Rcv_B_OptT_PayT[i] = (double*)malloc(sizeof(double) * RcvLeg->NCashFlow);
-    double** Rcv_QVTerm_OptT_PayT = (double**)malloc(sizeof(double*) * max(1, RcvLeg->NOption));
-    for (i = 0; i < RcvLeg->NOption; i++) Rcv_QVTerm_OptT_PayT[i] = (double*)malloc(sizeof(double) * RcvLeg->NCashFlow);
-    double** Rcv_B_OptT_PayT2 = (double**)malloc(sizeof(double*) * max(1, RcvLeg->NOption));
-    for (i = 0; i < RcvLeg->NOption; i++) Rcv_B_OptT_PayT2[i] = (double*)malloc(sizeof(double) * RcvLeg->NCashFlow);
-    double** Rcv_QVTerm_OptT_PayT2 = (double**)malloc(sizeof(double*) * max(1, RcvLeg->NOption));
-    for (i = 0; i < RcvLeg->NOption; i++) Rcv_QVTerm_OptT_PayT2[i] = (double*)malloc(sizeof(double) * RcvLeg->NCashFlow);
-    for (i = 0; i < RcvLeg->NOption; i++)
-    {
-        t = ((double)DayCountAtoB(PricingDateC, RcvLeg->OptionDate[i])) / 365.0;
-        if (t < 0.0) t = 0.0;
-
-        for (j = 0; j < RcvLeg->NCashFlow; j++)
-        {
-
-            T = ((double)DayCountAtoB(PricingDateC, RcvLeg->PayDate_C[j])) / 365.0;
-            if (T < 0.0) T = 0.0;
-
-            if (RcvLeg->OptionType == 1 && t < T)
-            {
-                Rcv_B_OptT_PayT[i][j] = B_s_to_t(Simul->HWKappa[CurveIdx_DiscRcv], t, T);
-                Rcv_QVTerm_OptT_PayT[i][j] = HullWhiteQVTerm(t, T, Simul->HWKappa[CurveIdx_DiscRcv], Simul->NHWVol[CurveIdx_DiscRcv], Simul->HWVolTerm[CurveIdx_DiscRcv], Simul->HWVol[CurveIdx_DiscRcv]);
-                if (Simul->HWFactorFlag > 0)
-                {
-                    Rcv_B_OptT_PayT2[i][j] = B_s_to_t(Simul->HWKappa2[CurveIdx_DiscRcv], t, T);
-                    Rcv_QVTerm_OptT_PayT2[i][j] = HullWhiteQVTerm(t, T, Simul->HWKappa2[CurveIdx_DiscRcv], Simul->NHWVol[CurveIdx_DiscRcv], Simul->HWVolTerm[CurveIdx_DiscRcv], Simul->HWVol2[CurveIdx_DiscRcv]);
-                }
-            }
-            else if (RcvLeg->OptionType == 0 && t < T)
-            {
-                Rcv_B_OptT_PayT[i][j] = B_s_to_t(Simul->HWKappa[CurveIdx_DiscPay], t, T);
-                Rcv_QVTerm_OptT_PayT[i][j] = HullWhiteQVTerm(t, T, Simul->HWKappa[CurveIdx_DiscPay], Simul->NHWVol[CurveIdx_DiscPay], Simul->HWVolTerm[CurveIdx_DiscPay], Simul->HWVol[CurveIdx_DiscPay]);
-                if (Simul->HWFactorFlag > 0)
-                {
-                    Rcv_B_OptT_PayT2[i][j] = B_s_to_t(Simul->HWKappa2[CurveIdx_DiscPay], t, T);
-                    Rcv_QVTerm_OptT_PayT2[i][j] = HullWhiteQVTerm(t, T, Simul->HWKappa2[CurveIdx_DiscPay], Simul->NHWVol[CurveIdx_DiscPay], Simul->HWVolTerm[CurveIdx_DiscPay], Simul->HWVol2[CurveIdx_DiscPay]);
-                }
-            }
-        }
-    }
-
-    double** Pay_B_OptT_PayT = (double**)malloc(sizeof(double*) * max(1, RcvLeg->NOption));
-    for (i = 0; i < RcvLeg->NOption; i++) Pay_B_OptT_PayT[i] = (double*)malloc(sizeof(double) * PayLeg->NCashFlow);
-    double** Pay_QVTerm_OptT_PayT = (double**)malloc(sizeof(double*) * max(1, RcvLeg->NOption));
-    for (i = 0; i < RcvLeg->NOption; i++) Pay_QVTerm_OptT_PayT[i] = (double*)malloc(sizeof(double) * PayLeg->NCashFlow);
-    double** Pay_B_OptT_PayT2 = (double**)malloc(sizeof(double*) * max(1, RcvLeg->NOption));
-    for (i = 0; i < RcvLeg->NOption; i++) Pay_B_OptT_PayT2[i] = (double*)malloc(sizeof(double) * PayLeg->NCashFlow);
-    double** Pay_QVTerm_OptT_PayT2 = (double**)malloc(sizeof(double*) * max(1, RcvLeg->NOption));
-    for (i = 0; i < RcvLeg->NOption; i++) Pay_QVTerm_OptT_PayT2[i] = (double*)malloc(sizeof(double) * PayLeg->NCashFlow);
-    for (i = 0; i < RcvLeg->NOption; i++)
-    {
-        t = ((double)DayCountAtoB(PricingDateC, RcvLeg->OptionDate[i])) / 365.0;
-        if (t < 0.0) t = 0.0;
-
-        for (j = 0; j < PayLeg->NCashFlow; j++)
-        {
-
-            T = ((double)DayCountAtoB(PricingDateC, PayLeg->PayDate_C[j])) / 365.0;
-            if (T < 0.0) T = 0.0;
-
-            if (RcvLeg->OptionType == 1 && t < T)
-            {
-                Pay_B_OptT_PayT[i][j] = B_s_to_t(Simul->HWKappa[CurveIdx_DiscRcv], t, T);
-                Pay_QVTerm_OptT_PayT[i][j] = HullWhiteQVTerm(t, T, Simul->HWKappa[CurveIdx_DiscRcv], Simul->NHWVol[CurveIdx_DiscRcv], Simul->HWVolTerm[CurveIdx_DiscRcv], Simul->HWVol[CurveIdx_DiscRcv]);
-                if (Simul->HWFactorFlag > 0)
-                {
-                    Pay_B_OptT_PayT2[i][j] = B_s_to_t(Simul->HWKappa2[CurveIdx_DiscRcv], t, T);
-                    Pay_QVTerm_OptT_PayT2[i][j] = HullWhiteQVTerm(t, T, Simul->HWKappa2[CurveIdx_DiscRcv], Simul->NHWVol[CurveIdx_DiscRcv], Simul->HWVolTerm[CurveIdx_DiscRcv], Simul->HWVol2[CurveIdx_DiscRcv]);
-                }
-            }
-            else if (RcvLeg->OptionType == 0 && t < T)
-            {
-                Pay_B_OptT_PayT[i][j] = B_s_to_t(Simul->HWKappa[CurveIdx_DiscPay], t, T);
-                Pay_QVTerm_OptT_PayT[i][j] = HullWhiteQVTerm(t, T, Simul->HWKappa[CurveIdx_DiscPay], Simul->NHWVol[CurveIdx_DiscPay], Simul->HWVolTerm[CurveIdx_DiscPay], Simul->HWVol[CurveIdx_DiscPay]);
-                if (Simul->HWFactorFlag > 0)
-                {
-                    Pay_B_OptT_PayT2[i][j] = B_s_to_t(Simul->HWKappa2[CurveIdx_DiscPay], t, T);
-                    Pay_QVTerm_OptT_PayT2[i][j] = HullWhiteQVTerm(t, T, Simul->HWKappa2[CurveIdx_DiscPay], Simul->NHWVol[CurveIdx_DiscPay], Simul->HWVolTerm[CurveIdx_DiscPay], Simul->HWVol2[CurveIdx_DiscPay]);
-                }
-            }
-        }
-    }
-
 
     long ndates, ndates2 = 1;
     long CurveIdxRef;
@@ -2954,8 +2903,8 @@ long IRStructuredSwap(
 
     ResultCode = Simulate_HW(1, PricingDateC, NAFlag, Notional, RcvLeg, PayLeg,
         Simul, HW_information,
-        SimulatedRateRcv, SimulatedRateRcv2, SimulatedRatePay, SimulatedRatePay2, SimulShortRate, SimulShortRate2, SimulOverNightRate, CurveIdx_Rcv,
-        CurveIdx_Pay, Rcv_B_OptT_PayT, Rcv_QVTerm_OptT_PayT, Rcv_B_OptT_PayT2, Rcv_QVTerm_OptT_PayT2, Pay_B_OptT_PayT, Pay_QVTerm_OptT_PayT, Pay_B_OptT_PayT2, Pay_QVTerm_OptT_PayT2, ResultPrice, ResultRcv, ResultPay);
+        SimulatedRateRcv, SimulatedRateRcv2, SimulatedRatePay, SimulatedRatePay2, SimulShortRate, SimulShortRate2, CurveIdx_Rcv,
+        CurveIdx_Pay, ResultPrice, ResultRcv, ResultPay);
 
 
     // 할당 해제
@@ -2997,11 +2946,9 @@ long IRStructuredSwap(
     {
         free(SimulShortRate[i]);
         free(SimulShortRate2[i]);
-        free(SimulOverNightRate[i]);
     }
     free(SimulShortRate);
     free(SimulShortRate2);
-    free(SimulOverNightRate);
     
     free(CurveIdx_Rcv);
     free(CurveIdx_Pay);
@@ -3022,24 +2969,6 @@ long IRStructuredSwap(
     free(QVTerm_PayDisc);
     free(B_t_T_PayDisc2);
     free(QVTerm_PayDisc2);
-    
-    for (i = 0; i < RcvLeg->NOption; i++) free(Rcv_B_OptT_PayT[i]);
-    free(Rcv_B_OptT_PayT);
-    for (i = 0; i < RcvLeg->NOption; i++) free(Rcv_QVTerm_OptT_PayT[i]);
-    free(Rcv_QVTerm_OptT_PayT);
-    for (i = 0; i < RcvLeg->NOption; i++) free(Rcv_B_OptT_PayT2[i]);
-    free(Rcv_B_OptT_PayT2);
-    for (i = 0; i < RcvLeg->NOption; i++) free(Rcv_QVTerm_OptT_PayT2[i]);
-    free(Rcv_QVTerm_OptT_PayT2);
-
-    for (i = 0; i < RcvLeg->NOption; i++) free(Pay_B_OptT_PayT[i]);
-    free(Pay_B_OptT_PayT);
-    for (i = 0; i < RcvLeg->NOption; i++) free(Pay_QVTerm_OptT_PayT[i]);
-    free(Pay_QVTerm_OptT_PayT);
-    for (i = 0; i < RcvLeg->NOption; i++) free(Pay_B_OptT_PayT2[i]);
-    free(Pay_B_OptT_PayT2);
-    for (i = 0; i < RcvLeg->NOption; i++) free(Pay_QVTerm_OptT_PayT2[i]);
-    free(Pay_QVTerm_OptT_PayT2);
 
     // 할당 해제 Rcv Simul HW Params
     for (i = 0; i < RcvLeg->NReference; i++)
@@ -3313,7 +3242,7 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
 
     // 옵션관련
     long NOption,                       // 51 옵션개수 길이 
-    long* OptionDateAndFlag,            // 52 [0~NOption-1]옵션행사일 [NOption]행사조건 [Noption + 1] 옵션타입(발행자, 투자자 콜)
+    long* OptionDateAndFlag,            // 52 [0~NOption-1]옵션행사일 [NOption]행사조건 [Noption + 1] 옵션타입(발행자, 투자자 콜) [Noption + 2] 옵션행사일->지급일까지 일수
     double* OptionKAndRange,            // 53 [0~NOption-1]옵션행사가격% [NOption~7NOption-1] Ref1~3 Range상한 및 하한 
 
     double* ResultPrice,                // 54 산출된 가격 [0] Rcv [1] Pay [2] Price [3] OptionPrice [4~
@@ -3422,8 +3351,8 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
         DumppingTextData(CalcFunctionName, SaveFileName, "NSimul", NSimul);
         DumppingTextDataArray(CalcFunctionName, SaveFileName, "GreekTextFlag", 2, GreekTextFlag);
         DumppingTextData(CalcFunctionName, SaveFileName, "NOption", NOption);
-        DumppingTextDataArray(CalcFunctionName, SaveFileName, "OptionDateAndFlag", NOption + 2, OptionDateAndFlag);
-        DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "OptionDateAndFlag", NOption, 7, OptionKAndRange);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "OptionDateAndFlag", NOption + 3, OptionDateAndFlag);
+        DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "OptionKAndRange", NOption, 7, OptionKAndRange);
         DumppingTextData(CalcFunctionName, SaveFileName, "HWFactorFlag", HWFactorFlag);
 
 
@@ -3620,7 +3549,7 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
     else OptionUseFlag = 0;
     long CallConditionFlag = OptionDateAndFlag[NOptionOrg];
     long OptionType = OptionDateAndFlag[NOptionOrg + 1];
-
+    long OptDatetoPayDate = OptionDateAndFlag[NOptionOrg + 2];
     //////////////////////////////
     // 시뮬레이션에 사용되는 커브 번호 Mapping 시작
     //////////////////////////////
@@ -3705,6 +3634,7 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
     RcvLeg->OptionDate = OptionDate;
     RcvLeg->CallConditionFlag = CallConditionFlag;
     RcvLeg->OptionType = OptionType;
+    RcvLeg->OptDateToPayDate = OptDatetoPayDate;
     RcvLeg->StrikeRate = OptionStrikeRate;
     RcvLeg->RangeUp = RangeUp;
     RcvLeg->RangeDn = RangeDn;

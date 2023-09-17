@@ -653,12 +653,13 @@ DLLEXPORT(long) EDate_Cpp(long Cdate, long NMonths)
         Leap = LeapCheck(Year + PlusYear);
         if (Leap == 1)
         {
-            ResultDay = min(Day, Days_Leap[ResultMonth - 1]);
-
+            if (ResultMonth == 0) ResultDay = min(Day, Days_Leap[11]);
+            else ResultDay = min(Day, Days_Leap[ResultMonth - 1]);
         }
         else
         {
-            ResultDay = min(Day, Days[ResultMonth - 1]);
+            if (ResultMonth == 0) ResultDay = min(Day, Days[11]);
+            else ResultDay = min(Day, Days[ResultMonth - 1]);
         }
         if (TargetMonth % 12 != 0)
             return (Year + PlusYear) * 10000 + ResultMonth * 100 + ResultDay;
@@ -813,7 +814,7 @@ long CalcSolarToLunar(long YYYYMMDD, long* ResultArray3, long* _info_array_raw)
     }
     ly += 1841;
     lm += 1;
-    if (Year % 400 == 0 or Year % 100 != 0 or Year % 4 == 0)
+    if (Year % 400 == 0 || Year % 100 != 0 || Year % 4 == 0)
     {
         ld = td;
     }
@@ -919,7 +920,7 @@ long CalcLunarToSolar(long YYYYMMDD, long Leaf, long* ResultArray2, long* _info_
     long y2;
     do {
         y1 += 1;
-        leap = ((y1 % 4 == 0 and y1 % 100 != 0) or y1 % 400 == 0);
+        leap = ((y1 % 4 == 0 && y1 % 100 != 0) || y1 % 400 == 0);
 
         if (leap) y2 = 366;
         else y2 = 365;
