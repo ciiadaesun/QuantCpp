@@ -841,7 +841,11 @@ double HW_Rate(
     double* PV_t_T,
     double* QVTerm,
     double* B_t_T,
-    double* dt
+    double* dt,
+    long HW2FFlag,
+    double ShortRate2F,
+    double* QVTerm_2F,
+    double* B_t_T_2F
 )
 {
     long i;
@@ -857,6 +861,7 @@ double HW_Rate(
         {
             term = dt[i];
             PtT = PV_t_T[i] * exp(-ShortRate * B_t_T[i] +0.5 * QVTerm[i]);
+            if (HW2FFlag > 0) PtT = PtT * exp(-ShortRate2F * B_t_T_2F[i] + 0.5 * QVTerm_2F[i]);
             B += term * PtT;
         }
 
@@ -864,7 +869,11 @@ double HW_Rate(
     }
     else
     {
-        if (t >= 0.0) PtT = PV_t_T[0] * exp(-ShortRate * B_t_T[0] + 0.5 * QVTerm[0]);
+        if (t >= 0.0)
+        {
+            PtT = PV_t_T[0] * exp(-ShortRate * B_t_T[0] + 0.5 * QVTerm[0]);
+            if (HW2FFlag > 0) PtT = PtT * exp(-ShortRate2F * B_t_T_2F[0] + 0.5 * QVTerm_2F[0]);
+        }
         else PtT = Calc_Discount_Factor(RateTerm, Rate, NRateTerm, T);
 
         if (dt[0] < 1.0) ResultRate = (1.0 - PtT) / (dt[0] * PtT);
@@ -1275,6 +1284,7 @@ long Simulate_HW(
     double RcvPrice, PayPrice;
     double kappa;
     double xt = 0.0;
+    double xt_2f = 0.0;
     double Rate = 0.0, Rate1 = 0.0, Rate2 = 0.0;
 
     
@@ -1517,7 +1527,8 @@ long Simulate_HW(
                     if (isinFindIndex(Simul->DaysForSimul[j], RcvLeg->DaysForwardStart, RcvLeg->NCashFlow, Dayidx))
                     {
                         xt = SimulShortRate[Curveidx][j];
-                        if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[Curveidx][j];
+                        xt_2f = 0.0;
+                        if (Simul->HWFactorFlag > 0) xt_2f = SimulShortRate2F[Curveidx][j];
 
                         if (RcvLeg->Reference_Inform[n].PowerSpreadFlag == 0)
                         {
@@ -1529,7 +1540,8 @@ long Simulate_HW(
                             T = ((double)RcvLeg->DaysForwardEnd[Dayidx]) / 365.0;
                             Rate = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                 Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n][j], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
-                                HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
+                                HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j], Simul->HWFactorFlag, xt_2f, 
+                                HW_Information->RcvRef_QVTerm2F[n][j], HW_Information->RcvRef_B_t_T2F[n][j]);
                         }
                         else
                         {
@@ -1543,11 +1555,13 @@ long Simulate_HW(
 
                             Rate1 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                 Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n][j], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
-                                HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
+                                HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j], Simul->HWFactorFlag, xt_2f, 
+                                HW_Information->RcvRef_QVTerm2F[n][j], HW_Information->RcvRef_B_t_T2F[n][j]);
 
                             Rate2 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                 Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_rcv[n][j], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T_PowerSpread[n][j],
-                                HW_Information->RcvRef_QVTerm_PowerSpread[n][j], HW_Information->RcvRef_B_t_T_PowerSpread[n][j], HW_Information->RcvRef_dt_PowerSpread[n][j]);
+                                HW_Information->RcvRef_QVTerm_PowerSpread[n][j], HW_Information->RcvRef_B_t_T_PowerSpread[n][j], HW_Information->RcvRef_dt_PowerSpread[n][j], Simul->HWFactorFlag, xt_2f, 
+                                HW_Information->RcvRef_QVTerm_PowerSpread2F[n][j], HW_Information->RcvRef_B_t_T_PowerSpread2F[n][j]);
 
                             Rate = Rate1 - Rate2;
                         }
@@ -1563,7 +1577,8 @@ long Simulate_HW(
                     if (isinFindIndex(Simul->DaysForSimul[j], RcvLeg->DaysForwardStart, RcvLeg->NCashFlow, Dayidx, &idxrcv))
                     {
                         xt = SimulShortRate[Curveidx][j];
-                        if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[Curveidx][j];
+                        xt_2f = 0.0;
+                        if (Simul->HWFactorFlag > 0) xt_2f = SimulShortRate2F[Curveidx][j];
 
                         t = Simul->T_Array[j];
                         if (RcvLeg->Reference_Inform[n].RefRateType <= 2)
@@ -1577,7 +1592,8 @@ long Simulate_HW(
                                 T = ((double)RcvLeg->DaysForwardEnd[Dayidx]) / 365.0;
                                 Rate = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n][j], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
-                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
+                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j], Simul->HWFactorFlag, xt_2f,
+                                    HW_Information->RcvRef_QVTerm2F[n][j], HW_Information->RcvRef_B_t_T2F[n][j]);
                             }
                             else
                             {
@@ -1590,11 +1606,13 @@ long Simulate_HW(
 
                                 Rate1 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_rcv[n][j], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T[n][j],
-                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j]);
+                                    HW_Information->RcvRef_QVTerm[n][j], HW_Information->RcvRef_B_t_T[n][j], HW_Information->RcvRef_dt[n][j], Simul->HWFactorFlag, xt_2f, 
+                                    HW_Information->RcvRef_QVTerm2F[n][j], HW_Information->RcvRef_B_t_T2F[n][j]);
 
                                 Rate2 = HW_Rate(RcvLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_rcv[n][j], RcvLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->RcvRef_DF_t_T_PowerSpread[n][j],
-                                    HW_Information->RcvRef_QVTerm_PowerSpread[n][j], HW_Information->RcvRef_B_t_T_PowerSpread[n][j], HW_Information->RcvRef_dt_PowerSpread[n][j]);
+                                    HW_Information->RcvRef_QVTerm_PowerSpread[n][j], HW_Information->RcvRef_B_t_T_PowerSpread[n][j], HW_Information->RcvRef_dt_PowerSpread[n][j],Simul->HWFactorFlag, xt_2f,
+                                    HW_Information->RcvRef_QVTerm_PowerSpread2F[n][j], HW_Information->RcvRef_B_t_T_PowerSpread2F[n][j]);
 
                                 Rate = Rate1 - Rate2;
                             }
@@ -1658,9 +1676,15 @@ long Simulate_HW(
                 RcvPayoff[j] = Notional * PayoffStructure(Simul->DailySimulFlag, RcvLeg, RcvLeg->NReference, Simul->NDays, SimulatedRateRcv, SimulatedRateRcv2, RcvDailyRate, j, RateHistoryUseFlag, RcvOutputRate, nAccrual);
                 xt_idx = FindIndex(Day1, Simul->DaysForSimul, Simul->NDays, &idx1);
                 xt = SimulShortRate[HW_Information->CurveIdx_DiscRcv][xt_idx];
-                if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[HW_Information->CurveIdx_DiscRcv][xt_idx];
+                xt_2f = 0.0;
 
-                if (t > 0.0) PtT = HW_Information->Rcv_DF_t_T[j] * exp(-xt * HW_Information->B_t_T_RcvDisc[j] + HW_Information->QVTerm_RcvDisc[j]);
+                if (Simul->HWFactorFlag > 0) xt_2f = SimulShortRate2F[HW_Information->CurveIdx_DiscRcv][xt_idx];
+
+                if (t > 0.0)
+                {
+                    PtT = HW_Information->Rcv_DF_t_T[j] * exp(-xt * HW_Information->B_t_T_RcvDisc[j] + 0.5 * HW_Information->QVTerm_RcvDisc[j]);
+                    if (Simul->HWFactorFlag > 0) PtT = PtT * exp(-xt_2f * HW_Information->B_t_T_RcvDisc2F[j] + 0.5 * HW_Information->QVTerm_RcvDisc2F[j]);
+                }
                 else PtT = HW_Information->Rcv_DF_0_T[j];
 
             }
@@ -1784,7 +1808,9 @@ long Simulate_HW(
                     if (isinFindIndex(Simul->DaysForSimul[j], PayLeg->DaysForwardStart, PayLeg->NCashFlow, Dayidx))
                     {
                         xt = SimulShortRate[Curveidx][j];
-                        if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[Curveidx][j];
+                        xt_2f = 0.0;
+
+                        if (Simul->HWFactorFlag > 0) xt_2f = SimulShortRate2F[Curveidx][j];
 
                         if (PayLeg->Reference_Inform[n].PowerSpreadFlag == 0)
                         {
@@ -1796,7 +1822,8 @@ long Simulate_HW(
                             T = ((double)PayLeg->DaysForwardEnd[Dayidx]) / 365.0;
                             Rate = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                 Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n][j], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
-                                HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
+                                HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j], Simul->HWFactorFlag, xt_2f, 
+                                HW_Information->PayRef_QVTerm2F[n][j], HW_Information->PayRef_B_t_T2F[n][j]);
                         }
                         else
                         {
@@ -1810,11 +1837,13 @@ long Simulate_HW(
 
                             Rate1 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                 Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n][j], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
-                                HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
+                                HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j], Simul->HWFactorFlag, xt_2f,
+                                HW_Information->PayRef_QVTerm2F[n][j], HW_Information->PayRef_B_t_T2F[n][j]);
 
                             Rate2 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                 Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_pay[n][j], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T_PowerSpread[n][j],
-                                HW_Information->PayRef_QVTerm_PowerSpread[n][j], HW_Information->PayRef_B_t_T_PowerSpread[n][j], HW_Information->PayRef_dt_PowerSpread[n][j]);
+                                HW_Information->PayRef_QVTerm_PowerSpread[n][j], HW_Information->PayRef_B_t_T_PowerSpread[n][j], HW_Information->PayRef_dt_PowerSpread[n][j], Simul->HWFactorFlag, xt_2f,
+                                HW_Information->PayRef_QVTerm_PowerSpread2F[n][j], HW_Information->PayRef_B_t_T_PowerSpread2F[n][j]);
 
                             Rate = Rate1 - Rate2;
                         }
@@ -1832,7 +1861,9 @@ long Simulate_HW(
                     {
                         SimDayYYYYMMDD = Simul->YYYYMMDDForSimul[j];
                         xt = SimulShortRate[Curveidx][j];
-                        if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[Curveidx][j];
+                        xt_2f = 0.0;
+                        
+                        if (Simul->HWFactorFlag > 0) xt_2f = SimulShortRate2F[Curveidx][j];
 
                         t = Simul->T_Array[j];
                         if (PayLeg->Reference_Inform[n].RefRateType <= 2)
@@ -1846,7 +1877,8 @@ long Simulate_HW(
                                 T = ((double)PayLeg->DaysForwardEnd[Dayidx]) / 365.0;
                                 Rate = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n][j], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
-                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
+                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j], Simul->HWFactorFlag, xt_2f,
+                                    HW_Information->PayRef_QVTerm2F[n][j], HW_Information->PayRef_B_t_T2F[n][j]);
                             }
                             else
                             {
@@ -1859,11 +1891,13 @@ long Simulate_HW(
 
                                 Rate1 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T1, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_pay[n][j], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T[n][j],
-                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j]);
+                                    HW_Information->PayRef_QVTerm[n][j], HW_Information->PayRef_B_t_T[n][j], HW_Information->PayRef_dt[n][j], Simul->HWFactorFlag, xt_2f,
+                                    HW_Information->PayRef_QVTerm2F[n][j], HW_Information->PayRef_B_t_T2F[n][j]);
 
                                 Rate2 = HW_Rate(PayLeg->Reference_Inform[n].RefRateType, t, T2, Simul->NRateTerm[Curveidx], Simul->RateTerm[Curveidx],
                                     Simul->Rate[Curveidx], xt, HW_Information->ndates_cpn_powerspread_pay[n][j], PayLeg->Reference_Inform[n].RefSwapNCPN_Ann, HW_Information->PayRef_DF_t_T_PowerSpread[n][j],
-                                    HW_Information->PayRef_QVTerm_PowerSpread[n][j], HW_Information->PayRef_B_t_T_PowerSpread[n][j], HW_Information->PayRef_dt_PowerSpread[n][j]);
+                                    HW_Information->PayRef_QVTerm_PowerSpread[n][j], HW_Information->PayRef_B_t_T_PowerSpread[n][j], HW_Information->PayRef_dt_PowerSpread[n][j], Simul->HWFactorFlag, xt_2f,
+                                    HW_Information->PayRef_QVTerm_PowerSpread2F[n][j], HW_Information->PayRef_B_t_T_PowerSpread2F[n][j]);
 
                                 Rate = Rate1 - Rate2;
                             }
@@ -1925,9 +1959,15 @@ long Simulate_HW(
                 PayPayoff[j] = Notional * PayoffStructure(Simul->DailySimulFlag, PayLeg, PayLeg->NReference, Simul->NDays, SimulatedRatePay, SimulatedRatePay2, PayDailyRate,  j, RateHistoryUseFlag, PayOutputRate, nAccrual);
                 xt_idx = FindIndex(Day1, Simul->DaysForSimul, Simul->NDays, &idx2);
                 xt = SimulShortRate[HW_Information->CurveIdx_DiscPay][xt_idx];
-                if (Simul->HWFactorFlag > 0) xt += SimulShortRate2F[HW_Information->CurveIdx_DiscPay][xt_idx];
+                xt_2f = 0.0;
 
-                if (t > 0.0) PtT = HW_Information->Pay_DF_t_T[j] * exp(-xt * HW_Information->B_t_T_PayDisc[j] + HW_Information->QVTerm_PayDisc[j]);
+                if (Simul->HWFactorFlag > 0) xt_2f = SimulShortRate2F[HW_Information->CurveIdx_DiscPay][xt_idx];
+
+                if (t > 0.0)
+                {
+                    PtT = HW_Information->Pay_DF_t_T[j] * exp(-xt * HW_Information->B_t_T_PayDisc[j] + 0.5 * HW_Information->QVTerm_PayDisc[j]);
+                    if (Simul->HWFactorFlag > 0) PtT = exp(-xt_2f * HW_Information->B_t_T_PayDisc2F[j] + 0.5 * HW_Information->QVTerm_PayDisc2F[j]);
+                }
                 else PtT = HW_Information->Pay_DF_0_T[j];
 
             }
