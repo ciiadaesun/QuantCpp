@@ -218,23 +218,29 @@ double XV(
 )
 {
     long i;
-    long nSquare = 4; // 적분구간을 nSquare만큼 나눔
-    double ds = (t1 - t0) / (double)nSquare;
-    double s = t0;
     double vol = 0.0;
     double B_k, B_k_Square;
+    kappa = max(0.00001, kappa);
 
     B_k_Square = 0.0;
-    /*
-    for (i = 0; i < nSquare; i++)
+    long NInteg = 10.0;
+    double u = t0;
+    double du = (t1 - t0) / ((double)NInteg);
+    B_k_Square = 0.0;
+    for (i = 0; i < NInteg; i++)
     {
-        vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, s);
-        B_k_Square += exp(-2.0 * kappa * (t1 - s)) * vol * vol * ds;
-        s += ds;
-    }*/
-    double vol1 = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t0);
-    double vol2 = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t1);
-    B_k_Square = (0.5 * vol1 + 0.5 * vol2) * (0.5 * vol1 + 0.5 * vol2) / (2.0 * max(0.00001, kappa)) * (1.0 - exp(-2.0 * max(0.00001, kappa) * (t1 - t0)));
+        vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, u);
+        B_k_Square += vol * vol * exp(-2.0 * kappa * (t1 - u)) * du;
+        u = u + du;
+    }
+
+    //double vol1 = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t0);
+    //double vol2 = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t1);
+    //double forwardvariance = ((vol2 * vol2 * t1 - vol1 * vol1 * t0) / (t1 - t0));
+    //if (forwardvariance > 0.) vol = sqrt(forwardvariance);
+    //else vol = (vol1 + vol2) / 2.0;
+    //vol = (vol1 + vol2) / 2.0;
+    //B_k_Square = vol * vol / (2.0 *  kappa) * (1.0 - exp(-2.0 * kappa* (t1 - t0)));
 
     B_k = sqrt(B_k_Square);
     return B_k;
@@ -285,24 +291,28 @@ double HullWhiteQVTerm(
     double RHS = 0.0;
     long nInteg = 4;
     double s, ds;
-    /*
-    ds = t / (double)nInteg;
-    s = ds;
 
-    for (i = 0; i < nInteg; i++)
+    //double volt, volT;
+    //volt = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t);
+    //volT = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, T);
+
+    //double forwardvariance = ((volT * volT * T - volt * volt * t) / (T - t));
+    
+    //if (forwardvariance > 0.) vol = sqrt(forwardvariance);
+    //else vol = (volt + volT) / 2.0;
+
+    //RHS = -vol * vol * (exp(-kappa * T) - exp(-kappa * t))* (exp(-kappa * T) - exp(-kappa * t))* (exp(2.0 * kappa * t) - 1.0) / (4.0 * kappa * kappa * kappa);
+
+    long NInteg = 10.0;
+    double u = t;
+    double du = (T - t) / ((double)NInteg);
+    RHS = 0.0;
+    for (i = 0; i < NInteg; i++)
     {
-        vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, s);
-        Bst = B_s_to_t(kappa, s, t);
-        BsT = B_s_to_t(kappa, s, T);
-        RHS += vol * vol * (Bst * Bst - BsT * BsT) * ds;
-        s += ds;
+        vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, u);
+        RHS += 0.5 * vol * vol * (B_s_to_t(kappa, u, t) * B_s_to_t(kappa, u, t) - B_s_to_t(kappa, u, T) * B_s_to_t(kappa, u, T)) * du;
+        u = u + du;
     }
-    */
-    double volt, volT;
-    volt = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t);
-    volT = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, T);
-    vol = (volt + volT) / 2.0;
-    RHS = -(vol * exp(-kappa * T) - vol * exp(-kappa * t))* (vol * exp(-kappa * T) - vol * exp(-kappa * t))* (exp(2.0 * kappa * t) - 1.0) / (2.0 * kappa * kappa * kappa);
 
     return RHS;
 }
@@ -860,8 +870,8 @@ double HW_Rate(
         for (i = 0; i < NCfSwap; i++)
         {
             term = dt[i];
-            PtT = PV_t_T[i] * exp(-ShortRate * B_t_T[i] +0.5 * QVTerm[i]);
-            if (HW2FFlag > 0) PtT = PtT * exp(-ShortRate2F * B_t_T_2F[i] + 0.5 * QVTerm_2F[i]);
+            PtT = PV_t_T[i] * exp(-ShortRate * B_t_T[i] + QVTerm[i]);
+            if (HW2FFlag > 0) PtT = PtT * exp(-ShortRate2F * B_t_T_2F[i] + QVTerm_2F[i]);
             B += term * PtT;
         }
 
@@ -871,8 +881,8 @@ double HW_Rate(
     {
         if (t >= 0.0)
         {
-            PtT = PV_t_T[0] * exp(-ShortRate * B_t_T[0] + 0.5 * QVTerm[0]);
-            if (HW2FFlag > 0) PtT = PtT * exp(-ShortRate2F * B_t_T_2F[0] + 0.5 * QVTerm_2F[0]);
+            PtT = PV_t_T[0] * exp(-ShortRate * B_t_T[0] + QVTerm[0]);
+            if (HW2FFlag > 0) PtT = PtT * exp(-ShortRate2F * B_t_T_2F[0] + QVTerm_2F[0]);
         }
         else PtT = Calc_Discount_Factor(RateTerm, Rate, NRateTerm, T);
 
@@ -1462,37 +1472,56 @@ long Simulate_HW(
         for (idxoption = 0; idxoption < RcvLeg->NOption; idxoption++)
         {
             T_Opt = TimeOption[idxoption];
-            for (j = 0; j < Simul->NDays; j++)
+            if (T_Opt <= Simul->T_Array[0])
             {
-                if (T_Opt < Simul->T_Array[j + 1] && T_Opt >= Simul->T_Array[j])
+                xt_termlsmc[0] = 0.;
+                xt_termlsmc[1] = Simul->T_Array[0];
+                for (n = 0; n < Simul->NAsset; n++)
                 {
-                    xt_termlsmc[0] = Simul->T_Array[j];
-                    xt_termlsmc[1] = Simul->T_Array[j + 1];
-                    for (n = 0; n < Simul->NAsset; n++)
+                    xt_lsmc[0] = 0.;
+                    xt_lsmc[1] = SimulShortRate[n][0];
+                    xt_interp = Interpolate_Linear(xt_termlsmc, xt_lsmc, 2, T_Opt);
+                    X[idxoption][i][n] = xt_interp;
+                    if (Simul->HWFactorFlag > 0)
                     {
-                        xt_lsmc[0] = SimulShortRate[n][j];
-                        xt_lsmc[1] = SimulShortRate[n][j + 1];
+                        xt_lsmc[0] = 0.;
+                        xt_lsmc[1] = SimulShortRate2F[n][0];
                         xt_interp = Interpolate_Linear(xt_termlsmc, xt_lsmc, 2, T_Opt);
-                        X[idxoption][i][n] = xt_interp;
-                        if (Simul->HWFactorFlag > 0)
-                        {
-                            xt_lsmc[0] = SimulShortRate2F[n][j];
-                            xt_lsmc[1] = SimulShortRate2F[n][j + 1];
-                            xt_interp = Interpolate_Linear(xt_termlsmc, xt_lsmc, 2, T_Opt);
-                            X[idxoption][i][n] = X[idxoption][i][n] + xt_interp;
-                        }
+                        X[idxoption][i][n] = X[idxoption][i][n] + xt_interp;
                     }
-                    break;
                 }
-                else if (T_Opt >= Simul->T_Array[Simul->NDays - 1])
+            }
+            else if (T_Opt >= Simul->T_Array[Simul->NDays - 1])
+            {
+                for (n = 0; n < Simul->NAsset; n++)
                 {
-                    for (n = 0; n < Simul->NAsset; n++)
+                    X[idxoption][i][n] = SimulShortRate[n][Simul->NDays - 1];
+                    if (Simul->HWFactorFlag > 0) X[idxoption][i][n] = X[idxoption][i][n] + SimulShortRate2F[n][Simul->NDays - 1];
+                }
+            }
+            else
+            {
+                for (j = 0; j < Simul->NDays-1; j++)
+                {
+                    if (T_Opt < Simul->T_Array[j + 1] && T_Opt >= Simul->T_Array[j])
                     {
-                        X[idxoption][i][n] = SimulShortRate[n][Simul->NDays - 1];
-                        if (Simul->HWFactorFlag > 0)
+                        xt_termlsmc[0] = Simul->T_Array[j];
+                        xt_termlsmc[1] = Simul->T_Array[j + 1];
+                        for (n = 0; n < Simul->NAsset; n++)
                         {
-                            X[idxoption][i][n] = X[idxoption][i][n] + SimulShortRate2F[n][Simul->NDays - 1];
+                            xt_lsmc[0] = SimulShortRate[n][j];
+                            xt_lsmc[1] = SimulShortRate[n][j + 1];
+                            xt_interp = Interpolate_Linear(xt_termlsmc, xt_lsmc, 2, T_Opt);
+                            X[idxoption][i][n] = xt_interp;
+                            if (Simul->HWFactorFlag > 0)
+                            {
+                                xt_lsmc[0] = SimulShortRate2F[n][j];
+                                xt_lsmc[1] = SimulShortRate2F[n][j + 1];
+                                xt_interp = Interpolate_Linear(xt_termlsmc, xt_lsmc, 2, T_Opt);
+                                X[idxoption][i][n] = X[idxoption][i][n] + xt_interp;
+                            }
                         }
+                        break;
                     }
                 }
             }
@@ -1682,10 +1711,14 @@ long Simulate_HW(
 
                 if (t > 0.0)
                 {
-                    PtT = HW_Information->Rcv_DF_t_T[j] * exp(-xt * HW_Information->B_t_T_RcvDisc[j] + 0.5 * HW_Information->QVTerm_RcvDisc[j]);
-                    if (Simul->HWFactorFlag > 0) PtT = PtT * exp(-xt_2f * HW_Information->B_t_T_RcvDisc2F[j] + 0.5 * HW_Information->QVTerm_RcvDisc2F[j]);
+                    PtT = HW_Information->Rcv_DF_t_T[j] * exp(-xt * HW_Information->B_t_T_RcvDisc[j] + HW_Information->QVTerm_RcvDisc[j]);
+                    if (Simul->HWFactorFlag > 0) PtT = PtT * exp(-xt_2f * HW_Information->B_t_T_RcvDisc2F[j] + HW_Information->QVTerm_RcvDisc2F[j]);
                 }
-                else PtT = HW_Information->Rcv_DF_0_T[j];
+                else
+                {
+                    Pt = 1.0;
+                    PtT = HW_Information->Rcv_DF_0_T[j];
+                }
 
             }
             else
@@ -1965,10 +1998,14 @@ long Simulate_HW(
 
                 if (t > 0.0)
                 {
-                    PtT = HW_Information->Pay_DF_t_T[j] * exp(-xt * HW_Information->B_t_T_PayDisc[j] + 0.5 * HW_Information->QVTerm_PayDisc[j]);
-                    if (Simul->HWFactorFlag > 0) PtT = exp(-xt_2f * HW_Information->B_t_T_PayDisc2F[j] + 0.5 * HW_Information->QVTerm_PayDisc2F[j]);
+                    PtT = HW_Information->Pay_DF_t_T[j] * exp(-xt * HW_Information->B_t_T_PayDisc[j] + HW_Information->QVTerm_PayDisc[j]);
+                    if (Simul->HWFactorFlag > 0) PtT = exp(-xt_2f * HW_Information->B_t_T_PayDisc2F[j] + HW_Information->QVTerm_PayDisc2F[j]);
                 }
-                else PtT = HW_Information->Pay_DF_0_T[j];
+                else
+                {
+                    Pt = 1.0;
+                    PtT = HW_Information->Pay_DF_0_T[j];
+                }
 
             }
             else
@@ -1980,17 +2017,18 @@ long Simulate_HW(
                 PtT = HW_Information->Pay_DF_0_T[j];
             }
 
-            PricePath_Pay += Pt * PtT * PayPayoff[j];
+            PayP0T[j] = Pt * PtT;
+            PricePath_Pay += PayP0T[j] * PayPayoff[j];
 
             for (n = 0; n < PayLeg->NReference; n++)
             {
                 ResultPay[j + n * PayLeg->NCashFlow] += PayOutputRate[n] / (double)Simul->NSimul;
             }
+
             ResultPay[3 * PayLeg->NCashFlow + j] += ((double)nAccrual) / (double)Simul->NSimul;
             ResultPay[4 * PayLeg->NCashFlow + j] += PayPayoff[j] / (double)Simul->NSimul;
-            ResultPay[5 * PayLeg->NCashFlow + j] += Pt * PtT / (double)Simul->NSimul;
-            PayP0T[j] = Pt * PtT;
-            if (j == PayLeg->NCashFlow - 1 && NAFlag == 1 && NoteFlag == 0) NotionalValue[1] += Pt * PtT * Notional / (double)Simul->NSimul;
+            ResultPay[5 * PayLeg->NCashFlow + j] += PayP0T[j] / (double)Simul->NSimul;
+            if (j == PayLeg->NCashFlow - 1 && NAFlag == 1 && NoteFlag == 0) NotionalValue[1] += PayP0T[j] * Notional / (double)Simul->NSimul;
         }
 
         if (RcvLeg->OptionUseFlag == 1)
@@ -3795,8 +3833,8 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
     ////////////////////////////////////////////////////////////
 
     long NDays = 0;
-    long* AllDays = (long*)malloc(sizeof(long) * (RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2));
-    long* AllDaysYYYYMMDD = (long*)malloc(sizeof(long) * (RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2));
+    long* AllDays = (long*)malloc(sizeof(long) * (RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2 + RcvLeg->NOption));
+    long* AllDaysYYYYMMDD = (long*)malloc(sizeof(long) * (RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2 + RcvLeg->NOption));
     for (i = 0; i < RcvLeg->NCashFlow; i++)
     {
         if (PriceDate <= RcvLeg->ForwardStart_C[i])
@@ -3847,13 +3885,27 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
         }
     }
 
-    bubble_sort_long(AllDays, (RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2), 1);
-    bubble_sort_long(AllDaysYYYYMMDD, (RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2), 1);
+    for (i = 0; i < RcvLeg->NOption; i++)
+    {
+        if (PriceDate <= RcvLeg->OptionDate[i])
+        {
+            AllDays[RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2 + i] = DayCountAtoB(PriceDate, RcvLeg->OptionDate[i]);
+            AllDaysYYYYMMDD[RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2 + i] = RcvLeg->OptionDate[i];
+        }
+        else
+        {
+            AllDays[RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2 + i] = 0;
+            AllDaysYYYYMMDD[RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2 + i] = PriceDate;
+        }
+    }
+
+    bubble_sort_long(AllDays, (RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2 + RcvLeg->NOption), 1);
+    bubble_sort_long(AllDaysYYYYMMDD, (RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2 + RcvLeg->NOption), 1);
     long* DaysForSimul;
     long* YYYYMMDDForSimul;
 
-    DaysForSimul = Make_Unique_Array((RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2), AllDays, NDays);
-    YYYYMMDDForSimul = Make_Unique_Array((RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2), AllDaysYYYYMMDD, NDays);
+    DaysForSimul = Make_Unique_Array((RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2 + RcvLeg->NOption), AllDays, NDays);
+    YYYYMMDDForSimul = Make_Unique_Array((RcvLeg->NCashFlow * 2 + PayLeg->NCashFlow * 2 + RcvLeg->NOption), AllDaysYYYYMMDD, NDays);
 
     long MaxDaysSimul = 1000;
     long ExcelStartDate, ExcelEndDate , ExcelDate, weekendflag, holiflag, CDate;

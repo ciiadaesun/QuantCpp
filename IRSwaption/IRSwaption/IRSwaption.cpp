@@ -300,16 +300,19 @@ double BS_Swaption(
 	double* Rate,
 	long NTerm,
 	long DayCountFracFlag,
-	long VolFlag
+	long VolFlag,
+	long PricingOrValueFlag,
+	double &ResultForwardSwapRate
 )
 {
 	long i;
 	double FSR;
 
 	double T_Option = ((double)DayCountAtoB(PriceDate, StartDate))/365.0;
-	double dt, t_pay, value, d1, d2;
+	double dt, t_pay, value, d1, d2, value_atm , d1_atm, d2_atm;
 	double annuity = 0.0;
 	FSR = ForwardSwapRate(PriceDate, StartDate, NCpn, SwapDate, NTerm, Term, Rate, NTerm, Term, Rate, DayCountFracFlag);
+	ResultForwardSwapRate = FSR;
 
 	for (i = 0; i < NCpn; i++)
 	{
@@ -326,20 +329,27 @@ double BS_Swaption(
 	}
 
 	value = 0.0;
+	value_atm = 0.0;
 	if (VolFlag == 0)
 	{
 		d1 = (log(FSR / StrikePrice) + 0.5 * Vol * Vol * T_Option) / (Vol * sqrt(T_Option));
 		d2 = d1 - Vol * sqrt(T_Option);
 
+		d1_atm = 0.5 * Vol * sqrt(T_Option);
+		d2_atm = -0.5 * Vol * sqrt(T_Option);
+
 		value = annuity * (FSR * CDF_N(d1) - StrikePrice * CDF_N(d2));
+		value_atm = annuity * (FSR * CDF_N(d1_atm) - FSR * CDF_N(d2_atm));
 	}
 	else
 	{
 		d1 = (FSR - StrikePrice) / (Vol * sqrt(T_Option));
 
 		value = annuity * ((FSR - StrikePrice) * CDF_N(d1) + Vol * sqrt(T_Option) * (exp(-d1 * d1 / 2.0) / 2.506628274631));
+		value_atm = annuity * (Vol * sqrt(T_Option)  / 2.506628274631);
 	}
-	return NA * value;
+	if (PricingOrValueFlag == 0) return NA * value;
+	else return NA * (value - value_atm);
 }
 
 DLLEXPORT(long) Pricing_BS_Swaption(
@@ -347,6 +357,7 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 	long StartDate,				// 옵션시작일
 	long SwapMaturityDate,		// 스왑 만기 YYYYMMDD
 	long AnnCpnOneYear,			// 연 이자지급수
+	long PricingOrValueFlag,	// 0: Pricing , 1: Valuation
 	double NA,					// 명목원금
 	double Vol,					// 변동성
 	double StrikePrice,			// 행사금리
@@ -403,6 +414,7 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 		DumppingTextData(CalcFunctionName, SaveFileName, "StartDate", StartDate);
 		DumppingTextData(CalcFunctionName, SaveFileName, "SwapMaturityDate", SwapMaturityDate);
 		DumppingTextData(CalcFunctionName, SaveFileName, "AnnCpnOneYear", AnnCpnOneYear);
+		DumppingTextData(CalcFunctionName, SaveFileName, "PricingOrValueFlag", PricingOrValueFlag);
 		DumppingTextData(CalcFunctionName, SaveFileName, "NA", NA);
 
 		DumppingTextData(CalcFunctionName, SaveFileName, "Vol", Vol);
@@ -432,17 +444,21 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 	long TempDate = StartDate;
 	long* CpnDates = Generate_CpnDate_Holiday_IRSwaption(StartDate, TargetMat, AnnCpnOneYear, nCpnDates, StartDate, NHoliday, HolidayYYYYMMDD);
 
-	swv = BS_Swaption(PriceDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, Term, Rate, NTerm, DayCountFracFlag, VolFlag);
+	double* ResultFSR = ResultValue + 2;
+
+	swv = BS_Swaption(PriceDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, Term, Rate, NTerm, DayCountFracFlag, VolFlag, PricingOrValueFlag , *ResultFSR);
 	
 	double* Value = ResultValue;
 	double* PV01_Curve = ResultValue + 1;
-	double* KeyRatePV01_Curve = ResultValue + 2;
+	
+	double* KeyRatePV01_Curve = ResultValue + 3;
 	Value[0] = swv;
 	if (GreekFlag > 0)
 	{
+		double TempFSR = 0.0;
 		double* RateForGreek = (double*)malloc(sizeof(double) * NTerm);
 		for (i = 0; i < NTerm; i++) RateForGreek[i] = Rate[i] + 0.0001;
-		PV01_Curve[0] = BS_Swaption(PriceDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, Term, RateForGreek, NTerm, DayCountFracFlag, VolFlag) - swv;
+		PV01_Curve[0] = BS_Swaption(PriceDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, Term, RateForGreek, NTerm, DayCountFracFlag, VolFlag, PricingOrValueFlag, TempFSR) - swv;
 
 		for (i = 0; i < NTerm; i++)
 		{
@@ -451,7 +467,7 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 				if (i == j) RateForGreek[j] = Rate[j] + 0.0001;
 				else RateForGreek[j] = Rate[j];
 			}
-			KeyRatePV01_Curve[i] = BS_Swaption(PriceDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, Term, RateForGreek, NTerm, DayCountFracFlag, VolFlag) - swv;
+			KeyRatePV01_Curve[i] = BS_Swaption(PriceDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, Term, RateForGreek, NTerm, DayCountFracFlag, VolFlag, PricingOrValueFlag, TempFSR) - swv;
 		}
 
 		free(RateForGreek);
