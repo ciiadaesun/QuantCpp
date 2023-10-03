@@ -982,13 +982,13 @@ long* Calc_NTempHoliday_Korea(long YYYY, long& ArrayLength)
     // ArrayLength는 특정 년도 임시공휴일 개수를 리턴한다.
     // 함수 리턴으로 메모리 할당하므로 나중에 해제해야함.
     long i, k;
-    const long NTempHoliday = 7;
+    const long NTempHoliday = 8;
     long TempHolidayList[NTempHoliday] =
     {
 
         // 더 있으면 추가하고 NTempHoliday 바꾸기
         20020701, 20150814, 20171002, 20200817, 20220309, 
-        20220601, 20240410
+        20220601, 20231002, 20240410
 
     };
     ArrayLength = 0;

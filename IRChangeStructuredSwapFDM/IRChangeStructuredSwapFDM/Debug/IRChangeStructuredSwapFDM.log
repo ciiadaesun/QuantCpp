@@ -5,7 +5,9 @@ C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\CalcD
 C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\CalcDate.h(730,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\CalcDate.h(1123,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\CalcDate.h(1163,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\CalcDate.h(1354,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\CalcDate.h(1402,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\CalcDate.h(1528,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\CalcDate.h(1664,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\HW_Calibration.h(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\HW_Calibration.h(2723,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\HW_Calibration.h(2857,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
@@ -13,11 +15,17 @@ C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\HW_Ca
 C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\HW_Calibration.h(3338,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\HW_Calibration.h(4367,12): warning C4101: 'fm' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(98,9): warning C4101: 'A' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(633,9): warning C4101: 'A' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(699,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(1104,18): warning C4101: 'last_ry' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(1104,9): warning C4101: 'last_rx' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(604,14): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(588,9): warning C4101: 'Bst' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(591,12): warning C4101: 'ds' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(591,9): warning C4101: 's' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(588,14): warning C4101: 'BsT' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(638,9): warning C4101: 'A' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(704,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(1060,18): warning C4101: 'last_ry' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(1222,58): warning C4101: 'alpha_t' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(1060,9): warning C4101: 'last_rx' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\HW_Calibration.h(3693): warning C4715: 'HWCapHWSwaption_2FCalibration': 모든 제어 경로에서 값을 반환하지는 않습니다.
-C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(2074): warning C4715: 'IRStructuedSwapFDM': 모든 제어 경로에서 값을 반환하지는 않습니다.
+C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM\IRChangeStructuredSwapFDM.cpp(2030): warning C4715: 'IRStructuedSwapFDM': 모든 제어 경로에서 값을 반환하지는 않습니다.
      C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\Debug\IRChangeStructuredSwapFDM.lib 라이브러리 및 C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\Debug\IRChangeStructuredSwapFDM.exp 개체를 생성하고 있습니다.
   IRChangeStructuredSwapFDM.vcxproj -> C:\Users\ciiad\github5\IRChangeStructuredSwapFDM\Debug\IRChangeStructuredSwapFDM.dll

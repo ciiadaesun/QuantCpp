@@ -12,6 +12,11 @@ C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(15,1): warning C4067
 C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(35,7): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(95,8): warning C4101: 'NextY' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(94,8): warning C4101: 'CurrentY' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(241,9): warning C4101: 't0' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(283,9): warning C4101: 't0' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(694,64): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(711,21): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(680,39): warning C4101: 'ExercisePrice' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(758,27): warning C4101: 'P0t1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(758,33): warning C4101: 'P0t2' :참조되지 않은 지역 변수입니다.
      C:\Users\ciiad\github5\IRSwaption\x64\Debug\IRSwaption.lib 라이브러리 및 C:\Users\ciiad\github5\IRSwaption\x64\Debug\IRSwaption.exp 개체를 생성하고 있습니다.
   IRSwaption.vcxproj -> C:\Users\ciiad\github5\IRSwaption\x64\Debug\IRSwaption.dll

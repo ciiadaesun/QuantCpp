@@ -300,11 +300,10 @@ void Copy2dMatrix(double** CopyResult, double** MyMatrix, long p, long q)
 double _stdcall lambdacalc(
 	double dt,
 	double kappa1,
-	double x1,
-	double deterministicterm
+	double x1
 )
 {
-	double w = 0.5 * (deterministicterm + x1) * dt;
+	double w = 0.5 * x1 * dt;
 	return 1.0 - w;
 }
 
@@ -313,12 +312,10 @@ void _stdcall lambdaset(
 	double kappa1,
 	long Nx1,
 	double* x1,
-	double* lambda_xi,
-	double deterministicterm
-)
+	double* lambda_xi)
 {
 	long i;
-	for (i = 0; i < Nx1; i++) lambda_xi[i] = lambdacalc(dt, kappa1, x1[i], deterministicterm);
+	for (i = 0; i < Nx1; i++) lambda_xi[i] = lambdacalc(dt, kappa1, x1[i]);
 }
 
 
@@ -491,12 +488,10 @@ void _stdcall SetRHS_domestic(
 	double* TempLambdaArray,
 	double** TempCrossQVTerm,
 	double** U,
-	double** RHS,
-	double deterministicterm
-)
+	double** RHS)
 {
 	long i, j;
-	lambdaset(dt, kappa1, N, x, TempLambdaArray, deterministicterm);
+	lambdaset(dt, kappa1, N, x, TempLambdaArray);
 	QVCrossTermFDM(N, U, rho12, sig1, sig2, dx, dy, dt, TempCrossQVTerm);
 	for (i = 0; i < N; i++)
 	{
@@ -520,12 +515,11 @@ void _stdcall SetRHS_foreign(
 	double* TempLambdaArray,
 	double** TempCrossQVTerm,
 	double** U,
-	double** RHS,
-	double deterministicterm
+	double** RHS
 )
 {
 	long i, j;
-	lambdaset(dt, kappa1, N, x, TempLambdaArray, deterministicterm);
+	lambdaset(dt, kappa1, N, x, TempLambdaArray);
 	QVCrossTermFDM(N, U, rho12, sig1, sig2, dx, dy, dt, TempCrossQVTerm);
 	for (i = 0; i < N; i++)
 	{
@@ -595,17 +589,29 @@ double _stdcall HullWhiteQVTerm(
 	double RHS = 0.0;
 	long nInteg = 4;
 	double s, ds;
-	ds = t / (double)nInteg;
-	s = ds;
 
-	for (i = 0; i < nInteg; i++)
+	//double volt, volT;
+	//volt = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t);
+	//volT = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, T);
+
+	//double forwardvariance = ((volT * volT * T - volt * volt * t) / (T - t));
+
+	//if (forwardvariance > 0.) vol = sqrt(forwardvariance);
+	//else vol = (volt + volT) / 2.0;
+
+	//RHS = -vol * vol * (exp(-kappa * T) - exp(-kappa * t))* (exp(-kappa * T) - exp(-kappa * t))* (exp(2.0 * kappa * t) - 1.0) / (4.0 * kappa * kappa * kappa);
+
+	long NInteg = 10.0;
+	double u = t;
+	double du = (T - t) / ((double)NInteg);
+	RHS = 0.0;
+	for (i = 0; i < NInteg; i++)
 	{
-		vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, s);
-		Bst = B_s_to_t(kappa, s, t);
-		BsT = B_s_to_t(kappa, s, T);
-		RHS += 0.5 * vol * vol * (Bst * Bst - BsT * BsT) * ds;
-		s += ds;
+		vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, u);
+		RHS += 0.5 * vol * vol * (B_s_to_t(kappa, u, t) * B_s_to_t(kappa, u, t) - B_s_to_t(kappa, u, T) * B_s_to_t(kappa, u, T)) * du;
+		u = u + du;
 	}
+
 	return RHS;
 }
 
@@ -622,8 +628,7 @@ double _stdcall HW_Rate_LongTermShortRate(
 	double* PV_t_T,
 	double* QVTerm,
 	double* B_t_T,
-	double* dt,
-	double dlnP_dt
+	double* dt
 )
 {
 	long i;
@@ -640,7 +645,7 @@ double _stdcall HW_Rate_LongTermShortRate(
 			for (i = 0; i < NCfSwap; i++)
 			{
 				term = dt[i];
-				PtT = PV_t_T[i] * exp(-(ShortRate + dlnP_dt) * B_t_T[i] + QVTerm[i]);
+				PtT = PV_t_T[i] * exp(-ShortRate * B_t_T[i] + QVTerm[i]);
 				B += term * PtT;
 			}
 
@@ -648,7 +653,7 @@ double _stdcall HW_Rate_LongTermShortRate(
 		}
 		else
 		{
-			if (t >= 0.0) PtT = PV_t_T[0] * exp(-(ShortRate + dlnP_dt) * B_t_T[0] + QVTerm[0]);
+			if (t >= 0.0) PtT = PV_t_T[0] * exp(-ShortRate * B_t_T[0] + QVTerm[0]);
 			else PtT = Calc_Discount_Factor(RateTerm, Rate, NRateTerm, T);
 
 			if (dt[0] < 1.0) ResultRate = (1.0 - PtT) / (dt[0] * PtT);
@@ -659,7 +664,7 @@ double _stdcall HW_Rate_LongTermShortRate(
 	else
 	{
 		term = 1.0 / 365.0;
-		PtT = PV_t_T[0] * exp(-(ShortRate + dlnP_dt) * B_t_T[0] + QVTerm[0]);
+		PtT = PV_t_T[0] * exp(-ShortRate  * B_t_T[0] + QVTerm[0]);
 		ResultRate = (1.0 - PtT) / (term * PtT);
 	}
 
@@ -1046,60 +1051,11 @@ void Test(
 	double* rx_range = (double*)malloc(sizeof(double) * NodeNum);
 	double* ry_range = (double*)malloc(sizeof(double) * NodeNum);
 
-	double* dlnP_dt_domestic = (double*)malloc(sizeof(double) * NDays);
-	double* dlnP_dt_foreign = (double*)malloc(sizeof(double) * NDays);
-	double* deterministicterm = (double*)malloc(sizeof(double) * NDays);
-	for (j = 0; j < NDays; j++) deterministicterm[j] = 0.0;
 	double DF0, DF1, T2;
 	double theta_domestic = 0.0;
 	if (hw_d->longterm_shortrateflag == 1) theta_domestic = hw_d->kappa * hw_d->longterm_shortrate;
 	double theta_foreign = 0.0;
 	if (hw_f->longterm_shortrateflag == 1) theta_foreign = hw_f->kappa * hw_f->longterm_shortrate;
-
-	double sigma;
-	if (hw_d->longterm_shortrateflag == 1)
-	{
-		if (hw_d->longterm_shortrate < 0.000001 && hw_d->longterm_shortrate > -0.000001) hw_d->longterm_shortrate = 0.0;
-		for (j = 0; j < NDays; j++)
-		{
-			if (j == 0)
-			{
-				T1 = 0.0;
-				T2 = T_Array[j];
-			}
-			else {
-				T1 = T_Array[j - 1];
-				T2 = T_Array[j];
-			}
-
-			DF0 = Calc_Discount_Factor(ZeroDomestic->TermArray, ZeroDomestic->RateArray, ZeroDomestic->N, T1);
-			DF1 = Calc_Discount_Factor(ZeroDomestic->TermArray, ZeroDomestic->RateArray, ZeroDomestic->N, T1 + 1.0 / 365.0);
-			dlnP_dt_domestic[j] = (log(DF1) - log(DF0)) / (dt_on);
-			sigma = Interpolate_Linear(hw_d->HWTerm, hw_d->HWVol, hw_d->NTermHW, T_Array[j]);
-			deterministicterm[j] = MeanRevertingDeterministic(ZeroDomestic->N, ZeroDomestic->TermArray, ZeroDomestic->RateArray, sigma, hw_d->kappa, T_Array[j]);
-		}
-	}
-
-	if (hw_d->longterm_shortrateflag == 1)
-	{
-		if (hw_f->longterm_shortrate && hw_f->longterm_shortrate > -0.000001) hw_f->longterm_shortrate = 0.0;
-		for (j = 0; j < NDays; j++)
-		{
-			if (j == 0)
-			{
-				T1 = 0.0;
-				T2 = T_Array[j];
-			}
-			else {
-				T1 = T_Array[j - 1];
-				T2 = T_Array[j];
-			}
-
-			DF0 = Calc_Discount_Factor(ZeroForeign->TermArray, ZeroForeign->RateArray, ZeroForeign->N, T1);
-			DF1 = Calc_Discount_Factor(ZeroForeign->TermArray, ZeroForeign->RateArray, ZeroForeign->N, T1 + 1.0 / 365.0);
-			dlnP_dt_foreign[j] = (log(DF1) - log(DF0)) / (dt_on);
-		}
-	}
 
 	double last_rx, last_ry, xt, T, Rate, OptValue, Price, Price_NotOpt;
 	long idxreset = Domestic_Cpn_Schd->NCpn - 1, idxcalc = Domestic_Cpn_Schd->NCpn - 1;
@@ -1115,7 +1071,7 @@ void Test(
 			domestic_QVTerm[idxreset], domestic_B_t_T[idxreset], domestic_dt[idxreset]);
 		else Rate = HW_Rate_LongTermShortRate(RefType_Domestic->RefRateType, t, T, ZeroDomestic->N, ZeroDomestic->TermArray,
 			ZeroDomestic->RateArray, xt, ndates_domestic, RefType_Domestic->NCPN_Ann, domestic_DF_t_T[idxreset],
-			domestic_QVTerm[idxreset], domestic_B_t_T[idxreset], domestic_dt[idxreset], dlnP_dt_domestic[idxreset]);
+			domestic_QVTerm[idxreset], domestic_B_t_T[idxreset], domestic_dt[idxreset]);
 		rx_range[i] = Rate;
 	}
 
@@ -1129,7 +1085,7 @@ void Test(
 			foreign_QVTerm[idxreset], foreign_B_t_T[idxreset], foreign_dt[idxreset]);
 		else Rate = HW_Rate_LongTermShortRate(RefType_Foreign->RefRateType, t, T, ZeroForeign->N, ZeroForeign->TermArray,
 			ZeroForeign->RateArray, xt, ndates_foreign, RefType_Foreign->NCPN_Ann, foreign_DF_t_T[idxreset],
-			foreign_QVTerm[idxreset], foreign_B_t_T[idxreset], foreign_dt[idxreset], dlnP_dt_foreign[idxreset]);
+			foreign_QVTerm[idxreset], foreign_B_t_T[idxreset], foreign_dt[idxreset]);
 		ry_range[i] = Rate;
 	}
 
@@ -1148,7 +1104,7 @@ void Test(
 		}
 		else
 		{
-			if (t >= 0.0) DF0 = DF_t_T_overnight[idxcalc] * exp(-(xt - dlnP_dt_domestic[idxcalc]) * B_t_T_overnight[idxcalc] + QVTerm_overnight[idxcalc]);
+			if (t >= 0.0) DF0 = DF_t_T_overnight[idxcalc] * exp(-xt * B_t_T_overnight[idxcalc] + QVTerm_overnight[idxcalc]);
 			else DF0 = Calc_Discount_Factor(ZeroDomestic->TermArray, ZeroDomestic->RateArray, ZeroDomestic->N, t);
 			r_on_range[i] = (1.0 - DF0) / (dt_on * DF0);
 		}
@@ -1173,6 +1129,8 @@ void Test(
 	}
 	double frac, domesticcpn, foreigncpn;
 	frac = ((double)(Domestic_Cpn_Schd->CpnDate[Domestic_Cpn_Schd->NCpn - 1] - Domestic_Cpn_Schd->CpnDate[Domestic_Cpn_Schd->NCpn - 2])) / 365.0;
+	if (Domestic_Cpn_Schd->NCpn == 1) frac = ((double)(Domestic_Cpn_Schd->CpnDate[0] - LastCpnDatetoToday)) / 365.0;
+
 	T1 = max(0.0, ((double)(Domestic_Cpn_Schd->CpnPayDate[Domestic_Cpn_Schd->NCpn - 1] - Domestic_Cpn_Schd->CpnDate[Domestic_Cpn_Schd->NCpn - 1])) / 365.0);
 	T2 = max(0.0, ((double)(Foreign_Cpn_Schd->CpnPayDate[Foreign_Cpn_Schd->NCpn - 1] - Foreign_Cpn_Schd->CpnDate[Foreign_Cpn_Schd->NCpn - 1])) / 365.0);
 	for (i = 0; i < NodeNum; i++)
@@ -1270,7 +1228,7 @@ void Test(
 	idx = max(0, Domestic_Cpn_Schd->NCpn - 2);
 	NextCpnDate = Domestic_Cpn_Schd->CpnDate[idx];
 	if (idx > 0) frac = ((double)(Domestic_Cpn_Schd->CpnDate[idx] - Domestic_Cpn_Schd->CpnDate[idx - 1])) / 365.0;
-	else frac = ((double)Domestic_Cpn_Schd->CpnDate[idx]) / 365.0;
+	else frac = ((double)(Domestic_Cpn_Schd->CpnDate[idx] - LastCpnDatetoToday)) / 365.0;
 
 	NextOptDate = opt_schd->CancelDate[max(0, opt_schd->NCancel - 1)];
 	NextResetDate = Domestic_Cpn_Schd->ResetDate[max(0, Domestic_Cpn_Schd->NCpn - 2)];
@@ -1294,7 +1252,7 @@ void Test(
 		}
 		else
 		{
-			if (t >= 0.0) DF0 = DF_t_T_overnight[idxcalc] * exp(-(xt - dlnP_dt_domestic[idxcalc]) * B_t_T_overnight[idxcalc] + QVTerm_overnight[idxcalc]);
+			if (t >= 0.0) DF0 = DF_t_T_overnight[idxcalc] * exp(-xt * B_t_T_overnight[idxcalc] + QVTerm_overnight[idxcalc]);
 			else DF0 = Calc_Discount_Factor(ZeroDomestic->TermArray, ZeroDomestic->RateArray, ZeroDomestic->N, t);
 			r_on_range[i] = (1.0 - DF0) / (dt_on * DF0);
 		}
@@ -1314,15 +1272,14 @@ void Test(
 		{
 			xt = x_range[i];
 			if (hw_d->longterm_shortrateflag == 0) DF0 = DF_t_T_RiskFree[NDays - 1 - n] * exp(-xt * B_t_T_RiskFree[NDays - 1 - n] + QVTerm_RiskFree[NDays - 1 - n]);
-			else  DF0 = DF_t_T_RiskFree[NDays - 1 - n] * exp(-(xt - dlnP_dt_domestic[NDays - 1 - n]) * B_t_T_RiskFree[NDays - 1 - n] + QVTerm_RiskFree[NDays - 1 - n]);
+			else  DF0 = DF_t_T_RiskFree[NDays - 1 - n] * exp(-xt * B_t_T_RiskFree[NDays - 1 - n] + QVTerm_RiskFree[NDays - 1 - n]);
 			RiskFree[i] = (1.0 - DF0) / (dt_Array[NDays - 1 - n] * DF0);
 		}
 		// X에 대한 Implicit
-		alpha_t = deterministicterm[NDays - 1 - n];
 		SetLHS_domestic(NodeNum, hw_d->kappa, vol1, x_range, dx, dt_Array[NDays - 1 - n], Alpha_Domestic, Beta_Domestic, Gamma_Domestic);
-		SetRHS_domestic(NodeNum, RiskFree, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Domestic, QVTerm_Domestic, FinalDomestic, RHS_Domestic, alpha_t);
-		SetRHS_domestic(NodeNum, RiskFree, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Domestic, QVTerm_Domestic, FinalForeign, RHS_Foreign, alpha_t);
-		SetRHS_domestic(NodeNum, RiskFree, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Domestic, QVTerm_Domestic, FinalIncludingOpt, RHS_IncludingOpt, alpha_t);
+		SetRHS_domestic(NodeNum, RiskFree, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Domestic, QVTerm_Domestic, FinalDomestic, RHS_Domestic);
+		SetRHS_domestic(NodeNum, RiskFree, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Domestic, QVTerm_Domestic, FinalForeign, RHS_Foreign);
+		SetRHS_domestic(NodeNum, RiskFree, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Domestic, QVTerm_Domestic, FinalIncludingOpt, RHS_IncludingOpt);
 
 		// Tridiagonal 맨 앞,뒤값 조정
 		beta0 = Beta_Domestic[0] + 2.0 * Alpha_Domestic[0];
@@ -1359,9 +1316,9 @@ void Test(
 
 		// Y에 대한 Implicit
 		SetLHS_foreign(NodeNum, hw_f->kappa, vol2, fxvol, y_range, dy, dt_Array[NDays - 1 - n], rho23, Alpha_Foreign, Beta_Foreign, Gamma_Foreign);
-		SetRHS_foreign(NodeNum, RiskFree, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Foreign, QVTerm_Foreign, FinalDomestic, RHS_Domestic, alpha_t);
-		SetRHS_foreign(NodeNum, RiskFree, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Foreign, QVTerm_Foreign, FinalForeign, RHS_Foreign, alpha_t);
-		SetRHS_foreign(NodeNum, RiskFree, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Foreign, QVTerm_Foreign, FinalIncludingOpt, RHS_IncludingOpt, alpha_t);
+		SetRHS_foreign(NodeNum, RiskFree, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Foreign, QVTerm_Foreign, FinalDomestic, RHS_Domestic);
+		SetRHS_foreign(NodeNum, RiskFree, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Foreign, QVTerm_Foreign, FinalForeign, RHS_Foreign);
+		SetRHS_foreign(NodeNum, RiskFree, hw_d->kappa, dt_Array[NDays - 1 - n], rho12, vol1, vol2, dx, dy, Lambda_Foreign, QVTerm_Foreign, FinalIncludingOpt, RHS_IncludingOpt);
 
 		// Tridiagonal 맨 앞,뒤값 조정
 		beta0 = Beta_Foreign[0] + 2.0 * Alpha_Foreign[0];
@@ -1417,7 +1374,7 @@ void Test(
 						domestic_QVTerm[idxreset], domestic_B_t_T[idxreset], domestic_dt[idxreset]);
 					else Rate = HW_Rate_LongTermShortRate(RefType_Domestic->RefRateType, t, T, ZeroDomestic->N, ZeroDomestic->TermArray,
 						ZeroDomestic->RateArray, xt, ndates_domestic, RefType_Domestic->NCPN_Ann, domestic_DF_t_T[idxreset],
-						domestic_QVTerm[idxreset], domestic_B_t_T[idxreset], domestic_dt[idxreset], dlnP_dt_domestic[idxreset]);
+						domestic_QVTerm[idxreset], domestic_B_t_T[idxreset], domestic_dt[idxreset]);
 					rx_range[i] = Rate;
 				}
 
@@ -1431,7 +1388,7 @@ void Test(
 						foreign_QVTerm[idxreset], foreign_B_t_T[idxreset], foreign_dt[idxreset]);
 					else Rate = HW_Rate_LongTermShortRate(RefType_Foreign->RefRateType, t, T, ZeroForeign->N, ZeroForeign->TermArray,
 						ZeroForeign->RateArray, xt, ndates_foreign, RefType_Foreign->NCPN_Ann, foreign_DF_t_T[idxreset],
-						foreign_QVTerm[idxreset], foreign_B_t_T[idxreset], foreign_dt[idxreset], dlnP_dt_foreign[idxreset]);
+						foreign_QVTerm[idxreset], foreign_B_t_T[idxreset], foreign_dt[idxreset]);
 					ry_range[i] = Rate;
 				}
 
@@ -1581,7 +1538,7 @@ void Test(
 			idxcalc = isinfindindexlong(NDays, DaysForFDM, NextCpnDate);
 
 			if (idx > 0) frac = ((double)(Domestic_Cpn_Schd->CpnDate[idx] - Domestic_Cpn_Schd->CpnDate[idx - 1])) / 365.0;
-			else frac = ((double)Domestic_Cpn_Schd->CpnDate[idx]) / 365.0;
+			else frac = ((double)(Domestic_Cpn_Schd->CpnDate[idx] - LastCpnDatetoToday)) / 365.0;
 
 			////////////////////////////////////////////
 			// 차기 쿠폰날짜 to 쿠폰 지급날짜까지 할인율
@@ -1601,7 +1558,7 @@ void Test(
 				}
 				else
 				{
-					if (t >= 0.0) DF0 = DF_t_T_overnight[idxcalc] * exp(-(xt - dlnP_dt_domestic[idxcalc]) * B_t_T_overnight[idxcalc] + QVTerm_overnight[idxcalc]);
+					if (t >= 0.0) DF0 = DF_t_T_overnight[idxcalc] * exp(-xt  * B_t_T_overnight[idxcalc] + QVTerm_overnight[idxcalc]);
 					else DF0 = Calc_Discount_Factor(ZeroDomestic->TermArray, ZeroDomestic->RateArray, ZeroDomestic->N, t);
 					r_on_range[i] = (1.0 - DF0) / (dt_on * DF0);
 				}
@@ -1678,8 +1635,6 @@ void Test(
 	free(RiskFree);
 	free(rx_range);
 	free(ry_range);
-	free(dlnP_dt_domestic);
-	free(dlnP_dt_foreign);
 	for (i = 0; i < NodeNum; i++)
 	{
 		free(FinalDomestic[i]);
@@ -1706,7 +1661,6 @@ void Test(
 	free(Alpha_Temp);
 	free(Beta_Temp);
 	free(Gamma_Temp);
-	free(deterministicterm);
 	free(Lambda_Domestic);
 	for (i = 0; i < NodeNum; i++) free(QVTerm_Domestic[i]);
 	free(QVTerm_Domestic);
@@ -1853,8 +1807,10 @@ DLLEXPORT(long) IRStructuedSwapFDM(
 		CpnPayDateDomestic[i] = DayCountAtoB(PricingDate, PayDateDomesticYYYYMMDD[i]);
 		CpnPayDateForeign[i] = DayCountAtoB(PricingDate, PayDateForeignYYYYMMDD[i]);
 	}
-	if (ResetDate[0] < 0) LastCpnDatetoToday = ResetDate[0];
 
+	LastCpnDatetoToday = 0;
+	if (ResetDate[0] < 0) LastCpnDatetoToday = ResetDate[0];
+	
 	long* CancelDate = (long*)malloc(sizeof(long) * NCancel);
 	for (i = 0; i < NCancel; i++) CancelDate[i] = DayCountAtoB(PricingDate, CancelDateYYYYMMDD[i]);
 
