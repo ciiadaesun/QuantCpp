@@ -567,8 +567,8 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 	long PricingOrValueFlag,	// 0: Pricing , 1: Valuation
 	double kappa,				// FDM HW Kappa
 	long AmericanFlag,			// 0: European, 1: American
-	long AmericanStartDate,		// 조기상환시작일
-	long AmericanEndDate,		// 조기상환종료일
+	long NAutocall,				// 조기상환개수
+	long *AutocallDate,			// 조기상환종료일
 	double NA,					// 명목원금
 	double Vol,					// 변동성
 	double StrikePrice,			// 행사금리
@@ -629,8 +629,8 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 		DumppingTextData(CalcFunctionName, SaveFileName, "NA", NA);
 
 		DumppingTextData(CalcFunctionName, SaveFileName, "AmericanFlag", AmericanFlag);
-		DumppingTextData(CalcFunctionName, SaveFileName, "AmericanStartDate", AmericanStartDate);
-		DumppingTextData(CalcFunctionName, SaveFileName, "AmericanEndDate", AmericanEndDate);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NAutocall", NAutocall);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "AutocallDate", NAutocall, AutocallDate);
 		DumppingTextData(CalcFunctionName, SaveFileName, "kappa", kappa);
 
 		DumppingTextData(CalcFunctionName, SaveFileName, "Vol", Vol);
@@ -855,14 +855,14 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 				gammatemp // 임시 행렬3
 			);
 
-
-			if (i != 0 && FDMPricingDate >= AmericanStartDate && FDMPricingDate <= AmericanEndDate)
+			
+			if (i != 0 && isin(FDMPricingDate, AutocallDate, NAutocall))
 			{
 				/////////////////////////
 				// Autocall Date Pricing
 				/////////////////////////
 				Autocall_StartDate = FDMPricingDate;
-				Autocall_SwapMaturityDate = EDate_Cpp(Autocall_StartDate, MonthDifference);
+				Autocall_SwapMaturityDate = SwapMaturityDate;
 				Autocall_CpnDates = Generate_CpnDate_Holiday_IRSwaption(Autocall_StartDate, Autocall_SwapMaturityDate, AnnCpnOneYear, Autocall_nCpnDates, TempDate, NHoliday, HolidayYYYYMMDD);
 
 				for (n = 0; n < NTermFDM; n++)
