@@ -365,6 +365,7 @@ double Calc_QVTerm(double kappa, double t, double s, double sigma)
 }
 
 double BS_Swaption(
+	long FixedPayer,
 	long PriceDate,
 	long StartDate,
 	long NCpn,
@@ -423,13 +424,29 @@ double BS_Swaption(
 
 		if (PriceDate != StartDate)
 		{
-			value = max(annuity * (FSR * CDF_N(d1) - StrikePrice * CDF_N(d2)), 0.0);
-			value_atm = annuity * (FSR * CDF_N(d1_atm) - FSR * CDF_N(d2_atm));
+			if (FixedPayer == 0)
+			{
+				value = max(annuity * (FSR * CDF_N(d1) - StrikePrice * CDF_N(d2)), 0.0);
+				value_atm = annuity * (FSR * CDF_N(d1_atm) - FSR * CDF_N(d2_atm));
+			}
+			else
+			{
+				value = max(annuity * (-FSR * CDF_N(-d1) + StrikePrice * CDF_N(-d2)), 0.0);
+				value_atm = annuity * (-FSR * CDF_N(-d1_atm) + FSR * CDF_N(-d2_atm));
+			}
 		}
 		else
 		{
-			value = annuity * max(FSR - StrikePrice ,0.0);
-			value_atm = 0.0;
+			if (FixedPayer == 0)
+			{
+				value = annuity * max(FSR - StrikePrice, 0.0);
+				value_atm = 0.0;
+			}
+			else
+			{
+				value = annuity * max(-FSR + StrikePrice, 0.0);
+				value_atm = 0.0;
+			}
 		}
 	}
 	else
@@ -438,12 +455,28 @@ double BS_Swaption(
 		d1_atm = 0.0;
 		if (PriceDate != StartDate)
 		{
-			value = max(annuity * ((FSR - StrikePrice) * CDF_N(d1) + Vol * sqrt(T_Option) * (exp(-d1 * d1 / 2.0) / 2.506628274631)), 0.0);
-			value_atm = annuity * Vol * sqrt(T_Option) * (exp(-d1_atm * d1_atm / 2.0) / 2.506628274631);
+			if (FixedPayer == 0)
+			{
+				value = max(annuity * ((FSR - StrikePrice) * CDF_N(d1) + Vol * sqrt(T_Option) * (exp(-d1 * d1 / 2.0) / 2.506628274631)), 0.0);
+				value_atm = annuity * Vol * sqrt(T_Option) * (exp(-d1_atm * d1_atm / 2.0) / 2.506628274631);
+			}
+			else
+			{
+				value = max(annuity * ((FSR - StrikePrice) * CDF_N(d1) + Vol * sqrt(T_Option) * (exp(-d1 * d1 / 2.0) / 2.506628274631)), 0.0);
+				value_atm = annuity * Vol * sqrt(T_Option) * (exp(-d1_atm * d1_atm / 2.0) / 2.506628274631);
+				value = max(0.0 , annuity * (StrikePrice - FSR) + value);
+			}
 		}
 		else
 		{
-			value = annuity * max(FSR - StrikePrice, 0.0);
+			if (FixedPayer == 0)
+			{
+				value = annuity * max(FSR - StrikePrice, 0.0);
+			}
+			else
+			{
+				value = annuity * max(-FSR + StrikePrice, 0.0);
+			}
 			value_atm = 0.0;
 		}
 	}
@@ -560,6 +593,7 @@ double HW_Swaption(
 }
 
 DLLEXPORT(long) Pricing_BS_Swaption(
+	long FixedPayer0,			// Fixed Payer = 0 Fixed Receiver = 1
 	long PriceDate,				// 평가일
 	long StartDate,				// 옵션시작일
 	long SwapMaturityDate,		// 스왑 만기 YYYYMMDD
@@ -570,7 +604,9 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 	long NAutocall,				// 조기상환개수
 	long *AutocallDate,			// 조기상환종료일
 	double NA,					// 명목원금
-	double Vol,					// 변동성
+	long NVolTerm,
+	double* VolTerm,			// 변동성Term
+	double* VolArray,			// 변동성
 	double StrikePrice,			// 행사금리
 	long NTerm,					// 금리 Term 개수
 	double* Term,				// 금리 Term Array
@@ -633,7 +669,9 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 		DumppingTextDataArray(CalcFunctionName, SaveFileName, "AutocallDate", NAutocall, AutocallDate);
 		DumppingTextData(CalcFunctionName, SaveFileName, "kappa", kappa);
 
-		DumppingTextData(CalcFunctionName, SaveFileName, "Vol", Vol);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NVolTerm", NVolTerm);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "VolTerm", NVolTerm, VolTerm);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "VolArray", NVolTerm, VolArray);
 		DumppingTextData(CalcFunctionName, SaveFileName, "StrikePrice", StrikePrice);
 		DumppingTextData(CalcFunctionName, SaveFileName, "NTerm", NTerm);
 		DumppingTextDataArray(CalcFunctionName, SaveFileName, "Term", NTerm, Term);
@@ -648,30 +686,37 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 		DumppingTextDataArray(CalcFunctionName, SaveFileName, "HolidayInput", NHolidayInput, HolidayInput);
 	}
 
-	long Year = StartDate / 10000;
-	long Year2 = SwapMaturityDate / 10000;
-
-	long Month = (StartDate - Year * 10000) / 100;
-	long Month2 = (SwapMaturityDate - Year2 * 10000) / 100;
-	long Day = (StartDate - Year * 10000 - Month * 100);
-	
-	long TargetMat = Year2 * 10000 + Month * 100 + Day;
 
 	long nCpnDates = 0;
 	long TempDate = StartDate;
-	long* CpnDates = Generate_CpnDate_Holiday_IRSwaption(StartDate, TargetMat, AnnCpnOneYear, nCpnDates, TempDate, NHoliday, HolidayYYYYMMDD);
+	long TempStartDate = StartDate;
+	if (AmericanFlag > 0 && NAutocall > 0) StartDate = max(StartDate, AutocallDate[i]);
+	long* CpnDates = Generate_CpnDate_Holiday_IRSwaption(StartDate, SwapMaturityDate, AnnCpnOneYear, nCpnDates, TempDate, NHoliday, HolidayYYYYMMDD);
 
 	double* ResultFSR = ResultValue + 2;
 	double* ExerciseValue = ResultValue + 3;
 	double* Value = ResultValue;
+	double t, Vol;
+	if (AmericanFlag == 0)
+	{
+		t = ((double)DayCountAtoB(PriceDate, StartDate)) / 365.0;
+		Vol = Interpolate_Linear(VolTerm, VolArray, NVolTerm, t);
+		swv = BS_Swaption(FixedPayer0, PriceDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, Term, Rate, NTerm, DayCountFracFlag, VolFlag, PricingOrValueFlag, *ResultFSR, *ExerciseValue);
+	}
+	else
+	{
+		long nCpnDates2 = 0;
+		long* CpnDates2 = Generate_CpnDate_Holiday_IRSwaption(TempStartDate, SwapMaturityDate, AnnCpnOneYear, nCpnDates2, TempDate, NHoliday, HolidayYYYYMMDD);
+		t = ((double)DayCountAtoB(PriceDate, TempStartDate)) / 365.0;
+		Vol = Interpolate_Linear(VolTerm, VolArray, NVolTerm, t);
 
-	swv = BS_Swaption(PriceDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, Term, Rate, NTerm, DayCountFracFlag, VolFlag, PricingOrValueFlag , *ResultFSR, *ExerciseValue);
+		swv = BS_Swaption(FixedPayer0, PriceDate, TempStartDate, nCpnDates2, CpnDates2, NA, Vol, StrikePrice, Term, Rate, NTerm, DayCountFracFlag, VolFlag, PricingOrValueFlag, *ResultFSR, *ExerciseValue);
+		free(CpnDates2);
+	}
 	Value[0] = swv;
 
 	if (AmericanFlag == 1)
 	{
-		long MonthDifference = (Year2 - Year) * 12 + (Month2 - Month);
-
 		long Autocall_StartDate;
 		long Autocall_SwapMaturityDate;
 		long Autocall_nCpnDates = 0;
@@ -680,33 +725,61 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 		double ResultPrice, ResultPriceATM, ExercisePrice;
 		double temp1 =0.0;
 		double VolMin, VolMax, TargetRate, err;
-		double RealPrice = BS_Swaption(PriceDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, Term, Rate, NTerm, DayCountFracFlag, VolFlag, 0, temp1, temp1);
+		double RealPrice;
 		double tVol = 1.0;
 		double nVol = 1;
-		VolMin = 0.0001;
-		VolMax = 1.0;
-		TargetRate = VolMax;
-
 		double dblErrorRange = 0.0000001;
-		kappa = max(0.0001, kappa);
-		for (j = 0; j < 1000; j++)
+		double sigma; kappa = max(0.0001, kappa);
+		double* VolForFDM = (double*)malloc(sizeof(double) * NVolTerm);
+		double ForwardVariance;
+		if (VolFlag == 0)
 		{
-			err = HW_Swaption(PriceDate, NA, kappa, &tVol, &TargetRate, nVol, Term, Rate, NTerm, StrikePrice, StartDate, CpnDates, nCpnDates) - RealPrice;
-			if (fabs(err) < dblErrorRange) break;
-			if (err > 0)
+			for (n = 0; n < NVolTerm; n++)
 			{
-				VolMax = TargetRate;
-				TargetRate = (VolMax + VolMin) / 2.0;
-			}
-			else
-			{
-				VolMin = TargetRate;
-				TargetRate = (VolMin + VolMax) / 2.0;
+				RealPrice = BS_Swaption(0, PriceDate, StartDate, nCpnDates, CpnDates, NA, VolArray[n], StrikePrice, Term, Rate, NTerm, DayCountFracFlag, VolFlag, 0, temp1, temp1);
+				VolMin = 0.0001;
+				VolMax = 1.0;
+				TargetRate = VolMax;
+				VolForFDM[n] = TargetRate;
+				for (j = 0; j < 1000; j++)
+				{
+					err = HW_Swaption(PriceDate, NA, kappa, VolTerm, VolForFDM, n+1, Term, Rate, NTerm, StrikePrice, StartDate, CpnDates, nCpnDates) - RealPrice;
+					if (fabs(err) < dblErrorRange) break;
+					if (err > 0)
+					{
+						VolMax = VolForFDM[n];
+						VolForFDM[n] = (VolMax + VolMin) / 2.0;
+					}
+					else
+					{
+						VolMin = VolForFDM[n];
+						VolForFDM[n] = (VolMin + VolMax) / 2.0;
+					}
+				}
+				//VolForFDM[n] = TargetRate;
 			}
 		}
-		double sigma = TargetRate;
+		else
+		{
+			
+			for (n = 0; n < NVolTerm; n++)
+			{
+				/*
+				if (n == NVolTerm - 1) VolForFDM[n] = VolArray[NVolTerm - 1];
+				else
+				{
+					ForwardVariance = (VolArray[n+1] * VolArray[n+1] * VolTerm[n+1] - VolArray[n] * VolArray[n] * VolTerm[n]) / (VolTerm[n+1] - VolTerm[n]);
+					if (ForwardVariance > 0.0) VolForFDM[n] = sqrt(ForwardVariance);
+					else VolForFDM[n] = VolArray[n];
+				}*/
+				VolForFDM[n] = VolArray[n];
+
+			}			
+		}
+
 		long NGreed_xt = 200;
 		long NGreed_time = DayCountAtoB(PriceDate, StartDate);
+
 		long FDMPricingDate = StartDate;
 		long FDMStartTime = ((double)NGreed_time) / 365.0;
 		long StartExlDate = CDateToExcelDate(PriceDate);
@@ -756,12 +829,22 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 
 		long nzero;
 		double A, B, C, R, P0t, P0t1, P0t2, InstantDF, InstantB_s_t, Instant_QVTerm;
+		double vo1, vo2;
 		for (i = 0; i < NGreed_time; i++)
 		{
 			FDMPricingDate = Day_array[NGreed_time - 1 - i];
 			FDM_t = t_array[NGreed_time - 1 - i];
 			s_fdm = FDM_t;
 			
+			//sigma = Interpolate_Linear(VolTerm, VolForFDM, NVolTerm, FDM_t);
+
+			vo1 = Interpolate_Linear(VolTerm, VolForFDM , NVolTerm, FDM_t);
+			vo2 = Interpolate_Linear(VolTerm, VolForFDM, NVolTerm, FDM_t + dt);
+			ForwardVariance = (vo2 * vo2 * (FDM_t + dt) - vo1 * vo1 * FDM_t) / dt;
+			if (ForwardVariance > 0.0) sigma = sqrt(ForwardVariance);
+			else sigma = vo1;
+
+			Vol = Interpolate_Linear(VolTerm, VolArray, NVolTerm, FDM_t);
 			// HW Params (t , t + dt)
 			InstantDF = Calc_Discount_Factor(Term, Rate, NTerm, s_fdm + dt) / Calc_Discount_Factor(Term, Rate, NTerm, s_fdm);
 			InstantB_s_t = Calc_B_s_t(kappa, s_fdm + dt, s_fdm);
@@ -821,9 +904,9 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 						ZeroRateFDM[j][n] = Rate_A_S_T(xt_fdm, kappa, sigma, s_fdm, t_fdm, NTerm, Term, Rate, ForwardDiscFactor[n], HW_B_s_t[n], HW_QVTerm[n]);
 					}
 
-					FDMValue[j] = BS_Swaption(FDMPricingDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, ZeroTermFDM[j], ZeroRateFDM[j], NTermFDM, DayCountFracFlag, VolFlag, 0, fdmfsr, v);
+					FDMValue[j] = BS_Swaption(FixedPayer0,FDMPricingDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, ZeroTermFDM[j], ZeroRateFDM[j], NTermFDM, DayCountFracFlag, VolFlag, 0, fdmfsr, v);
 					FDMExerciseValue[j] = v;
-					FDMValue_ATM[j] = BS_Swaption(FDMPricingDate, StartDate, nCpnDates, CpnDates, NA, Vol, *ResultFSR, ZeroTermFDM[j], ZeroRateFDM[j], NTermFDM, DayCountFracFlag, VolFlag, 0, v2, v3);
+					FDMValue_ATM[j] = BS_Swaption(FixedPayer0,FDMPricingDate, StartDate, nCpnDates, CpnDates, NA, Vol, *ResultFSR, ZeroTermFDM[j], ZeroRateFDM[j], NTermFDM, DayCountFracFlag, VolFlag, 0, v2, v3);
 				}
 			}
 			nzero = 0;
@@ -883,8 +966,8 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 						ZeroRateFDM[j][n] = Rate_A_S_T(xt_fdm, kappa, sigma, s_fdm, t_fdm, NTerm, Term, Rate, ForwardDiscFactor[n], HW_B_s_t[n], HW_QVTerm[n]);
 					}
 
-					FDMValue[j] = max(FDMValue[j], BS_Swaption(FDMPricingDate, Autocall_StartDate, Autocall_nCpnDates, Autocall_CpnDates, NA, Vol, StrikePrice, ZeroTermFDM[j], ZeroRateFDM[j], NTermFDM, DayCountFracFlag, VolFlag, 0, fdmfsr, v));
-					FDMValue_ATM[j] = max(FDMValue_ATM[j], BS_Swaption(FDMPricingDate, Autocall_StartDate, Autocall_nCpnDates, Autocall_CpnDates, NA, Vol, *ResultFSR, ZeroTermFDM[j], ZeroRateFDM[j], NTermFDM, DayCountFracFlag, VolFlag, 0, v2, v3));
+					FDMValue[j] = max(FDMValue[j], BS_Swaption(FixedPayer0,FDMPricingDate, Autocall_StartDate, Autocall_nCpnDates, Autocall_CpnDates, NA, Vol, StrikePrice, ZeroTermFDM[j], ZeroRateFDM[j], NTermFDM, DayCountFracFlag, VolFlag, 0, fdmfsr, v));
+					FDMValue_ATM[j] = max(FDMValue_ATM[j], BS_Swaption(FixedPayer0,FDMPricingDate, Autocall_StartDate, Autocall_nCpnDates, Autocall_CpnDates, NA, Vol, *ResultFSR, ZeroTermFDM[j], ZeroRateFDM[j], NTermFDM, DayCountFracFlag, VolFlag, 0, v2, v3));
 				}
 
 				free(Autocall_CpnDates);
@@ -919,17 +1002,22 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 		free(betatemp);
 		free(gamma);
 		free(gammatemp);
+		free(VolForFDM);
 	}
 	double* PV01_Curve = ResultValue + 1;
 	double* KeyRatePV01_Curve = ResultValue + 4;
 
 	if (GreekFlag > 0)
 	{
+		long nCpnDates3 = 0;
+		long* CpnDates3 = Generate_CpnDate_Holiday_IRSwaption(TempStartDate, SwapMaturityDate, AnnCpnOneYear, nCpnDates3, TempDate, NHoliday, HolidayYYYYMMDD);
 		double TempFSR = 0.0;
 		double TempExercise = 0.0;
 		double* RateForGreek = (double*)malloc(sizeof(double) * NTerm);
 		for (i = 0; i < NTerm; i++) RateForGreek[i] = Rate[i] + 0.0001;
-		PV01_Curve[0] = BS_Swaption(PriceDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, Term, RateForGreek, NTerm, DayCountFracFlag, VolFlag, PricingOrValueFlag, TempFSR, TempExercise) - swv;
+		t = ((double)DayCountAtoB(PriceDate, TempStartDate)) / 365.0;
+		Vol = Interpolate_Linear(VolTerm, VolArray, NVolTerm, t);
+		PV01_Curve[0] = BS_Swaption(FixedPayer0,PriceDate, TempStartDate, nCpnDates3, CpnDates3, NA, Vol, StrikePrice, Term, RateForGreek, NTerm, DayCountFracFlag, VolFlag, PricingOrValueFlag, TempFSR, TempExercise) - swv;
 
 		for (i = 0; i < NTerm; i++)
 		{
@@ -938,10 +1026,11 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 				if (i == j) RateForGreek[j] = Rate[j] + 0.0001;
 				else RateForGreek[j] = Rate[j];
 			}
-			KeyRatePV01_Curve[i] = BS_Swaption(PriceDate, StartDate, nCpnDates, CpnDates, NA, Vol, StrikePrice, Term, RateForGreek, NTerm, DayCountFracFlag, VolFlag, PricingOrValueFlag, TempFSR, TempExercise) - swv;
+			KeyRatePV01_Curve[i] = BS_Swaption(FixedPayer0,PriceDate, TempStartDate, nCpnDates3, CpnDates3, NA, Vol, StrikePrice, Term, RateForGreek, NTerm, DayCountFracFlag, VolFlag, PricingOrValueFlag, TempFSR, TempExercise) - swv;
 		}
 
 		free(RateForGreek);
+		free(CpnDates3);
 	}
 	free(HolidayInput);
 	free(CpnDates);
