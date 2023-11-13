@@ -313,9 +313,7 @@ double HullWhiteQVTerm(
     if (NHWVol == 1 || kappa > 0.1)
     {
         vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t);
-        //
-        //RHS = -vol * vol * (exp(-kappa * T) - exp(-kappa * t)) * (exp(-kappa * T) - exp(-kappa * t)) * (exp(2.0 * kappa * t) - 1.0) / (4.0 * kappa * kappa * kappa);
-        RHS = 0.5 * vol * vol / (kappa * kappa) * (T - t - 2.0 / kappa * (1.0 - exp(-kappa * (T - t))) + 0.5 / kappa * (1.0 - exp(-2.0 * kappa * (T - t))));
+        RHS = -vol * vol * (exp(-kappa * T) - exp(-kappa * t)) * (exp(-kappa * T) - exp(-kappa * t)) * (exp(2.0 * kappa * t) - 1.0) / (4.0 * kappa * kappa * kappa);
     }
     else
     {
@@ -329,9 +327,7 @@ double HullWhiteQVTerm(
             vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, u);
             RHS += 0.5 * vol * vol * B_s_to_t(kappa, u, t) * B_s_to_t(kappa, u, t) * du;
             u = u + du;
-        }
-        //RHS = -vol * vol * (exp(-kappa * T) - exp(-kappa * t)) * (exp(-kappa * T) - exp(-kappa * t)) * (exp(2.0 * kappa * t) - 1.0) / (4.0 * kappa * kappa * kappa);
-        //vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t);        
+        }  
     }
     return RHS;
 }
@@ -358,19 +354,11 @@ double HullWhite2F_CrossTerm(
     double u = t;
     double du = (T - t) / ((double)NInteg);
     RHS = 0.0;
-    //for (i = 0; i < NInteg; i++)
-    //{
-    //    vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, u);
-    //    vol2 = Interpolate_Linear(HWVolTerm2, HWVol2, NHWVol, u);
 
-    //    RHS += vol * vol2 * (B_s_to_t(kappa, u, t) * B_s_to_t(kappa2, u, t) - B_s_to_t(kappa, u, T) * B_s_to_t(kappa2, u, T)) * du;
-    //    u = u + du;
-    //}
     vol = 0.5 * Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t) + 0.5 * Interpolate_Linear(HWVolTerm, HWVol, NHWVol, T);
     vol2 = 0.5 * Interpolate_Linear(HWVolTerm, HWVol2, NHWVol, t) + 0.5 * Interpolate_Linear(HWVolTerm, HWVol2, NHWVol, T);
-    //RHS = 2.0 * rho * 0.5 * (V_t_T(t, T, kappa, vol, kappa2, vol2) - V_t_T(0, T, kappa, vol, kappa2, vol2) + V_t_T(0, t, kappa, vol, kappa2, vol2));
-
-    RHS = 2.0 * rho * 0.5 * vol * vol2 / (kappa * kappa2) * (T - t - 1.0 / kappa * (1.0 - exp(-kappa * (T - t))) - 1.0 / kappa2 * (1.0 - exp(-kappa2 * (T - t))) + 1.0 / (kappa + kappa2) * (1.0 - exp(- kappa * (T - t)) * exp(-kappa2 * (T - t))));
+    
+    RHS = -2.0 * rho * 0.5 * vol * vol2 / (kappa * kappa2 * (kappa + kappa2)) * (exp(-kappa * T) - exp(-kappa * t)) * (exp(-kappa2 * T) - exp(-kappa2 * t)) * (exp((kappa + kappa2) * t) - 1.0);
 
     return RHS;
 }
