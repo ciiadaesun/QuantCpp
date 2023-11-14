@@ -282,21 +282,6 @@ double B_s_to_t(
     return (1.0 - exp(-kappa * (t - s))) / kappa;
 }
 
-double V_t_T(double t, double T, double kappa, double sigma, double kappa2, double sigma2)
-{
-    long i;
-    double NInteg = 5.0;
-    double u = t;
-    double du = (T - t) / NInteg;
-    double s = 0.;
-    for (i = 0; i < (long)NInteg; i++)
-    {
-        s += sigma * sigma2 * B_s_to_t(kappa, u, T) * B_s_to_t(kappa2, u, T);
-        u += du;
-    }
-    return s;
-}
-
 double HullWhiteQVTerm(
     double t,
     double T,
@@ -354,9 +339,16 @@ double HullWhite2F_CrossTerm(
     double u = t;
     double du = (T - t) / ((double)NInteg);
     RHS = 0.0;
-
-    vol = 0.5 * Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t) + 0.5 * Interpolate_Linear(HWVolTerm, HWVol, NHWVol, T);
-    vol2 = 0.5 * Interpolate_Linear(HWVolTerm, HWVol2, NHWVol, t) + 0.5 * Interpolate_Linear(HWVolTerm, HWVol2, NHWVol, T);
+    if (NHWVol == 1)
+    {
+        vol = 0.5 * Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t) + 0.5 * Interpolate_Linear(HWVolTerm, HWVol, NHWVol, T);
+        vol2 = 0.5 * Interpolate_Linear(HWVolTerm, HWVol2, NHWVol, t) + 0.5 * Interpolate_Linear(HWVolTerm, HWVol2, NHWVol, T);
+    }
+    else
+    {
+        vol = 0.5 * Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t);
+        vol2 = 0.5 * Interpolate_Linear(HWVolTerm, HWVol2, NHWVol, t);
+    }
     
     RHS = -2.0 * rho * 0.5 * vol * vol2 / (kappa * kappa2 * (kappa + kappa2)) * (exp(-kappa * T) - exp(-kappa * t)) * (exp(-kappa2 * T) - exp(-kappa2 * t)) * (exp((kappa + kappa2) * t) - 1.0);
 
@@ -1011,6 +1003,9 @@ double PayoffStructure(
     long DayBeforeIdx;
     long ExistHistoryFlag = 0;
 
+    double MaxLoss = Leg_Inform->MaxLossY;
+    double MaxRet = Leg_Inform->MaxRetY;
+
     double LowerBound;
     double UpperBound;
     double CondMultiple;
@@ -1096,7 +1091,7 @@ double PayoffStructure(
                     OutputRate[i] = SimulatedRate[i][CashFlowIdx];
                     if (LowerBound <= CondMultiple * SimulatedRate[i][CashFlowIdx] && UpperBound >= CondMultiple * SimulatedRate[i][CashFlowIdx]) Cond = Cond * 1;
                     else Cond = 0;
-                    StrCpn += PayoffMultiple * SimulatedRate[i][CashFlowIdx];
+                    StrCpn += max(-MaxLoss, PayoffMultiple * SimulatedRate[i][CashFlowIdx]);
                 }
                 Payoff = StrCpn * (double)Cond * (double)Leg_Inform->FloatingFlag[CashFlowIdx] + Leg_Inform->CouponRate[CashFlowIdx] + (double)Cond * Leg_Inform->RangeCoupon[CashFlowIdx] * CPN_Ratio;
             }
@@ -1177,7 +1172,7 @@ double PayoffStructure(
                 }
                 else
                 {
-                    AvgRate = 0.5 * Rate2 + 0.5 * 0.5 * SimulatedRate[i][min(SimulatedRateShape1, CashFlowIdx + 1)];
+                    AvgRate = 0.5 * Rate2 + 0.5 * SimulatedRate[i][min(SimulatedRateShape1, CashFlowIdx + 1)];
                     OutputRate[i] = AvgRate;
                     StrCpn += PayoffMultiple * AvgRate;
                     if (LowerBound <= CondMultiple * AvgRate && UpperBound >= CondMultiple * AvgRate) Cond = Cond * 1;
@@ -1187,11 +1182,10 @@ double PayoffStructure(
 
             CPN_Ratio = ((double)NumAccrual) / ((double)NDays);
             Payoff = StrCpn * (double)Cond * (double)Leg_Inform->FloatingFlag[CashFlowIdx] + Leg_Inform->CouponRate[CashFlowIdx] + (double)Cond * Leg_Inform->RangeCoupon[CashFlowIdx] * CPN_Ratio;
-
         }
     }
 
-    return Payoff * dt;
+    return min(MaxRet, max(-MaxLoss, Payoff)) * dt;
 }
 
 double SOFR_Compounded_Rate(
