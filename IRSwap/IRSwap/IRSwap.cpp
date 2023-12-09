@@ -5,7 +5,7 @@
 #include "Structure.h"
 #include "Util.h"
 #include "GetTextDump.h"
-
+//#include <crtdbg.h>
 #ifndef DLLEXPORT(A)
 #ifdef WIN32
 #define DLLEXPORT(A) extern "C" __declspec(dllexport) A _stdcall
@@ -577,6 +577,79 @@ DLLEXPORT(long) ResultCpnMapping(
     return 1;
 }
 
+double DayCountFractionAtoB(long Day1, long Day2, long Flag)
+{
+    long i;
+    double tau;
+    long imax;
+    double Div;
+
+    if (Day1 < 19000000 && Day2 < 19000000)
+    {
+        Day1 = ExcelDateToCDate(Day1);
+        Day2 = ExcelDateToCDate(Day2);
+    }
+
+    if (Flag == 0) return DayCountAtoB(Day1, Day2) / 365.0;
+    else if (Flag == 1) return DayCountAtoB(Day1, Day2) / 360.;
+    else if (Flag == 2)
+    {
+        long YearA, YearB;
+        long MonthA, MonthB;
+        long DayA, DayB;
+        long CurrentY;
+        long NextY;
+
+        YearA = Day1 / 10000;
+        MonthA = (Day1 - YearA * 10000) / 100;
+        DayA = (Day1 - YearA * 10000 - MonthA * 100);
+
+        YearB = Day2 / 10000;
+        MonthB = (Day2 - YearB * 10000) / 100;
+        DayB = (Day2 - YearB * 10000 - MonthB * 100);
+
+        NextY = Day1 + 10000;
+        if (Day2 > Day1 && Day2 < NextY)
+        {
+            Div = DayCountAtoB(Day1, NextY);
+            return DayCountAtoB(Day1, Day2) / Div;
+        }
+        else
+        {
+            tau = 0.;
+            for (i = 0; i <= YearB - YearA; i++)
+            {
+                CurrentY = Day1 + i * 10000;
+                NextY = Day1 + (i + 1) * 10000;
+                if (Day2 > CurrentY && Day2 <= NextY)
+                {
+                    Div = DayCountAtoB(CurrentY, NextY);
+                    tau += DayCountAtoB(CurrentY, Day2) / Div;
+                    break;
+                }
+                else
+                {
+                    tau += 1.0;
+                }
+            }
+            return tau;
+        }
+    }
+    else
+    {
+        long YearA, YearB;
+        long MonthA, MonthB;
+        long nMonth;
+        YearA = Day1 / 10000;
+        MonthA = (Day1 - YearA * 10000) / 100;
+
+        YearB = Day2 / 10000;
+        MonthB = (Day2 - YearB * 10000) / 100;
+
+        nMonth = (YearB - YearA) * 12 + (MonthB - MonthA);
+        return ((double)30. * (nMonth)) / 360.0;
+    }
+}
 
 double Calc_Forward_Rate_Daily(
     double* Term,
@@ -2156,6 +2229,9 @@ void Floating_PartialValue(
     double Slope,
     double FixedAmount,
     double Notional,
+    long YYYYMMDDStart,
+    long YYYYMMDDEnd,
+    long DayCountFlag,
     // 결과
     double* ResultRefRate,
     double* ResultCF,
@@ -2175,7 +2251,7 @@ void Floating_PartialValue(
     else FX = FXCurve.Interpolated_Rate(Frac_T1);
 
     dt_Forward = (Ref_T1 - Ref_T0);
-    dt_CPN = (Frac_T1 - Frac_T0);
+    dt_CPN = DayCountFractionAtoB(YYYYMMDDStart, YYYYMMDDEnd, DayCountFlag);
 
     if (FixedRateFlag == 0)
     {
@@ -2246,7 +2322,11 @@ double LegValue(
     double* ResultRefRate,
     double* ResultCPN,
     double* ResultDF,
-    double* DiscCFArray
+    double* DiscCFArray,
+    long ConvAdjFlag,
+    long NConvAdjVolTerm,
+    double* ConvAdjVolTerm,
+    double* ConvAdjVol
 )
 {
     long i;
@@ -2295,12 +2375,14 @@ double LegValue(
                 // 이미 쿠폰 지급한 과거인지 확인
                 PrevFlag = 1;
                 if (Schedule->Days_PayDate[i] > 0)
+                {
                     PrevFlag = 0;
+                }
 
                 if (PrevFlag == 0)
                 {
-                    Ref_T0 = ((double)Schedule->Days_ForwardStart[i]) / denominator;
-                    Ref_T1 = ((double)Schedule->Days_ForwardEnd[i]) / denominator;
+                    Ref_T0 = ((double)Schedule->Days_ForwardStart[i]) / 365.;
+                    Ref_T1 = ((double)Schedule->Days_ForwardEnd[i]) / 365.;
                     Frac_T0 = ((double)Schedule->Days_StartDate[i]) / denominator;
                     Frac_T1 = ((double)Schedule->Days_EndDate[i]) / denominator;
                     Pay_T = ((double)Schedule->Days_PayDate[i]) / 365.0;
@@ -2311,6 +2393,7 @@ double LegValue(
                     Floating_PartialValue(
                         CRSFlag, DiscCurve, RefCurve, FXCurve, Ref_T0, Ref_T1, Frac_T0,
                         Frac_T1, Pay_T, FixedRateFlag, Schedule->FixedRefRate[i], Schedule->Slope[i], Schedule->CPN[i], Schedule->NotionalAmount,
+                        Schedule->StartDate_C[i], Schedule->EndDate_C[i], Schedule->DayCount,
                         ResultRefRate + i, ResultCPN + i, ResultDF + i, DiscCFArray + i);
                 }
                 else
@@ -2350,6 +2433,10 @@ double LegValue(
                     if (FixedRateFlag == 0)
                     {
                         ResultRefRate[i] = FSR(RefCurve.Term, RefCurve.Rate, RefCurve.nterm(), SwapStartT, Schedule->RefSwapMaturity, FreqMonth);
+                        if (ConvAdjFlag > 0)
+                        {
+
+                        }
                         ResultCPN[i] = FXRate * Schedule->NotionalAmount * (ResultRefRate[i] * Schedule->Slope[i] + Schedule->CPN[i]) * ((double)(Schedule->Days_EndDate[i] - Schedule->Days_StartDate[i])) / denominator;
                         ResultDF[i] = exp(-DiscCurve.Interpolated_Rate(Pay_T) * Pay_T);
                         DiscCFArray[i] = ResultCPN[i] * ResultDF[i];
@@ -2441,6 +2528,11 @@ double LegValue(
 
                     FreqMonth = 12.0 / (double)Schedule->NSwapPayAnnual;
                     ResultRefRate[i] = Calc_Forward_SOFR_Swap(RefCurve, RefCurve, DiscCurve, SwapStartT, Schedule->RefSwapMaturity, FreqMonth, Schedule->HolidayFlag_Ref, Schedule->NHolidays_Ref, Schedule->Days_Holidays_Ref, NSaturSunDay_List[i], SaturSunDay_List[i], Schedule->NRefHistory, Schedule->RefHistoryDate, Schedule->RefHistory, denominator, Schedule->LockOutRef, Schedule->LookBackRef, Schedule->ObservationShift);
+                    if (ConvAdjFlag > 0)
+                    {
+
+                    }
+
                     ResultCPN[i] = FXRate * Schedule->NotionalAmount * (ResultRefRate[i] * Schedule->Slope[i] + Schedule->CPN[i]) * ((double)(Schedule->Days_EndDate[i] - Schedule->Days_StartDate[i])) / denominator;
                     ResultDF[i] = exp(-DiscCurve.Interpolated_Rate(Pay_T) * Pay_T);
                     DiscCFArray[i] = ResultCPN[i] * ResultDF[i];
@@ -2537,8 +2629,17 @@ long SwapPricer(
     double* KeyRatePayPV01,
     long NSaturSunDayForSwap,
     long* SaturSunDayForSwap,
-    long PricingOnly
-)
+    long PricingOnly,
+
+    long RcvConvexityAdjFlag,       // RcvLeg Convexity 보정Flag
+    long PayConvexityAdjFlag,       // PayLeg Convexity 보정Flag
+    long NRcvConvexAdjVol,          // Rcv Vol개수
+    long NPayConvexAdjVol,          // Pay Vol개수
+    double* RcvConvAdjVolTerm,      // Rcv Vol Term
+    double* RcvConvAdjVol,          // Rcv Vol Term
+    double* PayConvAdjVolTerm,      // Rcv Vol Term
+    double* PayConvAdjVol           // Pay Vol Term
+    )
 {
     long i, j;
     long N, M;
@@ -2577,8 +2678,8 @@ long SwapPricer(
     // 각 Leg Pricing //
     ////////////////////
 
-    RcvValue = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve, Rcv_RefCurve, Rcv_FXCurve, ResultRefRate, ResultCPN, ResultDF, Rcv_DiscCFArray);
-    PayValue = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve, Pay_RefCurve, Pay_FXCurve, ResultRefRate + RcvSchedule->NCF, ResultCPN + RcvSchedule->NCF, ResultDF + RcvSchedule->NCF, Rcv_DiscCFArray);
+    RcvValue = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve, Rcv_RefCurve, Rcv_FXCurve, ResultRefRate, ResultCPN, ResultDF, Rcv_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
+    PayValue = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve, Pay_RefCurve, Pay_FXCurve, ResultRefRate + RcvSchedule->NCF, ResultCPN + RcvSchedule->NCF, ResultDF + RcvSchedule->NCF, Rcv_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
 
     //////////////////
     // Notional 반영
@@ -2685,15 +2786,15 @@ long SwapPricer(
 
         // RCV Leg
 
-        RcvValueUp = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Up, Rcv_RefCurve, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray);
+        RcvValueUp = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Up, Rcv_RefCurve, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
         RcvValueUp += (RcvSchedule->NotionalAmount * (double)RcvSchedule->NAFlag) * Rcv_Temp_ResultDF[RcvSchedule->NCF - 1] * Rcv_FXMat;
-        RcvValueDn = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Dn, Rcv_RefCurve, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray);
+        RcvValueDn = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Dn, Rcv_RefCurve, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
         RcvValueDn += (RcvSchedule->NotionalAmount * (double)RcvSchedule->NAFlag) * Rcv_Temp_ResultDF[RcvSchedule->NCF - 1] * Rcv_FXMat;
         PV01[0] = (RcvValueUp - RcvValueDn) * 0.5;
 
-        RcvValueUp = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve, Rcv_RefCurve_Up, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray);
+        RcvValueUp = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve, Rcv_RefCurve_Up, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
         RcvValueUp += (RcvSchedule->NotionalAmount * (double)RcvSchedule->NAFlag) * Rcv_Temp_ResultDF[RcvSchedule->NCF - 1] * Rcv_FXMat;
-        RcvValueDn = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve, Rcv_RefCurve_Dn, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray);
+        RcvValueDn = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve, Rcv_RefCurve_Dn, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
         RcvValueDn += (RcvSchedule->NotionalAmount * (double)RcvSchedule->NAFlag) * Rcv_Temp_ResultDF[RcvSchedule->NCF - 1] * Rcv_FXMat;
         PV01[1] = (RcvValueUp - RcvValueDn) * 0.5;
 
@@ -2713,9 +2814,9 @@ long SwapPricer(
 
             if (s == N)
             {
-                RcvValueUp = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Up, Rcv_RefCurve_Up, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray);
+                RcvValueUp = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Up, Rcv_RefCurve_Up, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
                 RcvValueUp += (RcvSchedule->NotionalAmount * (double)RcvSchedule->NAFlag) * Rcv_Temp_ResultDF[RcvSchedule->NCF - 1] * Rcv_FXMat;
-                RcvValueDn = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Dn, Rcv_RefCurve_Dn, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray);
+                RcvValueDn = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Dn, Rcv_RefCurve_Dn, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
                 RcvValueDn += (RcvSchedule->NotionalAmount * (double)RcvSchedule->NAFlag) * Rcv_Temp_ResultDF[RcvSchedule->NCF - 1] * Rcv_FXMat;
                 PV01[2] = (RcvValueUp - RcvValueDn) * 0.5;
             }
@@ -2739,9 +2840,9 @@ long SwapPricer(
                         Rcv_DiscCurve_Dn.Rate[j] = RcvDisc_Rate[j];
                     }
                 }
-                RcvValueUp = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Up, Rcv_RefCurve, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray);
+                RcvValueUp = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Up, Rcv_RefCurve, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
                 RcvValueUp += (RcvSchedule->NotionalAmount * (double)RcvSchedule->NAFlag) * Rcv_Temp_ResultDF[RcvSchedule->NCF - 1] * Rcv_FXMat;
-                RcvValueDn = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Dn, Rcv_RefCurve, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray);
+                RcvValueDn = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Dn, Rcv_RefCurve, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
                 RcvValueDn += (RcvSchedule->NotionalAmount * (double)RcvSchedule->NAFlag) * Rcv_Temp_ResultDF[RcvSchedule->NCF - 1] * Rcv_FXMat;
                 KeyRateRcvPV01[i] = (RcvValueUp - RcvValueDn) * 0.5;
             }
@@ -2769,9 +2870,9 @@ long SwapPricer(
                         Rcv_RefCurve_Dn.Rate[j] = RcvRef_Rate[j];
                     }
                 }
-                RcvValueUp = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve, Rcv_RefCurve_Up, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray);
+                RcvValueUp = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve, Rcv_RefCurve_Up, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
                 RcvValueUp += (RcvSchedule->NotionalAmount * (double)RcvSchedule->NAFlag) * Rcv_Temp_ResultDF[RcvSchedule->NCF - 1] * Rcv_FXMat;
-                RcvValueDn = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve, Rcv_RefCurve_Dn, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray);
+                RcvValueDn = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve, Rcv_RefCurve_Dn, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
                 RcvValueDn += (RcvSchedule->NotionalAmount * (double)RcvSchedule->NAFlag) * Rcv_Temp_ResultDF[RcvSchedule->NCF - 1] * Rcv_FXMat;
                 KeyRateRcvPV01[i + N] = (RcvValueUp - RcvValueDn) * 0.5;
             }
@@ -2817,9 +2918,9 @@ long SwapPricer(
                                 Rcv_RefCurve_Dn.Rate[j] = RcvRef_Rate[j];
                             }
                         }
-                        RcvValueUp = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Up, Rcv_RefCurve_Up, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray);
+                        RcvValueUp = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Up, Rcv_RefCurve_Up, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
                         RcvValueUp += (RcvSchedule->NotionalAmount * (double)RcvSchedule->NAFlag) * Rcv_Temp_ResultDF[RcvSchedule->NCF - 1] * Rcv_FXMat;
-                        RcvValueDn = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Dn, Rcv_RefCurve_Dn, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray);
+                        RcvValueDn = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve_Dn, Rcv_RefCurve_Dn, Rcv_FXCurve, Rcv_Temp_RefRate, Rcv_Temp_ResultCPN, Rcv_Temp_ResultDF, Rcv_Temp_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
                         RcvValueDn += (RcvSchedule->NotionalAmount * (double)RcvSchedule->NAFlag) * Rcv_Temp_ResultDF[RcvSchedule->NCF - 1] * Rcv_FXMat;
                         KeyRateRcvPV01[i + N + M] = (RcvValueUp - RcvValueDn) * 0.5;
                     }
@@ -2832,15 +2933,15 @@ long SwapPricer(
         }
 
         // PAY Leg
-        PayValueUp = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Up, Pay_RefCurve, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray);
+        PayValueUp = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Up, Pay_RefCurve, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
         PayValueUp += (PaySchedule->NotionalAmount * (double)PaySchedule->NAFlag) * Pay_Temp_ResultDF[PaySchedule->NCF - 1] * Pay_FXMat;
-        PayValueDn = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Dn, Pay_RefCurve, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray);
+        PayValueDn = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Dn, Pay_RefCurve, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
         PayValueDn += (PaySchedule->NotionalAmount * (double)PaySchedule->NAFlag) * Pay_Temp_ResultDF[PaySchedule->NCF - 1] * Pay_FXMat;
         PV01[3] = (PayValueUp - PayValueDn) * 0.5;
 
-        PayValueUp = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve, Pay_RefCurve_Up, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray);
+        PayValueUp = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve, Pay_RefCurve_Up, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
         PayValueUp += (PaySchedule->NotionalAmount * (double)PaySchedule->NAFlag) * Pay_Temp_ResultDF[PaySchedule->NCF - 1] * Pay_FXMat;
-        PayValueDn = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve, Pay_RefCurve_Dn, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray);
+        PayValueDn = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve, Pay_RefCurve_Dn, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
         PayValueDn += (PaySchedule->NotionalAmount * (double)PaySchedule->NAFlag) * Pay_Temp_ResultDF[PaySchedule->NCF - 1] * Pay_FXMat;
         PV01[4] = (PayValueUp - PayValueDn) * 0.5;
 
@@ -2860,9 +2961,9 @@ long SwapPricer(
 
             if (s == N)
             {
-                PayValueUp = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Up, Pay_RefCurve_Up, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray);
+                PayValueUp = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Up, Pay_RefCurve_Up, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
                 PayValueUp += (PaySchedule->NotionalAmount * (double)PaySchedule->NAFlag) * Pay_Temp_ResultDF[PaySchedule->NCF - 1] * Pay_FXMat;
-                PayValueDn = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Dn, Pay_RefCurve_Dn, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray);
+                PayValueDn = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Dn, Pay_RefCurve_Dn, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
                 PayValueDn += (PaySchedule->NotionalAmount * (double)PaySchedule->NAFlag) * Pay_Temp_ResultDF[PaySchedule->NCF - 1] * Pay_FXMat;
                 PV01[5] = (PayValueUp - PayValueDn) * 0.5;
             }
@@ -2886,9 +2987,9 @@ long SwapPricer(
                         Pay_DiscCurve_Dn.Rate[j] = PayDisc_Rate[j];
                     }
                 }
-                PayValueUp = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Up, Pay_RefCurve, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray);
+                PayValueUp = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Up, Pay_RefCurve, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
                 PayValueUp += (PaySchedule->NotionalAmount * (double)PaySchedule->NAFlag) * Pay_Temp_ResultDF[PaySchedule->NCF - 1] * Pay_FXMat;
-                PayValueDn = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Dn, Pay_RefCurve, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray);
+                PayValueDn = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Dn, Pay_RefCurve, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
                 PayValueDn += (PaySchedule->NotionalAmount * (double)PaySchedule->NAFlag) * Pay_Temp_ResultDF[PaySchedule->NCF - 1] * Pay_FXMat;
                 KeyRatePayPV01[i] = (PayValueUp - PayValueDn) * 0.5;
             }
@@ -2917,9 +3018,9 @@ long SwapPricer(
                         Pay_RefCurve_Dn.Rate[j] = PayRef_Rate[j];
                     }
                 }
-                PayValueUp = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve, Pay_RefCurve_Up, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray);
+                PayValueUp = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve, Pay_RefCurve_Up, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
                 PayValueUp += (PaySchedule->NotionalAmount * (double)PaySchedule->NAFlag) * Pay_Temp_ResultDF[PaySchedule->NCF - 1] * Pay_FXMat;
-                PayValueDn = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve, Pay_RefCurve_Dn, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray);
+                PayValueDn = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve, Pay_RefCurve_Dn, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
                 PayValueDn += (PaySchedule->NotionalAmount * (double)PaySchedule->NAFlag) * Pay_Temp_ResultDF[PaySchedule->NCF - 1] * Pay_FXMat;
                 KeyRatePayPV01[i + N] = (PayValueUp - PayValueDn) * 0.5;
             }
@@ -2965,9 +3066,9 @@ long SwapPricer(
                                 Pay_RefCurve_Dn.Rate[j] = PayRef_Rate[j];
                             }
                         }
-                        PayValueUp = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Up, Pay_RefCurve_Up, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray);
+                        PayValueUp = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Up, Pay_RefCurve_Up, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
                         PayValueUp += (PaySchedule->NotionalAmount * (double)PaySchedule->NAFlag) * Pay_Temp_ResultDF[PaySchedule->NCF - 1] * Pay_FXMat;
-                        PayValueDn = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Dn, Pay_RefCurve_Dn, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray);
+                        PayValueDn = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve_Dn, Pay_RefCurve_Dn, Pay_FXCurve, Pay_Temp_RefRate, Pay_Temp_ResultCPN, Pay_Temp_ResultDF, Pay_Temp_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
                         PayValueDn += (PaySchedule->NotionalAmount * (double)PaySchedule->NAFlag) * Pay_Temp_ResultDF[PaySchedule->NCF - 1] * Pay_FXMat;
                         KeyRatePayPV01[i + N + M] = (PayValueUp - PayValueDn) * 0.5;
                     }
@@ -3111,7 +3212,7 @@ long ErrorCheckIRSwap_Excel(
     if (Rcv_SwapYearlyNPayment <= 0 || Rcv_SwapYearlyNPayment > 12) return -7;
     if (Rcv_SwapMaturity < 0.0) return -8;
     if (Rcv_FixFloFlag != 0 && Rcv_FixFloFlag != 1) return -9;
-    if (Rcv_DayCount != 0 && Rcv_DayCount != 1) return -10;
+    if (Rcv_DayCount != 0 && Rcv_DayCount != 1 && Rcv_DayCount != 2 && Rcv_DayCount != 3) return -10;
     if (Rcv_NotionalAMT < 0.0) return -11;
     if (Rcv_NotionalPayDate < PriceDate_Exl) return -12;
     if (RcvDisc_NTerm < 1) return -13;
@@ -3180,7 +3281,7 @@ long ErrorCheckIRSwap_Excel(
     }
     if (Pay_SwapMaturity < 0.0) return -8;
     if (Pay_FixFloFlag != 0 && Pay_FixFloFlag != 1) return -9;
-    if (Pay_DayCount != 0 && Pay_DayCount != 1) return -10;
+    if (Pay_DayCount != 0 && Pay_DayCount != 1&& Pay_DayCount != 2 && Pay_DayCount != 3) return -10;
     if (Pay_NotionalAMT < 0.0) return -11;
     if (Pay_NotionalPayDate < PriceDate_Exl) return -12;
     if (PayDisc_NTerm < 1) return -13;
@@ -3275,7 +3376,12 @@ DLLEXPORT(long) IRSwap_Excel(
     long* Holidays,                     // Holiday Exceltype
     long* NHistory,                     // OverNight History 개수
     long* HistoryDateExl,               // OverNight History ExlDate
-    double* HistoryRate                 // OverNight Rate History
+    double* HistoryRate,                // OverNight Rate History
+
+    long* RcvPayConvexityAdjFlag,       // [0] RcvLeg Convexity 보정Flag [1] PayLeg Convexity 보정Flag
+    long* NRcvPayConvexAdjVol,          // [0] Rcv Vol개수 [1] Pay Vol개수
+    double* RcvTermAndVol,              // [~NRcvConvexAdj] RcvVolTerm, [NRcvConvexAdj~2NRcvConvexAdj-1] RcvVol
+    double* PayTermAndVol               // [~NPayConvexAdj] RcvVolTerm, [NPayConvexAdj~2NPayConvexAdj-1] PayVol
 )
 {
     long i;
@@ -3368,10 +3474,22 @@ DLLEXPORT(long) IRSwap_Excel(
         DumppingTextDataArray(CalcFunctionName, SaveFileName, "NHistory", 2, NHistory);
         DumppingTextDataArray(CalcFunctionName, SaveFileName, "HistoryDateExl", NHistory[0] + NHistory[1], HistoryDateExl);
         DumppingTextDataArray(CalcFunctionName, SaveFileName, "HistoryRate", NHistory[0] + NHistory[1], HistoryRate);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvPayConvexityAdjFlag", 2, RcvPayConvexityAdjFlag);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "NRcvPayConvexAdjVol", 2, NRcvPayConvexAdjVol);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvTermAndVol", NRcvPayConvexAdjVol[0] * 2, RcvTermAndVol);
+        DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayTermAndVol", NRcvPayConvexAdjVol[1] * 2, PayTermAndVol);
 
     }
 
     if (ResultCode < 0) return ResultCode;
+    long RcvConvexityAdjFlag = RcvPayConvexityAdjFlag[0];
+    long PayConvexityAdjFlag = RcvPayConvexityAdjFlag[1];
+    long NRcvConvexAdjVol = NRcvPayConvexAdjVol[0];
+    long NPayConvexAdjVol = NRcvPayConvexAdjVol[1];
+    double* RcvConvexAdjTerm = RcvTermAndVol;
+    double* RcvConvexAdjVol = RcvTermAndVol + NRcvConvexAdjVol;
+    double* PayConvexAdjTerm = PayTermAndVol;
+    double* PayConvexAdjVol = PayTermAndVol + NPayConvexAdjVol;
 
     long* Rcv_ForwardStartExl = RcvCashFlowSchedule;
     long* Rcv_ForwardEndExl = RcvCashFlowSchedule + NRcvCF;
@@ -3394,8 +3512,8 @@ DLLEXPORT(long) IRSwap_Excel(
     double* Rcv_HistoryRate = HistoryRate;
     double* Pay_HistoryRate = HistoryRate + Rcv_NHistory;
 
-    long* Rcv_HistoryRelDate = (long*)malloc(sizeof(long) * Rcv_NHistory);
-    long* Pay_HistoryRelDate = (long*)malloc(sizeof(long) * Pay_NHistory);
+    long* Rcv_HistoryRelDate = (long*)malloc(sizeof(long) * Rcv_NHistory);                              // 1
+    long* Pay_HistoryRelDate = (long*)malloc(sizeof(long) * Pay_NHistory);                              // 2
     for (i = 0; i < Rcv_NHistory; i++) Rcv_HistoryRelDate[i] = Rcv_HistoryDateExl[i] - PriceDate_Exl;
     for (i = 0; i < Pay_NHistory; i++) Pay_HistoryRelDate[i] = Pay_HistoryDateExl[i] - PriceDate_Exl;
 
@@ -3404,8 +3522,8 @@ DLLEXPORT(long) IRSwap_Excel(
 
     long NWeekend;
 
-    long* NRcv_Weekend = (long*)malloc(sizeof(long) * NRcvCF);
-    long** Rcv_Weekend = (long**)malloc(sizeof(long*) * NRcvCF);
+    long* NRcv_Weekend = (long*)malloc(sizeof(long) * NRcvCF);                                          // 3
+    long** Rcv_Weekend = (long**)malloc(sizeof(long*) * NRcvCF);                                        // 4
 
     for (i = 0; i < NRcvCF; i++)
     {
@@ -3434,8 +3552,8 @@ DLLEXPORT(long) IRSwap_Excel(
         }
     }
 
-    long* NPay_Weekend = (long*)malloc(sizeof(long) * NPayCF);
-    long** Pay_Weekend = (long**)malloc(sizeof(long*) * NPayCF);
+    long* NPay_Weekend = (long*)malloc(sizeof(long) * NPayCF);                                          // 5
+    long** Pay_Weekend = (long**)malloc(sizeof(long*) * NPayCF);                                        // 6
 
     for (i = 0; i < NPayCF; i++)
     {
@@ -3473,7 +3591,7 @@ DLLEXPORT(long) IRSwap_Excel(
             NWeekendForSwap += 1;
         }
     }
-    long* WeekendForSwap = (long*)malloc(sizeof(long) * max(1, NWeekendForSwap));
+    long* WeekendForSwap = (long*)malloc(sizeof(long) * max(1, NWeekendForSwap));                       // 7
     k = 0;
     for (j = WeekCheckStart; j < WeekCheckEnd; j++)
     {
@@ -3704,7 +3822,9 @@ DLLEXPORT(long) IRSwap_Excel(
         PayRef_NTerm, PayRef_Term, PayRef_Rate,
         Rcv_NTermFX, Rcv_TermFX, Rcv_FX, Pay_NTermFX, Pay_TermFX, Pay_FX,
         GreekFlag, ResultPrice, ResultRefRate, ResultCPN, ResultDF,
-        PV01, KeyRateRcvPV01, KeyRatePayPV01, NWeekendForSwap, WeekendForSwap, PricingOnly);
+        PV01, KeyRateRcvPV01, KeyRatePayPV01, NWeekendForSwap, WeekendForSwap, 
+        PricingOnly, RcvConvexityAdjFlag, PayConvexityAdjFlag, NRcvConvexAdjVol, NPayConvexAdjVol, RcvConvexAdjTerm,
+        RcvConvexAdjVol, PayConvexAdjTerm, PayConvexAdjVol );
 
     free(Rcv_HistoryRelDate);
     free(Pay_HistoryRelDate);
@@ -3732,10 +3852,19 @@ DLLEXPORT(long) IRSwap_Excel(
     free(Pay_PayDate_C);
     free(RcvRef_Days_Holiday);
     free(PayRef_Days_Holiday);
-
+    free(Days_Pay_StartDate);
+    free(Days_Rcv_StartDate);
+    free(Days_Pay_PayDate);
+    free(Days_Rcv_PayDate);
+    free(Days_Pay_EndDate);
+    free(Days_Rcv_EndDate);
+    free(Days_Pay_ForwardEnd);
+    free(Days_Rcv_ForwardEnd);
+    free(Days_Pay_ForwardStart);
+    free(Days_Rcv_ForwardStart);
     delete (Rcv_Schedule);
     delete (Pay_Schedule);
-
+    //_CrtDumpMemoryLeaks();
     return ResultCode;
 }
 
@@ -3863,6 +3992,10 @@ long FindZeroRate(
     }
 
     long ContinuePoint = 1;
+    long TempNumber2[2] = { 0, 0 };
+    long TempFlag2[2] = { 0, 0 };
+    double TempFloat[2] = { 0.0, 0.0 };
+
     for (i = 0; i < 1000; i++)
     {
         Rate[NCurve - 1] = TargetRate;
@@ -3876,7 +4009,8 @@ long FindZeroRate(
             Rate, NCashFlow, CashFlowSchedule, Pay_Slope, Pay_CPN,
             Pay_CPN, ResultPrice, ResultRefRate, ResultCPN, ResultDF,
             PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
-            NHolidayAdj, Holiday, NHistory, HistoryDateExl, HistoryRate);
+            NHolidayAdj, Holiday, NHistory, HistoryDateExl, HistoryRate,
+            TempFlag2, TempNumber2, TempFloat, TempFloat);
 
         dblCalcPrice = ResultPrice[1] - ResultPrice[2];
         if (fabs(dblCalcPrice) < dblErrorRange) break;

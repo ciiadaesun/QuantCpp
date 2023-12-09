@@ -282,6 +282,18 @@ double B_s_to_t(
     return (1.0 - exp(-kappa * (t - s))) / kappa;
 }
 
+double V_t_T(
+    double kappa,
+    double kappa2,
+    double t,
+    double T,
+    double vol,
+    double vol2
+)
+{
+    return vol * vol2 / (kappa * kappa2) * (T - t + (exp(-kappa * (T - t)) - 1.0) / kappa + (exp(-kappa2 * (T - t)) - 1.0) / kappa2 - (exp(-(kappa + kappa2) * (T - t)) - 1.0) / (kappa + kappa2));
+}
+
 double HullWhiteQVTerm(
     double t,
     double T,
@@ -298,21 +310,31 @@ double HullWhiteQVTerm(
     if (NHWVol == 1 || kappa > 0.1)
     {
         vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t);
-        RHS = -vol * vol * (exp(-kappa * T) - exp(-kappa * t)) * (exp(-kappa * T) - exp(-kappa * t)) * (exp(2.0 * kappa * t) - 1.0) / (4.0 * kappa * kappa * kappa);
+        //RHS = -vol * vol * (exp(-kappa * T) - exp(-kappa * t)) * (exp(-kappa * T) - exp(-kappa * t)) * (exp(2.0 * kappa * t) - 1.0) / (4.0 * kappa * kappa * kappa);
+        //RHS = 0.5 * vol * vol / (kappa * kappa) * (2.0 / kappa * exp(-kappa * (T - t)) - 0.5 / kappa * exp(-2.0 * kappa * (T - t)) - 2.0 / kappa * exp(-kappa * T) + 0.5 / kappa * exp(-2.0 * kappa * T) + 2.0 / kappa * exp(-kappa * t) - 0.5 / kappa * exp(-2.0 * kappa * t) - 1.5 / kappa);
+        RHS = 0.5 * (V_t_T(kappa, kappa, t, T, vol, vol) - V_t_T(kappa, kappa, 0, T, vol, vol) + V_t_T(kappa, kappa, 0, t, vol, vol));
     }
     else
     {
-        RHS = 0.0;
-        double s, ds;
-        long NInteg = 10.0;
-        double u = t;
-        double du = (T - t) / ((double)NInteg);        
-        for (i = 0; i < NInteg; i++)
-        {
-            vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, u);
-            RHS += 0.5 * vol * vol * B_s_to_t(kappa, u, t) * B_s_to_t(kappa, u, t) * du;
-            u = u + du;
-        }  
+        //RHS = 0.0;
+        //double s, ds;
+        //long NInteg = 10.0;
+        //double u = t;
+        //double du = (T - t) / ((double)NInteg);        
+        //for (i = 0; i < NInteg; i++)
+        //{
+        //    vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, u);
+        //    RHS += 0.5 * vol * vol * B_s_to_t(kappa, u, t) * B_s_to_t(kappa, u, t) * du;
+        //    u = u + du;
+        //}
+        double v1, v2, var;
+        v1 = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t);
+        v2 = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, T);
+        var = (T * v2 * v2 - t * v1 * v1) / (T - t);
+        if (var > 0.0) vol = sqrt(var);
+        else vol = 0.5 * v1 + 0.5 * v2;
+        //RHS = 0.5 * vol * vol / (kappa * kappa) * (2.0 / kappa * exp(-kappa * (T - t)) - 0.5 / kappa * exp(-2.0 * kappa * (T - t)) - 2.0 / kappa * exp(-kappa * T) + 0.5 / kappa * exp(-2.0 * kappa * T) + 2.0 / kappa * exp(-kappa * t) - 0.5 / kappa * exp(-2.0 * kappa * t) - 1.5 / kappa);
+        RHS = 0.5 * (V_t_T(kappa, kappa, t, T, vol, vol) - V_t_T(kappa, kappa, 0, T, vol, vol) + V_t_T(kappa, kappa, 0, t, vol, vol));
     }
     return RHS;
 }
