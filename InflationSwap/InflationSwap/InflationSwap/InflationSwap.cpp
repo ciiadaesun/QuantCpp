@@ -1609,7 +1609,7 @@ DLLEXPORT(long) InflationCurveGenerate(
 										TempDoubleTwoYOY[i], NZeroRate, ZeroRateTermTemp, ZeroRateTemp, PriceDateInfla, k + 1, Term, Rate, CurrentCPI, TempResultArray);
 				
 				if (fabs(CalcRate) < dblErrorRange) break;
-				if (CalcRate > 0)
+				if (CalcRate > 0.)
 				{
 					MaxRate = TargetRate;
 					TargetRate = (MaxRate + MinRate) / 2.0;

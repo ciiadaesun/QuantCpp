@@ -690,7 +690,7 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 	long nCpnDates = 0;
 	long TempDate = StartDate;
 	long TempStartDate = StartDate;
-	if (AmericanFlag > 0 && NAutocall > 0) StartDate = max(StartDate, AutocallDate[i]);
+	if (AmericanFlag > 0 && NAutocall > 0) StartDate = max(StartDate, AutocallDate[0]);
 	long* CpnDates = Generate_CpnDate_Holiday_IRSwaption(StartDate, SwapMaturityDate, AnnCpnOneYear, nCpnDates, TempDate, NHoliday, HolidayYYYYMMDD);
 
 	double* ResultFSR = ResultValue + 2;
@@ -1033,6 +1033,77 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 		free(CpnDates3);
 	}
 	free(HolidayInput);
+	free(CpnDates);
+	return 1;
+}
+
+DLLEXPORT(long) Pricing_BS_SwaptionPrice_to_Volatiliy(
+	long FixedPayer0,			// Fixed Payer = 0 Fixed Receiver = 1
+	long PriceDate,				// 평가일
+	long StartDate,				// 옵션시작일
+	long SwapMaturityDate,		// 스왑 만기 YYYYMMDD
+	long AnnCpnOneYear,			// 연 이자지급수
+	double kappa,				// FDM HW Kappa
+	long AmericanFlag,			// 0: European, 1: American
+	long NAutocall,				// 조기상환개수
+	long* AutocallDate,			// 조기상환종료일
+	double NA,					// 명목원금
+	long NTerm,					// 금리 Term 개수
+	double* Term,				// 금리 Term Array
+	double* Rate,				// 금리 Rate Array
+	long DayCountFracFlag,		// 0: Act/365, 1: Act/360 2: Act/Act 3: 30/360
+	long VolFlag,				// 0: Black Vol 1: Normal Vol
+	long HolidayAutoFlag,		// Holiday 자동계산
+	long HolidayNationFlag,		// Holiday 자동계산 1일 때, 0: KRW, 1:USD, 2:GBP
+	long NHoliday,				// Holiday 수동계산일 때 Holiday개수
+	long* HolidayYYYYMMDD,		// Holiday YYYYMMDD Array
+	double MarketPrice,
+	double* ResultValue			// Output : 길이 = 4 + NTerm
+)
+{
+	long i, j;
+	long PricingOrValueFlag = 0;
+	long NVolTerm = 1;
+	double VolTerm[1] = { 1.0 };
+	double MaxRate = 2.0;
+	double MinRate = 0.0001;
+	double TargetRate = MaxRate;
+	double* ResultArray = (double*)malloc(sizeof(double) * 100);
+
+	long nCpnDates = 0;
+	long TempDate = StartDate;
+	long TempStartDate = StartDate;
+	if (AmericanFlag > 0 && NAutocall > 0) StartDate = max(StartDate, AutocallDate[0]);
+	long* CpnDates = Generate_CpnDate_Holiday_IRSwaption(StartDate, SwapMaturityDate, AnnCpnOneYear, nCpnDates, TempDate, NHoliday, HolidayYYYYMMDD);
+	double FSR = ForwardSwapRate(PriceDate, StartDate, nCpnDates, CpnDates, NTerm, Term, Rate, NTerm, Term, Rate, DayCountFracFlag);
+	double CalcRate = 0.;
+	double dblErrorRange = 0.0000001;
+	for (j = 0; j < 1000; j++)
+	{
+		Pricing_BS_Swaption(
+			FixedPayer0, PriceDate, StartDate, SwapMaturityDate, AnnCpnOneYear,			// 연 이자지급수
+			PricingOrValueFlag, kappa, AmericanFlag, NAutocall, AutocallDate,			// 조기상환종료일
+			NA, NVolTerm, VolTerm, &TargetRate, FSR,			// 행사금리
+			NTerm, Term, Rate, DayCountFracFlag, VolFlag,				// 0: Black Vol 1: Normal Vol
+			HolidayAutoFlag, HolidayNationFlag, NHoliday, HolidayYYYYMMDD, 0,				// LoggingFlag
+			0, ResultArray			// Output : 길이 = 4 + NTerm
+		);
+		CalcRate = ResultArray[0] - MarketPrice;
+		if (fabs(CalcRate/NA) < dblErrorRange) break;
+		if (CalcRate > 0.)
+		{
+			MaxRate = TargetRate;
+			TargetRate = (MaxRate + MinRate) / 2.0;
+		}
+		else
+		{
+			MinRate = TargetRate;
+			TargetRate = (MinRate + MaxRate) / 2.0;
+		}
+
+	}
+	ResultValue[0] = TargetRate;
+	free(ResultArray);
 	free(CpnDates);
 	return 1;
 }

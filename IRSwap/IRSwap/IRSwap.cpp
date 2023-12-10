@@ -651,6 +651,40 @@ double DayCountFractionAtoB(long Day1, long Day2, long Flag)
     }
 }
 
+double GPrimePrime_Over_GPrime(double CpnRate, double YTM, long PriceDate, double SwapMaturity, double FreqMonth)
+{
+    long i, j;
+    double Gp, Gpp;
+    double Deltat;
+    double T;
+
+    long AnnCpnOneYear = (long)(12.0 / FreqMonth+0.01);
+    long SwapEndDate = EDate_Cpp(PriceDate, (long)(SwapMaturity * 12.0));
+    long NCpnDates = 0;
+    long FirstCpnDate = PriceDate;
+    long* CpnDates = Generate_CpnDate(PriceDate, SwapEndDate, AnnCpnOneYear, NCpnDates, FirstCpnDate);
+
+    Gp = 0.;
+    Gpp = 0.;
+    for (i = 0; i < NCpnDates; i++)
+    {
+        T = DayCountFractionAtoB(PriceDate, CpnDates[i], 3);
+        if (i == 0) Deltat = DayCountFractionAtoB(PriceDate, CpnDates[i], 3);
+        else Deltat = DayCountFractionAtoB(CpnDates[i - 1], CpnDates[i], 3);
+
+        Gp = Gp - CpnRate * Deltat * T * pow(1. + YTM, -T);
+        Gpp = Gpp + CpnRate * Deltat * T * T * pow(1. + YTM, -T);
+
+        if (i == NCpnDates - 1)
+        {
+            Gp = Gp - T * pow(1.0 + YTM, -T);
+            Gpp = Gpp + T * T * pow(1.0 + YTM, -T);
+        }
+    }
+    free(CpnDates);
+    return (Gpp / 100.) / Gp;
+}
+
 double Calc_Forward_Rate_Daily(
     double* Term,
     double* Rate,
@@ -2337,6 +2371,10 @@ double LegValue(
     if (Schedule->DayCount == 0) denominator = 365.0;
     else denominator = 360.0;
 
+    double FSRVol;
+    double GppOvGp;
+    double ConvAdjAmt;
+
     ///////////////
     // SOFR ฐüทร //
     ///////////////
@@ -2347,7 +2385,7 @@ double LegValue(
     long NRefHistory = Schedule->NRefHistory;
     long* RefHistoryDate = Schedule->RefHistoryDate;
     double* RefHistory = Schedule->RefHistory;
-
+    
     double Ref_T0, Ref_T1, SwapStartT, SwapEndT;
     double Frac_T0, Frac_T1;
     double Pay_T;
@@ -2435,7 +2473,10 @@ double LegValue(
                         ResultRefRate[i] = FSR(RefCurve.Term, RefCurve.Rate, RefCurve.nterm(), SwapStartT, Schedule->RefSwapMaturity, FreqMonth);
                         if (ConvAdjFlag > 0)
                         {
-
+                            FSRVol = Interpolate_Linear(ConvAdjVolTerm, ConvAdjVol, NConvAdjVolTerm, SwapStartT);
+                            GppOvGp = GPrimePrime_Over_GPrime(ResultRefRate[i], ResultRefRate[i], Schedule->ForwardStart_C[i], Schedule->RefSwapMaturity, FreqMonth);
+                            ConvAdjAmt = GppOvGp * FSRVol * FSRVol * 100. * SwapStartT * 0.5;
+                            ResultRefRate[i] = ResultRefRate[i] - ConvAdjAmt;
                         }
                         ResultCPN[i] = FXRate * Schedule->NotionalAmount * (ResultRefRate[i] * Schedule->Slope[i] + Schedule->CPN[i]) * ((double)(Schedule->Days_EndDate[i] - Schedule->Days_StartDate[i])) / denominator;
                         ResultDF[i] = exp(-DiscCurve.Interpolated_Rate(Pay_T) * Pay_T);
