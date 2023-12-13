@@ -1,0 +1,19 @@
+﻿  BSCapFloor.cpp
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(730,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(730,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1123,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1163,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1402,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1528,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1664,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\BSCapFloor.cpp(15,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\BSCapFloor.cpp(35,7): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\BSCapFloor.cpp(95,8): warning C4101: 'NextY' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\BSCapFloor.cpp(94,8): warning C4101: 'CurrentY' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\BSCapFloor.cpp(246,9): warning C4101: 't0' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\BSCapFloor.cpp(715,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\BSCapFloor.cpp(715,13): warning C4101: 'n' :참조되지 않은 지역 변수입니다.
+     C:\Users\ciiad\github5\BSCapFloor\x64\Debug\BSCapFloor.lib 라이브러리 및 C:\Users\ciiad\github5\BSCapFloor\x64\Debug\BSCapFloor.exp 개체를 생성하고 있습니다.
+  BSCapFloor.vcxproj -> C:\Users\ciiad\github5\BSCapFloor\x64\Debug\BSCapFloor.dll
