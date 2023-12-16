@@ -2,3 +2,5 @@ LIBRARY
 
 EXPORTS
 	OPTIONPRICING_Excel		@101
+	CalcForwardPrice		@102
+	CalcImvolFromPrice		@103

@@ -59,6 +59,73 @@ double SimpleBSCall(double S, double X, double r_drift, double T, double d, doub
 	return S * exp(-d * T) * CDF_N(d1) - X * exp(-r_disc * T) * CDF_N(d2);
 }
 
+DLLEXPORT(double) CalcForwardPrice(long PriceDateYYYYMMDD, long EndDateYYYYMMDD, double S, long nrate, double *term_rate, double *rate, long ndiv, double* term_div, double* div)
+{
+	if (PriceDateYYYYMMDD < 19000001) PriceDateYYYYMMDD = ExcelDateToCDate(PriceDateYYYYMMDD);
+	if (EndDateYYYYMMDD < 19000001) EndDateYYYYMMDD = ExcelDateToCDate(EndDateYYYYMMDD);
+	double T = ((double)DayCountAtoB(PriceDateYYYYMMDD, EndDateYYYYMMDD))/365.0;
+	double r = Interpolate_Linear(term_rate, rate, nrate, T);
+	double d = Interpolate_Linear(term_div, div, ndiv, T);
+	return S * exp((r - d) * T);
+}
+
+double SimpleBSCall_With_Forward(double F, double X, double T, double r_disc, double Sigma)
+{
+	double d1 = (log(F / X) + (0.5 * Sigma * Sigma) * T) / (Sigma * sqrt(T));
+	double d2 = d1 - Sigma * sqrt(T);
+	return (F* CDF_N(d1) - X * CDF_N(d2))*exp(-r_disc * T);
+}
+
+double SimpleBSPut_With_Forward(double F, double X, double T, double r_disc, double Sigma)
+{
+	double d1 = (log(F / X) + (0.5 * Sigma * Sigma) * T) / (Sigma * sqrt(T));
+	double d2 = d1 - Sigma * sqrt(T);
+	return (-F * CDF_N(-d1) + X * CDF_N(-d2)) * exp(-r_disc * T);
+}
+
+DLLEXPORT(long) CalcImvolFromPrice(long PriceDateYYYYMMDD, long EndDateYYYYMMDD, long PayDateYYYYMMDD, double F, double X, long nrate, double* term_rate, double* rate, double OptPrice, long Call0Put1Flag, double* ResultValue)
+{
+	if (PriceDateYYYYMMDD < 19000001) PriceDateYYYYMMDD = ExcelDateToCDate(PriceDateYYYYMMDD);
+	if (EndDateYYYYMMDD < 19000001) EndDateYYYYMMDD = ExcelDateToCDate(EndDateYYYYMMDD);
+	if (PayDateYYYYMMDD < 19000001) PayDateYYYYMMDD = ExcelDateToCDate(PayDateYYYYMMDD);
+	double T = ((double)DayCountAtoB(PriceDateYYYYMMDD, EndDateYYYYMMDD)) / 365.0;
+	double r = Interpolate_Linear(term_rate, rate, nrate, T);
+
+	double TPAY = ((double)DayCountAtoB(PriceDateYYYYMMDD, PayDateYYYYMMDD)) / 365.0;
+	double TEND_to_TPAY = ((double)DayCountAtoB(EndDateYYYYMMDD, PayDateYYYYMMDD)) / 365.0;
+	double fr = Calc_Forward_Rate(term_rate, rate, nrate, T, TPAY);
+	double DF_TEND_to_TPAY = 1.0 / (1.0 + fr * TEND_to_TPAY);
+
+	long i, j, ResultCode = 0;
+	double MaxRate = 3.0;
+	double MinRate = 0.0001;
+	double TargetRate = MaxRate;
+	double dblErrorRange = 0.00001;
+	double CalcRate = 0.;
+	double p;
+	for (j = 0; j < 1000; j++)
+	{
+		if (Call0Put1Flag == 0) p = SimpleBSCall_With_Forward(F, X, T, r, TargetRate);
+		else if (Call0Put1Flag == 1) p = SimpleBSPut_With_Forward(F, X, T, r, TargetRate);
+		else p = 0.5*(SimpleBSCall_With_Forward(F, X, T, r, TargetRate) + SimpleBSPut_With_Forward(F, X, T, r, TargetRate));
+		CalcRate = p - OptPrice;
+		if (fabs(CalcRate ) < dblErrorRange) break;
+		if (CalcRate > 0.)
+		{
+			MaxRate = TargetRate;
+			TargetRate = (MaxRate + MinRate) / 2.0;
+		}
+		else
+		{
+			MinRate = TargetRate;
+			TargetRate = (MinRate + MaxRate) / 2.0;
+		}
+	}
+	ResultValue[0] = TargetRate;
+	if (j < 1000) return ResultCode;
+	else return -1;
+}
+
 double SimpleBSPut(double S, double X, double r_drift, double T, double d, double r_disc, double Sigma)
 {
 	double d1 = (log(S / X) + (r_drift + 0.5 * Sigma * Sigma) * T) / (Sigma * sqrt(T));
