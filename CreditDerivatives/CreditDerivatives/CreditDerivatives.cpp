@@ -510,68 +510,83 @@ long RiskyCouponBond_With_Schedule(
 		{
 			for (i = 0; i < NRiskFree; i++)
 			{
-
-				for (j = 0; j < NRiskFree; j++)
+				if (T_Mat + 4.0 > RiskFreeTerm[i])
 				{
-					if (i == j)
+					for (j = 0; j < NRiskFree; j++)
 					{
-						CurveRUp[j] = RiskFreeRate[j] + 0.0001;
-						CurveRDn[j] = RiskFreeRate[j] - 0.0001;
+						if (i == j)
+						{
+							CurveRUp[j] = RiskFreeRate[j] + 0.0001;
+							CurveRDn[j] = RiskFreeRate[j] - 0.0001;
+						}
+						else
+						{
+							CurveRUp[j] = RiskFreeRate[j];
+							CurveRDn[j] = RiskFreeRate[j];
+						}
 					}
-					else
-					{
-						CurveRUp[j] = RiskFreeRate[j];
-						CurveRDn[j] = RiskFreeRate[j];
-					}
+
+					P_Ru = Calc_RiskyCouponBondCleanPrice(NumberOfEffectiveCoupon, T, T_Pay, C, dt,
+						NHazard, HazardTerm, HazardRate,
+						NRiskFree, RiskFreeTerm, CurveRUp,
+						T_Mat, Principal, Recovery, CalcQMethod);
+
+					P_Rd = Calc_RiskyCouponBondCleanPrice(NumberOfEffectiveCoupon, T, T_Pay, C, dt,
+						NHazard, HazardTerm, HazardRate,
+						NRiskFree, RiskFreeTerm, CurveRDn,
+						T_Mat, Principal, Recovery, CalcQMethod);
+
+					PV01 = (P_Rd - P_Ru) / (2.0);
+					Convexity = (P_Rd + P_Ru - 2.0 * CleanPrice);
+					KeyRate_PV01_Convex[i] = PV01;
+					KeyRate_PV01_Convex[i + NRiskFree] = Convexity;
 				}
-
-				P_Ru = Calc_RiskyCouponBondCleanPrice(NumberOfEffectiveCoupon, T, T_Pay, C, dt,
-					NHazard, HazardTerm, HazardRate,
-					NRiskFree, RiskFreeTerm, CurveRUp,
-					T_Mat, Principal, Recovery, CalcQMethod);
-
-				P_Rd = Calc_RiskyCouponBondCleanPrice(NumberOfEffectiveCoupon, T, T_Pay, C, dt,
-					NHazard, HazardTerm, HazardRate,
-					NRiskFree, RiskFreeTerm, CurveRDn,
-					T_Mat, Principal, Recovery, CalcQMethod);
-
-				PV01 = (P_Rd - P_Ru) / (2.0);
-				Convexity = (P_Rd + P_Ru - 2.0 * CleanPrice);
-				KeyRate_PV01_Convex[i] = PV01;
-				KeyRate_PV01_Convex[i + NRiskFree] = Convexity;
+				else
+				{
+					KeyRate_PV01_Convex[i] = 0.;
+					KeyRate_PV01_Convex[i + NRiskFree] = 0.;
+				}
 			}
 
 			for (i = 0; i < NHazard; i++)
 			{
-
-				for (j = 0; j < NHazard; j++)
+				if (T_Mat + 4.0 > HazardTerm[i])
 				{
-					if (i == j)
+					for (j = 0; j < NHazard; j++)
 					{
-						CreditCurveLambdaUp[j] = HazardRate[j] + 0.0001;
-						CreditCurveLambdaDn[j] = HazardRate[j] - 0.0001;
+						if (i == j)
+						{
+							CreditCurveLambdaUp[j] = HazardRate[j] + 0.0001;
+							CreditCurveLambdaDn[j] = HazardRate[j] - 0.0001;
+						}
+						else
+						{
+							CreditCurveLambdaUp[j] = HazardRate[j];
+							CreditCurveLambdaDn[j] = HazardRate[j];
+						}
 					}
-					else
-					{
-						CreditCurveLambdaUp[j] = HazardRate[j];
-						CreditCurveLambdaDn[j] = HazardRate[j];
-					}
+
+					P_Ru = Calc_RiskyCouponBondCleanPrice(NumberOfEffectiveCoupon, T, T_Pay, C, dt,
+						NHazard, HazardTerm, CreditCurveLambdaUp,
+						NRiskFree, RiskFreeTerm, RiskFreeRate,
+						T_Mat, Principal, Recovery, CalcQMethod);
+
+					P_Rd = Calc_RiskyCouponBondCleanPrice(NumberOfEffectiveCoupon, T, T_Pay, C, dt,
+						NHazard, HazardTerm, CreditCurveLambdaDn,
+						NRiskFree, RiskFreeTerm, RiskFreeRate,
+						T_Mat, Principal, Recovery, CalcQMethod);
+
+					HazardDelta = (P_Rd - P_Ru) / (2.0);
+					HazardGamma = (P_Rd + P_Ru - 2.0 * CleanPrice);
+					KeyRate_HazardDelta_Gamma[i] = HazardDelta;
+					KeyRate_HazardDelta_Gamma[i + NHazard] = HazardGamma;
 				}
+				else
+				{
+					KeyRate_HazardDelta_Gamma[i] = 0.;
+					KeyRate_HazardDelta_Gamma[i + NHazard] = 0.;
 
-				P_Ru = Calc_RiskyCouponBondCleanPrice(NumberOfEffectiveCoupon, T, T_Pay, C, dt,
-					NHazard, HazardTerm, CreditCurveLambdaUp,
-					NRiskFree, RiskFreeTerm, RiskFreeRate,
-					T_Mat, Principal, Recovery, CalcQMethod);
-
-				P_Rd = Calc_RiskyCouponBondCleanPrice(NumberOfEffectiveCoupon, T, T_Pay, C, dt,
-					NHazard, HazardTerm, CreditCurveLambdaDn,
-					NRiskFree, RiskFreeTerm, RiskFreeRate,
-					T_Mat, Principal, Recovery, CalcQMethod);
-
-				HazardDelta = (P_Rd - P_Ru) / (2.0);
-				HazardGamma = (P_Rd + P_Ru - 2.0 * CleanPrice);
-				KeyRate_HazardDelta_Gamma[i] = HazardDelta;
-				KeyRate_HazardDelta_Gamma[i + NHazard] = HazardGamma;
+				}
 			}
 		}
 
@@ -748,68 +763,82 @@ long RiskyCouponBond(
 		{
 			for (i = 0; i < NRiskFree; i++)
 			{
-
-				for (j = 0; j < NRiskFree; j++)
+				if (T_Mat + 4.0 > RiskFreeTerm[i])
 				{
-					if (i == j)
+					for (j = 0; j < NRiskFree; j++)
 					{
-						CurveRUp[j] = RiskFreeRate[j] + 0.0001;
-						CurveRDn[j] = RiskFreeRate[j] - 0.0001;
+						if (i == j)
+						{
+							CurveRUp[j] = RiskFreeRate[j] + 0.0001;
+							CurveRDn[j] = RiskFreeRate[j] - 0.0001;
+						}
+						else
+						{
+							CurveRUp[j] = RiskFreeRate[j];
+							CurveRDn[j] = RiskFreeRate[j];
+						}
 					}
-					else
-					{
-						CurveRUp[j] = RiskFreeRate[j];
-						CurveRDn[j] = RiskFreeRate[j];
-					}
+
+					P_Ru = Calc_RiskyCouponBondCleanPrice(NT, T, T_Pay, C, dt,
+						NHazard, HazardTerm, HazardRate,
+						NRiskFree, RiskFreeTerm, CurveRUp,
+						T_Mat, NotionalAmount_0, Recovery, CalcQMethod);
+
+					P_Rd = Calc_RiskyCouponBondCleanPrice(NT, T, T_Pay, C, dt,
+						NHazard, HazardTerm, HazardRate,
+						NRiskFree, RiskFreeTerm, CurveRDn,
+						T_Mat, NotionalAmount_0, Recovery, CalcQMethod);
+
+					PV01 = (P_Rd - P_Ru) / (2.0);
+					Convexity = (P_Rd + P_Ru - 2.0 * CleanPrice);
+					KeyRate_PV01_Convex[i] = PV01;
+					KeyRate_PV01_Convex[i + NRiskFree] = Convexity;
 				}
-
-				P_Ru = Calc_RiskyCouponBondCleanPrice(NT, T, T_Pay, C, dt,
-					NHazard, HazardTerm, HazardRate,
-					NRiskFree, RiskFreeTerm, CurveRUp,
-					T_Mat, NotionalAmount_0, Recovery, CalcQMethod);
-
-				P_Rd = Calc_RiskyCouponBondCleanPrice(NT, T, T_Pay, C, dt,
-					NHazard, HazardTerm, HazardRate,
-					NRiskFree, RiskFreeTerm, CurveRDn,
-					T_Mat, NotionalAmount_0, Recovery, CalcQMethod);
-
-				PV01 = (P_Rd - P_Ru) / (2.0);
-				Convexity = (P_Rd + P_Ru - 2.0 * CleanPrice);
-				KeyRate_PV01_Convex[i] = PV01;
-				KeyRate_PV01_Convex[i + NRiskFree] = Convexity;
+				else
+				{
+					KeyRate_PV01_Convex[i] = 0.;
+					KeyRate_PV01_Convex[i + NRiskFree] = 0.;
+				}
 			}
 
 			for (i = 0; i < NHazard; i++)
 			{
-
-				for (j = 0; j < NHazard; j++)
+				if (T_Mat + 4.0 > HazardTerm[i])
 				{
-					if (i == j)
+					for (j = 0; j < NHazard; j++)
 					{
-						CreditCurveLambdaUp[j] = HazardRate[j] + 0.0001;
-						CreditCurveLambdaDn[j] = HazardRate[j] - 0.0001;
+						if (i == j)
+						{
+							CreditCurveLambdaUp[j] = HazardRate[j] + 0.0001;
+							CreditCurveLambdaDn[j] = HazardRate[j] - 0.0001;
+						}
+						else
+						{
+							CreditCurveLambdaUp[j] = HazardRate[j];
+							CreditCurveLambdaDn[j] = HazardRate[j];
+						}
 					}
-					else
-					{
-						CreditCurveLambdaUp[j] = HazardRate[j];
-						CreditCurveLambdaDn[j] = HazardRate[j];
-					}
+
+					P_Ru = Calc_RiskyCouponBondCleanPrice(NT, T, T_Pay, C, dt,
+						NHazard, HazardTerm, CreditCurveLambdaUp,
+						NRiskFree, RiskFreeTerm, RiskFreeRate,
+						T_Mat, NotionalAmount_0, Recovery, CalcQMethod);
+
+					P_Rd = Calc_RiskyCouponBondCleanPrice(NT, T, T_Pay, C, dt,
+						NHazard, HazardTerm, CreditCurveLambdaDn,
+						NRiskFree, RiskFreeTerm, RiskFreeRate,
+						T_Mat, NotionalAmount_0, Recovery, CalcQMethod);
+
+					HazardDelta = (P_Rd - P_Ru) / (2.0);
+					HazardGamma = (P_Rd + P_Ru - 2.0 * CleanPrice);
+					KeyRate_HazardDelta_Gamma[i] = HazardDelta;
+					KeyRate_HazardDelta_Gamma[i + NHazard] = HazardGamma;
 				}
-
-				P_Ru = Calc_RiskyCouponBondCleanPrice(NT, T, T_Pay, C, dt,
-					NHazard, HazardTerm, CreditCurveLambdaUp,
-					NRiskFree, RiskFreeTerm, RiskFreeRate,
-					T_Mat, NotionalAmount_0, Recovery, CalcQMethod);
-
-				P_Rd = Calc_RiskyCouponBondCleanPrice(NT, T, T_Pay, C, dt,
-					NHazard, HazardTerm, CreditCurveLambdaDn,
-					NRiskFree, RiskFreeTerm, RiskFreeRate,
-					T_Mat, NotionalAmount_0, Recovery, CalcQMethod);
-
-				HazardDelta = (P_Rd - P_Ru) / (2.0);
-				HazardGamma = (P_Rd + P_Ru - 2.0 * CleanPrice);
-				KeyRate_HazardDelta_Gamma[i] = HazardDelta;
-				KeyRate_HazardDelta_Gamma[i + NHazard] = HazardGamma;
+				else
+				{
+					KeyRate_HazardDelta_Gamma[i] = 0.0;
+					KeyRate_HazardDelta_Gamma[i + NHazard] = 0.0;
+				}
 			}
 		}
 
