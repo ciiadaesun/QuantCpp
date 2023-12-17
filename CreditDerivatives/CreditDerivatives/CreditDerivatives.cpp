@@ -78,6 +78,82 @@ double Calc_RiskyZeroBond(
 	return zerobondprice;
 }
 
+
+double DayCountFractionAtoB(long Day1, long Day2, long Flag)
+{
+	long i;
+	double tau;
+	long imax;
+	double Div;
+
+	if (Day1 < 19000000 && Day2 < 19000000)
+	{
+		Day1 = ExcelDateToCDate(Day1);
+		Day2 = ExcelDateToCDate(Day2);
+	}
+
+	if (Flag == 0) return DayCountAtoB(Day1, Day2) / 365.0;
+	else if (Flag == 1) return DayCountAtoB(Day1, Day2) / 360.;
+	else if (Flag == 2)
+	{
+		long YearA, YearB;
+		long MonthA, MonthB;
+		long DayA, DayB;
+		long CurrentY;
+		long NextY;
+
+		YearA = Day1 / 10000;
+		MonthA = (Day1 - YearA * 10000) / 100;
+		DayA = (Day1 - YearA * 10000 - MonthA * 100);
+
+		YearB = Day2 / 10000;
+		MonthB = (Day2 - YearB * 10000) / 100;
+		DayB = (Day2 - YearB * 10000 - MonthB * 100);
+
+		NextY = Day1 + 10000;
+		if (Day2 > Day1 && Day2 < NextY)
+		{
+			Div = DayCountAtoB(Day1, NextY);
+			return DayCountAtoB(Day1, Day2) / Div;
+		}
+		else
+		{
+			tau = 0.;
+			for (i = 0; i <= YearB - YearA; i++)
+			{
+				CurrentY = Day1 + i * 10000;
+				NextY = Day1 + (i + 1) * 10000;
+				if (Day2 > CurrentY && Day2 <= NextY)
+				{
+					Div = DayCountAtoB(CurrentY, NextY);
+					tau += DayCountAtoB(CurrentY, Day2) / Div;
+					break;
+				}
+				else
+				{
+					tau += 1.0;
+				}
+			}
+			return tau;
+		}
+	}
+	else
+	{
+		long YearA, YearB;
+		long MonthA, MonthB;
+		long nMonth;
+		YearA = Day1 / 10000;
+		MonthA = (Day1 - YearA * 10000) / 100;
+
+		YearB = Day2 / 10000;
+		MonthB = (Day2 - YearB * 10000) / 100;
+
+		nMonth = (YearB - YearA) * 12 + (MonthB - MonthA);
+		return ((double)30. * (nMonth)) / 360.0;
+	}
+}
+
+
 double Calc_RiskyCouponBondCleanPrice(
 	long NT_Coupon,
 	double* T_Coupon,
@@ -103,6 +179,7 @@ double Calc_RiskyCouponBondCleanPrice(
 	double lambda;
 	double Rf;
 	double Rf_Pay;
+	double DF = 1.;
 	// 쿠폰 Date가 쿠폰 PayDate와 차이나는경우
 	double Fwd_Rate;
 
@@ -110,25 +187,121 @@ double Calc_RiskyCouponBondCleanPrice(
 	{
 		for (i = 0; i < NT_Coupon; i++)
 		{
-			lambda = Calc_Zero_Rate(HazardTerm, HazardRate, NHazard, T_Coupon[i]);
-			Rf = Calc_Zero_Rate(RiskFreeTerm, RiskFreeRate, NRiskFree, T_Coupon[i]);
-			Discounted_Coupon += NotionalAmount * CouponRate[i] * dt[i] * Calc_RiskyZeroBond(lambda, Rf, T_Coupon[i], Recovery, CalcQMethod);
+			lambda = Interpolate_Linear(HazardTerm, HazardRate, NHazard, T_Coupon[i]);
+			Rf = Interpolate_Linear(RiskFreeTerm, RiskFreeRate, NRiskFree, T_Coupon[i]);
+			if (lambda > 0.0) Discounted_Coupon += NotionalAmount * CouponRate[i] * dt[i] * Calc_RiskyZeroBond(lambda, Rf, T_Coupon[i], Recovery, CalcQMethod);
+			else
+			{
+				DF = Calc_Discount_Factor(RiskFreeTerm, RiskFreeRate, NRiskFree, T_Coupon[i]);
+				Discounted_Coupon += NotionalAmount * CouponRate[i] * dt[i] * DF;
+			}
 
 			if (T_Coupon[i] < T_Coupon_Pay[i])
 			{
-				Rf_Pay = Calc_Zero_Rate(RiskFreeTerm, RiskFreeRate, NRiskFree, T_Coupon_Pay[i]);
+				Rf_Pay = Interpolate_Linear(RiskFreeTerm, RiskFreeRate, NRiskFree, T_Coupon_Pay[i]);
 				Fwd_Rate = (Rf_Pay * T_Coupon_Pay[i] - Rf * T_Coupon[i]) / (T_Coupon_Pay[i] - T_Coupon[i]);
 				Discounted_Coupon = Discounted_Coupon * 1.0 / (1.0 + Fwd_Rate * (T_Coupon_Pay[i] - T_Coupon[i]));
 			}
 
 		}
 	}
-	lambda = Calc_Zero_Rate(HazardTerm, HazardRate, NHazard, T_Mat);
-	Rf = Calc_Zero_Rate(RiskFreeTerm, RiskFreeRate, NRiskFree, T_Mat);
-	Discounted_Notional = NotionalAmount * Calc_RiskyZeroBond(lambda, Rf, T_Mat, Recovery, CalcQMethod);
+	lambda = Interpolate_Linear(HazardTerm, HazardRate, NHazard, T_Mat);
+	Rf = Interpolate_Linear(RiskFreeTerm, RiskFreeRate, NRiskFree, T_Mat);
+	if (lambda > 0.0) Discounted_Notional = NotionalAmount * Calc_RiskyZeroBond(lambda, Rf, T_Mat, Recovery, CalcQMethod);
+	else
+	{
+		DF = Calc_Discount_Factor(RiskFreeTerm, RiskFreeRate, NRiskFree, T_Mat);
+		Discounted_Notional = NotionalAmount * DF;
+	}
 
 	Clean_Price = Discounted_Coupon + Discounted_Notional;
 	return Clean_Price;
+}
+
+long* Generate_CpnDate_Bond(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOneYear, long& lenArray, long& FirstCpnDate)
+{
+	long i, j;
+
+	long PriceYYYY = (long)PriceDateYYYYMMDD / 10000;
+	long PriceMM = (long)(PriceDateYYYYMMDD - PriceYYYY * 10000) / 100;
+
+	long SwapMatYYYY = (long)SwapMat_YYYYMMDD / 10000;
+	long SwapMatMM = (long)(SwapMat_YYYYMMDD - SwapMatYYYY * 10000) / 100;
+
+	long n = ((SwapMat_YYYYMMDD / 10000 - PriceDateYYYYMMDD / 10000) + 2) * AnnCpnOneYear;
+	long narray = 0;
+	long CpnDate;
+	long m = max(1, 12 / AnnCpnOneYear);
+	for (i = 0; i < n; i++)
+	{
+		if (i == 0) CpnDate = SwapMat_YYYYMMDD;
+		else CpnDate = EDate_Cpp(SwapMat_YYYYMMDD, -i * m);
+		if (DayCountAtoB(PriceDateYYYYMMDD, CpnDate) < 1)
+		{
+			FirstCpnDate = CpnDate;
+			break;
+		}
+		if (CpnDate <= PriceDateYYYYMMDD) break;
+		narray++;
+	}
+
+	long* ResultCpnDate = (long*)malloc(sizeof(long) * narray);
+	long CpnDateExcel;
+	long MOD7;
+	long SaturSundayFlag;
+	for (i = 0; i < n; i++)
+	{
+		if (i == 0) CpnDate = SwapMat_YYYYMMDD;
+		else CpnDate = EDate_Cpp(SwapMat_YYYYMMDD, -i * m);
+
+		if (CpnDate <= PriceDateYYYYMMDD || DayCountAtoB(PriceDateYYYYMMDD, CpnDate) < 1) break;
+		else
+		{
+			CpnDateExcel = CDateToExcelDate(CpnDate);
+			MOD7 = CpnDateExcel % 7;
+			if (MOD7 == 1 || MOD7 == 0) SaturSundayFlag = 1;
+			else SaturSundayFlag = 0;
+
+			if (SaturSundayFlag == 0)
+			{
+				ResultCpnDate[narray - 1 - i] = CpnDate;
+			}
+			else
+			{
+				// Forward End 날짜가 토요일 또는 일요일의 경우 날짜 미룸
+				for (j = 1; j <= 7; j++)
+				{
+					CpnDateExcel += 1;
+					MOD7 = CpnDateExcel % 7;
+					if (MOD7 != 1 && MOD7 != 0)
+					{
+						CpnDate = ExcelDateToCDate(CpnDateExcel);
+						break;
+					}
+				}
+				ResultCpnDate[narray - 1 - i] = CpnDate;
+			}
+		}
+	}
+	lenArray = narray;
+	if (AnnCpnOneYear == 1 && PriceMM != SwapMatMM)
+	{
+		long TargetDateYYYYMMDD = ResultCpnDate[0];
+		long TargetDateYYYY;
+		long TargetDateMM;
+		for (i = 1; i <= 12; i++)
+		{
+			TargetDateYYYYMMDD = EDate_Cpp(TargetDateYYYYMMDD, -1);
+			TargetDateYYYY = (long)TargetDateYYYYMMDD / 10000;
+			TargetDateMM = (long)(TargetDateYYYYMMDD - TargetDateYYYY * 10000) / 100;
+			if (TargetDateYYYY == PriceYYYY && TargetDateMM == PriceMM)
+			{
+				FirstCpnDate = TargetDateYYYYMMDD;
+				break;
+			}
+		}
+	}
+	return ResultCpnDate;
 }
 
 long RiskyCouponBond_With_Schedule(
@@ -153,6 +326,7 @@ long RiskyCouponBond_With_Schedule(
 	double* RiskFreeRate,
 
 	long PricingDate,
+	long DayCountFracFlag,
 	long TextFlag,
 	long GreekFlag,
 	double* ResultPrice,
@@ -215,10 +389,10 @@ long RiskyCouponBond_With_Schedule(
 	{
 		DateDiff = DayCountAtoB(PricingDate, CouponDate[i]);
 		if (i == 0){
-			DeltaT = ((double)DayCountAtoB(EffectiveDate, CouponDate[i]))/365.0 ;
+			DeltaT = DayCountFractionAtoB(EffectiveDate, CouponDate[i], DayCountFracFlag);
 		}
 		else{
-			DeltaT = ((double)DayCountAtoB(CouponDate[i - 1], CouponDate[i]))/365.0;
+			DeltaT = DayCountFractionAtoB(CouponDate[i - 1], CouponDate[i], DayCountFracFlag);
 		}
 
 		if (DateDiff > 0)
@@ -242,7 +416,7 @@ long RiskyCouponBond_With_Schedule(
 		if (PricingDate > CouponDate[i - 1] && PricingDate < CouponDate[i])
 		{
 			Accrued_Flag = 1;
-			Accrued_dt = ((double)DayCountAtoB(CouponDate[i - 1], PricingDate))/365.0;
+			Accrued_dt = DayCountFractionAtoB(CouponDate[i - 1], PricingDate, DayCountFracFlag);
 			Accrued_CPN_Rate = CouponRate[i - 1];
 			break;
 		}
@@ -424,7 +598,7 @@ long RiskyCouponBond(
 	double CPNRate_0,
 	long NCPN_Ann_0,
 	double NotionalAmount_0,
-	double T_Mat_0,
+	long MaturityDate,
 	long NHazard,
 	double* HazardTerm,
 	double* HazardRate,
@@ -434,6 +608,7 @@ long RiskyCouponBond(
 	double* RiskFreeRate,
 
 	long PricingDate,
+	long DayCountFracFlag,
 	long TextFlag,
 	long GreekFlag,
 	double* ResultPrice,
@@ -442,26 +617,20 @@ long RiskyCouponBond(
 )
 {
 	long i, j;
-	long NT;
+	long NT = 0;
 
 	double* T;
 	double* C;
 
 	double* dt;
+	long PrevCpnDate = PricingDate;
+	long* CpnDate = Generate_CpnDate_Bond(PricingDate, MaturityDate, NCPN_Ann_0, NT, PrevCpnDate);
 
-	double T_Mat = T_Mat_0;
+	double Accrued_dt=0.0;
 
-	double Accrued_dt;
-	double LeftTime;
-	for (i = 0; i < (long)(T_Mat_0 + 10.0) * NCPN_Ann_0; i++)
+	if (PrevCpnDate < PricingDate)
 	{
-		LeftTime = T_Mat - ((double)i) * 1.0 / ((double)NCPN_Ann_0);
-		if (LeftTime < 0.00000001) // 부동소수점 문제로 인해
-		{
-			NT = i;
-			Accrued_dt = -LeftTime;
-			break;
-		}
+		Accrued_dt = ((double)DayCountAtoB(PrevCpnDate, PricingDate)) / 365.0;
 	}
 
 	double CleanPrice;
@@ -470,12 +639,24 @@ long RiskyCouponBond(
 	T = (double*)malloc(sizeof(double) * NT);
 	C = (double*)malloc(sizeof(double) * NT);
 	dt = (double*)malloc(sizeof(double) * NT);
-
+	double T_Mat = -99999.0;
 	for (i = 0; i < NT; i++)
 	{
-		dt[i] = 1.0 / ((double)NCPN_Ann_0);
-		T[NT - 1 - i] = T_Mat - ((double)i) * 1.0 / ((double)NCPN_Ann_0);;
+		if (i == 0)
+		{
+			if (PrevCpnDate < PricingDate) dt[i] = DayCountFractionAtoB(PrevCpnDate, CpnDate[0], DayCountFracFlag);
+			else dt[i] = DayCountFractionAtoB(PricingDate, CpnDate[0], DayCountFracFlag);
+		}
+		else
+		{
+			dt[i] = DayCountFractionAtoB(CpnDate[i - 1], CpnDate[i], DayCountFracFlag);
+		}
+		T[i] = ((double)DayCountAtoB(PricingDate, CpnDate[i]))/365.0;
 		C[i] = CPNRate_0;
+		if (i == NT - 1)
+		{
+			T_Mat = T[i];
+		}
 	}
 
 	double* T_Pay = T;
@@ -641,7 +822,7 @@ long RiskyCouponBond(
 	if (T) free(T);
 	if (C) free(C);
 	if (dt) free(dt);
-
+	if (CpnDate) free(CpnDate);
 	return 1;
 }
 
@@ -654,7 +835,7 @@ long Inputcheck_RiskyCouponBond(
 	double CPNRate_0,
 	long NCPN_Ann_0,
 	double NotionalAmount_0,
-	double T_Mat_0,
+	long MaturityDate,
 	// CPNInputFlag가 1일 때의 변수들
 	long NCoupon,
 	long* CouponDate,
@@ -672,6 +853,7 @@ long Inputcheck_RiskyCouponBond(
 	double* RiskFreeRate,
 
 	long PricingDate,
+	long DayCountFracFlag,
 	long TextFlag,
 	long GreekFlag)
 {
@@ -685,6 +867,7 @@ long Inputcheck_RiskyCouponBond(
 	long NCPN_ANN_ERROR = -111;
 	long NOTIONAL_ERROR = -113;
 	long MATURITY_ERROR = -115;
+	long DAYCOUNTFRACERROR = -116;
 	long NCOUPON_ERROR = -117;
 	long COUPONDATE_ERROR = -119;
 	long COUPONRATE_ERROR = -121;
@@ -706,14 +889,14 @@ long Inputcheck_RiskyCouponBond(
 	if (Recovery < 0.0 || Recovery >= 1.0) return RECOVERY_ERROR;
 
 	if (CalcQMethod < 0 || CalcQMethod >= 3) return CALC_Q_METHOD_ERROR;
-
+	if (DayCountFracFlag < 0 || DayCountFracFlag  > 3) return DAYCOUNTFRACERROR;
 	if (CPNInputFlag == 0)
 	{
 		if (NCPN_Ann_0 < 1) return NCPN_ANN_ERROR;
 
 		if (NotionalAmount_0 < 0.0) return NOTIONAL_ERROR;
 
-		if (T_Mat_0 < 0.0) return MATURITY_ERROR;
+		if (MaturityDate < 19000000) return MATURITY_ERROR;
 
 	}
 	else
@@ -761,7 +944,7 @@ DLLEXPORT(long) Calc_RiskyCouponBond(
 	double CPNRate_0,
 	long NCPN_Ann_0,
 	double NotionalAmount_0,
-	double T_Mat_0,
+	long MaturityDate,
 	// CPNInputFlag가 1일 때의 변수들
 	long NCoupon,
 	long* CouponDate,
@@ -780,6 +963,7 @@ DLLEXPORT(long) Calc_RiskyCouponBond(
 	double* RiskFreeRate,
 
 	long PricingDate,
+	long DayCountFracFlag,
 	long TextFlag,
 	long GreekFlag,
 	double* ResultPrice,
@@ -795,11 +979,11 @@ DLLEXPORT(long) Calc_RiskyCouponBond(
 	long ResultCode = 0;
 
 	ResultCode = Inputcheck_RiskyCouponBond(EffectiveDate, CPNInputFlag, Recovery, CalcQMethod,
-		CPNRate_0, NCPN_Ann_0, NotionalAmount_0, T_Mat_0,
+		CPNRate_0, NCPN_Ann_0, NotionalAmount_0, MaturityDate,
 		NCoupon, CouponDate, CouponPayDate, CouponRate, PrincipalDate,
 		Principal, NHazardCDS, HazardCDSTerm, HazardCDSRate,
 		NRiskFree, RiskFreeTerm, RiskFreeRate,
-		PricingDate, TextFlag, GreekFlag);
+		PricingDate, DayCountFracFlag, TextFlag, GreekFlag);
 
 	if (ResultCode < 0)
 		return ResultCode;
@@ -811,7 +995,7 @@ DLLEXPORT(long) Calc_RiskyCouponBond(
 			ResultCode = RiskyCouponBond_With_Schedule(EffectiveDate, CPNInputFlag, Recovery, CalcQMethod, NCoupon,
 				CouponDate, CouponPayDate, CouponRate, PrincipalDate, Principal, NHazardCDS,
 				HazardCDSTerm, HazardCDSRate, NRiskFree, RiskFreeTerm, RiskFreeRate,
-				PricingDate, TextFlag, GreekFlag, ResultPrice, KeyRate_PV01_Convex, KeyRate_HazardDelta_Gamma);
+				PricingDate, DayCountFracFlag, TextFlag, GreekFlag, ResultPrice, KeyRate_PV01_Convex, KeyRate_HazardDelta_Gamma);
 		}
 		else
 		{
@@ -823,14 +1007,14 @@ DLLEXPORT(long) Calc_RiskyCouponBond(
 			ResultCode = RiskyCouponBond_With_Schedule(EffectiveDate, CPNInputFlag, Recovery, CalcQMethod, NCoupon,
 				CouponDate, CouponPayDate, CouponRate, PrincipalDate, Principal, NHazardCDS,
 				TempHazardTerm, TempHazardRate, NRiskFree, RiskFreeTerm, RiskFreeRate,
-				PricingDate, TextFlag, GreekFlag, ResultPrice, KeyRate_PV01_Convex, KeyRate_HazardDelta_Gamma);
+				PricingDate, DayCountFracFlag, TextFlag, GreekFlag, ResultPrice, KeyRate_PV01_Convex, KeyRate_HazardDelta_Gamma);
 		}
 	}
 	else
 	{
 		if (InputType == 0)
 		{
-			ResultCode = RiskyCouponBond(EffectiveDate, CPNInputFlag, Recovery, CalcQMethod, CPNRate_0, NCPN_Ann_0, NotionalAmount_0, T_Mat_0, NHazardCDS, HazardCDSTerm, HazardCDSRate, NRiskFree, RiskFreeTerm, RiskFreeRate, PricingDate, TextFlag, GreekFlag, ResultPrice, KeyRate_PV01_Convex, KeyRate_HazardDelta_Gamma);
+			ResultCode = RiskyCouponBond(EffectiveDate, CPNInputFlag, Recovery, CalcQMethod, CPNRate_0, NCPN_Ann_0, NotionalAmount_0, MaturityDate, NHazardCDS, HazardCDSTerm, HazardCDSRate, NRiskFree, RiskFreeTerm, RiskFreeRate, PricingDate, DayCountFracFlag, TextFlag, GreekFlag, ResultPrice, KeyRate_PV01_Convex, KeyRate_HazardDelta_Gamma);
 		}
 		else
 		{
@@ -839,7 +1023,7 @@ DLLEXPORT(long) Calc_RiskyCouponBond(
 				NHazardCDS, HazardCDSTerm, HazardCDSRate,
 				Recovery, 0, 2, TempHazardTerm, TempHazardRate);
 
-			ResultCode = RiskyCouponBond(EffectiveDate, CPNInputFlag, Recovery, CalcQMethod, CPNRate_0, NCPN_Ann_0, NotionalAmount_0, T_Mat_0, NHazardCDS, HazardCDSTerm, HazardCDSRate, NRiskFree, RiskFreeTerm, RiskFreeRate, PricingDate, TextFlag, GreekFlag, ResultPrice, KeyRate_PV01_Convex, KeyRate_HazardDelta_Gamma);
+			ResultCode = RiskyCouponBond(EffectiveDate, CPNInputFlag, Recovery, CalcQMethod, CPNRate_0, NCPN_Ann_0, NotionalAmount_0, MaturityDate, NHazardCDS, HazardCDSTerm, HazardCDSRate, NRiskFree, RiskFreeTerm, RiskFreeRate, PricingDate, DayCountFracFlag, TextFlag, GreekFlag, ResultPrice, KeyRate_PV01_Convex, KeyRate_HazardDelta_Gamma);
 		}
 	}
 
