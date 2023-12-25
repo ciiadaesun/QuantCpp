@@ -1,0 +1,31 @@
+﻿  IRS.cpp
+C:\Users\ciiad\Desktop\IRS\IRS\CalcDate.h(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\Desktop\IRS\IRS\CalcDate.h(730,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\CalcDate.h(730,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\CalcDate.h(1123,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\CalcDate.h(1163,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\CalcDate.h(1402,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\CalcDate.h(1528,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\CalcDate.h(1664,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(584,10): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(656,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(991,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(990,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(992,10): warning C4101: 'n' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(1241,16): warning C4101: 'Day1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(1239,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(1241,10): warning C4101: 'Day0' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(1451,40): warning C4101: 'SwapEndT' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(1451,20): warning C4101: 'Ref_T1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(1451,12): warning C4101: 'Ref_T0' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(1452,21): warning C4101: 'Frac_T1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(1452,12): warning C4101: 'Frac_T0' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(2503,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(2889,16): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(2895,10): warning C4101: 'NotionalPayDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(2889,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\Desktop\IRS\IRS\IRS.cpp(2889,19): warning C4101: 'n' :참조되지 않은 지역 변수입니다.
+     C:\Users\ciiad\Desktop\IRS\Debug\IRS.lib 라이브러리 및 C:\Users\ciiad\Desktop\IRS\Debug\IRS.exp 개체를 생성하고 있습니다.
+  IRS.vcxproj -> C:\Users\ciiad\Desktop\IRS\Debug\IRS.dll
