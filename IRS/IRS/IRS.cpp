@@ -155,6 +155,42 @@ long MappingPaymentDates(double T_SwapMaturity, double FreqMonth, long* TempDate
     return NDates;
 }
 
+//Forward Rate 계산
+double Calc_Forward_Rate_ForSOFR(
+    double* TermArray, // 기간구조의 기간 Array [0.25,  0.5,   1.0, ....]
+    double* RateArray, // 기간구조의 Rate Array [0.008, 0.012, 0.014, ...]
+    long LengthArray,  // 기간구조 개수
+    double T1,         // Forward Start 시점
+    double T2,          // Forward End 시점
+    double DeltaT
+)
+{
+    double DFT1;
+    double DFT2;
+    double FRate;
+    //Linear Interpolation
+    if (T1 < TermArray[LengthArray - 1] && T1> TermArray[0])
+    {
+        DFT1 = exp(-Interpolate_Linear(TermArray, RateArray, LengthArray, T1) * T1);
+        DFT2 = exp(-Interpolate_Linear(TermArray, RateArray, LengthArray, T2) * T2);
+        FRate = 1.0 / DeltaT * (DFT1 / DFT2 - 1.0);
+    }
+    else if (T1 <= TermArray[0])
+    {
+        DFT1 = exp(-RateArray[0] * T1);
+        DFT2 = exp(-Interpolate_Linear(TermArray, RateArray, LengthArray, T2) * T2);
+        FRate = 1.0 / DeltaT * (DFT1 / DFT2 - 1.0);
+    }
+    else
+    {
+        DFT1 = exp(-RateArray[LengthArray - 1] * T1);
+        DFT2 = exp(-RateArray[LengthArray - 1] * T2);
+        FRate = 1.0 / DeltaT * (DFT1 / DFT2 - 1.0);
+    }
+
+    return FRate;
+}
+
 long US_Holiday_SaturSunday_Check(long HolidayYYYYMMDD)
 {
     // US Holiday를 넣으면 토, 일 이면 대체공휴일을 리턴하고 아니면 그대로 리턴
@@ -1090,11 +1126,14 @@ double SOFR_ForwardRate_Compound(
         {
             if (DayYYYYMMDD < LockOutDay)
             {
-                if (HolidayFlag == 0) ForwardRate = Calc_Forward_Rate(RefCrvTerm, RefCrvRate, NRefCrvTerm, T1Est, T2Est);
+                if (HolidayFlag == 0)
+                {
+                    ForwardRate = Calc_Forward_Rate_ForSOFR(RefCrvTerm, RefCrvRate, NRefCrvTerm, T1Est, T2Est, Delta_T1_T2);
+                }
                 else
                 {
                     T3Est = ((double)DayCountAtoB(PriceDate, NotHoliday[max(0, min(N_NotHoliday - 1, i - LookBackDays + 2))])) / 365.0;
-                    ForwardRate = Calc_Forward_Rate(RefCrvTerm, RefCrvRate, NRefCrvTerm, T2Est, T3Est);
+                    ForwardRate = Calc_Forward_Rate_ForSOFR(RefCrvTerm, RefCrvRate, NRefCrvTerm, T2Est, T3Est, Delta_T1_T2);
                 }
             }
             else
@@ -3032,7 +3071,7 @@ long FindZeroRate(
     free(Holiday);
     free(HistoryDateExl);
     free(HistoryRate);
-
+    
     return 1;
 }
 
@@ -3197,5 +3236,6 @@ DLLEXPORT(long) OISCurveGeneratorExcel(
     free(StartDate);
     free(EndDate);
     free(PayDate);
+    //_CrtDumpMemoryLeaks();
     return ResultCode;
 }
