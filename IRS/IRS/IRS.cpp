@@ -489,8 +489,17 @@ DLLEXPORT(long) Number_Coupon(
     }
     else
     {
-        if (HolidayUseFlag == 1) CpnDate = Generate_CpnDate_Holiday(PriceDateYYYYMMDD, SwapMat_YYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD, NHoliday, HolidayYYYYMMDD);
-        else CpnDate = Generate_CpnDate(PriceDateYYYYMMDD, SwapMat_YYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD);
+        long* CpnDate;
+        long TempYYYYMMDD = PriceDateYYYYMMDD;
+        long TempDateExcelType;
+        long StartDateYYYYMMDD = PriceDateYYYYMMDD;
+        long StartYYYYMM = (long)StartDateYYYYMMDD / 100;
+        long StartDD = StartDateYYYYMMDD - StartYYYYMM * 100;
+        long EndYYYYMM = (long)SwapMat_YYYYMMDD / 100;
+        long EndDateYYYYMMDD = EndYYYYMM * 100 + StartDD;
+
+        if (HolidayUseFlag == 1) CpnDate = Generate_CpnDate_Holiday(StartDateYYYYMMDD, EndDateYYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD, NHoliday, HolidayYYYYMMDD);
+        else CpnDate = Generate_CpnDate(StartDateYYYYMMDD, EndDateYYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD);
 
         free(CpnDate);
         free(HolidayYYYYMMDD);
@@ -517,7 +526,7 @@ DLLEXPORT(long) ResultCpnMapping(
     long i;
     long j;
     long n;
-    long PayDateExcelType, PayDateYYYYMMDD, MOD7;
+    long PayDateExcelType, PayDateYYYYMMDD, EndDateYYYYMMDD,EndDateExcel, MOD7;
     long PriceDateYYYYMMDD = ExcelDateToCDate(PriceDateExcelType);          // 평가일
     long StartDateYYYYMMDD = ExcelDateToCDate(StartDateExcelType);          // 평가일
     long SwapMat_YYYYMMDD = ExcelDateToCDate(SwapMatExcelType);             // 스왑 만기
@@ -529,21 +538,43 @@ DLLEXPORT(long) ResultCpnMapping(
     if (NumberCoupon < 0) return -1;
     if (NumberCoupon <= 1)
     {
-        ResultForwardStart[0] = CDateToExcelDate(StartDateYYYYMMDD);
-        ResultForwardEnd[0] = CDateToExcelDate(SwapMat_YYYYMMDD);
-        n = 0;
         if (NBDayFromEndDate == 0)
         {
+            ResultForwardStart[0] = CDateToExcelDate(StartDateYYYYMMDD);
+            ResultForwardEnd[0] = CDateToExcelDate(SwapMat_YYYYMMDD);
             ResultPayDate[0] = ResultForwardEnd[0];
         }
         else
         {
+            n = 0;
+            ResultForwardStart[0] = StartDateExcelType;
+            // PayDate결정
+            PayDateYYYYMMDD = SwapMat_YYYYMMDD;
+            PayDateExcelType = CDateToExcelDate(PayDateYYYYMMDD);
+            MOD7 = PayDateExcelType % 7;
+            for (i = 1; i < 7; i++)
+            {
+                if (isweekend(PayDateExcelType) || isin(PayDateYYYYMMDD, HolidayYYYYMMDD, NHoliday))
+                {
+                    // 휴일이면 n+=1
+                    PayDateExcelType += 1;
+                    PayDateYYYYMMDD = ExcelDateToCDate(PayDateExcelType);
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            ResultPayDate[0] = PayDateExcelType;
+            EndDateYYYYMMDD = PayDateYYYYMMDD;
+            EndDateExcel = PayDateExcelType;
             for (i = 1; i < 10; i++)
             {
-                PayDateYYYYMMDD = DayPlus(SwapMat_YYYYMMDD, i);
-                PayDateExcelType = CDateToExcelDate(PayDateYYYYMMDD);
-                MOD7 = PayDateExcelType % 7;
-                if ((MOD7 != 1 && MOD7 != 0) && !isin(PayDateYYYYMMDD, HolidayYYYYMMDD, NHoliday))
+                EndDateExcel = EndDateExcel - 1;
+                EndDateYYYYMMDD = ExcelDateToCDate(EndDateExcel);
+                MOD7 = EndDateExcel % 7;
+                if ((MOD7 != 1 && MOD7 != 0) && !isin(EndDateYYYYMMDD, HolidayYYYYMMDD, NHoliday))
                 {
                     // 영업일이면 n+=1
                     n += 1;
@@ -551,7 +582,7 @@ DLLEXPORT(long) ResultCpnMapping(
 
                 if (n == NBDayFromEndDate)
                 {
-                    ResultPayDate[0] = PayDateExcelType;
+                    ResultForwardEnd[0] = EndDateExcel;
                     break;
                 }
             }
@@ -562,9 +593,13 @@ DLLEXPORT(long) ResultCpnMapping(
         long* CpnDate;
         long TempYYYYMMDD = PriceDateYYYYMMDD;
         long TempDateExcelType;
-
-        if (HolidayUseFlag == 1) CpnDate = Generate_CpnDate_Holiday(PriceDateYYYYMMDD, SwapMat_YYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD, NHoliday, HolidayYYYYMMDD);
-        else CpnDate = Generate_CpnDate(PriceDateYYYYMMDD, SwapMat_YYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD);
+        long StartYYYYMM = (long) StartDateYYYYMMDD / 100;
+        long StartDD = StartDateYYYYMMDD - StartYYYYMM * 100;
+        long EndYYYYMM = (long)SwapMat_YYYYMMDD / 100;
+        EndDateYYYYMMDD = EndYYYYMM * 100 + StartDD;
+        
+        if (HolidayUseFlag == 1) CpnDate = Generate_CpnDate_Holiday(StartDateYYYYMMDD, EndDateYYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD, NHoliday, HolidayYYYYMMDD);
+        else CpnDate = Generate_CpnDate(StartDateYYYYMMDD, EndDateYYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD);
 
         for (i = 0; i < min(NumberCoupon, ncpn); i++)
         {
@@ -607,6 +642,7 @@ DLLEXPORT(long) ResultCpnMapping(
                 }
             }
         }
+
         if (CpnDate) free(CpnDate);
     }
     if (HolidayYYYYMMDD) free(HolidayYYYYMMDD);
