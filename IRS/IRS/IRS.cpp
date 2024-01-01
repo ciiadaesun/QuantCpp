@@ -3275,3 +3275,104 @@ DLLEXPORT(long) OISCurveGeneratorExcel(
     //_CrtDumpMemoryLeaks();
     return ResultCode;
 }
+
+DLLEXPORT(long) Generate_CpnDate_IRSModule_Using_Holiday(long EffectiveDate, long MaturityDate, long AnnCpnOneYear, long NHoliday, long* Holidays, long CpnNumber0Array1Flag, long* NumberOfCpnReturn, long* StartDateArray, long* EndDateArray, long* CpnDateArray)
+{
+    long i;
+    long j;
+    long n;
+
+    long ResultCode = 1;
+    for (i = 0; i < NHoliday; i++) if (Holidays[i] < 19000101) Holidays[i] = ExcelDateToCDate(Holidays[i]);
+
+    if (EffectiveDate < 19000101) EffectiveDate = ExcelDateToCDate(EffectiveDate);
+    if (MaturityDate < 19000101) MaturityDate = ExcelDateToCDate(MaturityDate);
+
+    long RealPayDate = MaturityDate;
+    long EffectiveYYYYMM = EffectiveDate / 100;
+    long EffectiveDD = EffectiveDate - EffectiveYYYYMM * 100;
+
+    long MaturityYYYYMM = MaturityDate / 100;
+    MaturityDate = MaturityYYYYMM * 100 + EffectiveDD;
+
+    long TempDate = EffectiveDate;
+    long NCpnDate;
+    long* CpnDate = Generate_CpnDate_Holiday(EffectiveDate, MaturityDate, AnnCpnOneYear, NCpnDate, TempDate, NHoliday, Holidays);
+
+    long MaturityExcel, Mod7;
+    MaturityExcel = CDateToExcelDate(MaturityDate);
+    Mod7 = MaturityExcel % 7;
+    // 실질만기 계산
+    if ((Mod7 == 0 || Mod7 == 1) || (isin(MaturityDate, Holidays, NHoliday)))
+    {
+        for (i = 1; i < 7; i++)
+        {
+            MaturityExcel += 1;
+            MaturityDate = ExcelDateToCDate(MaturityExcel);
+            Mod7 = MaturityExcel % 7;
+            if ((Mod7 != 0 && Mod7 != 1) && (isin(MaturityDate, Holidays, NHoliday) == 0))
+            {
+                break;
+            }
+        }
+    }
+
+    long EndToPay = 0;
+    long Date, ExlDate;
+    if (MaturityDate < RealPayDate)
+    {
+        // End Date 부터 Pay Date 까지 Business Day Count
+        for (i = 1; i < 10; i++)
+        {
+            Date = DayPlus(MaturityDate, i);
+            ExlDate = CDateToExcelDate(Date);
+            Mod7 = ExlDate % 7;
+            if ((Mod7 != 0 && Mod7 != 1) && (isin(Date, Holidays, NHoliday) == 0))
+            {
+                EndToPay += 1;
+            }
+
+            if (Date >= RealPayDate) break;
+        }
+    }
+
+    if (CpnNumber0Array1Flag == 0)
+    {
+        NumberOfCpnReturn[0] = NCpnDate;
+    }
+    else
+    {
+        for (i = 0; i < NCpnDate; i++)
+        {
+            if (i == 0) StartDateArray[i] = EffectiveDate;
+            else StartDateArray[i] = CpnDate[i - 1];
+            EndDateArray[i] = CpnDate[i];
+
+            if (EndToPay <= 0)
+            {
+                CpnDateArray[i] = CpnDate[i];
+            }
+            else
+            {
+                ExlDate = CDateToExcelDate(CpnDate[i]);
+                Mod7 = ExlDate % 7;
+                n = 0;
+                for (j = 1; j < 10; j++)
+                {
+                    Date = DayPlus(CpnDate[i], j);
+                    ExlDate = CDateToExcelDate(Date);
+                    Mod7 = ExlDate % 7;
+                    if ((Mod7 != 0 && Mod7 != 1) && (isin(Date, Holidays, NHoliday) == 0))
+                    {
+                        n += 1;
+                    }
+                    if (n >= EndToPay) break;
+                }
+                CpnDateArray[i] = Date;
+
+            }
+        }
+    }
+    free(CpnDate);
+    return ResultCode;
+}
