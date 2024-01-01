@@ -1,52 +1,58 @@
 ﻿  IRPhaseStructuredSwap.cpp
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(730,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(730,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(1123,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(1163,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(1402,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(1528,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(1664,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\HW_Calibration.h(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\HW_Calibration.h(2723,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\HW_Calibration.h(2857,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\HW_Calibration.h(3267,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\HW_Calibration.h(3338,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\HW_Calibration.h(4367,12): warning C4101: 'fm' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(233,17): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(312,17): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(297,12): warning C4101: 'Bst' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(299,15): warning C4101: 'ds' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(299,12): warning C4101: 's' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(297,17): warning C4101: 'BsT' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(344,17): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(340,12): warning C4101: 'Bst' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(342,15): warning C4101: 'ds' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(342,12): warning C4101: 's' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(340,17): warning C4101: 'BsT' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(435,10): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(669,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(907,12): warning C4101: 'A' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(995,12): warning C4101: 's' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1181,10): warning C4101: 'HistoryDateExl' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1174,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1174,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1281,67): warning C4244: '=': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1312,67): warning C4244: '=': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1805,35): warning C4552: '/': 식의 결과가 사용되지 않습니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1322,28): warning C4101: 'idx3' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1443,12): warning C4101: 'xt_interp2f' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1322,34): warning C4101: 'idx4' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(2240,12): warning C4101: 'MaxLegValue' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1390,10): warning C4101: 'idxstart' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1327,10): warning C4101: 'ndates' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1322,10): warning C4101: 'idx0' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1337,12): warning C4101: 'kappa' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(2548,24): warning C4101: 'YYYYMMDDT1' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(2550,16): warning C4101: 'T_PowerSpread' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(2551,28): warning C4101: 'term' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(4002,65): warning C4101: 'holiflag' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\HW_Calibration.h(3693): warning C4715: 'HWCapHWSwaption_2FCalibration': 모든 제어 경로에서 값을 반환하지는 않습니다.
-     C:\Users\ciiad\github5\IRPhaseStructuredSwap\Debug\IRPhaseStructuredSwap.lib 라이브러리 및 C:\Users\ciiad\github5\IRPhaseStructuredSwap\Debug\IRPhaseStructuredSwap.exp 개체를 생성하고 있습니다.
-  IRPhaseStructuredSwap.vcxproj -> C:\Users\ciiad\github5\IRPhaseStructuredSwap\Debug\IRPhaseStructuredSwap.dll
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\CalcDate.h(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\CalcDate.h(730,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\CalcDate.h(730,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\CalcDate.h(1123,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\CalcDate.h(1163,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\CalcDate.h(1402,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\CalcDate.h(1528,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\CalcDate.h(1664,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(2844,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(2978,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(3370,13): warning C4101: 'HWVol2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(3368,12): warning C4101: 'kappa2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(3369,13): warning C4101: 'HWVol' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(3366,13): warning C4101: 'n' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(3367,12): warning C4101: 'kappa' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(3803,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(3932,13): warning C4101: 'HWVol' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(3926,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(4341,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(4412,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(5324,12): warning C4101: 'fm' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(238,21): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(320,21): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(363,17): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(359,12): warning C4101: 'Bst' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(361,15): warning C4101: 'ds' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(361,12): warning C4101: 's' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(358,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(359,17): warning C4101: 'BsT' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(458,10): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(692,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(930,12): warning C4101: 'A' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1022,12): warning C4101: 's' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1238,10): warning C4101: 'HistoryDateExl' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1231,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1231,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1338,67): warning C4244: '=': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1369,67): warning C4244: '=': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1868,35): warning C4552: '/': 식의 결과가 사용되지 않습니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1379,28): warning C4101: 'idx3' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1506,12): warning C4101: 'xt_interp2f' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1379,34): warning C4101: 'idx4' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(2303,12): warning C4101: 'MaxLegValue' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1453,10): warning C4101: 'idxstart' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1384,10): warning C4101: 'ndates' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1379,10): warning C4101: 'idx0' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(1394,12): warning C4101: 'kappa' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(2611,24): warning C4101: 'YYYYMMDDT1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(2613,16): warning C4101: 'T_PowerSpread' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(2614,28): warning C4101: 'term' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(3496,17): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\IRPhaseStructuredSwap.cpp(4066,65): warning C4101: 'holiflag' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\IRPhaseStructuredSwap\HW_Calibration.h(4768): warning C4715: 'HWCapHWSwaption_2FCalibration': 모든 제어 경로에서 값을 반환하지는 않습니다.
+     C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\Debug\IRPhaseStructuredSwap.lib 라이브러리 및 C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\Debug\IRPhaseStructuredSwap.exp 개체를 생성하고 있습니다.
+  IRPhaseStructuredSwap.vcxproj -> C:\Users\ciiad\github5\IRPhaseStructuredSwapForKDB\Debug\IRPhaseStructuredSwap.dll
