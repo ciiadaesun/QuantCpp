@@ -2333,8 +2333,8 @@ DLLEXPORT(long) Calc_Hazard_Rate_From_CDSCurve(
 	long HazardRateCalcFlag,		// Hazard Rate Calc 방법 0: Continuous Annual Hazard Rate 1: 단리 파산확률
 	long NCPN_Ann,					// 연 이자지급 수			
 
-	long NHoliday,
-	long* HolidayYYYYMMDD,
+	long NHoliday,					// Holiday개수
+	long* HolidayYYYYMMDD,			// Holiday Array (YYYYMMDD Type)
 
 	double* ResultHazardTerm,		// OutPut Hazard Term
 	double* ResultHazard			// OutPut Hazard Rate
