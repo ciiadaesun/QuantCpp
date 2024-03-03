@@ -365,22 +365,22 @@ double Calc_QVTerm(double kappa, double t, double s, double sigma)
 }
 
 double BS_Swaption(
-	long FixedPayer,
-	long PriceDate,
-	long StartDate,
-	long NCpn,
-	long* SwapDate,
-	double NA,
-	double Vol,
-	double StrikePrice,
-	double* Term,
-	double* Rate,
-	long NTerm,
-	long DayCountFracFlag,
-	long VolFlag,
-	long PricingOrValueFlag,
-	double &ResultForwardSwapRate,
-	double &ExerciseValue
+	long FixedPayer,				// Fixed Payer여부
+	long PriceDate,					// 평가일
+	long StartDate,					// 스왑시작일
+	long NCpn,						// 쿠폰개수
+	long* SwapDate,					// SwapDate Array YYYYMMDD
+	double NA,						// Notional Amount
+	double Vol,						// Volatility
+	double StrikePrice,				// 행사가격
+	double* Term,					// Zero Term Structure의 Term
+	double* Rate,					// Zero Term Structure의 Rate
+	long NTerm,						// Zero Term Structure의 길이
+	long DayCountFracFlag,			// DayCountFraction
+	long VolFlag,					// 0 Black Vol 1 바실리에 Normal Vol
+	long PricingOrValueFlag,		// Pricing할지 Valuation할지
+	double &ResultForwardSwapRate,	// ResultForwardRate
+	double &ExerciseValue			// 행사 Value
 )
 {
 	long i;
@@ -395,19 +395,14 @@ double BS_Swaption(
 	}
 	double dt, t_pay, value, d1, d2, value_atm , d1_atm, d2_atm;
 	double annuity = 0.0;
+	
 	FSR = ForwardSwapRate(PriceDate, StartDate, NCpn, SwapDate, NTerm, Term, Rate, NTerm, Term, Rate, DayCountFracFlag);
 	ResultForwardSwapRate = FSR;
 
 	for (i = 0; i < NCpn; i++)
 	{
-		if (i == 0)
-		{
-			dt = DayCountFrc(StartDate, SwapDate[i], DayCountFracFlag);
-		}
-		else
-		{
-			dt = DayCountFrc(SwapDate[i - 1], SwapDate[i], DayCountFracFlag);
-		}
+		if (i == 0) dt = DayCountFrc(StartDate, SwapDate[i], DayCountFracFlag);
+		else dt = DayCountFrc(SwapDate[i - 1], SwapDate[i], DayCountFracFlag);
 		t_pay = ((double)DayCountAtoB(PriceDate, SwapDate[i])) / 365.0;
 		annuity += dt * Calc_DiscountFactor_Pointer(Term, Rate, NTerm, t_pay, idx);
 	}
