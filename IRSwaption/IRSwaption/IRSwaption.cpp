@@ -350,7 +350,7 @@ double Rate_A_S_T(
 {
 	double term = (t - s);
 
-	double A_S_T = ForwardDiscFactor * exp(-B_s_t * xt - QVTerm);
+	double A_S_T = ForwardDiscFactor * exp(-B_s_t * xt + QVTerm);
 	return -1.0 / term * log(A_S_T);
 }
 
@@ -359,9 +359,21 @@ double Calc_B_s_t(double kappa, double t, double s)
 	return (1.0 - exp(-kappa * (t - s))) / kappa;
 }
 
+double V_t_T(
+	double kappa,
+	double kappa2,
+	double t,
+	double T,
+	double vol,
+	double vol2
+)
+{
+	return vol * vol2 / (kappa * kappa2) * (T - t + (exp(-kappa * (T - t)) - 1.0) / kappa + (exp(-kappa2 * (T - t)) - 1.0) / kappa2 - (exp(-(kappa + kappa2) * (T - t)) - 1.0) / (kappa + kappa2));
+}
+
 double Calc_QVTerm(double kappa, double t, double s, double sigma)
 {
-	return sigma * sigma * (exp(-kappa * t) - exp(-kappa * s)) * (exp(-kappa * t) - exp(-kappa * s)) * (exp(2.0 * kappa * s) - 1.0) / (4.0 * kappa * kappa * kappa);
+	return 0.5 * (V_t_T(kappa, kappa, s, t, sigma, sigma) - V_t_T(kappa, kappa, 0, t, sigma, sigma) + V_t_T(kappa, kappa, 0, s, sigma, sigma));
 }
 
 double BS_Swaption(
@@ -685,7 +697,7 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 	long nCpnDates = 0;
 	long TempDate = StartDate;
 	long TempStartDate = StartDate;
-	if (AmericanFlag > 0 && NAutocall > 0) StartDate = max(StartDate, AutocallDate[0]);
+	if (AmericanFlag > 0 && NAutocall > 0) StartDate = max(StartDate, AutocallDate[NAutocall-1]);
 	long* CpnDates = Generate_CpnDate_Holiday_IRSwaption(StartDate, SwapMaturityDate, AnnCpnOneYear, nCpnDates, TempDate, NHoliday, HolidayYYYYMMDD);
 
 	double* ResultFSR = ResultValue + 2;
@@ -756,20 +768,30 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 		}
 		else
 		{
-			
 			for (n = 0; n < NVolTerm; n++)
 			{
-				/*
-				if (n == NVolTerm - 1) VolForFDM[n] = VolArray[NVolTerm - 1];
-				else
+				RealPrice = BS_Swaption(0, PriceDate, StartDate, nCpnDates, CpnDates, NA, VolArray[n], StrikePrice, Term, Rate, NTerm, DayCountFracFlag, VolFlag, 0, temp1, temp1);
+				VolMin = 0.0001;
+				VolMax = 1.0;
+				TargetRate = VolMax;
+				VolForFDM[n] = TargetRate;
+				for (j = 0; j < 1000; j++)
 				{
-					ForwardVariance = (VolArray[n+1] * VolArray[n+1] * VolTerm[n+1] - VolArray[n] * VolArray[n] * VolTerm[n]) / (VolTerm[n+1] - VolTerm[n]);
-					if (ForwardVariance > 0.0) VolForFDM[n] = sqrt(ForwardVariance);
-					else VolForFDM[n] = VolArray[n];
-				}*/
-				VolForFDM[n] = VolArray[n];
-
-			}			
+					err = HW_Swaption(PriceDate, NA, kappa, VolTerm, VolForFDM, n + 1, Term, Rate, NTerm, StrikePrice, StartDate, CpnDates, nCpnDates) - RealPrice;
+					if (fabs(err) < dblErrorRange) break;
+					if (err > 0)
+					{
+						VolMax = VolForFDM[n];
+						VolForFDM[n] = (VolMax + VolMin) / 2.0;
+					}
+					else
+					{
+						VolMin = VolForFDM[n];
+						VolForFDM[n] = (VolMin + VolMax) / 2.0;
+					}
+				}
+				//VolForFDM[n] = TargetRate;
+			}
 		}
 
 		long NGreed_xt = 200;
