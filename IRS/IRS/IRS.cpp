@@ -1861,7 +1861,7 @@ long SwapPricer(
     ////////////////////
 
     RcvValue = LegValue(CalcCRSFlag, RcvSchedule, Rcv_DiscCurve, Rcv_RefCurve, Rcv_FXCurve, ResultRefRate, ResultCPN, ResultDF, Rcv_DiscCFArray, RcvConvexityAdjFlag, NRcvConvexAdjVol, RcvConvAdjVolTerm, RcvConvAdjVol);
-    PayValue = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve, Pay_RefCurve, Pay_FXCurve, ResultRefRate + RcvSchedule->NCF, ResultCPN + RcvSchedule->NCF, ResultDF + RcvSchedule->NCF, Rcv_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
+    PayValue = LegValue(CalcCRSFlag, PaySchedule, Pay_DiscCurve, Pay_RefCurve, Pay_FXCurve, ResultRefRate + RcvSchedule->NCF, ResultCPN + RcvSchedule->NCF, ResultDF + RcvSchedule->NCF, Pay_DiscCFArray, PayConvexityAdjFlag, NPayConvexAdjVol, PayConvAdjVolTerm, PayConvAdjVol);
 
     //////////////////
     // Notional ¹Ý¿µ
@@ -2428,7 +2428,7 @@ long ErrorCheckIRS(
     }
     if (Rcv_SwapMaturity < 0.0) return -8;
     if (Rcv_FixFloFlag != 0 && Rcv_FixFloFlag != 1) return -9;
-    if (Rcv_DayCount != 0 && Rcv_DayCount != 1) return -10;
+
     if (Rcv_NotionalAMT < 0.0) return -11;
     if (Rcv_NotionalPayDate < PriceDate) return -12;
     if (RcvDisc_NTerm < 1) return -13;
