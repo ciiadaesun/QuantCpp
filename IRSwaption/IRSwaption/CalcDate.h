@@ -1090,7 +1090,20 @@ long Calc_Budda_Korea(long YYYY)
     long ResultArray2[2] = { 0, };
     long ResultCode = CalcLunarToSolar(YYYYMMDD_Lunar, 0, ResultArray2, _info_array_raw);
     long YYYYMMDD_Solar = ResultArray2[0];
+    // 부처님오신날이 어린이날이랑 같은 말도안되는 때가 있음 
+    long ChildDay = Calc_ChildrensDay_Korea(YYYY);
     if (ResultCode < 0) return ResultCode;
+    else if (ChildDay == YYYYMMDD_Solar)
+    {
+        if (ResultArray2[1] == 5)           // 어린이날 또는 어린이날의 대체휴일과 부처님오신날이 같고 금요일
+        {
+            return DayPlus(YYYYMMDD_Solar, 3);
+        }
+        else                                // 그 외의 경우
+        {           
+            return DayPlus(ChildDay, 1);
+        }
+    }
     else
     {
         if (ResultArray2[1] == 0) // 일요일

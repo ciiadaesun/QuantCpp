@@ -30,6 +30,21 @@ double Sumation(long NArray, double* Array)
 	return s;
 }
 
+long isin(long x, long* marray, long narray)
+{
+	long i;
+	long s = 0;
+	for (i = 0; i < narray; i++)
+	{
+		if (x == marray[i])
+		{
+			s = 1;
+			break;
+		}
+	}
+	return s;
+}
+
 long SaveErrorName(char* Error, char ErrorName[100])
 {
 	long k;
@@ -1266,6 +1281,259 @@ long BSDigitalOption(
 	return 1;
 }
 
+double sumation_beta(long start_idx, long end_idx, double* Forward, double* Weight)
+{
+	long i;
+	double m = 0.;
+	for (i = start_idx; i <= end_idx; i++)
+	{
+		m += Forward[i] * Weight[i];
+	}
+	return m;
+}
+
+double Arithmetic_Asian_Opt_m1(long n, double* Weight, double* Forward)
+{
+	return sumation_beta(0, n - 1, Forward, Weight);
+}
+
+double Arithmetic_Asian_Opt_m2(long n, double* Forward, double* Weight, double* T, long nVol, double* TermVol, double* Vol)
+{
+	long i;
+	double m2 = 0.;
+	double b_i, b_j, e, sig, tau, value1, value2;
+
+	value1 = 0.;
+	for (i = 0 ; i <= n-1; i++)
+	{
+		tau = T[i];
+		sig = Interpolate_Linear(TermVol, Vol, nVol, tau);
+		e = exp(sig * sig * tau);
+
+		b_i = Forward[i] * Weight[i];
+		value1 += b_i* e* sumation_beta(i, n - 1, Forward, Weight);
+	}
+	value1 = 2.0 * value1;
+
+	value2 = 0.;
+	for (i = 0; i <= n - 1; i++)
+	{
+		tau = T[i];
+		sig = Interpolate_Linear(TermVol, Vol, nVol, tau);
+		e = exp(sig * sig * tau);
+
+		b_i = Forward[i] * Weight[i];
+		value2 += b_i * b_i * e;
+	}
+	m2 = value1 - value2;
+	return m2;
+}
+
+double Arithmetic_Asian_Opt_m3(long n, double* Forward, double* Weight, double* T, long nVol, double* TermVol, double* Vol)
+{
+	long i, j;
+	double m3 = 0.;
+	double b_i, b_j, b_k, e_i, e_j, sig_i, tau_i, sig_j, tau_j, V1, V2, V3, V4;
+	
+	for (i = 0; i <= n - 1; i++)
+	{
+		tau_i = T[i];
+		sig_i = Interpolate_Linear(TermVol, Vol, nVol, tau_i);
+		e_i = exp(sig_i * sig_i * tau_i);
+
+		b_i = Forward[i] * Weight[i];
+		V1 = b_i * b_i * e_i;
+		V2 = 3.0 * b_i * e_i * sumation_beta(i, n - 1, Forward, Weight);
+		V3 = 0.0;
+		V4 = 0.0;
+		for (j = i; j <= n - 1; j++)
+		{
+			tau_j = T[j];
+			sig_j = Interpolate_Linear(TermVol, Vol, nVol, tau_j);
+			e_j = exp(sig_j * sig_j * tau_j);
+			b_j = Forward[j] * Weight[j];
+			V3 += 3.0 * b_j * b_j * e_j;
+
+
+			V4 += 6.0 * b_j * e_j * sumation_beta(j, n - 1, Forward, Weight);
+		}
+		m3 += 2.0 * b_i * e_i * e_i * (V1 - V2 - V3 + V4);
+	}
+
+	return m3;
+}
+
+double Arithmetic_Asian_Opt_Pricing(long n, double* Forward, double* Weight, double* T, long nVol, double* TermVol, double* Vol, double PrevCummulative_Weight,double Strike, double PrevAverage, long Call0Put1, double T_Option, long nRate, double* TermRate, double* Rate)
+{
+	double mu1, mu2, mu3;
+	double m1, m2, m3;
+	double value = 0.0;
+	m1 = Arithmetic_Asian_Opt_m1(n, Weight, Forward);
+	m2 = Arithmetic_Asian_Opt_m2(n, Forward, Weight, T, nVol, TermVol, Vol);
+	m3 = Arithmetic_Asian_Opt_m3(n, Forward, Weight, T, nVol, TermVol, Vol);
+
+	mu1 = m1;
+	mu2 = m2 - mu1 * mu1;
+	mu3 = m3 - 3.0 * mu1 * mu2 - mu1 * mu1 * mu1;
+
+	double z = pow(0.5 * mu3 + 0.5 * sqrt(mu3 * mu3 + 4.0 * mu2 * mu2 * mu2), 1.0 / 3.0);
+	double y1 = mu1;// mu2 / (z - mu2 / z);
+	double y11 = mu2 + y1 * y1;
+	double E = mu1 - y1;
+	double d1, d2;
+	double r_disc;
+	r_disc = Interpolate_Linear(TermRate, Rate, nRate, T_Option);
+	if (Strike - PrevCummulative_Weight * PrevAverage - E <= 0)
+	{
+		if (Call0Put1 == 0)
+		{
+			value = exp(-r_disc * T_Option)* (y1 - (Strike - PrevCummulative_Weight * PrevAverage - E));
+		}
+		else
+		{
+			value = 0.0;
+		}
+	}
+	else
+	{
+		d1 = log(sqrt(y11) / (Strike - PrevCummulative_Weight * PrevAverage - E)) / sqrt(log(y11 / (y1 * y1)));
+		d2 = d1 - sqrt(log(y11 / (y1 * y1)));
+		if (Call0Put1 == 0)
+		{
+			value = exp(-r_disc * T_Option) * (y1 * CDF_N(d1) - (Strike - PrevCummulative_Weight * PrevAverage - E) * CDF_N(d2));
+		}
+		else
+		{
+			value = exp(-r_disc * T_Option) * ((Strike - PrevCummulative_Weight * PrevAverage - E) * CDF_N(-d2) - y1 * CDF_N(-d1));
+		}
+	}
+	return value;
+}
+
+long Arithmetic_Asian_Opt_Pricing_Preprocessing(
+	long Long0Short1,
+	long Call0Put1,
+	long PricingDate,
+	long AverageStartDate,
+	long AverageEndDate,
+	long OptionMaturityDate,
+	double S,
+	double K,
+	double PrevAverage,
+	curveinfo* DiscCurve,	// 할인커브
+	curveinfo* RefCurve,	// 레퍼런스커브
+	curveinfo* DivCurve,	// 배당커브
+	double QuantoCorr,		// Quanto COrrelation
+	curveinfo* FXVolCurve,	// FXVol 커브
+	volinfo* VolMat,		// Vol 정보
+	long DivTypeFlag,		// Div 배당타입
+	long HolidayFlag,
+	double* ResultPrice
+)
+{
+	long i, j;
+	if (AverageStartDate == PricingDate) PrevAverage = S;
+	long nh = Number_Holiday(AverageStartDate / 10000, AverageEndDate / 10000, HolidayFlag);
+	long* Holiday = (long*)malloc(sizeof(long) * nh);
+	long res = Mapping_Holiday_CType(AverageStartDate / 10000, AverageEndDate / 10000, HolidayFlag, nh, Holiday);
+	double w, price;
+	double T_Option = ((double)DayCountAtoB(PricingDate, OptionMaturityDate)) / 365.;
+	double PrevCummulativeWeight = 0.;
+
+	long NDays = DayCountAtoB(AverageStartDate, AverageEndDate) + 1;
+	long StartExcelDate = CDateToExcelDate(AverageStartDate);
+	long MOD7, SaturSundayFlag;
+	long N_BD_Avg = 0;
+	long IsHolidayFlag;
+	long YYYYMMDD;
+	for (i = 0; i < NDays; i++)
+	{
+		MOD7 = (StartExcelDate + i) % 7;
+		YYYYMMDD = ExcelDateToCDate(StartExcelDate + i);
+		IsHolidayFlag = isin(YYYYMMDD, Holiday, nh);
+		if ((MOD7 == 1 || MOD7 == 0) || IsHolidayFlag == 1) SaturSundayFlag = 1;
+		else SaturSundayFlag = 0;
+
+		if (SaturSundayFlag != 1) N_BD_Avg += 1;
+	}
+	long* AvgDate = (long*)malloc(sizeof(long) * N_BD_Avg);			// 1
+	j = 0;
+	for (i = 0; i < NDays; i++)
+	{
+		MOD7 = (StartExcelDate + i) % 7;
+		YYYYMMDD = ExcelDateToCDate(StartExcelDate + i);
+		IsHolidayFlag = isin(YYYYMMDD, Holiday, nh);
+		if ((MOD7 == 1 || MOD7 == 0) || IsHolidayFlag == 1) SaturSundayFlag = 1;
+		else SaturSundayFlag = 0;
+
+		if (SaturSundayFlag != 1)
+		{
+			AvgDate[j] = YYYYMMDD;
+			j += 1;
+		}
+	}
+	
+	long NPrev = 0;
+	long NForward = 0;
+	for (i = 0; i < N_BD_Avg; i++)
+	{
+		if (AvgDate[i] <= PricingDate) NPrev += 1;
+		else NForward += 1;
+	}
+
+	long* ForwardDate = (long*)malloc(sizeof(long) * NForward);		// 2
+	j = 0;
+	for (i = 0; i < N_BD_Avg; i++)
+	{
+		if (AvgDate[i] > PricingDate)
+		{
+			ForwardDate[j] = AvgDate[i];
+			j += 1;
+		}
+	}
+	w = 1.0 / ((double)NForward);
+	PrevCummulativeWeight = ((double)NPrev) / (double)N_BD_Avg;
+	
+	double r_ref, d, rho, fxv;
+	double* Forward = (double*)malloc(sizeof(double) * NForward);	// 3
+	double* Weight = (double*)malloc(sizeof(double) * NForward);	// 4
+	double* Time = (double*)malloc(sizeof(double) * NForward);		// 5
+
+	long NVol = NForward;
+	double* VolTerm = (double*)malloc(sizeof(double) * NForward);	// 6
+	double* Vol = (double*)malloc(sizeof(double) * NForward);		// 7
+	for (i = 0; i < NForward; i++)
+	{
+		Time[i] = ((double)DayCountAtoB(PricingDate, ForwardDate[i]))/365.;
+		r_ref = RefCurve->Interpolated_Rate(Time[i]);
+		d = DivCurve->Interpolated_Rate(Time[i]);
+		if (fabs(QuantoCorr) < 0.0001)
+		{
+			Forward[i] = S * exp((r_ref - d) * Time[i]);
+		}
+		else
+		{
+			Forward[i] = S * exp((r_ref - d - QuantoCorr * FXVolCurve->Interpolated_Rate(Time[i]) * VolMat->Calc_Implied_Volatility(Time[i], S / K)) * Time[i]);
+		}
+		Weight[i] = w;
+		VolTerm[i] = Time[i];
+		Vol[i] = VolMat->Calc_Implied_Volatility(Time[i], S / K);
+	}
+
+	price = Arithmetic_Asian_Opt_Pricing(NForward, Forward, Weight, Time, NVol, VolTerm, Vol, PrevCummulativeWeight, K, PrevAverage, Call0Put1, T_Option, DiscCurve->nterm(), DiscCurve->Term, DiscCurve->Rate);
+	if (Long0Short1 == 0) ResultPrice[0] = price;
+	else ResultPrice[0] = -price;
+	free(Holiday);
+	free(Forward);
+	free(Weight);
+	free(Time);
+	free(VolTerm);
+	free(Vol);
+	free(AvgDate);
+	free(ForwardDate);
+	return 1;
+}
+
 double AsianOptionSimul(
 	long TypeFlag,			// Option Type: 1이면 콜, 2이면 풋
 	double S0,				// 기초자산 현재가
@@ -2072,6 +2340,7 @@ long PricingOption(
 	double* VolReshaped,
 
 	long GreekFlag,
+	long HolidayFlag,
 	double* ResultPrice
 )
 {
@@ -2186,6 +2455,30 @@ long PricingOption(
 			&DivCurve, QuantoCorr, &FXVolCurve, &VolMat, DivType,
 			T_CalcToMaturity, T_CalcToPay, ResultPrice, down0up1flag, in0out1flag);
 	}
+	else if (OptionType == 9)
+	{
+		Arithmetic_Asian_Opt_Pricing_Preprocessing(
+			LongShort,
+			CallPut,
+			CalcDate,
+			MeanStartDate,
+			MaturityDate,
+			PayDate,
+			S0,
+			X,
+			MeanPrice,
+			&DiscCurve,	// 할인커브
+			&RefCurve,	// 레퍼런스커브
+			&DivCurve,	// 배당커브
+			QuantoCorr,		// Quanto COrrelation
+			&FXVolCurve,	// FXVol 커브
+			&VolMat,		// Vol 정보
+			DivType,		// Div 배당타입
+			HolidayFlag,
+			ResultPrice
+		);
+	}
+
 
 	k = 0;
 	for (i = 0 ; i < NParity; i++)
@@ -2258,7 +2551,7 @@ long ErrorCheck_OPTIONPRICING_Excel(
 		return SaveErrorName(Error, ErrorName);
 	}
 
-	if (OptionType < 0 || OptionType > 8)
+	if (OptionType < 0 || OptionType > 9)
 	{
 		strcpy_s(ErrorName, "Check OptionType");
 		return SaveErrorName(Error, ErrorName);
@@ -2462,7 +2755,8 @@ DLLEXPORT(long) OPTIONPRICING_Excel(
 	char* Error,				
 	double* RMSPE,				// 길이 1 RMSPE
 
-	long TextFlag
+	long TextFlag,
+	long HolidayFlag
 )
 {
 	long i, j;
@@ -2521,6 +2815,7 @@ DLLEXPORT(long) OPTIONPRICING_Excel(
 		DumppingTextDataMatrix(CalcFunctionName, SaveFileName, "Vol", NParity, NTermVol, VolReshaped);
 
 		DumppingTextData(CalcFunctionName, SaveFileName, "GreekFlag", GreekFlag);
+		DumppingTextData(CalcFunctionName, SaveFileName, "HolidayFlag", HolidayFlag);
 	}
 
 
@@ -2562,7 +2857,7 @@ DLLEXPORT(long) OPTIONPRICING_Excel(
 		MeanPrice, DivType, NDiv, DivTerm, DivRate,
 		QuantoCorr, NFXVol, FXVolTerm, FXVol, ImvolLocalVolFlag,
 		NParity, Parity, NTermVol, TermVol, VolReshaped,
-		GreekFlag, ResultPrice);
+		GreekFlag, HolidayFlag, ResultPrice);
 
 	return 1;
 }
