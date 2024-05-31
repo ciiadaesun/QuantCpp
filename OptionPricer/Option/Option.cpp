@@ -45,6 +45,23 @@ long isin(long x, long* marray, long narray)
 	return s;
 }
 
+long isinFindIndex(long x, long* array, long narray, long& Idx)
+{
+	long i;
+	long s = 0;
+	Idx = -1;
+	for (i = 0; i < narray; i++)
+	{
+		if (x == array[i])
+		{
+			s = 1;
+			Idx = i;
+			break;
+		}
+	}
+	return s;
+}
+
 long SaveErrorName(char* Error, char ErrorName[100])
 {
 	long k;
@@ -1281,6 +1298,254 @@ long BSDigitalOption(
 	return 1;
 }
 
+long NextYYYYMM(long YYYY, long MM, long Freq)
+{
+	if (Freq == 1)
+	{
+		if (MM == 12) return (YYYY + 1) * 100 + 01;
+		else return YYYY * 100 + (MM + 1);
+	}
+	else if (Freq == 2)
+	{
+		if (MM == 12) return (YYYY + 1) * 100 + 02;
+		else if (MM == 11) return (YYYY + 1) * 100 + 01;
+		else return YYYY * 100 + (MM + 2);
+	}
+	else if (Freq == 3)
+	{
+		if (MM == 12) return (YYYY + 1) * 100 + 03;
+		else if (MM == 11) return (YYYY + 1) * 100 + 02;
+		else if (MM == 10) return (YYYY + 1) * 100 + 01;
+		else return YYYY * 100 + (MM + 3);
+	}
+	else if (Freq == 4)
+	{
+		if (MM == 12) return (YYYY + 1) * 100 + 04;
+		else if (MM == 11) return (YYYY + 1) * 100 + 03;
+		else if (MM == 10) return (YYYY + 1) * 100 + 02;
+		else if (MM == 9) return (YYYY + 1) * 100 + 01;
+		else return YYYY * 100 + (MM + 4);
+	}
+	else if (Freq == 6)
+	{
+		if (MM == 12) return (YYYY + 1) * 100 + 06;
+		else if (MM == 11) return (YYYY + 1) * 100 + 05;
+		else if (MM == 10) return (YYYY + 1) * 100 + 04;
+		else if (MM == 9) return (YYYY + 1) * 100 + 03;
+		else if (MM == 8) return (YYYY + 1) * 100 + 02;
+		else if (MM == 7) return (YYYY + 1) * 100 + 01;
+		else return YYYY * 100 + (MM + 6);
+	}
+	else
+	{
+		return (YYYY + 1) * 100 + MM;
+	}
+}
+
+long MonthAdjust(long YYYYMMDD)
+{
+	long Year = YYYYMMDD / 10000;
+	long Month = (YYYYMMDD - Year * 10000) / 100;
+	long Day = (YYYYMMDD - Year * 10000 - Month * 100);
+	long Days[13] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 ,31 };
+	long Days_Leap[13] = { 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 ,31 };
+	long Leap = LeapCheck(Year);
+	long idx = 0;
+	if (Month == 1) idx = 0;
+	else idx = Month - 1;
+
+	if (Leap == 1)
+	{
+		return min(YYYYMMDD, Year * 10000 + Month * 100 + Days_Leap[idx]);
+	}
+	else
+	{
+		return min(YYYYMMDD, Year * 10000 + Month * 100 + Days[idx]);
+	}
+}
+
+DLLEXPORT(long) NSchedule_CommOpt(long StartDate, long EndDate, long FreqMonth)
+{
+	if (StartDate < 19000109) StartDate = ExcelDateToCDate(StartDate);
+	if (EndDate < 19000109) EndDate = ExcelDateToCDate(EndDate);
+	long i;
+
+	long Year;
+	long Month;
+
+	long NMax = ((EndDate / 10000 - StartDate / 10000) + 2) * 12;
+	long n;
+
+	long YYYYMM;
+	n = 0;
+	for (i = 0; i < NMax; i++)
+	{
+		
+		if (i == 0)
+		{
+			Year = StartDate / 10000;
+			Month = (StartDate - Year * 10000) / 100;
+		}
+		else
+		{
+			Year = YYYYMM / 100;
+			Month = YYYYMM - Year * 100;
+		}
+
+		if (Year * 100 + Month <= EndDate / 100)
+		{
+			n += 1;
+		}
+		else
+		{
+			break;
+		}
+		YYYYMM = NextYYYYMM(Year, Month, FreqMonth);
+	}
+	return n;
+}
+
+long Calc_PrevBD(long YYYYMMDD, long NHoliday, long*Holiday)
+{
+	long i, MOD07, TargetDay;
+	TargetDay = YYYYMMDD;
+	long ExlDate, TmpExcelDate, TmpYYYYMMDD, isholidayflag, issatursunday;
+	ExlDate = CDateToExcelDate(YYYYMMDD);
+	for (i = 0; i < 20; i++)
+	{
+		TmpExcelDate = ExlDate - i;
+		TmpYYYYMMDD = ExcelDateToCDate(TmpExcelDate);
+		MOD07 = TmpExcelDate % 7;
+		if (MOD07 == 0 || MOD07 == 1) issatursunday = 1;
+		else issatursunday = 0;
+
+		if (isin(TmpYYYYMMDD, Holiday, NHoliday)) isholidayflag = 1;
+		else isholidayflag = 0;
+
+		if (issatursunday == 0 && isholidayflag == 0)
+		{
+			TargetDay = TmpYYYYMMDD;
+			break;
+		}
+	}
+	return TargetDay;
+}
+
+DLLEXPORT(long) MapLastFixingDate(long NForwardEnd, long* ForwardEnd, long HolidayFlag, long NBD_AfterFix, long* ResultFixingDate, long* ResultPayDate)
+{
+	long i, j;
+	for (i = 0; i < NForwardEnd; i++) if (ForwardEnd[i] < 19000101) ForwardEnd[i] = ExcelDateToCDate(ForwardEnd[i]);
+	long NHolidayArray; 
+	long* HolidayArray; 
+	long TempExcelDate, TempYYYYMMDD, MOD07, issatursunday, isholiday, n;
+	if (HolidayFlag < 10)
+	{
+		NHolidayArray = Number_Holiday(ForwardEnd[0] / 10000, (ForwardEnd[NForwardEnd - 1] / 10000 + 1), HolidayFlag);
+		HolidayArray = (long*)malloc(sizeof(long) * NHolidayArray);
+		Mapping_Holiday_CType(ForwardEnd[0] / 10000, (ForwardEnd[NForwardEnd - 1] / 10000 + 1), HolidayFlag, NHolidayArray, HolidayArray);
+	}
+	else
+	{
+		long n1;
+		long n2;
+		long h1 = HolidayFlag / 10;
+		long h2 = HolidayFlag - h1 * 10;
+		n1 = Number_Holiday(ForwardEnd[0] / 10000, (ForwardEnd[NForwardEnd - 1] / 10000 + 1), h1);
+		n2 = Number_Holiday(ForwardEnd[0] / 10000, (ForwardEnd[NForwardEnd - 1] / 10000 + 1), h2);
+		NHolidayArray = n1 + n2;
+		HolidayArray = (long*)malloc(sizeof(long) * NHolidayArray);
+		Mapping_Holiday_CType(ForwardEnd[0] / 10000, (ForwardEnd[NForwardEnd - 1] / 10000 + 1), h1, n1, HolidayArray);
+		Mapping_Holiday_CType(ForwardEnd[0] / 10000, (ForwardEnd[NForwardEnd - 1] / 10000 + 1), h2, n2, HolidayArray + n1);
+		
+	}
+
+	for (i = 0; i < NForwardEnd; i++)
+	{
+		ResultFixingDate[i] = Calc_PrevBD(ForwardEnd[i], NHolidayArray, HolidayArray);
+		if (NBD_AfterFix == 0)
+		{
+			ResultPayDate[i] = ResultFixingDate[i];
+		}
+		else
+		{
+			n = 0;
+			for (j = 0; j < 30; j++)
+			{
+				if (j == 0) TempExcelDate = CDateToExcelDate(ResultFixingDate[i]) + 1;
+				else TempExcelDate = TempExcelDate + 1;
+
+				TempYYYYMMDD = ExcelDateToCDate(TempExcelDate);
+				MOD07 = TempExcelDate % 7;
+				if (MOD07 == 0 || MOD07 == 1) issatursunday = 1;
+				else issatursunday = 0;
+
+				if (isin(TempYYYYMMDD, HolidayArray, NHolidayArray)) isholiday = 1;
+				else isholiday = 0;
+
+				if (issatursunday == 0 && isholiday == 0) n += 1;
+				if (n >= NBD_AfterFix)
+				{
+					break;
+				}
+			}
+			ResultPayDate[i] = TempYYYYMMDD;
+		}
+	}
+	free(HolidayArray);
+	return 1;
+}
+
+DLLEXPORT(long) Malloc_Schedule_CommOpt(long StartDate, long EndDate, long DayStart, long DayEnd, long FreqMonth, long* StartDateArray, long* EndDateArray)
+{
+	if (StartDate < 19000109) StartDate = ExcelDateToCDate(StartDate);
+	if (EndDate < 19000109) EndDate = ExcelDateToCDate(EndDate);
+	long i;
+
+	long Year;
+	long Month;
+
+	long NMax = ((EndDate / 10000 - StartDate / 10000) + 2) * 12;
+	long n;
+
+	long YYYYMM;
+	n = 0;
+	for (i = 0; i < NMax; i++)
+	{
+
+		if (i == 0)
+		{
+			Year = StartDate / 10000;
+			Month = (StartDate - Year * 10000) / 100;
+		}
+		else
+		{
+			Year = YYYYMM / 100;
+			Month = YYYYMM - Year * 100;
+		}
+
+		if (Year * 100 + Month <= EndDate / 100)
+		{
+			StartDateArray[n] = Year * 10000 + Month * 100 + DayStart;
+			YYYYMM = NextYYYYMM(Year, Month, FreqMonth);
+			if (DayStart > DayEnd) EndDateArray[n] = MonthAdjust(YYYYMM * 100 + DayEnd);
+			else EndDateArray[n] = MonthAdjust(Year * 10000 + Month * 100 + DayEnd);
+
+			n += 1;
+		}
+		else
+		{
+			StartDateArray[n] = Year * 10000 + Month * 100 + DayStart;
+			YYYYMM = NextYYYYMM(Year, Month, FreqMonth);
+			if (DayStart > DayEnd) EndDateArray[n] = MonthAdjust(YYYYMM * 100 + DayEnd);
+			else EndDateArray[n] = MonthAdjust(Year * 10000 + Month * 100 + DayEnd);
+
+			break;
+		}
+	}
+	return 1;
+}
+
+
 double sumation_beta(long start_idx, long end_idx, double* Forward, double* Weight)
 {
 	long i;
@@ -1363,7 +1628,55 @@ double Arithmetic_Asian_Opt_m3(long n, double* Forward, double* Weight, double* 
 	return m3;
 }
 
-double Arithmetic_Asian_Opt_Pricing(long n, double* Forward, double* Weight, double* T, long nVol, double* TermVol, double* Vol, double PrevCummulative_Weight,double Strike, double PrevAverage, long Call0Put1, double T_Option, long nRate, double* TermRate, double* Rate)
+double Arithmetic_Asian_Option_Delta(long n, double* Forward, double* Weight, double* T, long nVol, double* TermVol, double* Vol, double r, double y1, double y11, double d1)
+{
+	long i, j, k;
+	double delta_i, delta;
+	double sumaFe, sumaF, v;
+	delta = 0.;
+	for (i = 0; i < n; i++)
+	{
+		sumaFe = 0.0;
+		for (k = 0; k <= i - 1; k++)
+		{
+			v = Interpolate_Linear(TermVol, Vol, nVol, T[k]);
+			sumaFe += Weight[k] * Forward[k] * exp(v * v * T[k]);
+		}
+
+		v = Interpolate_Linear(TermVol, Vol, nVol, T[i]);
+		sumaF = 0.0;
+		for (k = i; k <= n - 1; k++)
+		{
+			sumaF += Weight[k] * Forward[k] * exp(v * v * T[i]);
+		}
+		delta_i = Weight[i] * exp(-r * T[n-1]) * (CDF_N(d1) + y1 * PDF_N(d1) * y1 * y1 / (sqrt(log(y11 / (y1 * y1))) * y11) * ((sumaFe + sumaF) / y11 - 1.0 / y1));
+		delta += delta_i;
+	}
+	return delta;
+}
+
+double Arithmetic_Asian_Option_Vega(long n, double* Forward, double* Weight, double* T, long nVol, double* TermVol, double* Vol, double r, double y1, double y11, double d1)
+{
+	long i, j;
+	double vega_i, vega;
+	double sumaF, aF_i, v;
+	vega = 0.;
+	for (i = 0; i < n; i++)
+	{
+		sumaF = 0.;
+		for (j = i + 1; j <= n - 1; j++)
+		{
+			sumaF += 2.0 * Weight[j] * Forward[j];
+		}
+		aF_i = Weight[i] * Forward[i];
+		v = Interpolate_Linear(TermVol, Vol, nVol, T[i]);
+		vega_i = (sumaF + aF_i)* Weight[i] * Forward[i] * exp(v * v * T[i])* v* T[i] * exp(-r * T[n - 1])* (PDF_N(d1) / ((y11 / y1) * sqrt(log(y11 / (y1 * y1)))));
+		vega += vega_i;
+	}
+	return vega;
+}
+
+double Arithmetic_Asian_Opt_Pricing(long n, double* Forward, double* Weight, double* T, long nVol, double* TermVol, double* Vol, double PrevCummulative_Weight,double Strike, double PrevAverage, long Call0Put1, double T_Option, long nRate, double* TermRate, double* Rate, double& delta, double& vega)
 {
 	double mu1, mu2, mu3;
 	double m1, m2, m3;
@@ -1407,6 +1720,8 @@ double Arithmetic_Asian_Opt_Pricing(long n, double* Forward, double* Weight, dou
 			value = exp(-r_disc * T_Option) * ((Strike - PrevCummulative_Weight * PrevAverage - E) * CDF_N(-d2) - y1 * CDF_N(-d1));
 		}
 	}
+	delta = Arithmetic_Asian_Option_Delta(n, Forward, Weight, T, nVol, TermVol, Vol, r_disc, y1, y11, d1);
+	vega = Arithmetic_Asian_Option_Vega(n, Forward, Weight, T, nVol, TermVol, Vol, r_disc, y1, y11, d1);
 	return value;
 }
 
@@ -1433,9 +1748,29 @@ long Arithmetic_Asian_Opt_Pricing_Preprocessing(
 {
 	long i, j;
 	if (AverageStartDate == PricingDate) PrevAverage = S;
-	long nh = Number_Holiday(AverageStartDate / 10000, AverageEndDate / 10000, HolidayFlag);
-	long* Holiday = (long*)malloc(sizeof(long) * nh);
-	long res = Mapping_Holiday_CType(AverageStartDate / 10000, AverageEndDate / 10000, HolidayFlag, nh, Holiday);
+	long nh; 
+	long res;
+	long* Holiday; 
+	if (HolidayFlag < 10)
+	{
+		nh = Number_Holiday(AverageStartDate / 10000, AverageEndDate / 10000, HolidayFlag);
+		Holiday = (long*)malloc(sizeof(long) * nh);
+		res = Mapping_Holiday_CType(AverageStartDate / 10000, AverageEndDate / 10000, HolidayFlag, nh, Holiday);
+	}
+	else
+	{
+		long n1;
+		long n2;
+		long h1 = HolidayFlag / 10;
+		long h2 = HolidayFlag - h1 * 10;
+		n1 = Number_Holiday(AverageStartDate / 10000, AverageEndDate / 10000, h1);
+		n2 = Number_Holiday(AverageStartDate / 10000, AverageEndDate / 10000, h2);
+		nh = n1 + n2;
+		Holiday = (long*)malloc(sizeof(long) * nh);
+		res = Mapping_Holiday_CType(AverageStartDate / 10000, AverageEndDate / 10000, h1, n1, Holiday);
+		res = Mapping_Holiday_CType(AverageStartDate / 10000, AverageEndDate / 10000, h2, n2, Holiday + n1);
+	}
+
 	double w, price;
 	double T_Option = ((double)DayCountAtoB(PricingDate, OptionMaturityDate)) / 365.;
 	double PrevCummulativeWeight = 0.;
@@ -1517,12 +1852,23 @@ long Arithmetic_Asian_Opt_Pricing_Preprocessing(
 		}
 		Weight[i] = w;
 		VolTerm[i] = Time[i];
-		Vol[i] = VolMat->Calc_Implied_Volatility(Time[i], S / K);
+		Vol[i] = max(0.000001,VolMat->Calc_Implied_Volatility(Time[i], S / K));
+	}
+	double delta = 0., vega= 0.;
+	price = Arithmetic_Asian_Opt_Pricing(NForward, Forward, Weight, Time, NVol, VolTerm, Vol, PrevCummulativeWeight, K, PrevAverage, Call0Put1, T_Option, DiscCurve->nterm(), DiscCurve->Term, DiscCurve->Rate, delta, vega);
+	if (Long0Short1 == 0)
+	{
+		ResultPrice[0] = price;
+		ResultPrice[1] = delta;
+		ResultPrice[3] = vega/100.;
+	}
+	else
+	{
+		ResultPrice[0] = -price;
+		ResultPrice[1] = -delta;
+		ResultPrice[3] = -vega/100.;
 	}
 
-	price = Arithmetic_Asian_Opt_Pricing(NForward, Forward, Weight, Time, NVol, VolTerm, Vol, PrevCummulativeWeight, K, PrevAverage, Call0Put1, T_Option, DiscCurve->nterm(), DiscCurve->Term, DiscCurve->Rate);
-	if (Long0Short1 == 0) ResultPrice[0] = price;
-	else ResultPrice[0] = -price;
 	free(Holiday);
 	free(Forward);
 	free(Weight);
@@ -1531,6 +1877,298 @@ long Arithmetic_Asian_Opt_Pricing_Preprocessing(
 	free(Vol);
 	free(AvgDate);
 	free(ForwardDate);
+	return 1;
+}
+
+long ErrorCalcCommodityAsianOption(
+	long LongShort,
+	long CallPut,
+	long PricingDate,
+	double StrikePrice,
+	long NRate,
+
+	double* TermRate,
+	double* Rate,
+	long NForward,
+	long* ForwardTime,
+	double* Forward,
+
+	long NVol,
+	long* VolTime,
+	double* Vol,
+	long NCF,
+	long* ForwardStart,
+
+	long* ForwardEnd,
+	long* PayDate,
+	double* FixedAverage,
+	double* ResultPrice,
+	double* ResultOption,
+
+	double* ResultDelta,
+	double* ResultVega,
+	double* ResultDisc,
+	long UnderlyingHoliday,
+	char* Error
+)
+{
+	long i, j;
+	char ErrorName[100];
+
+	if (LongShort != 0 && LongShort != 1)
+	{
+		strcpy_s(ErrorName, "Check LongShortFlag");
+		return SaveErrorName(Error, ErrorName);
+	}
+
+	if (StrikePrice < 0)
+	{
+		strcpy_s(ErrorName, "Check StrikePrice");
+		return SaveErrorName(Error, ErrorName);
+	}
+
+	if (CallPut != 0 && CallPut != 1)
+	{
+		strcpy_s(ErrorName, "Check CallPutFlag");
+		return SaveErrorName(Error, ErrorName);
+	}
+
+	if (PricingDate >= PayDate[NCF - 1] || PricingDate < 0)
+	{
+		strcpy_s(ErrorName, "Check PricingDate");
+		return SaveErrorName(Error, ErrorName);
+	}
+
+	for (i = 0; i < NVol; i++)
+	{
+		if (Vol[i] < 0.0)
+		{
+			strcpy_s(ErrorName, "Minus Vol Error");
+			return SaveErrorName(Error, ErrorName);
+		}
+	}
+
+	long errorflag = 0;
+	for (i = 0; i < NCF; i++)
+	{
+		if (i > 0)
+		{
+			if (ForwardStart[i] < ForwardStart[i - 1])
+			{
+				errorflag = 1;
+				break;
+			}
+			if (ForwardEnd[i] < ForwardEnd[i - 1])
+			{
+				errorflag = 1;
+				break;
+			}
+			if (PayDate[i] < PayDate[i - 1])
+			{
+				errorflag = 1;
+				break;
+			}
+		}
+	}
+	if (errorflag == 1)
+	{
+		strcpy_s(ErrorName, "Check Schedule and Sort");
+		return SaveErrorName(Error, ErrorName);
+	}
+
+	if (UnderlyingHoliday < 0)
+	{
+		strcpy_s(ErrorName, "Check UnderlyingHolidayFlag");
+		return SaveErrorName(Error, ErrorName);
+	}
+	return 1;
+}
+
+DLLEXPORT(long) CalcCommodityAsianOption(
+	long LongShort,					// Long 0 Short 1
+	long CallPut,					// Call 0 Put 1
+	long PricingDate,				// PricingDate(YYYYMMD or ExcelDate
+	double StrikePrice,				// Strike Price
+	long NRate,						// len(DiscRateArray)
+
+	double* TermRate,				// Term Array
+	double* Rate,					// Rate Array
+	long NForward,					// len(ForwardTime)
+	long* ForwardTime,				// Forward Maturity
+	double* Forward,				// Forward
+
+	long NVol,						// len(Vol)
+	long* VolTime,					// Vol Maturity
+	double* Vol,					// Vol
+	long NCF,						// Number of CashFlow
+	long* ForwardStart,				// Forward Start(Not Business Day == OKay)
+
+	long* ForwardEnd,				// Forward End(Not Business Day == OKay)
+	long* PayDate,					// PaymentDay(Not Business Day == OKay)
+	double* FixedAverage,			// Pre Fixed Average Price
+	double* ResultPrice,			// Output : len == NCF
+	double* ResultOption,			// Output : len == NCF
+
+	double* ResultDelta,			// Output : len == NCF
+	double* ResultVega,				// Output : len == NCF
+	double* ResultDisc,				// Output : len == NCF
+	long UnderlyingHoliday,			// Underlying Holiday Flag (0 : Korean, 1 : USD, 2 : GBP)
+	long TextFlag,					// Text Logging
+	long GreekFlag,					// Calc Greek(Dummy)
+	char* Error						// Error Message
+)
+{
+	long i, j;
+	long ErrorCode = 0;
+	ErrorCode = ErrorCalcCommodityAsianOption(LongShort,CallPut,PricingDate,StrikePrice,NRate,
+		TermRate,Rate,NForward,ForwardTime,Forward,
+		NVol,VolTime,Vol,NCF,ForwardStart,
+		ForwardEnd,PayDate,FixedAverage,ResultPrice,ResultOption,
+		ResultDelta,ResultVega,ResultDisc,UnderlyingHoliday,Error);
+	if (ErrorCode < 0) return ErrorCode;
+
+
+	char CalcFunctionName[] = "CalcCommodityAsianOption";
+	char SaveFileName[100];
+
+	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+	if (TextFlag == 1)
+	{
+		DumppingTextData(CalcFunctionName, SaveFileName, "LongShort", LongShort);
+		DumppingTextData(CalcFunctionName, SaveFileName, "CallPut", CallPut);
+		DumppingTextData(CalcFunctionName, SaveFileName, "PricingDate", PricingDate);
+		DumppingTextData(CalcFunctionName, SaveFileName, "StrikePrice", StrikePrice);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NRate", NRate);
+
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "TermRate", NRate, TermRate);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "Rate", NRate, Rate);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NForward", NForward);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "ForwardTime", NForward, ForwardTime);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "Forward", NForward, Forward);
+
+		DumppingTextData(CalcFunctionName, SaveFileName, "NVol", NVol);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "VolTime", NVol, VolTime);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "Vol", NVol, Vol);
+		DumppingTextData(CalcFunctionName, SaveFileName, "NCF", NCF);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "ForwardStart", NCF, ForwardStart);
+
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "ForwardEnd", NCF, ForwardEnd);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayDate", NCF, PayDate);
+		DumppingTextData(CalcFunctionName, SaveFileName, "UnderlyingHoliday", UnderlyingHoliday);
+	}
+
+
+	double TempResult[100] = { 0.0 };
+	if (PricingDate < 19000101) PricingDate = ExcelDateToCDate(PricingDate);
+	for (i = 0; i < NForward; i++) if (ForwardTime[i] < 19000101) ForwardTime[i] = ExcelDateToCDate(ForwardTime[i]);
+	for (i = 0; i < NVol; i++) if (VolTime[i] < 19000101) VolTime[i] = ExcelDateToCDate(VolTime[i]);
+	for (i = 0; i < NCF; i++)
+	{
+		if (ForwardStart[i] < 19000101) ForwardStart[i] = ExcelDateToCDate(ForwardStart[i]);
+		if (ForwardEnd[i] < 19000101) ForwardEnd[i] = ExcelDateToCDate(ForwardEnd[i]);
+		if (PayDate[i] < 19000101) PayDate[i] = ExcelDateToCDate(PayDate[i]);
+	}
+	for (i = 0; i < NRate; i++) if (TermRate[i] > 30000.0) TermRate[i] = ((double)DayCountAtoB(PricingDate, ExcelDateToCDate((long)(TermRate[i])))) / 365.;
+	long NRateDisc = 1;
+	double RateTermDisc[1] = { 1.0 };
+	double RateDisc[1] = { 0.0 };
+	double VolTemp[1] = { Vol[0] };
+
+	long NReferenceCurve = DayCountAtoB(min(PricingDate, ForwardTime[0]), ForwardTime[NForward - 1]);
+	double S = Forward[0];
+	long StartDateExl;
+	if (PricingDate < ForwardTime[0]) StartDateExl = CDateToExcelDate(PricingDate);
+	else StartDateExl = CDateToExcelDate(ForwardTime[0]);
+	long* ForwardDate = (long*)malloc(sizeof(long) * NReferenceCurve);
+	double* ForwardPrice = (double*)malloc(sizeof(double) * NReferenceCurve);
+	long TmpDateExl, TmpYYYYMMDD, idx, isinflag;
+	for (i = 0; i < NReferenceCurve; i++)
+	{
+		TmpDateExl = StartDateExl + i;
+		TmpYYYYMMDD = ExcelDateToCDate(TmpDateExl);
+		isinflag = isinFindIndex(TmpYYYYMMDD, ForwardTime, NForward, idx);
+		if (isinflag == 1)
+		{
+			ForwardDate[i] = ForwardTime[idx];
+			ForwardPrice[i] = Forward[idx];
+		}
+		else
+		{
+			ForwardDate[i] = TmpYYYYMMDD;
+			ForwardPrice[i] = -99999.99;
+		}
+	}
+	long NotFound;
+	for (i = 0; i < NReferenceCurve; i++)
+	{
+		if (ForwardPrice[i] < -99.9)
+		{
+			for (j = i; j < NReferenceCurve; j++)
+			{
+				if (ForwardPrice[j] > -99.9)
+				{
+					ForwardPrice[i] = ForwardPrice[j];
+					break;
+				}
+			}
+
+			if (j == NReferenceCurve) NotFound = 1;
+			else NotFound = 0;
+		}
+
+		if (NotFound && i > 0) ForwardPrice[i] = ForwardPrice[i - 1];
+	}
+	long NRefRate = NReferenceCurve;
+	double* TermRef = (double*)malloc(sizeof(double) * NRefRate);
+	double* RefRate = (double*)malloc(sizeof(double) * NRefRate);
+	for (i = 0; i < NRefRate; i++)
+	{
+		TermRef[i] = ((double)DayCountAtoB(PricingDate, ForwardDate[i])) / 365.0;
+		if (fabs(TermRef[i]) < 0.000001) RefRate[i] = 0.;
+		else RefRate[i] = log(ForwardPrice[i] / S) / TermRef[i];
+	}
+	curveinfo DiscCurve(NRateDisc, RateTermDisc, RateDisc);
+	curveinfo RefCurve(NRefRate, TermRef, RefRate);
+	curveinfo DivCurve(NRateDisc, RateTermDisc, RateDisc);
+	curveinfo FXVolCurve(NRateDisc, RateTermDisc, RateDisc);
+	volinfo VolMat(1, RateTermDisc, 1, RateTermDisc, VolTemp);
+	double T, TPay, Disc, r, s;
+	double* TermVol = (double*)malloc(sizeof(double) * NVol);
+	for (i = 0; i < NVol; i++)
+	{
+		TermVol[i] = ((double)DayCountAtoB(PricingDate, VolTime[i]))/365.;
+	}
+	s = 0.;
+	for (i = 0; i < NCF; i++)
+	{
+		T = ((double)DayCountAtoB(PricingDate, ForwardEnd[i]))/365.;
+		TPay = ((double)DayCountAtoB(PricingDate, PayDate[i])) / 365.;
+		VolMat.Vol_Matrix[0][0] = Interpolate_Linear(TermVol, Vol, NVol, T);
+		if (VolMat.LocalVolMat != NULL) VolMat.LocalVolMat[0][0] = VolMat.Vol_Matrix[0][0];
+
+		r = Interpolate_Linear(TermRate, Rate, NRate, TPay);
+		Disc = exp(-r * TPay);
+		if (PayDate[i] >PricingDate)
+		{
+			Arithmetic_Asian_Opt_Pricing_Preprocessing(LongShort,CallPut,PricingDate,ForwardStart[i],ForwardEnd[i],
+														PayDate[i],S,StrikePrice,FixedAverage[i],&DiscCurve,	
+														&RefCurve,	&DivCurve,	0.0,	&FXVolCurve,&VolMat,		
+														0,UnderlyingHoliday,TempResult);
+		}
+
+		ResultOption[i] = TempResult[0];
+		ResultDelta[i] = TempResult[1];
+		ResultVega[i] = TempResult[3];
+		ResultDisc[i] = Disc;
+		s += (Disc  * TempResult[0]) / ((double)NCF);
+	}
+
+	ResultPrice[0] = s;
+	free(TermVol);
+	free(ForwardDate);
+	free(ForwardPrice);
+	free(TermRef);
+	free(RefRate);
 	return 1;
 }
 
@@ -2846,10 +3484,15 @@ DLLEXPORT(long) OPTIONPRICING_Excel(
 		free(TempVol);
 	}
 
-	long CalcDate = ExcelDateToCDate(CalcDateExl);
-	long MeanStartDate = ExcelDateToCDate(MeanStartDateExl);
-	long MaturityDate = ExcelDateToCDate(MaturityDateExl);
-	long PayDate = ExcelDateToCDate(PayDateExl);
+	long CalcDate, MeanStartDate, MaturityDate, PayDate;
+	if (CalcDateExl < 19000101) CalcDate = ExcelDateToCDate(CalcDateExl);
+	else CalcDate = CalcDateExl;
+	if (MeanStartDateExl < 19000101) MeanStartDate = ExcelDateToCDate(MeanStartDateExl);
+	else MeanStartDate = MeanStartDateExl;
+	if (MaturityDateExl < 19000101) MaturityDate = ExcelDateToCDate(MaturityDateExl);
+	else MaturityDate = MaturityDateExl;
+	if (PayDateExl < 19000101) PayDate = ExcelDateToCDate(PayDateExl);
+	else PayDate = PayDateExl;
 
 	ResultCode = PricingOption(LongShort, CallPut, OptionType, CalcDate, MeanStartDate,
 		MaturityDate, PayDate, NRateDisc, RateTermDisc, RateDisc,
