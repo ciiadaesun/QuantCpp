@@ -1534,10 +1534,10 @@ DLLEXPORT(long) Malloc_Schedule_CommOpt(long StartDate, long EndDate, long DaySt
 		}
 		else
 		{
-			StartDateArray[n] = Year * 10000 + Month * 100 + DayStart;
-			YYYYMM = NextYYYYMM(Year, Month, FreqMonth);
-			if (DayStart > DayEnd) EndDateArray[n] = MonthAdjust(YYYYMM * 100 + DayEnd);
-			else EndDateArray[n] = MonthAdjust(Year * 10000 + Month * 100 + DayEnd);
+			//StartDateArray[n] = Year * 10000 + Month * 100 + DayStart;
+			//YYYYMM = NextYYYYMM(Year, Month, FreqMonth);
+			//if (DayStart > DayEnd) EndDateArray[n] = MonthAdjust(YYYYMM * 100 + DayEnd);
+			//else EndDateArray[n] = MonthAdjust(Year * 10000 + Month * 100 + DayEnd);
 
 			break;
 		}
