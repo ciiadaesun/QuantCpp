@@ -1527,8 +1527,8 @@ DLLEXPORT(long) Malloc_Schedule_CommOpt(long StartDate, long EndDate, long DaySt
 		{
 			StartDateArray[n] = Year * 10000 + Month * 100 + DayStart;
 			YYYYMM = NextYYYYMM(Year, Month, FreqMonth);
-			if (DayStart > DayEnd) EndDateArray[n] = MonthAdjust(YYYYMM * 100 + DayEnd);
-			else EndDateArray[n] = MonthAdjust(Year * 10000 + Month * 100 + DayEnd);
+			if (DayStart < DayEnd && FreqMonth == 1) EndDateArray[n] = MonthAdjust(Year * 10000 + Month * 100 + DayEnd);
+			else EndDateArray[n] = MonthAdjust(YYYYMM * 100 + DayEnd);
 
 			n += 1;
 		}
@@ -1743,10 +1743,14 @@ long Arithmetic_Asian_Opt_Pricing_Preprocessing(
 	volinfo* VolMat,		// Vol 정보
 	long DivTypeFlag,		// Div 배당타입
 	long HolidayFlag,
+	long NAdditionalHoliday,
+	long* AdditionalHolidays,
 	double* ResultPrice
 )
 {
 	long i, j;
+	for (i = 0; i < NAdditionalHoliday; i++) if (AdditionalHolidays[i] < 19000101) AdditionalHolidays[i] = ExcelDateToCDate(AdditionalHolidays[i]);
+
 	if (AverageStartDate == PricingDate) PrevAverage = S;
 	long nh; 
 	long res;
@@ -1754,8 +1758,16 @@ long Arithmetic_Asian_Opt_Pricing_Preprocessing(
 	if (HolidayFlag < 10)
 	{
 		nh = Number_Holiday(AverageStartDate / 10000, AverageEndDate / 10000, HolidayFlag);
-		Holiday = (long*)malloc(sizeof(long) * nh);
+		Holiday = (long*)malloc(sizeof(long) * (nh + NAdditionalHoliday) );
 		res = Mapping_Holiday_CType(AverageStartDate / 10000, AverageEndDate / 10000, HolidayFlag, nh, Holiday);
+		if (NAdditionalHoliday > 0)
+		{
+			for (i = 0; i < NAdditionalHoliday; i++)
+			{
+				Holiday[i + nh] = AdditionalHolidays[i];
+			}
+			nh += NAdditionalHoliday;
+		}
 	}
 	else
 	{
@@ -1766,9 +1778,18 @@ long Arithmetic_Asian_Opt_Pricing_Preprocessing(
 		n1 = Number_Holiday(AverageStartDate / 10000, AverageEndDate / 10000, h1);
 		n2 = Number_Holiday(AverageStartDate / 10000, AverageEndDate / 10000, h2);
 		nh = n1 + n2;
-		Holiday = (long*)malloc(sizeof(long) * nh);
+		Holiday = (long*)malloc(sizeof(long) * (nh + NAdditionalHoliday));
 		res = Mapping_Holiday_CType(AverageStartDate / 10000, AverageEndDate / 10000, h1, n1, Holiday);
 		res = Mapping_Holiday_CType(AverageStartDate / 10000, AverageEndDate / 10000, h2, n2, Holiday + n1);
+		if (NAdditionalHoliday > 0)
+		{
+			for (i = 0; i < NAdditionalHoliday; i++)
+			{
+				Holiday[i + n1 + n2] = AdditionalHolidays[i];
+			}
+			nh += NAdditionalHoliday;
+		}
+
 	}
 
 	double w, price;
@@ -2015,6 +2036,8 @@ DLLEXPORT(long) CalcCommodityAsianOption(
 	long UnderlyingHoliday,			// Underlying Holiday Flag (0 : Korean, 1 : USD, 2 : GBP)
 	long TextFlag,					// Text Logging
 	long GreekFlag,					// Calc Greek(Dummy)
+	long NAdditionalHoliday,
+	long* AdditionalHolidays,
 	char* Error						// Error Message
 )
 {
@@ -2153,7 +2176,7 @@ DLLEXPORT(long) CalcCommodityAsianOption(
 			Arithmetic_Asian_Opt_Pricing_Preprocessing(LongShort,CallPut,PricingDate,ForwardStart[i],ForwardEnd[i],
 														PayDate[i],S,StrikePrice,FixedAverage[i],&DiscCurve,	
 														&RefCurve,	&DivCurve,	0.0,	&FXVolCurve,&VolMat,		
-														0,UnderlyingHoliday,TempResult);
+														0,UnderlyingHoliday, NAdditionalHoliday, AdditionalHolidays, TempResult);
 		}
 
 		ResultOption[i] = TempResult[0];
@@ -3113,6 +3136,8 @@ long PricingOption(
 			&VolMat,		// Vol 정보
 			DivType,		// Div 배당타입
 			HolidayFlag,
+			0,
+			NULL,
 			ResultPrice
 		);
 	}

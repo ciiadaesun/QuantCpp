@@ -6,8 +6,8 @@ C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(73
 C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(1136,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(1176,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(1415,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(1541,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(1677,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(1808,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\CalcDate.h(1936,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\HW_Calibration.h(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\HW_Calibration.h(2844,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRPhaseStructuredSwap\IRPhaseStructuredSwap\HW_Calibration.h(2978,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.

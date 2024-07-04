@@ -1438,6 +1438,91 @@ long IsPresidentYear(long YYYY)
     else return 0;
 }
 
+long CalcFullMoonDay(long YYYY)
+{
+    long i;
+    long StartDate = YYYY * 10000 + 321;
+
+    long Day1 = LunarToSolar(YYYY * 10000 + 115);
+    long Day2 = LunarToSolar(YYYY * 10000 + 215);
+    long Day2p5 = LunarToSolar(YYYY * 10000 + 215, 1);
+    long Day3 = LunarToSolar(YYYY * 10000 + 315);
+    long FullMoonDay = Day1;
+    long Days[4] = { Day1, Day2, Day2p5, Day3 };
+    for (i = 0; i < 4; i++)
+    {
+        if (Days[i] > StartDate)
+        {
+            FullMoonDay = Days[i];
+            break;
+        }
+    }
+    return FullMoonDay;
+}
+
+long RebirthDay(long YYYY)
+{
+    long i;
+    long FullMoonDay = CalcFullMoonDay(YYYY);
+    long FullMoonDayExcel = CDateToExcelDate(FullMoonDay);
+    long TempExcelDate = FullMoonDayExcel;
+    long MOD7;
+    if (TempExcelDate % 7 == 0) return ExcelDateToCDate(FullMoonDayExcel + 8);
+    else if (TempExcelDate % 7 == 1) return ExcelDateToCDate(FullMoonDayExcel + 7);
+    for (i = 1; i < 8; i++)
+    {
+        TempExcelDate = FullMoonDayExcel + i;
+        MOD7 = TempExcelDate % 7;
+        if (MOD7 == 1)
+        {
+            break;
+        }
+    }
+    return ExcelDateToCDate(TempExcelDate);
+}
+
+long RebirthDayMinus2(long YYYY)
+{
+    long i;
+    long FullMoonDay = CalcFullMoonDay(YYYY);
+    long FullMoonDayExcel = CDateToExcelDate(FullMoonDay);
+    long TempExcelDate = FullMoonDayExcel;
+    long MOD7;
+    if (TempExcelDate % 7 == 0) return ExcelDateToCDate(FullMoonDayExcel + 8 - 2);
+    else if (TempExcelDate % 7 == 1) return ExcelDateToCDate(FullMoonDayExcel + 7 -2);
+    for (i = 1; i < 8; i++)
+    {
+        TempExcelDate = FullMoonDayExcel + i;
+        MOD7 = TempExcelDate % 7;
+        if (MOD7 == 1)
+        {
+            break;
+        }
+    }
+    return ExcelDateToCDate(TempExcelDate-2);
+}
+
+long RebirthDayPlus1(long YYYY)
+{
+    long i;
+    long FullMoonDay = CalcFullMoonDay(YYYY);
+    long FullMoonDayExcel = CDateToExcelDate(FullMoonDay);
+    long TempExcelDate = FullMoonDayExcel;
+    long MOD7;
+    if (TempExcelDate % 7 == 0) return ExcelDateToCDate(FullMoonDayExcel + 8 + 1);
+    else if (TempExcelDate % 7 == 1) return ExcelDateToCDate(FullMoonDayExcel + 7 + 1);
+    for (i = 1; i < 8; i++)
+    {
+        TempExcelDate = FullMoonDayExcel + i;
+        MOD7 = TempExcelDate % 7;
+        if (MOD7 == 1)
+        {
+            break;
+        }
+    }
+    return ExcelDateToCDate(TempExcelDate + 1);
+}
+
 // U.S Holiday Mapping
 void Mapping_USHoliday(
     long YYYY,                  // 연도 
@@ -1531,6 +1616,188 @@ long* Malloc_USHolidayArray(
     return ResultArray;
 }
 
+// U.S NYMEX Holiday Mapping
+void Mapping_US_NYMEXHoliday(
+    long YYYY,                  // 연도 
+    long* HolidayArray         // 미리 할당된 Array(10개
+)
+{
+    // Nymex : 부활절 쉼, 준틴스 안쉼, 독립일 전날도 쉼, 콜럼버스 안쉼, 빼뺴로 안쉼, Thanksgiv 쉼
+    long Jan01 = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 101);
+    long RebirthMinus2;
+    
+    if (YYYY < LunarDateKoreanHardCodeYear) RebirthMinus2 = RebirthDayMinus2(YYYY);     // 부활절 쉼
+    else RebirthMinus2 = Jan01;
+
+
+    //long President = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 120);                    // 취임식 안쉼
+    //long Juneteenth = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 619);                   // 준틴스 안쉼
+    long Independence = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 704);                   // 독립일 쉼
+    long IndependenceExcel = CDateToExcelDate(Independence);
+    long IndependencePrev = ExcelDateToCDate(IndependenceExcel - 1);                    // 독립일 전날 쉼
+    if (IndependenceExcel % 7 == 2)
+    {
+        // 독립일이 월요일이면 전날은 금요일
+        IndependencePrev = ExcelDateToCDate(IndependenceExcel - 3);
+    }
+
+    //long Veterans = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 1111);                    // 빼빼로 안쉼
+    long Christmas = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 1225);
+
+    long MartinLuther = Nth_Date(YYYY, 1, 3, 2);    // 1월 3번째 월요일
+    long PresidentsDay = Nth_Date(YYYY, 2, 3, 2);   // 2월 3번째 월요일
+    long MemorialDay = Nth_Date(YYYY, 5, 5, 2);     // 5월 마지막 월요일
+    long LaborDay = Nth_Date(YYYY, 9, 1, 2);        // 9월 첫번째 월요일
+    //long ColumBus = Nth_Date(YYYY, 10, 2, 2);       // 10월 두번째 월요일             // 콜롬버스 안쉼
+    long Thanks = Nth_Date(YYYY, 11, 4, 5);         // 11월 네번째 목요일
+
+    HolidayArray[0] = Jan01;
+    HolidayArray[1] = MartinLuther;
+    HolidayArray[2] = PresidentsDay;
+    HolidayArray[3] = RebirthMinus2;
+    HolidayArray[4] = MemorialDay;
+    HolidayArray[5] = IndependencePrev;
+    HolidayArray[6] = Independence;
+    HolidayArray[7] = LaborDay;
+    HolidayArray[8] = Thanks;
+    HolidayArray[9] = Christmas;
+}
+
+// U.S NYMEX Holiday Array를 Malloc하는 함수
+long* Malloc_US_NYMEX_HolidayArray(
+    long Start_YYYY,                // 시작연도
+    long End_YYYY,                  // 종료연도
+    long& NHolidayArray             // Output : 할당된 공휴일 Array의 길이 리턴
+)
+{
+    // U.S Holiday Array를 Malloc하는 함수
+    long i, j, k;
+    long** Holidays = (long**)malloc(sizeof(long*) * max(1, (End_YYYY - Start_YYYY + 1)));          // 메모리할당1
+    long* nholidays = (long*)malloc(sizeof(long) * max(1, (End_YYYY - Start_YYYY + 1)));            // 메모리할당2
+    long n = 0;
+    long nh = 0;
+    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++)
+    {
+        Holidays[i] = (long*)malloc(sizeof(long) * 15);
+        Mapping_US_NYMEXHoliday(Start_YYYY + i, Holidays[i]);
+        nholidays[i] = 10;
+        n += nholidays[i];
+    }
+
+    NHolidayArray = n;
+    long* ResultArray = (long*)malloc(sizeof(long) * max(1, n));                                    // 리턴용할당
+    k = 0;
+    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++)
+    {
+        for (j = 0; j < nholidays[i]; j++)
+        {
+            ResultArray[k] = Holidays[i][j];
+            k += 1;
+        }
+    }
+
+    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++) if (Holidays[i]) free(Holidays[i]);
+    free(Holidays);                                                                                 // 메모리할당해제1
+    free(nholidays);                                                                                // 메모리할당해제2
+    return ResultArray;
+}
+
+// U.S NYSE Holiday Mapping
+void Mapping_US_NYSEHoliday(
+    long YYYY,                  // 연도 
+    long* HolidayArray         // 미리 할당된 Array(13개
+)
+{
+    // NYSE : 부활절 쉼, 준틴스쉼, 독립일 전날도 쉼, 콜럼버스 안쉼, 빼뺴로 안쉼, Thanksgiv 다음도 당일도 쉼, 크리스마스 전날도 쉼
+    long Jan01 = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 101);
+    long RebirthMinus2;
+
+    if (YYYY < LunarDateKoreanHardCodeYear) RebirthMinus2 = RebirthDayMinus2(YYYY);     // 부활절 쉼
+    else RebirthMinus2 = Jan01;
+
+    //long President = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 120);                    // 취임식 안쉼
+    long Juneteenth = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 619);                     // 준틴스 쉼
+    long Independence = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 704);                   // 독립일 쉼
+    long IndependenceExcel = CDateToExcelDate(Independence);
+    long IndependencePrev = ExcelDateToCDate(IndependenceExcel - 1);                    // 독립일 전날 쉼
+    if (IndependenceExcel % 7 == 2)
+    {
+        // 독립일이 월요일이면 전날은 금요일
+        IndependencePrev = ExcelDateToCDate(IndependenceExcel - 3);
+    }
+
+    //long Veterans = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 1111);                    // 빼빼로 안쉼
+    long Christmas = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 1225);
+    long ChristmasExcel = CDateToExcelDate(Christmas);
+    long ChristmasPrev = ExcelDateToCDate(ChristmasExcel - 1);
+    if (ChristmasExcel % 7 == 2)
+    {
+        // 크리스마스가 월요일이면 전날은 금요일
+        ChristmasPrev = ExcelDateToCDate(ChristmasExcel - 3);
+    }
+
+    long MartinLuther = Nth_Date(YYYY, 1, 3, 2);    // 1월 3번째 월요일
+    long PresidentsDay = Nth_Date(YYYY, 2, 3, 2);   // 2월 3번째 월요일
+    long MemorialDay = Nth_Date(YYYY, 5, 5, 2);     // 5월 마지막 월요일
+    long LaborDay = Nth_Date(YYYY, 9, 1, 2);        // 9월 첫번째 월요일
+    //long ColumBus = Nth_Date(YYYY, 10, 2, 2);       // 10월 두번째 월요일             // 콜롬버스 안쉼
+    
+    long Thanks = Nth_Date(YYYY, 11, 4, 5);         // 11월 네번째 목요일
+    long ThanksNext = ExcelDateToCDate(CDateToExcelDate(Thanks) + 1);// 추수감사절 다음
+    HolidayArray[0] = Jan01;
+    HolidayArray[1] = MartinLuther;
+    HolidayArray[2] = PresidentsDay;
+    HolidayArray[3] = RebirthMinus2;
+    HolidayArray[4] = MemorialDay;
+    HolidayArray[5] = Juneteenth;
+    HolidayArray[6] = IndependencePrev;
+    HolidayArray[7] = Independence;
+    HolidayArray[8] = LaborDay;
+    HolidayArray[9] = Thanks;
+    HolidayArray[10] = ThanksNext;
+    HolidayArray[11] = ChristmasPrev;
+    HolidayArray[12] = Christmas;
+}
+
+// U.S NYMEX Holiday Array를 Malloc하는 함수
+long* Malloc_US_NYSE_HolidayArray(
+    long Start_YYYY,                // 시작연도
+    long End_YYYY,                  // 종료연도
+    long& NHolidayArray             // Output : 할당된 공휴일 Array의 길이 리턴
+)
+{
+    // U.S Holiday Array를 Malloc하는 함수
+    long i, j, k;
+    long** Holidays = (long**)malloc(sizeof(long*) * max(1, (End_YYYY - Start_YYYY + 1)));          // 메모리할당1
+    long* nholidays = (long*)malloc(sizeof(long) * max(1, (End_YYYY - Start_YYYY + 1)));            // 메모리할당2
+    long n = 0;
+    long nh = 0;
+    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++)
+    {
+        Holidays[i] = (long*)malloc(sizeof(long) * 15);
+        Mapping_US_NYSEHoliday(Start_YYYY + i, Holidays[i]);
+        nholidays[i] = 13;
+        n += nholidays[i];
+    }
+
+    NHolidayArray = n;
+    long* ResultArray = (long*)malloc(sizeof(long) * max(1, n));                                    // 리턴용할당
+    k = 0;
+    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++)
+    {
+        for (j = 0; j < nholidays[i]; j++)
+        {
+            ResultArray[k] = Holidays[i][j];
+            k += 1;
+        }
+    }
+
+    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++) if (Holidays[i]) free(Holidays[i]);
+    free(Holidays);                                                                                 // 메모리할당해제1
+    free(nholidays);                                                                                // 메모리할당해제2
+    return ResultArray;
+}
+
 //////////////////////////
 // GBP 영국 공휴일 관련 함수
 //////////////////////////
@@ -1599,6 +1866,7 @@ void Mapping_GBPHoliday(
             if (MOD07 == 6)
             {
                 GoodFriday = ExcelDateToCDate(EasterMondayExcel - i);
+                break;
             }
         }
         HolidayArray[6] = GoodFriday;
@@ -1610,9 +1878,7 @@ void Mapping_GBPHoliday(
 long* Malloc_GBPHolidayArray(
     long Start_YYYY,                            // 시작 연도
     long End_YYYY,                              // 종료 연도
-    long& NHolidayArray,                        // 할당된 Array 길이
-    long*EasterMondays_StartYYYY_to_EndYYYY,    // StartYYYY부터 EndYYYY까지 부활절
-    long N_EasterMondays_StartYYYY_to_EndYYYY   // 부활절 개수
+    long& NHolidayArray                        // 할당된 Array 길이
 )
 {
     long i, j, k;
@@ -1620,28 +1886,21 @@ long* Malloc_GBPHolidayArray(
     long* nholidays = (long*)malloc(sizeof(long) * max(1, (End_YYYY - Start_YYYY + 1)));            // 메모리할당2
     long n = 0;
     long nh = 0;
-
+    long EasterMonday;
     for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++)
     {
         Holidays[i] = (long*)malloc(sizeof(long) * 15);
-        if (i < N_EasterMondays_StartYYYY_to_EndYYYY)
+        if (Start_YYYY + i < LunarDateKoreanHardCodeYear)
         {
-            if (EasterMondays_StartYYYY_to_EndYYYY[i] > 0)
-            {
-                Mapping_GBPHoliday(Start_YYYY + i, Holidays[i], EasterMondays_StartYYYY_to_EndYYYY[i]);
-                nholidays[i] = 7;
-            }
-            else
-            {
-                Mapping_GBPHoliday(Start_YYYY + i, Holidays[i], 0);
-                nholidays[i] = 5;
-            }                
+            EasterMonday = RebirthDayPlus1(Start_YYYY + i);
+            Mapping_GBPHoliday(Start_YYYY + i, Holidays[i], EasterMonday);
+            nholidays[i] = 7;
         }
         else
         {
             Mapping_GBPHoliday(Start_YYYY + i, Holidays[i], 0);
             nholidays[i] = 5;
-        }
+        }                
         n += nholidays[i];
     }
 
@@ -1678,31 +1937,15 @@ DLLEXPORT(long) Number_Holiday(
     long NHoliday = 0;
     long* Holidays;
 
-    // 영국 EasterMonday 알면 하드로 넣기 
-    // 나는 계산을 못하겠다.
-    const long NTemp = 6;
-    long TempArray[NTemp] = { 20220418,20230410,20240401,20250420, 20260405, 20270328};
-
-    long nEasterMonday = 0;
-    long* EasterMonday = (long*)malloc(sizeof(long) * (EndYYYY - StartYYYY + 1));           // 할당 1
-    for (i = 0; i < (EndYYYY - StartYYYY + 1); i++) EasterMonday[i] = 0;
-    for (i = 0; i < NTemp; i++)
-    {
-        if (TempArray[i] / 10000 >= StartYYYY && TempArray[i] / 10000 <= EndYYYY)
-        {
-            EasterMonday[TempArray[i] / 10000 - StartYYYY] = TempArray[i];
-            nEasterMonday += 1;
-        }
-    }
-
     if (NationFlag == 0) Holidays = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, NHoliday);
     else if (NationFlag == 1) Holidays = Malloc_USHolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday, EasterMonday, (EndYYYY - StartYYYY + 1));
+    else if (NationFlag == 3) Holidays = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+    else if (NationFlag == 4) Holidays = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+    else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
 
     long N = 0;
     for (i = 0; i < NHoliday; i++) if (Holidays[i] > 0) N += 1;
     free(Holidays);
-    free(EasterMonday);
     return N;
 }
 
@@ -1721,27 +1964,11 @@ DLLEXPORT(long) Mapping_Holiday_ExcelType(
     long NHoliday = 0;
     long* Holidays;
 
-    // 영국 EasterMonday 알면 하드로 넣기 
-    // 나는 계산을 못하겠다.
-    const long NTemp = 6;
-    long TempArray[NTemp] = { 20220418,20230410,20240401,20250420, 20260405, 20270328 };
-
-    long nEasterMonday = 0;
-    long* EasterMonday = (long*)malloc(sizeof(long) * (EndYYYY - StartYYYY + 1));           // 할당 1
-    for (i = 0; i < (EndYYYY - StartYYYY + 1); i++) EasterMonday[i] = 0;
-    for (i = 0; i < NTemp; i++)
-    {
-        if (TempArray[i] / 10000 >= StartYYYY && TempArray[i] / 10000 <= EndYYYY)
-        {
-            EasterMonday[TempArray[i] / 10000 - StartYYYY] = TempArray[i];
-            nEasterMonday += 1;
-        }
-    }
-
-    // 할당 2
     if (NationFlag == 0) Holidays = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, NHoliday);
     else if (NationFlag == 1) Holidays = Malloc_USHolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday, EasterMonday, (EndYYYY - StartYYYY + 1));
+    else if (NationFlag == 3) Holidays = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+    else if (NationFlag == 4) Holidays = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+    else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
 
     long n = min(NResultArray, NHoliday);
     k = 0;
@@ -1755,7 +1982,6 @@ DLLEXPORT(long) Mapping_Holiday_ExcelType(
     }
 
     free(Holidays);         // 할당제거 1
-    free(EasterMonday);     // 할닫제거 2
     return 1;
 }
 
@@ -1772,27 +1998,11 @@ DLLEXPORT(long) Mapping_Holiday_CType(
     long k;
     long NHoliday = 0;
     long* Holidays;
-    // 영국 EasterMonday 알면 하드로 넣기 
-    // 나는 계산을 못하겠다.
-    const long NTemp = 6;
-    long TempArray[NTemp] = { 20220418,20230410,20240401,20250420, 20260405, 20270328 };
-
-    long nEasterMonday = 0;
-    long* EasterMonday = (long*)malloc(sizeof(long) * (EndYYYY - StartYYYY + 1));           // 할당 1
-    for (i = 0; i < (EndYYYY - StartYYYY + 1); i++) EasterMonday[i] = 0;
-    for (i = 0; i < NTemp; i++)
-    {
-        if (TempArray[i] / 10000 >= StartYYYY && TempArray[i] / 10000 <= EndYYYY)
-        {
-            EasterMonday[TempArray[i] / 10000 - StartYYYY] = TempArray[i];
-            nEasterMonday += 1;
-        }
-    }
-
-    // 할당 2
     if (NationFlag == 0) Holidays = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, NHoliday);
     else if (NationFlag == 1) Holidays = Malloc_USHolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday, EasterMonday, (EndYYYY - StartYYYY + 1));
+    else if (NationFlag == 3) Holidays = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+    else if (NationFlag == 4) Holidays = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+    else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
 
     long n = min(NResultArray, NHoliday);
     k = 0;
@@ -1806,6 +2016,5 @@ DLLEXPORT(long) Mapping_Holiday_CType(
     }
 
     free(Holidays);             // 할당제거 1
-    free(EasterMonday);         // 할당제거 2
     return 1;
 }
