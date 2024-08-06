@@ -306,10 +306,10 @@ long* Generate_CpnDate(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCp
     return ResultCpnDate;
 }
 
-long* Generate_CpnDate_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOneYear, long& lenArray, long& FirstCpnDate, long NHoliday, long* HolidayYYYYMMDD)
+long* Generate_CpnDate_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOneYear, long& lenArray, long& FirstCpnDate, long NHoliday, long* HolidayYYYYMMDD, long ModifiedFollowing = 1)
 {
     long i, j;
-
+    long LastBusiDay;
     long PriceYYYY = (long)PriceDateYYYYMMDD / 10000;
     long PriceMM = (long)(PriceDateYYYYMMDD - PriceYYYY * 10000) / 100;
 
@@ -356,16 +356,23 @@ long* Generate_CpnDate_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, lo
             }
             else
             {
-                // Forward End 날짜가 토요일 또는 일요일의 경우 날짜 미룸
-                for (j = 1; j <= 7; j++)
+                if (ModifiedFollowing == 1)
                 {
-                    CpnDateExcel += 1;
-                    MOD7 = CpnDateExcel % 7;
-                    CpnDateTemp = ExcelDateToCDate(CpnDateExcel);
-                    if ((MOD7 != 1 && MOD7 != 0) && !isin(CpnDateTemp, HolidayYYYYMMDD, NHoliday))
+                    ResultCpnDate[narray - 1 - i] = min(LastBusinessDate((long)(CpnDate / 100), NHoliday, HolidayYYYYMMDD), CpnDate);
+                }
+                else
+                {
+                    // Forward End 날짜가 토요일 또는 일요일의 경우 날짜 미룸
+                    for (j = 1; j <= 7; j++)
                     {
-                        CpnDate = ExcelDateToCDate(CpnDateExcel);
-                        break;
+                        CpnDateExcel += 1;
+                        MOD7 = CpnDateExcel % 7;
+                        CpnDateTemp = ExcelDateToCDate(CpnDateExcel);
+                        if ((MOD7 != 1 && MOD7 != 0) && !isin(CpnDateTemp, HolidayYYYYMMDD, NHoliday))
+                        {
+                            CpnDate = ExcelDateToCDate(CpnDateExcel);
+                            break;
+                        }
                     }
                 }
                 ResultCpnDate[narray - 1 - i] = CpnDate;

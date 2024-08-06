@@ -1,12 +1,12 @@
 ﻿  Option.cpp
 C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(730,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(730,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(1136,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(1176,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(1415,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(1808,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(1936,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(815,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(815,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(1221,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(1261,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(1500,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(1893,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\OptionPricer\Option\CalcDate.h(2023,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\OptionPricer\Option\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\OptionPricer\Option\SABR.h(47,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\OptionPricer\Option\SABR.h(108,7): warning C4101: 'temp' :참조되지 않은 지역 변수입니다.
