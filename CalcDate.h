@@ -2018,22 +2018,35 @@ DLLEXPORT(long) Number_Holiday(
     long NationFlag         // 0: KRW한국, 1: USD미국, 2: GBP영국
 )
 {
-    // 시작연도 ~ 종료연도까지 공휴일 개수 세기
-    long i;
-    long k;
-    long NHoliday = 0;
-    long* Holidays;
+    if (NationFlag < 10)
+    {
+        // 시작연도 ~ 종료연도까지 공휴일 개수 세기
+        long i;
+        long k;
+        long NHoliday = 0;
+        long* Holidays;
 
-    if (NationFlag == 0) Holidays = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else if (NationFlag == 1) Holidays = Malloc_USHolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else if (NationFlag == 3) Holidays = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else if (NationFlag == 4) Holidays = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
+        if (NationFlag == 0) Holidays = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 1) Holidays = Malloc_USHolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 3) Holidays = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 4) Holidays = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
 
-    long N = 0;
-    for (i = 0; i < NHoliday; i++) if (Holidays[i] > 0) N += 1;
-    free(Holidays);
-    return N;
+        long N = 0;
+        for (i = 0; i < NHoliday; i++) if (Holidays[i] > 0) N += 1;
+        free(Holidays);
+        return N;
+    }
+    else if (NationFlag >= 10 && NationFlag < 100)
+    {
+        long Nation1 = (long)(NationFlag / 10);
+        long Nation2 = NationFlag - Nation1 * 10;
+        return Number_Holiday(StartYYYY, EndYYYY, Nation1) + Number_Holiday(StartYYYY, EndYYYY, Nation2);
+    }
+    else
+    {
+        return 0;
+    }
 }
 
 // Put Holiday to ResultArray
@@ -2050,12 +2063,48 @@ DLLEXPORT(long) Mapping_Holiday_ExcelType(
     long k;
     long NHoliday = 0;
     long* Holidays;
+    if (NationFlag < 10)
+    {
+        if (NationFlag == 0) Holidays = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 1) Holidays = Malloc_USHolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 3) Holidays = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 4) Holidays = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
+    }
+    else
+    {
+        long* Holidays1;
+        long* Holidays2;
+        long N1 = 0;
+        long N2 = 0;
+        long Nation1 = (long)(NationFlag / 10);
+        long Nation2 = NationFlag - Nation1 * 10;
+        if (Nation1 == 0) Holidays1 = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, N1);
+        else if (Nation1 == 1) Holidays1 = Malloc_USHolidayArray(StartYYYY, EndYYYY, N1);
+        else if (Nation1 == 3) Holidays1 = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, N1);
+        else if (Nation1 == 4) Holidays1 = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, N1);
+        else Holidays1 = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, N1);
 
-    if (NationFlag == 0) Holidays = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else if (NationFlag == 1) Holidays = Malloc_USHolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else if (NationFlag == 3) Holidays = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else if (NationFlag == 4) Holidays = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
+        if (Nation2 == 0) Holidays2 = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, N2);
+        else if (Nation2 == 1) Holidays2 = Malloc_USHolidayArray(StartYYYY, EndYYYY, N2);
+        else if (Nation2 == 3) Holidays2 = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, N2);
+        else if (Nation2 == 4) Holidays2 = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, N2);
+        else Holidays2 = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, N2);
+
+        NHoliday = N1 + N2;
+        Holidays = (long*)malloc(sizeof(long) * (N1 + N2));
+        for (i = 0; i < N1; i++)
+        {
+            Holidays[i] = Holidays1[i];
+        }
+        for (i = 0; i < N2; i++)
+        {
+            Holidays[i + N1] = Holidays2[i];
+        }
+        free(Holidays1);
+        free(Holidays2);
+        bubble_sort_date(Holidays, NHoliday, 1);
+    }
 
     long n = min(NResultArray, NHoliday);
     k = 0;
@@ -2085,11 +2134,48 @@ DLLEXPORT(long) Mapping_Holiday_CType(
     long k;
     long NHoliday = 0;
     long* Holidays;
-    if (NationFlag == 0) Holidays = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else if (NationFlag == 1) Holidays = Malloc_USHolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else if (NationFlag == 3) Holidays = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else if (NationFlag == 4) Holidays = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, NHoliday);
-    else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
+    if (NationFlag < 10)
+    {
+        if (NationFlag == 0) Holidays = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 1) Holidays = Malloc_USHolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 3) Holidays = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 4) Holidays = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
+    }
+    else
+    {
+        long* Holidays1;
+        long* Holidays2;
+        long N1 = 0;
+        long N2 = 0;
+        long Nation1 = (long)(NationFlag / 10);
+        long Nation2 = NationFlag - Nation1 * 10;
+        if (Nation1 == 0) Holidays1 = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, N1);
+        else if (Nation1 == 1) Holidays1 = Malloc_USHolidayArray(StartYYYY, EndYYYY, N1);
+        else if (Nation1 == 3) Holidays1 = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, N1);
+        else if (Nation1 == 4) Holidays1 = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, N1);
+        else Holidays1 = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, N1);
+
+        if (Nation2 == 0) Holidays2 = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, N2);
+        else if (Nation2 == 1) Holidays2 = Malloc_USHolidayArray(StartYYYY, EndYYYY, N2);
+        else if (Nation2 == 3) Holidays2 = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, N2);
+        else if (Nation2 == 4) Holidays2 = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, N2);
+        else Holidays2 = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, N2);
+
+        NHoliday = N1 + N2;
+        Holidays = (long*)malloc(sizeof(long) * (N1 + N2));
+        for (i = 0; i < N1; i++)
+        {
+            Holidays[i] = Holidays1[i];
+        }
+        for (i = 0; i < N2; i++)
+        {
+            Holidays[i + N1] = Holidays2[i];
+        }
+        free(Holidays1);
+        free(Holidays2);
+        bubble_sort_date(Holidays, NHoliday, 1);
+    }
 
     long n = min(NResultArray, NHoliday);
     k = 0;
@@ -2103,5 +2189,434 @@ DLLEXPORT(long) Mapping_Holiday_CType(
     }
 
     free(Holidays);             // 할당제거 1
+    return 1;
+}
+
+long isin_Longtype(long x, long* array, long narray)
+{
+    long i;
+    long s = 0;
+    for (i = 0; i < narray; i++)
+    {
+        if (x == array[i])
+        {
+            s = 1;
+            break;
+        }
+    }
+    return s;
+}
+
+long isweekendflag(long ExlDate)
+{
+    // 나머지 1이면 일요일, 2이면 월요일, 3이면 화요일, 4이면 수요일, 5이면 목요일, 6이면 금요일, 0이면 토요일
+    long MOD7;
+    if (ExlDate > 0)
+    {
+        MOD7 = ExlDate % 7;
+        if (MOD7 == 1 || MOD7 == 0) return 1;
+    }
+    return 0;
+}
+
+long* Malloc_CpnDate_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOneYear, long& lenArray, long& FirstCpnDate, long NHoliday, long* HolidayYYYYMMDD, long ModifiedFollowing = 1)
+{
+    long i, j;
+    long LastBusiDay;
+    long PriceYYYY = (long)PriceDateYYYYMMDD / 10000;
+    long PriceMM = (long)(PriceDateYYYYMMDD - PriceYYYY * 10000) / 100;
+
+    long SwapMatYYYY = (long)SwapMat_YYYYMMDD / 10000;
+    long SwapMatMM = (long)(SwapMat_YYYYMMDD - SwapMatYYYY * 10000) / 100;
+
+    long n = ((SwapMat_YYYYMMDD / 10000 - PriceDateYYYYMMDD / 10000) + 2) * AnnCpnOneYear;
+    long narray = 0;
+    long CpnDate;
+    long m = max(1, 12 / AnnCpnOneYear);
+    for (i = 0; i < n; i++)
+    {
+        if (i == 0) CpnDate = SwapMat_YYYYMMDD;
+        else CpnDate = EDate_Cpp(SwapMat_YYYYMMDD, -i * m);
+        if (DayCountAtoB(PriceDateYYYYMMDD, CpnDate) < 7)
+        {
+            FirstCpnDate = CpnDate;
+            break;
+        }
+        if (CpnDate <= PriceDateYYYYMMDD) break;
+        narray++;
+    }
+
+    long* ResultCpnDate = (long*)malloc(sizeof(long) * narray);
+    long CpnDateExcel, CpnDateTemp;
+    long MOD7;
+    long SaturSundayFlag;
+    for (i = 0; i < n; i++)
+    {
+        if (i == 0) CpnDate = SwapMat_YYYYMMDD;
+        else CpnDate = EDate_Cpp(SwapMat_YYYYMMDD, -i * m);
+
+        if (CpnDate <= PriceDateYYYYMMDD || DayCountAtoB(PriceDateYYYYMMDD, CpnDate) < 7) break;
+        else
+        {
+            CpnDateExcel = CDateToExcelDate(CpnDate);
+            MOD7 = CpnDateExcel % 7;
+            if ((MOD7 == 1 || MOD7 == 0) || isin_Longtype(CpnDate, HolidayYYYYMMDD, NHoliday)) SaturSundayFlag = 1;
+            else SaturSundayFlag = 0;
+
+            if (SaturSundayFlag == 0)
+            {
+                ResultCpnDate[narray - 1 - i] = CpnDate;
+            }
+            else
+            {
+                if (ModifiedFollowing == 1)
+                {
+                    ResultCpnDate[narray - 1 - i] = min(LastBusinessDate((long)(CpnDate / 100), NHoliday, HolidayYYYYMMDD), CpnDate);
+                }
+                else
+                {
+                    // Forward End 날짜가 토요일 또는 일요일의 경우 날짜 미룸
+                    for (j = 1; j <= 7; j++)
+                    {
+                        CpnDateExcel += 1;
+                        MOD7 = CpnDateExcel % 7;
+                        CpnDateTemp = ExcelDateToCDate(CpnDateExcel);
+                        if ((MOD7 != 1 && MOD7 != 0) && !isin_Longtype(CpnDateTemp, HolidayYYYYMMDD, NHoliday))
+                        {
+                            CpnDate = ExcelDateToCDate(CpnDateExcel);
+                            break;
+                        }
+                    }
+                }
+                ResultCpnDate[narray - 1 - i] = CpnDate;
+            }
+        }
+    }
+    lenArray = narray;
+    if (AnnCpnOneYear == 1 && PriceMM != SwapMatMM)
+    {
+        long TargetDateYYYYMMDD = ResultCpnDate[0];
+        long TargetDateYYYY;
+        long TargetDateMM;
+        for (i = 1; i <= 12; i++)
+        {
+            TargetDateYYYYMMDD = EDate_Cpp(TargetDateYYYYMMDD, -1);
+            TargetDateYYYY = (long)TargetDateYYYYMMDD / 10000;
+            TargetDateMM = (long)(TargetDateYYYYMMDD - TargetDateYYYY * 10000) / 100;
+            if (TargetDateYYYY == PriceYYYY && TargetDateMM == PriceMM)
+            {
+                FirstCpnDate = TargetDateYYYYMMDD;
+                break;
+            }
+        }
+    }
+    return ResultCpnDate;
+}
+
+DLLEXPORT(long) Number_of_Coupons(
+    long ProductType,               // 상품종류 0이면 Futures, 1이면 Swap
+    long PriceDateExcelType,        // 평가일
+    long SwapMatExcelType,          // 스왑 만기
+    long AnnCpnOneYear,             // 연 스왑쿠폰지급수
+    long HolidayUseFlag,            // 공휴일 입력 사용 Flag
+    long NHoliday,                  // 공휴일 개수
+    long* HolidayExcelType,         // 공휴일
+    long ModifiedFollowingFlag
+)
+{
+    long i;
+    long PriceDateYYYYMMDD = ExcelDateToCDate(PriceDateExcelType);          // 평가일
+    long SwapMat_YYYYMMDD = ExcelDateToCDate(SwapMatExcelType);             // 스왑 만기
+
+    if (DayCountAtoB(PriceDateYYYYMMDD, SwapMat_YYYYMMDD) > 366 * 2) ProductType = 1;
+    if (ProductType == 0) return 1;
+
+    // 에러처리
+    if (PriceDateYYYYMMDD <= 19000101 || PriceDateYYYYMMDD >= 999990101)  return -1;
+    if (SwapMat_YYYYMMDD <= 19000101 || SwapMat_YYYYMMDD >= 999990101) return -1;
+    if (AnnCpnOneYear > 6) return -1;
+
+    long* HolidayYYYYMMDD = (long*)malloc(sizeof(long) * max(1, NHoliday));
+    for (i = 0; i < NHoliday; i++) HolidayYYYYMMDD[i] = ExcelDateToCDate(HolidayExcelType[i]);
+    long HolidayError = 0;
+    if (HolidayUseFlag > 0)
+    {
+        for (i = 0; i < NHoliday; i++)
+        {
+            if (HolidayYYYYMMDD[i] > 999991231 || HolidayYYYYMMDD[i] < 19000101)
+            {
+                HolidayError = 1;
+                break;
+            }
+        }
+    }
+    if (HolidayError == 1)
+    {
+        free(HolidayYYYYMMDD);
+        return -1;
+    }
+
+    long PriceYYYY = (long)PriceDateYYYYMMDD / 10000;
+    long PriceMM = (long)(PriceDateYYYYMMDD - PriceYYYY * 10000) / 100;
+
+    long SwapMatYYYY = (long)SwapMat_YYYYMMDD / 10000;
+    long SwapMatMM = (long)(SwapMat_YYYYMMDD - SwapMatYYYY * 10000) / 100;
+
+    long n;
+    long TempYYYYMMDD = PriceDateYYYYMMDD;
+    long TempYYYY = 0;
+    long TempMM = 0;
+    long ncpn = 0;
+    long* CpnDate;
+
+    if (DayCountAtoB(PriceDateYYYYMMDD, SwapMat_YYYYMMDD) <= 62)
+    {
+        // 2개월 미만의 경우 쿠폰 한번지급으로 고정
+        free(HolidayYYYYMMDD);
+        return 1;
+    }
+    else if (SwapMatYYYY - PriceYYYY <= 1)
+    {
+        // 1년 미만 만기의 경우 만기까지 몇개월 남았는지 카운트
+        n = 0;
+        for (i = 0; i < 24; i++)
+        {
+            TempYYYYMMDD = EDate_Cpp(PriceDateYYYYMMDD, i + 1);
+            TempYYYY = (long)TempYYYYMMDD / 10000;
+            TempMM = (long)(TempYYYYMMDD - TempYYYY * 10000) / 100;
+            n = i + 1;
+            if (TempYYYY == SwapMatYYYY && TempMM == SwapMatMM)
+            {
+                break;
+            }
+        }
+
+        if (n < 6)
+        {
+            // 만기까지 6개월 미만으로 남았으면 쿠폰 1번 지급 끝
+            // (1년에 4번을 초과하여 지급하는 경우는 없다고 가정)
+            free(HolidayYYYYMMDD);
+            return 1;
+        }
+        else
+        {
+            if (HolidayUseFlag == 1) CpnDate = Malloc_CpnDate_Holiday(PriceDateYYYYMMDD, SwapMat_YYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD, NHoliday, HolidayYYYYMMDD, ModifiedFollowingFlag);
+            else CpnDate = Malloc_CpnDate_Holiday(PriceDateYYYYMMDD, SwapMat_YYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD, 0, HolidayYYYYMMDD, ModifiedFollowingFlag);
+
+            free(CpnDate);
+            free(HolidayYYYYMMDD);
+            return ncpn;
+        }
+    }
+    else
+    {
+        long* CpnDate;
+        long TempYYYYMMDD = PriceDateYYYYMMDD;
+        long TempDateExcelType;
+        long StartDateYYYYMMDD = PriceDateYYYYMMDD;
+        long StartYYYYMM = (long)StartDateYYYYMMDD / 100;
+        long StartDD = StartDateYYYYMMDD - StartYYYYMM * 100;
+        long EndYYYYMM = (long)SwapMat_YYYYMMDD / 100;
+        long EndDateYYYYMMDD = EndYYYYMM * 100 + StartDD;
+
+        if (HolidayUseFlag == 1) CpnDate = Malloc_CpnDate_Holiday(StartDateYYYYMMDD, EndDateYYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD, NHoliday, HolidayYYYYMMDD, ModifiedFollowingFlag);
+        else CpnDate = Malloc_CpnDate_Holiday(StartDateYYYYMMDD, EndDateYYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD, 0, HolidayYYYYMMDD, ModifiedFollowingFlag);
+
+        free(CpnDate);
+        free(HolidayYYYYMMDD);
+        return ncpn;
+    }
+}
+
+DLLEXPORT(long) MappingCouponDates(
+    long ProductType,               // 상품종류 0이면 Futures, 1이면 Swap
+    long PriceDateExcelType,        // 평가일
+    long StartDateExcelType,        // 시작일
+    long SwapMatExcelType,          // 스왑 만기
+    long NBDayFromEndDate,          // N영업일 뒤 지급
+    long AnnCpnOneYear,             // 연 스왑쿠폰지급수
+    long HolidayUseFlag,            // 공휴일 입력 사용 Flag
+    long NHoliday,                  // 공휴일 개수
+    long* HolidayExcelType,         // 공휴일
+    long ModifiedFollowingFlag,     
+    long NumberCoupon,
+    long* ResultForwardStart,
+    long* ResultForwardEnd,
+    long* ResultPayDate
+)
+{
+    long i;
+    long j;
+    long n;
+    long PayDateExcelType, PayDateYYYYMMDD, EndDateYYYYMMDD, EndDateExcel, MOD7;
+    long PriceDateYYYYMMDD = ExcelDateToCDate(PriceDateExcelType);          // 평가일
+    long StartDateYYYYMMDD = ExcelDateToCDate(StartDateExcelType);          // 평가일
+    long SwapMat_YYYYMMDD = ExcelDateToCDate(SwapMatExcelType);             // 스왑 만기
+    long ncpn;
+    long* HolidayYYYYMMDD = (long*)malloc(sizeof(long) * max(1, NHoliday));
+    for (i = 0; i < NHoliday; i++) HolidayYYYYMMDD[i] = ExcelDateToCDate(HolidayExcelType[i]);
+
+
+    if (NumberCoupon < 0) return -1;
+    if (NumberCoupon <= 1)
+    {
+        if (NBDayFromEndDate == 0)
+        {
+            ResultForwardStart[0] = CDateToExcelDate(StartDateYYYYMMDD);
+            ResultForwardEnd[0] = CDateToExcelDate(SwapMat_YYYYMMDD);
+            ResultPayDate[0] = ResultForwardEnd[0];
+        }
+        else
+        {
+            n = 0;
+            ResultForwardStart[0] = StartDateExcelType;
+            // PayDate결정
+            PayDateYYYYMMDD = SwapMat_YYYYMMDD;
+            PayDateExcelType = CDateToExcelDate(PayDateYYYYMMDD);
+            MOD7 = PayDateExcelType % 7;
+            for (i = 1; i < 7; i++)
+            {
+                if (isweekendflag(PayDateExcelType) || isin_Longtype(PayDateYYYYMMDD, HolidayYYYYMMDD, NHoliday))
+                {
+                    // 휴일이면 n+=1
+                    PayDateExcelType += 1;
+                    PayDateYYYYMMDD = ExcelDateToCDate(PayDateExcelType);
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            ResultPayDate[0] = PayDateExcelType;
+            EndDateYYYYMMDD = PayDateYYYYMMDD;
+            EndDateExcel = PayDateExcelType;
+            for (i = 1; i < 10; i++)
+            {
+                EndDateExcel = EndDateExcel - 1;
+                EndDateYYYYMMDD = ExcelDateToCDate(EndDateExcel);
+                MOD7 = EndDateExcel % 7;
+                if ((MOD7 != 1 && MOD7 != 0) && !isin_Longtype(EndDateYYYYMMDD, HolidayYYYYMMDD, NHoliday))
+                {
+                    // 영업일이면 n+=1
+                    n += 1;
+                }
+
+                if (n == NBDayFromEndDate)
+                {
+                    ResultForwardEnd[0] = EndDateExcel;
+                    break;
+                }
+            }
+        }
+    }
+    else
+    {
+        long* CpnDate;
+        long TempYYYYMMDD = PriceDateYYYYMMDD;
+        long TempDateExcelType;
+        long StartYYYYMM = (long)StartDateYYYYMMDD / 100;
+        long StartDD = StartDateYYYYMMDD - StartYYYYMM * 100;
+        long EndYYYYMM = (long)SwapMat_YYYYMMDD / 100;
+        EndDateYYYYMMDD = EndYYYYMM * 100 + StartDD;
+
+        if (HolidayUseFlag == 1) CpnDate = Malloc_CpnDate_Holiday(StartDateYYYYMMDD, EndDateYYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD, NHoliday, HolidayYYYYMMDD, ModifiedFollowingFlag);
+        else CpnDate = Malloc_CpnDate_Holiday(StartDateYYYYMMDD, EndDateYYYYMMDD, AnnCpnOneYear, ncpn, TempYYYYMMDD, 0, HolidayYYYYMMDD, ModifiedFollowingFlag);
+
+        for (i = 0; i < min(NumberCoupon, ncpn); i++)
+        {
+            if (i == 0)
+            {
+                ResultForwardStart[0] = CDateToExcelDate(StartDateYYYYMMDD);
+                TempDateExcelType = CDateToExcelDate(CpnDate[0]);
+                ResultForwardEnd[0] = TempDateExcelType;
+            }
+            else
+            {
+                ResultForwardStart[i] = CDateToExcelDate(CpnDate[i - 1]);
+                TempDateExcelType = CDateToExcelDate(CpnDate[i]);
+                ResultForwardEnd[i] = TempDateExcelType;
+            }
+
+            if (NBDayFromEndDate == 0)
+            {
+                ResultPayDate[i] = ResultForwardEnd[i];
+            }
+            else
+            {
+                n = 0;
+                for (j = 1; j < 10; j++)
+                {
+                    PayDateYYYYMMDD = DayPlus(CpnDate[i], j);
+                    PayDateExcelType = CDateToExcelDate(PayDateYYYYMMDD);
+                    MOD7 = PayDateExcelType % 7;
+                    if ((MOD7 != 1 && MOD7 != 0) && !isin_Longtype(PayDateYYYYMMDD, HolidayYYYYMMDD, NHoliday))
+                    {
+                        // 영업일이면 n+=1
+                        n += 1;
+                    }
+
+                    if (n == NBDayFromEndDate)
+                    {
+                        ResultPayDate[i] = PayDateExcelType;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (CpnDate) free(CpnDate);
+    }
+    if (HolidayYYYYMMDD) free(HolidayYYYYMMDD);
+    return 1;
+}
+
+DLLEXPORT(long) Preprocessing_TermAndRate(long PriceDate, long NZeroTerm, double* Term, double* Rate)
+{
+    long i;
+    long PriceDateYYYYMMDD = PriceDate;
+    if (PriceDate < 19000101) PriceDateYYYYMMDD = ExcelDateToCDate(PriceDate);
+    long PriceDateExcel = CDateToExcelDate(PriceDateYYYYMMDD);
+
+    double m_rate = 0.;
+    long TempExcelDate;
+    long TempYYYYMMDD;
+    for (i = 0; i < NZeroTerm; i++)
+    {
+        if (Term[i] > 19000101.0)
+        {
+            TempExcelDate = CDateToExcelDate(((long)(Term[i] + 0.00001)));
+            Term[i] = ((double)(TempExcelDate - PriceDateExcel)) / 365.0;
+        }
+        else if (Term[i] > 300.0)
+        {
+            TempExcelDate = (long)(Term[i] + 0.00001);
+            Term[i] = ((double)(TempExcelDate - PriceDateExcel)) / 365.0;
+        }
+        if (m_rate < fabs(Rate[i])) m_rate = fabs(Rate[i]);
+
+    }
+
+    if (m_rate > 1.2)
+    {
+        // Mean Rate가 120%보다 크면 단위가 %단위로 들어온듯
+        for (i = 0; i < NZeroTerm; i++)
+        {
+            Rate[i] = Rate[i] / 100;
+        }
+    }
+    return 1;
+}
+
+DLLEXPORT(long) Preprocessing_TermAndRate_MultiCurve(long nCurve, long PriceDate, long* NZeroTerm, double* Term, double* Rate)
+{
+    long i;
+    long n;
+    n = 0;
+    for (i = 0; i < nCurve; i++)
+    {
+        Preprocessing_TermAndRate(PriceDate, NZeroTerm[i], Term + n, Rate + n);
+        n += NZeroTerm[i];
+    }
     return 1;
 }

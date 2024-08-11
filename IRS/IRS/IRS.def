@@ -11,3 +11,4 @@ EXPORTS
 	Generate_CpnDate_IRSModule_Using_Holiday	@008
 	ExcelDateToCDate							@009
 	CDateToExcelDate							@010
+	Preprocessing_TermAndRate					@011

@@ -7,7 +7,10 @@ C:\Users\ciiad\github5\IRSwaption\IRSwaption\CalcDate.h(1221,14): warning C4101:
 C:\Users\ciiad\github5\IRSwaption\IRSwaption\CalcDate.h(1261,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRSwaption\IRSwaption\CalcDate.h(1500,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRSwaption\IRSwaption\CalcDate.h(1893,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRSwaption\IRSwaption\CalcDate.h(2023,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwaption\IRSwaption\CalcDate.h(2025,14): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwaption\IRSwaption\CalcDate.h(2225,10): warning C4101: 'LastBusiDay' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwaption\IRSwaption\CalcDate.h(2415,14): warning C4101: 'TempDateExcelType' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRSwaption\IRSwaption\CalcDate.h(2583,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(15,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(35,7): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRSwaption\IRSwaption\IRSwaption.cpp(95,8): warning C4101: 'NextY' :참조되지 않은 지역 변수입니다.

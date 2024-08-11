@@ -803,10 +803,10 @@ long* Generate_CpnDate_Without_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYY
     return ResultCpnDate;
 }
 
-long* Generate_CpnDate_With_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOneYear, long& lenArray, long& FirstCpnDate, long NHoliday, long* HolidayYYYYMMDD)
+long* Generate_CpnDate_With_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOneYear, long& lenArray, long& FirstCpnDate, long NHoliday, long* HolidayYYYYMMDD, long ModifiedFollowing = 1)
 {
     long i, j;
-
+    long LastBusiDay;
     long PriceYYYY = (long)PriceDateYYYYMMDD / 10000;
     long PriceMM = (long)(PriceDateYYYYMMDD - PriceYYYY * 10000) / 100;
 
@@ -844,7 +844,7 @@ long* Generate_CpnDate_With_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMD
         {
             CpnDateExcel = CDateToExcelDate(CpnDate);
             MOD7 = CpnDateExcel % 7;
-            if ((MOD7 == 1 || MOD7 == 0) || isin(CpnDate, HolidayYYYYMMDD, NHoliday)) SaturSundayFlag = 1;
+            if ((MOD7 == 1 || MOD7 == 0) || isin_Longtype(CpnDate, HolidayYYYYMMDD, NHoliday)) SaturSundayFlag = 1;
             else SaturSundayFlag = 0;
 
             if (SaturSundayFlag == 0)
@@ -853,16 +853,23 @@ long* Generate_CpnDate_With_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMD
             }
             else
             {
-                // Forward End 날짜가 토요일 또는 일요일의 경우 날짜 미룸
-                for (j = 1; j <= 7; j++)
+                if (ModifiedFollowing == 1)
                 {
-                    CpnDateExcel += 1;
-                    MOD7 = CpnDateExcel % 7;
-                    CpnDateTemp = ExcelDateToCDate(CpnDateExcel);
-                    if ((MOD7 != 1 && MOD7 != 0) && !isin(CpnDateTemp, HolidayYYYYMMDD, NHoliday))
+                    ResultCpnDate[narray - 1 - i] = min(LastBusinessDate((long)(CpnDate / 100), NHoliday, HolidayYYYYMMDD), CpnDate);
+                }
+                else
+                {
+                    // Forward End 날짜가 토요일 또는 일요일의 경우 날짜 미룸
+                    for (j = 1; j <= 7; j++)
                     {
-                        CpnDate = ExcelDateToCDate(CpnDateExcel);
-                        break;
+                        CpnDateExcel += 1;
+                        MOD7 = CpnDateExcel % 7;
+                        CpnDateTemp = ExcelDateToCDate(CpnDateExcel);
+                        if ((MOD7 != 1 && MOD7 != 0) && !isin_Longtype(CpnDateTemp, HolidayYYYYMMDD, NHoliday))
+                        {
+                            CpnDate = ExcelDateToCDate(CpnDateExcel);
+                            break;
+                        }
                     }
                 }
                 ResultCpnDate[narray - 1 - i] = CpnDate;
@@ -4570,7 +4577,7 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
     free(Simul->HWQuantoVol);
     free(Simul->HW2FRho);
     delete(Simul);
-    _CrtDumpMemoryLeaks();
+    //_CrtDumpMemoryLeaks();
     return 1;
 }
 

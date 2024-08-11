@@ -12,3 +12,7 @@ EXPORTS
 	Generate_CpnDate_IRStructuredSwapModule_Using_Holiday		@9
 	ExcelDateToCDate											@10
 	CDateToExcelDate											@11
+	Number_Holiday												@12
+	Mapping_Holiday_CType										@13
+	Preprocessing_TermAndRate									@14
+	Preprocessing_TermAndRate_MultiCurve						@15
