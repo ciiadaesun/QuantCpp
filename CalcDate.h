@@ -826,12 +826,12 @@ long CalcSolarToLunar(long YYYYMMDD, long* ResultArray3, long* _info_array_raw)
         dt[i] = 0;
         for (j = 0; j < 12; j++)
         {
-            if (_info_array[i][j] == 1) mm = 29;
-            else if (_info_array[i][j] == 2) mm = 30;
-            else if (_info_array[i][j] == 3) mm = 58;
-            else if (_info_array[i][j] == 4) mm = 59;
-            else if (_info_array[i][j] == 5) mm = 59;
-            else if (_info_array[i][j] == 6) mm = 60;
+            if (_info_array[i][j] == 1) mm = 29;        // 평달29
+            else if (_info_array[i][j] == 2) mm = 30;   // 평달30
+            else if (_info_array[i][j] == 3) mm = 58;   // 평달29윤달29
+            else if (_info_array[i][j] == 4) mm = 59;   // 평달29윤달30
+            else if (_info_array[i][j] == 5) mm = 59;   // 평달30윤달29
+            else if (_info_array[i][j] == 6) mm = 60;   // 평달30윤달30
             else return -99999999;
         }
         dt[i] += mm;
@@ -863,20 +863,20 @@ long CalcSolarToLunar(long YYYYMMDD, long* ResultArray3, long* _info_array_raw)
         {
             if (_info_array[ly][lm] == 3)
             {
-                m1 = 29;
-                m2 = 29;
+                m1 = 29;                // 평달 29
+                m2 = 29;                // 윤달 29
             }
             else if (_info_array[ly][lm] == 4) {
-                m1 = 29;
-                m2 = 30;
+                m1 = 29;                // 평달29
+                m2 = 30;                // 윤달30
             }
             else if (_info_array[ly][lm] == 5) {
-                m1 = 30;
-                m2 = 29;
+                m1 = 30;                // 평달30
+                m2 = 29;                // 윤달29
             }
             else if (_info_array[ly][lm] == 6) {
-                m1 = 30;
-                m2 = 30;
+                m1 = 30;                // 평달30
+                m2 = 30;                // 윤달30
             }
             else return -99999999;
 
@@ -1054,6 +1054,87 @@ long SolarToLunar(long YYYYMMDD_Solar)
     if (ResultCode < 0) return ResultCode;
     else return ResultArray3[0];
 
+}
+
+void bubble_sort_date(long* arr, long count, long ascending)
+{
+    long temp;
+    long i, j;
+    if (ascending == 1)
+    {
+        for (i = 0; i < count; i++)
+        {
+            for (j = 0; j < count - 1; j++)
+            {
+                if (arr[j] > arr[j + 1])          // 이전 값이 더 크면
+                {                                 // 이전 값을 다음 요소로 보내고 다음 요소를 이전 요소 자리로
+                    temp = arr[j];
+                    arr[j] = arr[j + 1];
+                    arr[j + 1] = temp;
+                }
+            }
+        }
+    }
+    else
+    {
+        for (i = 0; i < count; i++)
+        {
+            for (j = 0; j < count - 1; j++)
+            {
+                if (arr[j] < arr[j + 1])
+                {
+                    temp = arr[j];
+                    arr[j] = arr[j + 1];
+                    arr[j + 1] = temp;
+                }
+            }
+        }
+    }
+}
+
+long isin_Longtype(long x, long* array, long narray)
+{
+    long i;
+    long s = 0;
+    for (i = 0; i < narray; i++)
+    {
+        if (x == array[i])
+        {
+            s = 1;
+            break;
+        }
+    }
+    return s;
+}
+
+long* MallocUnique(long* MyArray, long NArray, long& NUnique)
+{
+    long i, n = 0;
+    long* TempArray = (long*)malloc(sizeof(long) * NArray);
+    long nu = 0;
+    for (i = 0; i < NArray; i++)
+    {
+        if (i == 0)
+        {
+            TempArray[0] = MyArray[0];
+            nu = 1;
+            n = 1;
+        }
+        else
+        {
+            if (isin_Longtype(MyArray[i], TempArray, n) == 0)
+            {
+                TempArray[nu] = MyArray[i];
+                nu += 1;
+            }
+            n += 1;
+        }
+    }
+    NUnique = nu;
+    long* ResultArray = (long*)malloc(sizeof(long) * NUnique);
+    for (i = 0; i < nu; i++) ResultArray[i] = TempArray[i];
+    free(TempArray);
+    return ResultArray;
 }
 
 ///////////////////////////////////////
@@ -1295,7 +1376,7 @@ void Mapping_Holiday16(long YYYY, long* Array16)
     long ResultCode = 0;
     long* Seol = Array16 + 1;
     Calc3_newyear(YYYY, Seol, ResultCode);                      // 설연휴
-    if (ResultCode < 0) for (i = 0; i < 3; i++) Seol[i] = -99999999;// 음력 코드 갱신안해서 매핑안되면 걍 1.1일로
+    if (ResultCode < 0) for (i = 0; i < 3; i++) Seol[i] = Jan01;// 음력 코드 갱신안해서 매핑안되면 걍 1.1일로
 
     long Samil = Calc_31Day_Korea(YYYY);
     Array16[4] = Samil;
@@ -1313,7 +1394,7 @@ void Mapping_Holiday16(long YYYY, long* Array16)
 
     long* Chuseok = Array16 + 10;
     Calc3_chuseok(YYYY, Chuseok, ResultCode);
-    if (ResultCode < 0) for (i = 0; i < 3; i++) Chuseok[i] = -99999999; // 음력코드 갱신 안한 경우 이전공휴일 매핑
+    if (ResultCode < 0) for (i = 0; i < 3; i++) Chuseok[i] = Jan01; // 음력코드 갱신 안한 경우 이전공휴일 매핑
 
     long GaeChun = Calc_GaechunJeol_Korea(YYYY);
     Array16[13] = GaeChun;
@@ -1334,11 +1415,11 @@ long* Mapping_KoreanHoliday_YYYY(long YYYY, long& NHoliday)
     long* TempHoliday = Calc_NTempHoliday_Korea(YYYY, NTempHoliday);                        // 메모리 할당 1
 
     long NArray_Org = 16;
-    long NArray = 16 + NTempHoliday;
+    long NArray = NArray_Org + NTempHoliday;
 
     // 원래는 16개 + 임시공휴일개수 이나 
     // 하드코드된 음력 연도보다 커지면 설, 추석, 석가탄신일 제외하자
-    if (YYYY > LunarDateKoreanHardCodeYear) NArray = NArray_Org - 7 + NTempHoliday;
+    if (YYYY > LunarDateKoreanHardCodeYear) NArray = NArray_Org + NTempHoliday;
 
     long* HolidayYYYY = (long*)malloc(sizeof(long) * NArray_Org);                           // 메모리 할당 2
     Mapping_Holiday16(YYYY, HolidayYYYY);
@@ -1360,20 +1441,6 @@ long* Mapping_KoreanHoliday_YYYY(long YYYY, long& NHoliday)
         k += 1;
     }
 
-    long temp;
-    long j;
-    for (i = 0; i < NArray; i++)
-    {
-        for (j = 0; j < NArray - 1; j++)
-        {
-            if (ResultArray[j] > ResultArray[j + 1])
-            {
-                temp = ResultArray[j];
-                ResultArray[j] = ResultArray[j + 1];
-                ResultArray[j + 1] = temp;
-            }
-        }
-    }
     NHoliday = NArray;
     free(TempHoliday);                                                                      // 메모리할당해제1
     free(HolidayYYYY);                                                                      // 메모리할당해제2
@@ -1391,6 +1458,7 @@ long* Malloc_KoreaHolidayArray(long Start_YYYY, long End_YYYY, long& NHolidayArr
     {
         Holidays[i] = Mapping_KoreanHoliday_YYYY(Start_YYYY + i, nh);
         nholidays[i] = nh;
+        bubble_sort_date(Holidays[i], nholidays[i], 1);
         n += nh;
     }
 
@@ -1410,42 +1478,6 @@ long* Malloc_KoreaHolidayArray(long Start_YYYY, long End_YYYY, long& NHolidayArr
     free(Holidays);                                                                                 // 메모리할당해제1
     free(nholidays);                                                                                // 메모리할당해제2
     return ResultArray;
-}
-
-void bubble_sort_date(long* arr, long count, long ascending)
-{
-    long temp;
-    long i, j;
-    if (ascending == 1)
-    {
-        for (i = 0; i < count; i++)
-        {
-            for (j = 0; j < count - 1; j++)
-            {
-                if (arr[j] > arr[j + 1])          // 이전 값이 더 크면
-                {                                 // 이전 값을 다음 요소로 보내고 다음 요소를 이전 요소 자리로
-                    temp = arr[j];
-                    arr[j] = arr[j + 1];
-                    arr[j + 1] = temp;
-                }
-            }
-        }
-    }
-    else
-    {
-        for (i = 0; i < count; i++)
-        {
-            for (j = 0; j < count - 1; j++)
-            {
-                if (arr[j] < arr[j + 1])
-                {
-                    temp = arr[j];
-                    arr[j] = arr[j + 1];
-                    arr[j + 1] = temp;
-                }
-            }
-        }
-    }
 }
 
 ///////////////////////////////////////
@@ -1680,6 +1712,7 @@ long* Malloc_USHolidayArray(
         Mapping_USHoliday(Start_YYYY + i, Holidays[i], ispresidflag);
         if (ispresidflag > 0) nholidays[i] = 12;
         else nholidays[i] = 11;
+        bubble_sort_date(Holidays[i], nholidays[i], 1);
         n += nholidays[i];
     }
 
@@ -1707,6 +1740,7 @@ void Mapping_US_NYMEXHoliday(
     long* HolidayArray         // 미리 할당된 Array(10개
 )
 {
+    long TempDate;
     // Nymex : 부활절 쉼, 준틴스 안쉼, 독립일 전날도 쉼, 콜럼버스 안쉼, 빼뺴로 안쉼, Thanksgiv 쉼
     long Jan01 = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 101);
     long RebirthMinus2;
@@ -1719,15 +1753,35 @@ void Mapping_US_NYMEXHoliday(
     //long Juneteenth = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 619);                   // 준틴스 안쉼
     long Independence = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 704);                   // 독립일 쉼
     long IndependenceExcel = CDateToExcelDate(Independence);
-    long IndependencePrev = ExcelDateToCDate(IndependenceExcel - 1);                    // 독립일 전날 쉼
-    if (IndependenceExcel % 7 == 2)
+    long IndependencePrev = Independence;                                               // 독립일 전날 쉼
+    if (IndependenceExcel % 7 == 3)
     {
-        // 독립일이 월요일이면 전날은 금요일
-        IndependencePrev = ExcelDateToCDate(IndependenceExcel - 3);
+        // 독립일이 화요일이면 월요일, 독립일이 목요일이면 금요일
+        IndependencePrev = ExcelDateToCDate(IndependenceExcel - 1);
+    }
+    else if (IndependenceExcel % 7 == 5)
+    {
+        IndependencePrev = ExcelDateToCDate(IndependenceExcel + 1);
+        TempDate = IndependencePrev;
+        IndependencePrev = Independence;
+        Independence = TempDate;
     }
 
     //long Veterans = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 1111);                    // 빼빼로 안쉼
     long Christmas = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 1225);
+    long ChristmasExcel = CDateToExcelDate(Christmas);
+    long ChristmasPrev = Christmas;
+    if (ChristmasExcel % 7 == 3)
+    {
+        ChristmasPrev = ExcelDateToCDate(ChristmasExcel - 1);
+    } 
+    else if (ChristmasExcel % 7 == 5)
+    {
+        ChristmasPrev = ExcelDateToCDate(ChristmasExcel + 1);
+        TempDate = ChristmasPrev;
+        ChristmasPrev = Christmas;
+        Christmas = TempDate;
+    }
 
     long MartinLuther = Nth_Date(YYYY, 1, 3, 2);    // 1월 3번째 월요일
     long PresidentsDay = Nth_Date(YYYY, 2, 3, 2);   // 2월 3번째 월요일
@@ -1745,7 +1799,8 @@ void Mapping_US_NYMEXHoliday(
     HolidayArray[6] = Independence;
     HolidayArray[7] = LaborDay;
     HolidayArray[8] = Thanks;
-    HolidayArray[9] = Christmas;
+    HolidayArray[9] = ChristmasPrev;
+    HolidayArray[10] = Christmas;
 }
 
 // U.S NYMEX Holiday Array를 Malloc하는 함수
@@ -1765,7 +1820,8 @@ long* Malloc_US_NYMEX_HolidayArray(
     {
         Holidays[i] = (long*)malloc(sizeof(long) * 15);
         Mapping_US_NYMEXHoliday(Start_YYYY + i, Holidays[i]);
-        nholidays[i] = 10;
+        nholidays[i] = 11;
+        bubble_sort_date(Holidays[i], nholidays[i], 1);
         n += nholidays[i];
     }
 
@@ -1803,23 +1859,9 @@ void Mapping_US_NYSEHoliday(
     //long President = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 120);                    // 취임식 안쉼
     long Juneteenth = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 619);                     // 준틴스 쉼
     long Independence = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 704);                   // 독립일 쉼
-    long IndependenceExcel = CDateToExcelDate(Independence);
-    long IndependencePrev = ExcelDateToCDate(IndependenceExcel - 1);                    // 독립일 전날 쉼
-    if (IndependenceExcel % 7 == 2)
-    {
-        // 독립일이 월요일이면 전날은 금요일
-        IndependencePrev = ExcelDateToCDate(IndependenceExcel - 3);
-    }
 
     //long Veterans = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 1111);                    // 빼빼로 안쉼
     long Christmas = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 1225);
-    long ChristmasExcel = CDateToExcelDate(Christmas);
-    long ChristmasPrev = ExcelDateToCDate(ChristmasExcel - 1);
-    if (ChristmasExcel % 7 == 2)
-    {
-        // 크리스마스가 월요일이면 전날은 금요일
-        ChristmasPrev = ExcelDateToCDate(ChristmasExcel - 3);
-    }
 
     long MartinLuther = Nth_Date(YYYY, 1, 3, 2);    // 1월 3번째 월요일
     long PresidentsDay = Nth_Date(YYYY, 2, 3, 2);   // 2월 3번째 월요일
@@ -1835,16 +1877,14 @@ void Mapping_US_NYSEHoliday(
     HolidayArray[3] = RebirthMinus2;
     HolidayArray[4] = MemorialDay;
     HolidayArray[5] = Juneteenth;
-    HolidayArray[6] = IndependencePrev;
-    HolidayArray[7] = Independence;
-    HolidayArray[8] = LaborDay;
-    HolidayArray[9] = Thanks;
-    HolidayArray[10] = ThanksNext;
-    HolidayArray[11] = ChristmasPrev;
-    HolidayArray[12] = Christmas;
+    HolidayArray[6] = Independence;
+    HolidayArray[7] = LaborDay;
+    HolidayArray[8] = Thanks;
+    HolidayArray[9] = ThanksNext;
+    HolidayArray[10] = Christmas;
 }
 
-// U.S NYMEX Holiday Array를 Malloc하는 함수
+// U.S NYSE Holiday Array를 Malloc하는 함수
 long* Malloc_US_NYSE_HolidayArray(
     long Start_YYYY,                // 시작연도
     long End_YYYY,                  // 종료연도
@@ -1861,7 +1901,8 @@ long* Malloc_US_NYSE_HolidayArray(
     {
         Holidays[i] = (long*)malloc(sizeof(long) * 15);
         Mapping_US_NYSEHoliday(Start_YYYY + i, Holidays[i]);
-        nholidays[i] = 13;
+        nholidays[i] = 11;
+        bubble_sort_date(Holidays[i], nholidays[i], 1);
         n += nholidays[i];
     }
 
@@ -1988,6 +2029,7 @@ long* Malloc_GBPHolidayArray(
             Mapping_GBPHoliday(Start_YYYY + i, Holidays[i], 0);
             nholidays[i] = 6;
         }
+        bubble_sort_date(Holidays[i], nholidays[i], 1);
         n += nholidays[i];
     }
 
@@ -2033,7 +2075,8 @@ DLLEXPORT(long) Number_Holiday(
         else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
 
         long N = 0;
-        for (i = 0; i < NHoliday; i++) if (Holidays[i] > 0) N += 1;
+        long* UniqueArray = MallocUnique(Holidays, NHoliday, N);
+        free(UniqueArray);
         free(Holidays);
         return N;
     }
@@ -2103,21 +2146,16 @@ DLLEXPORT(long) Mapping_Holiday_ExcelType(
         }
         free(Holidays1);
         free(Holidays2);
-        bubble_sort_date(Holidays, NHoliday, 1);
     }
 
-    long n = min(NResultArray, NHoliday);
-    k = 0;
-    for (i = 0; i < n; i++)
+    long N = 0;
+    long* UniqueArray = MallocUnique(Holidays, NHoliday, N);
+    for (i = 0; i < N; i++)
     {
-        if (Holidays[i] > 0)
-        {
-            ResultArray[k] = CDateToExcelDate(Holidays[i]);
-            k += 1;
-        }
+        ResultArray[i] = CDateToExcelDate(UniqueArray[i]);
     }
-
-    free(Holidays);         // 할당제거 1
+    free(UniqueArray);      // 할당제거 1
+    free(Holidays);         // 할당제거 2
     return 1;
 }
 
@@ -2177,34 +2215,15 @@ DLLEXPORT(long) Mapping_Holiday_CType(
         bubble_sort_date(Holidays, NHoliday, 1);
     }
 
-    long n = min(NResultArray, NHoliday);
-    k = 0;
-    for (i = 0; i < n; i++)
+    long N = 0;
+    long* UniqueArray = MallocUnique(Holidays, NHoliday, N);
+    for (i = 0; i < N; i++)
     {
-        if (Holidays[i] > 0)
-        {
-            ResultArray[k] = Holidays[i];
-            k++;
-        }
+        ResultArray[i] = UniqueArray[i];
     }
-
-    free(Holidays);             // 할당제거 1
+    free(UniqueArray);      // 할당제거 1
+    free(Holidays);         // 할당제거 2
     return 1;
-}
-
-long isin_Longtype(long x, long* array, long narray)
-{
-    long i;
-    long s = 0;
-    for (i = 0; i < narray; i++)
-    {
-        if (x == array[i])
-        {
-            s = 1;
-            break;
-        }
-    }
-    return s;
 }
 
 long isweekendflag(long ExlDate)
@@ -2250,6 +2269,7 @@ long* Malloc_CpnDate_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long
     long CpnDateExcel, CpnDateTemp;
     long MOD7;
     long SaturSundayFlag;
+    long PrevDate;
     for (i = 0; i < n; i++)
     {
         if (i == 0) CpnDate = SwapMat_YYYYMMDD;
@@ -2271,7 +2291,19 @@ long* Malloc_CpnDate_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long
             {
                 if (ModifiedFollowing == 1)
                 {
-                    ResultCpnDate[narray - 1 - i] = min(LastBusinessDate((long)(CpnDate / 100), NHoliday, HolidayYYYYMMDD), CpnDate);
+                    // Forward End 날짜가 토요일 또는 일요일의 경우 날짜 미룸
+                    for (j = 1; j <= 7; j++)
+                    {
+                        CpnDateExcel += 1;
+                        MOD7 = CpnDateExcel % 7;
+                        CpnDateTemp = ExcelDateToCDate(CpnDateExcel);
+                        if ((MOD7 != 1 && MOD7 != 0) && !isin_Longtype(CpnDateTemp, HolidayYYYYMMDD, NHoliday))
+                        {
+                            PrevDate = ExcelDateToCDate(CpnDateExcel);
+                            break;
+                        }
+                    }
+                    ResultCpnDate[narray - 1 - i] = min(LastBusinessDate((long)(CpnDate / 100), NHoliday, HolidayYYYYMMDD), PrevDate);
                 }
                 else
                 {
@@ -2287,8 +2319,8 @@ long* Malloc_CpnDate_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long
                             break;
                         }
                     }
+                    ResultCpnDate[narray - 1 - i] = CpnDate;
                 }
-                ResultCpnDate[narray - 1 - i] = CpnDate;
             }
         }
     }

@@ -2,35 +2,38 @@
 C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(815,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(815,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(1221,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(1261,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(1500,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(1893,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(2025,14): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(2225,10): warning C4101: 'LastBusiDay' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(2415,14): warning C4101: 'TempDateExcelType' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(2583,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(1302,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(1342,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(1532,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(1934,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(2067,14): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(2066,14): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(2106,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(2172,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(2244,10): warning C4101: 'LastBusiDay' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(2447,14): warning C4101: 'TempDateExcelType' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\CalcDate.h(2615,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRS\IRS\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(312,10): warning C4101: 'LastBusiDay' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(501,14): warning C4101: 'TempDateExcelType' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(663,10): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(735,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1070,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1069,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1071,10): warning C4101: 'n' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1323,16): warning C4101: 'Day1' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1321,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1323,10): warning C4101: 'Day0' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1533,40): warning C4101: 'SwapEndT' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1533,20): warning C4101: 'Ref_T1' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1533,12): warning C4101: 'Ref_T0' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1534,21): warning C4101: 'Frac_T1' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1534,12): warning C4101: 'Frac_T0' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(2585,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(2971,16): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(2977,10): warning C4101: 'NotionalPayDate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(2971,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(2971,19): warning C4101: 'n' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(514,14): warning C4101: 'TempDateExcelType' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(676,10): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(748,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1083,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1082,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1084,10): warning C4101: 'n' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1336,16): warning C4101: 'Day1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1334,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1336,10): warning C4101: 'Day0' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1546,40): warning C4101: 'SwapEndT' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1546,20): warning C4101: 'Ref_T1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1546,12): warning C4101: 'Ref_T0' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1547,21): warning C4101: 'Frac_T1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(1547,12): warning C4101: 'Frac_T0' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(2598,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(2984,16): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(2990,10): warning C4101: 'NotionalPayDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(2984,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(2984,19): warning C4101: 'n' :참조되지 않은 지역 변수입니다.
      C:\Users\ciiad\github5\IRS\x64\Debug\IRS.lib 라이브러리 및 C:\Users\ciiad\github5\IRS\x64\Debug\IRS.exp 개체를 생성하고 있습니다.
   IRS.vcxproj -> C:\Users\ciiad\github5\IRS\x64\Debug\IRS.dll

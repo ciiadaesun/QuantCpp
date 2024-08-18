@@ -337,6 +337,7 @@ long* Generate_CpnDate_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, lo
     long CpnDateExcel, CpnDateTemp;
     long MOD7;
     long SaturSundayFlag;
+    long PrevDate;
     for (i = 0; i < n; i++)
     {
         if (i == 0) CpnDate = SwapMat_YYYYMMDD;
@@ -358,7 +359,19 @@ long* Generate_CpnDate_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, lo
             {
                 if (ModifiedFollowing == 1)
                 {
-                    ResultCpnDate[narray - 1 - i] = min(LastBusinessDate((long)(CpnDate / 100), NHoliday, HolidayYYYYMMDD), CpnDate);
+                    // Forward End 날짜가 토요일 또는 일요일의 경우 날짜 미룸
+                    for (j = 1; j <= 7; j++)
+                    {
+                        CpnDateExcel += 1;
+                        MOD7 = CpnDateExcel % 7;
+                        CpnDateTemp = ExcelDateToCDate(CpnDateExcel);
+                        if ((MOD7 != 1 && MOD7 != 0) && !isin_Longtype(CpnDateTemp, HolidayYYYYMMDD, NHoliday))
+                        {
+                            PrevDate = ExcelDateToCDate(CpnDateExcel);
+                            break;
+                        }
+                    }
+                    ResultCpnDate[narray - 1 - i] = min(LastBusinessDate((long)(CpnDate / 100), NHoliday, HolidayYYYYMMDD), PrevDate);
                 }
                 else
                 {
@@ -374,8 +387,8 @@ long* Generate_CpnDate_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, lo
                             break;
                         }
                     }
+                    ResultCpnDate[narray - 1 - i] = CpnDate;
                 }
-                ResultCpnDate[narray - 1 - i] = CpnDate;
             }
         }
     }
