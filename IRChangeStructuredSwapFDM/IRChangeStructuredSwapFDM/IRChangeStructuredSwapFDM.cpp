@@ -348,7 +348,7 @@ double _stdcall alpha_domestic(
 	double dt
 )
 {
-	double p = kappa1 * dt * x / (2.0 * dt);
+	double p = kappa1 * dt * x / (2.0 * dx);
 	double q = 0.5 * sig1 * sig1 * dt / (dx * dx);
 	return -p - q;
 }

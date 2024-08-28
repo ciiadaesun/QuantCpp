@@ -15,6 +15,168 @@
 #include "Structure.h"
 #include <crtdbg.h>
 
+
+double _stdcall s_2F(
+	double sig1,
+	double sig2,
+	double corr_factor,
+	double dt,
+	double dx,
+	double dy
+)
+{
+	return 0.5 * sig1 * sig2 * corr_factor * dt / (4.0 * dx * dy);
+}
+
+double U_i_j(double** U, long i, long j, long N)
+{
+	if (i < 0 && j < 0)
+	{
+		return 0.5 * (2.0 * U[0][0] - U[0][1]) + 0.5 * (2.0 * U[0][0] - U[1][0]);
+	}
+	else if (i < 0 && j == N)
+	{
+		return 2.0 * U[0][N - 1] - U[1][N - 2];
+	}
+	else if (i == N && j < 0)
+	{
+		return 2.0 * U[N - 1][0] - U[N - 2][1];
+	}
+	else if (i < 0 && j >= 0 && j < N)
+	{
+		return (2.0 * U[0][j] - U[1][j]);
+	}
+	else if (i >= 0 && i < N && j < 0)
+	{
+		return (2.0 * U[i][0] - U[i][1]);
+	}
+	else if (i == N && j == N)
+	{
+		return 0.5 * (2.0 * U[N - 1][N - 1] - U[N - 1][N - 2]) + 0.5 * (2.0 * U[N - 1][N - 1] - U[N - 2][N - 1]);
+	}
+	else if (i == N && j < N)
+	{
+		return (2.0 * U[N - 1][j] - U[N - 2][j]);
+	}
+	else if (i < N && j == N)
+	{
+		return (2.0 * U[i][N - 1] - U[i][N - 2]);
+	}
+	else return U[i][j];
+}
+
+void ResultRHS_2F(
+	long NGreed,
+	double* x,
+	double* y,
+	double kappa1,
+	double kappa2,
+	double sig1,
+	double sig2,
+	double corr_factor,
+	double dx,
+	double dy,
+	double dt,
+	double** Value_2F,
+	double** ResultRHS
+)
+{
+	long i, j;
+	double u_i_j, u_iu_jd, u_id_ju, u_iu_ju, u_id_jd;
+	double s = s_2F(sig1, sig2, corr_factor, dt, dx, dy);
+
+	for (i = 0; i < NGreed; i++)
+	{
+		for (j = 0; j < NGreed; j++)
+		{
+			u_iu_ju = U_i_j(Value_2F, i + 1, j + 1, NGreed);
+			u_id_jd = U_i_j(Value_2F, i - 1, j - 1, NGreed);
+			u_iu_jd = U_i_j(Value_2F, i + 1, j - 1, NGreed);
+			u_id_ju = U_i_j(Value_2F, i - 1, j + 1, NGreed);
+			ResultRHS[i][j] = s * (u_iu_ju + u_id_jd - u_iu_jd - u_id_ju) + Value_2F[i][j];
+		}
+	}
+}
+
+void Copy2dMatrix(double** CopyResult, double** MyMatrix, long p, long q)
+{
+	long i, j;
+	for (i = 0; i < p; i++) for (j = 0; j < q; j++) CopyResult[i][j] = MyMatrix[i][j];
+}
+
+void TransposeMat(
+	long N,
+	double** Mat
+)
+{
+	long i, j;
+	double tempvalue = 0.0;
+	for (i = 0; i < N; i++)
+	{
+		for (j = 0; j < N; j++)
+		{
+			if (i < j)
+			{
+				tempvalue = Mat[i][j] + 0.0;
+				Mat[i][j] = Mat[j][i];
+				Mat[j][i] = tempvalue;
+			}
+		}
+	}
+}
+
+
+//	tri-diagonal 행렬 방정식을 빠르게 푼다.(임시 Array : TempAlpha, TempBeta, TempGamma를 준비해서 할당을 하는 시간 및 할당 해제하는 시간을 없앤다.)
+//  V_T0결과는 V_T1[1], V_T1[2], ... , V_T1[N]에 덮어씌워서 저장된다.
+// [[Beta[0], Gamma[0], 0.0,      0.0,       0.0,        ..........      , 0.0]     [V_T0[0]  ]     [V_T1[0]  ]    
+//  [Alpha[1],Beta[1],  Gamma[1], 0.0,       0.0,        ..........      , 0.0]     [V_T0[1]  ]     [V_T1[1]  ]
+//  [0.0,     Alpha[2], Beta[2],  Gamma[2],  0.0,        ..........      , 0.0]     [V_T0[2]  ]     [V_T1[2]  ]
+//  [0.0,     0.0,      Alpha[3], Beta[3],   Gamma[3],   ........        , 0.0]     [V_T0[3]  ]     [V_T1[3]  ]
+//  [~~~,     ~~,       ~~~~~,    ~~~,       ~~~~~~,   ........        , ...  ]   x [     ..  ]  =  [   ..    ]
+//  [0.0,     0.0,      .....     Alpha[N-3],Beta[N-3],  Gamma[N-3],       0.0]     [V_T0[N-3]]     [V_T1[N-3]]
+//  [0.0,     0.0,      .....,    0.0,       Alpha[N-2], Beta[N-2], Gamma[N-2]]     [V_T0[N-2]]     [V_T1[N-2]]
+//  [0.0,     0.0,      .....,    0.0,       0.0,        Alpha[N-1], Beta[N-1]]]    [V_T0[N-1]]     [V_T1[N-1]]
+long Tri_diagonal_Matrix_Fast(
+	double* Alpha,    // Tridiagonal Matrix에서 왼쪽 대각선 행렬
+	double* Beta,     // Tridiagonal Matrix에서 중앙 대각선 행렬
+	double* Gamma,    // Tridiagonal Matrix에서 오른쪽 대각선 행렬
+	double** V_T1,     // V(T1)
+	long N,           // 대각선 행렬들의 길이
+	double* TempAlpha,// 임시 행렬1 
+	double* TempBeta, // 임시 행렬2
+	double* TempGamma // 임시 행렬3
+)
+{
+	long i;
+	long j;
+	for (j = 0; j < N; j++)
+	{
+		for (i = 0; i <= N - 1; i++)
+		{
+			TempAlpha[i] = Alpha[i];
+			TempBeta[i] = Beta[i];
+			TempGamma[i] = Gamma[i];
+		}
+
+		TempAlpha[0] = 0.0;
+		TempGamma[N - 1] = 0.0;
+
+		if (N <= 1) V_T1[0][j] /= TempBeta[0];
+		else {
+			for (i = 1; i <= N - 1; i++) {
+				TempAlpha[i] /= TempBeta[i - 1];
+				TempBeta[i] -= TempAlpha[i] * TempGamma[i - 1];
+				V_T1[i][j] -= TempAlpha[i] * V_T1[i - 1][j];
+			}
+			V_T1[N - 1][j] /= TempBeta[N - 1];
+
+			for (i = N - 2; i >= 0; i--) V_T1[i][j] = (V_T1[i][j] - TempGamma[i] * V_T1[i + 1][j]) / TempBeta[i];
+		}
+	}
+
+	return 1;
+}
+
 double B_s_to_t(
 	double kappa,
 	double s,
@@ -257,7 +419,7 @@ long MyFunc(
 	long* AdditionalHolidays,				// RcvLeg, PayLeg Additional Holidays Custom(len = 2)
 	long* NationFlag,						// RcvLeg, PayLeg Nation Flag 0 : KRW, 1 : USD, ...
 	long* NumCpnAnn,						// Number Coupon of 1y (len = 2)
-	double* MaxLossRefRcvPay,				// MaxLossRet of Rcv, Pay Leg (len = 4)
+	double* MaxLossRetRcvPay,				// MaxLossRet of Rcv, Pay Leg (len = 4)
 
 	double* MultipleRatefixPayoffRcvPay,	// Slope of Fixing And Payoff of Rcv, PayLeg(len = 4)
 	long* DayCountRcvPay,					// DayCountFraction of Rcv, PayLeg (len = 2)
@@ -304,18 +466,21 @@ long MyFunc(
 	double* kappa,
 	double FactorCorrelation,
 	long* ResultCpnDateRcv,
-	long* ResultCpnDatePay
+	long* ResultCpnDatePay,
+	double* ResultFixingRateCpn
 )
 {
 	long i, j, k, n;
 	long idx1, idx2;
-	long NGreed = 200;
+	long NGreed = 100;
+	long PowerSpreadFlagRcv = PowerSpreadFlagRcvPay[0];
+	long PowerSpreadFlagPay = PowerSpreadFlagRcvPay[1];
 
 	double* InfoRefRateRcv = InfoRefRateRcvPay;
 	double* InfoRefRatePay = InfoRefRateRcvPay + 4;
 
-	double* MaxLossRetRcv = MaxLossRefRcvPay;
-	double* MaxLossRefPay = MaxLossRefRcvPay + 2;
+	double* MaxLossRetRcv = MaxLossRetRcvPay;
+	double* MaxLossRetPay = MaxLossRetRcvPay + 2;
 
 	double* MultipleRatefixPayoffRcv = MultipleRatefixPayoffRcvPay;
 	double* MultipleRatefixPayoffPay = MultipleRatefixPayoffRcvPay + 2;
@@ -335,6 +500,8 @@ long MyFunc(
 
 	double kappa1 = kappa[0];
 	double kappa2;
+	double ResultValue = 0.;
+
 	if (HW2FFlag > 0) kappa2 = kappa[1];
 	else kappa2 = kappa[0];
 	double* HWVol2 = HWVol + NHWVol;
@@ -398,7 +565,7 @@ long MyFunc(
 		NBDFromEndToPay = NBD;
 		for (i = 0; i < NCpnDate[n]; i++)
 		{
-			if (NBDFromEndToPay == 0) CpnPayDate[n][i] - CpnDate[n][i];
+			if (NBDFromEndToPay == 0) CpnPayDate[n][i] = CpnDate[n][i];
 			else
 			{
 				TempExcelDate = CDateToExcelDate(CpnDate[n][i]);
@@ -411,7 +578,7 @@ long MyFunc(
 					SaturSundayFlag = (TempExcelDate % 7 == 1 || TempExcelDate % 7 == 0);
 					HolidayFlag = isin_Longtype(TempYYYYMMDD, TotalHolidays[n], NTotalHoliday[n]);
 					if (SaturSundayFlag == 0 && HolidayFlag == 0) NBD += 1;
-					
+
 					if (NBD >= NBDFromEndToPay)
 					{
 						CpnPayDate[n][i] = TempYYYYMMDD;
@@ -464,16 +631,18 @@ long MyFunc(
 	{
 		Time[i] = ((double)DayCountAtoB(PriceDate, TotalArrayDateSimul[i])) / 365.;
 		if (i == 0) dtime[i] = ((double)DayCountAtoB(PriceDate, TotalArrayDateSimul[i])) / 365.;
-		else dtime[i] = ((double)DayCountAtoB(TotalArrayDateSimul[i-1], TotalArrayDateSimul[i])) / 365.;
+		else dtime[i] = ((double)DayCountAtoB(TotalArrayDateSimul[i - 1], TotalArrayDateSimul[i])) / 365.;
 	}
 
+	double* ResultFixingRateCpnRcv = ResultFixingRateCpn;
+	double* ResultFixingRateCpnPay = ResultFixingRateCpn + NCpnDate[0] * 2;
 
 	///////////////
 	// FDM Greed //
 	///////////////
-	double xt_min = -0.1, xt_max = 0.75;
+	double xt_min = -0.1, xt_max = 0.4;
 	double dxt = (xt_max - xt_min) / ((double)NGreed);
-	double yt_min = -0.1, yt_max = 0.75;
+	double yt_min = -0.1, yt_max = 0.4;
 	double dyt = (yt_max - yt_min) / ((double)NGreed);
 	double x, y, Rate, x_p, y_p, Rate_p;
 
@@ -552,7 +721,8 @@ long MyFunc(
 	double** PayPowerSpread_QVTerm_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
 	double** Pay_Cross_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
 	double** PayPowerSpread_Cross_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double t1, t2;
+	double t, t1, t2, deltat;
+
 	long Today, EndDate1, EndDate2, ncpn, ncpn1, ncpn2;
 	double df_t, df_T;
 	long* TempDateArray;
@@ -570,7 +740,7 @@ long MyFunc(
 		ncpn2 = 0;
 		x = 0.;
 		y = 0.;
-		if (PowerSpreadFlagRcvPay[0] == 0)
+		if (PowerSpreadFlagRcv == 0)
 		{
 			EndDate1 = EDate_Cpp(Today, (long)(Maturity_Rcv * 12 + 0.00001));
 			TempDateArray = Malloc_CpnDate_Holiday(Today, EndDate1, NCPN_ANN_Rcv, ncpn, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
@@ -596,7 +766,7 @@ long MyFunc(
 			for (j = 0; j < ncpn; j++)
 			{
 				if (j == 0) Rcv_dt[i][j] = DayCountFractionAtoB(Today, TempDateArray[j], DayCountRcvPay[0]);
-				else Rcv_dt[i][j] = DayCountFractionAtoB(TempDateArray[-1], TempDateArray[j], DayCountRcvPay[0]);
+				else Rcv_dt[i][j] = DayCountFractionAtoB(TempDateArray[j - 1], TempDateArray[j], DayCountRcvPay[0]);
 				t2 = ((double)DayCountAtoB(PriceDate, TempDateArray[j])) / 365.;
 				df_T = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZeroRate, t2);
 				Rcv_DF_t_T[i][j] = df_T / df_t;
@@ -618,7 +788,7 @@ long MyFunc(
 					for (idx2 = 0; idx2 < NGreed; idx2++)
 					{
 						y = yt[idx2];
-						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, x, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
+						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, y, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
 						Rate_Rcv_2F[i][idx1][idx2] = Rate;
 					}
 				}
@@ -628,7 +798,7 @@ long MyFunc(
 				for (idx1 = 0; idx1 < NGreed; idx1++)
 				{
 					x = xt[idx1];
-					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, x, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
+					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, y, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
 					Rate_Rcv_1F[i][idx1] = Rate;
 				}
 			}
@@ -662,7 +832,7 @@ long MyFunc(
 			for (j = 0; j < ncpn1; j++)
 			{
 				if (j == 0) Rcv_dt[i][j] = DayCountFractionAtoB(Today, TempDateArray[j], DayCountRcvPay[0]);
-				else Rcv_dt[i][j] = DayCountFractionAtoB(TempDateArray[-1], TempDateArray[j], DayCountRcvPay[0]);
+				else Rcv_dt[i][j] = DayCountFractionAtoB(TempDateArray[j - 1], TempDateArray[j], DayCountRcvPay[0]);
 				t2 = ((double)DayCountAtoB(PriceDate, TempDateArray[j])) / 365.;
 				df_T = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZeroRate, t2);
 				Rcv_DF_t_T[i][j] = df_T / df_t;
@@ -679,7 +849,7 @@ long MyFunc(
 			for (j = 0; j < ncpn2; j++)
 			{
 				if (j == 0) Rcv_dt[i][j] = DayCountFractionAtoB(Today, TempDateArray2[j], DayCountRcvPay[0]);
-				else Rcv_dt[i][j] = DayCountFractionAtoB(TempDateArray2[-1], TempDateArray2[j], DayCountRcvPay[0]);
+				else Rcv_dt[i][j] = DayCountFractionAtoB(TempDateArray2[j - 1], TempDateArray2[j], DayCountRcvPay[0]);
 				t2 = ((double)DayCountAtoB(PriceDate, TempDateArray2[j])) / 365.;
 				df_T = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZeroRate, t2);
 				RcvPowerSpread_DF_t_T[i][j] = df_T / df_t;
@@ -701,7 +871,7 @@ long MyFunc(
 					for (idx2 = 0; idx2 < NGreed; idx2++)
 					{
 						y = yt[idx2];
-						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, x, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
+						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, y, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
 						Rate_Rcv_2F[i][idx1][idx2] = Rate;
 						Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Rcv, RcvPowerSpread_DF_t_T[i], RcvPowerSpread_QVTerm[i], RcvPowerSpread_B_t_T[i], RcvPowerSpread_dt[i], HW2FFlag, x, RcvPowerSpread_QVTerm_2F[i], RcvPowerSpread_B_t_T_2F[i], RcvPowerSpread_Cross_t_T_2F[i]);
 						Rate_RcvPowerSpread_2F[i][idx1][idx2] = Rate_p;
@@ -713,7 +883,7 @@ long MyFunc(
 				for (idx1 = 0; idx1 < NGreed; idx1++)
 				{
 					x = xt[idx1];
-					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, x, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
+					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, y, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
 					Rate_Rcv_1F[i][idx1] = Rate;
 					Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Rcv, RcvPowerSpread_DF_t_T[i], RcvPowerSpread_QVTerm[i], RcvPowerSpread_B_t_T[i], RcvPowerSpread_dt[i], HW2FFlag, x, RcvPowerSpread_QVTerm_2F[i], RcvPowerSpread_B_t_T_2F[i], RcvPowerSpread_Cross_t_T_2F[i]);
 					Rate_RcvPowerSpread_1F[i][idx1] = Rate_p;
@@ -737,7 +907,7 @@ long MyFunc(
 		ncpn2 = 0;
 		x = 0.;
 		y = 0.;
-		if (PowerSpreadFlagRcvPay[0] == 0)
+		if (PowerSpreadFlagPay == 0)
 		{
 			EndDate1 = EDate_Cpp(Today, (long)(Maturity_Pay * 12 + 0.00001));
 			TempDateArray = Malloc_CpnDate_Holiday(Today, EndDate1, NCPN_ANN_Pay, ncpn, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
@@ -763,7 +933,7 @@ long MyFunc(
 			for (j = 0; j < ncpn; j++)
 			{
 				if (j == 0) Pay_dt[i][j] = DayCountFractionAtoB(Today, TempDateArray[j], DayCountRcvPay[1]);
-				else Pay_dt[i][j] = DayCountFractionAtoB(TempDateArray[-1], TempDateArray[j], DayCountRcvPay[1]);
+				else Pay_dt[i][j] = DayCountFractionAtoB(TempDateArray[j - 1], TempDateArray[j], DayCountRcvPay[1]);
 				t2 = ((double)DayCountAtoB(PriceDate, TempDateArray[j])) / 365.;
 				df_T = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZeroRate, t2);
 				Pay_DF_t_T[i][j] = df_T / df_t;
@@ -785,7 +955,7 @@ long MyFunc(
 					for (idx2 = 0; idx2 < NGreed; idx2++)
 					{
 						y = yt[idx2];
-						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, x, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
+						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, y, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
 						Rate_Pay_2F[i][idx1][idx2] = Rate;
 					}
 				}
@@ -795,7 +965,7 @@ long MyFunc(
 				for (idx1 = 0; idx1 < NGreed; idx1++)
 				{
 					x = xt[idx1];
-					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, x, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
+					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, y, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
 					Rate_Pay_1F[i][idx1] = Rate;
 				}
 			}
@@ -829,7 +999,7 @@ long MyFunc(
 			for (j = 0; j < ncpn1; j++)
 			{
 				if (j == 0) Pay_dt[i][j] = DayCountFractionAtoB(Today, TempDateArray[j], DayCountRcvPay[1]);
-				else Pay_dt[i][j] = DayCountFractionAtoB(TempDateArray[-1], TempDateArray[j], DayCountRcvPay[1]);
+				else Pay_dt[i][j] = DayCountFractionAtoB(TempDateArray[j - 1], TempDateArray[j], DayCountRcvPay[1]);
 				t2 = ((double)DayCountAtoB(PriceDate, TempDateArray[j])) / 365.;
 				df_T = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZeroRate, t2);
 				Pay_DF_t_T[i][j] = df_T / df_t;
@@ -846,7 +1016,7 @@ long MyFunc(
 			for (j = 0; j < ncpn2; j++)
 			{
 				if (j == 0) Pay_dt[i][j] = DayCountFractionAtoB(Today, TempDateArray2[j], DayCountRcvPay[1]);
-				else Pay_dt[i][j] = DayCountFractionAtoB(TempDateArray2[-1], TempDateArray2[j], DayCountRcvPay[1]);
+				else Pay_dt[i][j] = DayCountFractionAtoB(TempDateArray2[j - 1], TempDateArray2[j], DayCountRcvPay[1]);
 				t2 = ((double)DayCountAtoB(PriceDate, TempDateArray2[j])) / 365.;
 				df_T = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZeroRate, t2);
 				PayPowerSpread_DF_t_T[i][j] = df_T / df_t;
@@ -868,9 +1038,9 @@ long MyFunc(
 					for (idx2 = 0; idx2 < NGreed; idx2++)
 					{
 						y = yt[idx2];
-						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, x, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
+						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, y, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
 						Rate_Pay_2F[i][idx1][idx2] = Rate;
-						Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, PayPowerSpread_DF_t_T[i], PayPowerSpread_QVTerm[i], PayPowerSpread_B_t_T[i], PayPowerSpread_dt[i], HW2FFlag, x, PayPowerSpread_QVTerm_2F[i], PayPowerSpread_B_t_T_2F[i], PayPowerSpread_Cross_t_T_2F[i]);
+						Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, PayPowerSpread_DF_t_T[i], PayPowerSpread_QVTerm[i], PayPowerSpread_B_t_T[i], PayPowerSpread_dt[i], HW2FFlag, y, PayPowerSpread_QVTerm_2F[i], PayPowerSpread_B_t_T_2F[i], PayPowerSpread_Cross_t_T_2F[i]);
 						Rate_PayPowerSpread_2F[i][idx1][idx2] = Rate_p;
 					}
 				}
@@ -880,9 +1050,9 @@ long MyFunc(
 				for (idx1 = 0; idx1 < NGreed; idx1++)
 				{
 					x = xt[idx1];
-					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, x, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
+					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, y, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
 					Rate_Pay_1F[i][idx1] = Rate;
-					Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, PayPowerSpread_DF_t_T[i], PayPowerSpread_QVTerm[i], PayPowerSpread_B_t_T[i], PayPowerSpread_dt[i], HW2FFlag, x, PayPowerSpread_QVTerm_2F[i], PayPowerSpread_B_t_T_2F[i], PayPowerSpread_Cross_t_T_2F[i]);
+					Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, PayPowerSpread_DF_t_T[i], PayPowerSpread_QVTerm[i], PayPowerSpread_B_t_T[i], PayPowerSpread_dt[i], HW2FFlag, y, PayPowerSpread_QVTerm_2F[i], PayPowerSpread_B_t_T_2F[i], PayPowerSpread_Cross_t_T_2F[i]);
 					Rate_PayPowerSpread_1F[i][idx1] = Rate_p;
 				}
 			}
@@ -922,7 +1092,7 @@ long MyFunc(
 
 	for (i = 0; i < NCpnDateRcv; i++)
 	{
-		t1 = ((double)DayCountAtoB(PriceDate, RcvFixingDate[i]))/365.;
+		t1 = ((double)DayCountAtoB(PriceDate, RcvFixingDate[i])) / 365.;
 		t2 = ((double)DayCountAtoB(PriceDate, RcvPaymentDate[i])) / 365.;
 		df_t = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZeroRate, t1);
 		df_T = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZeroRate, t2);
@@ -958,7 +1128,7 @@ long MyFunc(
 
 	for (i = 0; i < NOption; i++)
 	{
-		t1 = ((double)DayCountAtoB(PriceDate, OptionDate[i]))/365.;
+		t1 = ((double)DayCountAtoB(PriceDate, OptionDate[i])) / 365.;
 		t2 = ((double)DayCountAtoB(PriceDate, OptionPayDate[i])) / 365.;
 		df_t = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZeroRate, t1);
 		df_T = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZeroRate, t2);
@@ -973,6 +1143,657 @@ long MyFunc(
 			CrossQVTerm_DiscOpt[i] = HullWhite2F_CrossTerm(t1, t2, kappa1, NHWVol, HWVolTerm, HWVol, kappa2, HWVolTerm, HWVol2, FactorCorrelation);
 		}
 	}
+
+	double* SlopeOfFixingRate_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);
+	double* SlopeOfPayoff_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);
+	double* FixedRate_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);
+	long* Structured_Rcv = (long*)malloc(sizeof(long) * NCpnDateRcv);
+	double* RangeCpn_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);
+	double* DeltatRcv = (double*)malloc(sizeof(double) * NCpnDateRcv);
+
+	double* SlopeOfFixingRate_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);
+	double* SlopeOfPayoff_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);
+	double* FixedRate_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);
+	long* Structured_Pay = (long*)malloc(sizeof(long) * NCpnDatePay);
+	double* RangeCpn_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);
+	double* DeltatPay = (double*)malloc(sizeof(double) * NCpnDatePay);
+
+	long* CpnDateRcv = CpnDate[0];
+	long* CpnDatePay = CpnDate[1];
+	long DayCountFracRcv = DayCountRcvPay[0];
+	long DayCountFracPay = DayCountRcvPay[1];
+	for (i = 0; i < NCpnDateRcv; i++)
+	{
+		SlopeOfFixingRate_Rcv[i] = MultipleRatefixPayoffRcv[0];
+		SlopeOfPayoff_Rcv[i] = MultipleRatefixPayoffRcv[1];
+		DeltatRcv[i] = DayCountFractionAtoB(RcvFixingDate[i], CpnDateRcv[i], DayCountFracRcv);
+		if (RcvFixingDate[i] >= Phase2Date)
+		{
+			FixedRate_Rcv[i] = Phase2RcvLegFixedRate;
+			Structured_Rcv[i] = Phase2RcvLegStructuredFlag;
+			RangeCpn_Rcv[i] = Phase2RcvLegRangeCoupon;
+		}
+		else
+		{
+			FixedRate_Rcv[i] = RcvLegFixedRate;
+			Structured_Rcv[i] = RcvLegStructuredFlag;
+			RangeCpn_Rcv[i] = RcvLegRangeCoupon;
+		}
+	}
+	for (i = 0; i < NCpnDatePay; i++)
+	{
+		SlopeOfFixingRate_Pay[i] = MultipleRatefixPayoffPay[0];
+		SlopeOfPayoff_Pay[i] = MultipleRatefixPayoffPay[1];
+		DeltatPay[i] = DayCountFractionAtoB(PayFixingDate[i], CpnDatePay[i], DayCountFracPay);
+		if (PayFixingDate[i] >= Phase2Date)
+		{
+			FixedRate_Pay[i] = Phase2PayLegFixedRate;
+			Structured_Pay[i] = Phase2PayLegStructuredFlag;
+			RangeCpn_Pay[i] = Phase2PayLegRangeCoupon;
+		}
+		else
+		{
+			FixedRate_Pay[i] = PayLegFixedRate;
+			Structured_Pay[i] = PayLegStructuredFlag;
+			RangeCpn_Pay[i] = PayLegRangeCoupon;
+		}
+	}
+
+	double* Alpha_1Curve = (double*)malloc(sizeof(double) * NGreed);		// IFDM 1F x_t Alpha or OS x_t 
+	double* Beta_1Curve = (double*)malloc(sizeof(double) * NGreed);
+	double* Gamma_1Curve = (double*)malloc(sizeof(double) * NGreed);
+
+	double* Alpha_2Curve = (double*)malloc(sizeof(double) * NGreed);		// OS y_t 
+	double* Beta_2Curve = (double*)malloc(sizeof(double) * NGreed);
+	double* Gamma_2Curve = (double*)malloc(sizeof(double) * NGreed);
+
+	double* FDMValue_1F = (double*)malloc(sizeof(double) * NGreed);
+	double** FDMValue_2F = (double**)malloc(sizeof(double*) * NGreed);
+	for (i = 0; i < NGreed; i++) FDMValue_2F[i] = (double*)malloc(sizeof(double) * NGreed);
+	double** RHSValue_2F = (double**)malloc(sizeof(double*) * NGreed);
+	for (i = 0; i < NGreed; i++) RHSValue_2F[i] = (double*)malloc(sizeof(double) * NGreed);
+
+	double* TempAlphaArray = (double*)malloc(sizeof(double) * NGreed);
+	double* TempBetaArray = (double*)malloc(sizeof(double) * NGreed);
+	double* TempGammaArray = (double*)malloc(sizeof(double) * NGreed);
+	double* TempCpnArrayRcv_1F = (double*)malloc(sizeof(double) * NGreed);
+	double* TempCpnArrayPay_1F = (double*)malloc(sizeof(double) * NGreed);
+	double** TempCpnArrayRcv_2F = (double**)malloc(sizeof(double*) * NGreed);
+	double** TempCpnArrayPay_2F = (double**)malloc(sizeof(double*) * NGreed);
+	for (i = 0; i < NGreed; i++)
+	{
+		TempCpnArrayRcv_2F[i] = (double*)malloc(sizeof(double) * NGreed);
+		TempCpnArrayPay_2F[i] = (double*)malloc(sizeof(double) * NGreed);
+	}
+
+	double vol1 = 0., vol2 = 0., b0, c0, bN, aN;
+	double Rate_Rcv, Rate_Pay, Rate_Rcv_p, Rate_Pay_p, RcvCpn, PayCpn, RgCpnRcv, RgCpnPay;
+	double Instant_FwdDF, Instant_B_s_t, Instant_QVTerm, Instant_B_s_t_2F, Instant_QVTerm_2F, Instant_Cross_QVTerm_2F, R, PtT;
+	long LastFixingDateRcv, LastFixingDatePay, LastFixingIdxRcv = 0, LastFixingIdxPay = 0, idxrcv = 0, idxpay = 0, idxrcvfix = 0, idxpayfix = 0, idxhist = 0;
+
+	LastFixingDateRcv = RcvFixingDate[NCpnDateRcv - 1];
+	LastFixingDatePay = PayFixingDate[NCpnDatePay - 1];
+	for (i = 0; i < NTotalSimul; i++)
+	{
+		if (TotalArrayDateSimul[i] == LastFixingDateRcv)
+		{
+			LastFixingIdxRcv = i;
+			break;
+		}
+	}
+	for (i = 0; i < NTotalSimul; i++)
+	{
+		if (TotalArrayDateSimul[i] == LastFixingDatePay)
+		{
+			LastFixingIdxPay = i;
+			break;
+		}
+	}
+
+	n = 0;
+	for (i = 0; i < NTotalSimul; i++)
+	{
+		Today = TotalArrayDateSimul[NTotalSimul - 1 - i];
+		t = Time[NTotalSimul - 1 - i];
+		if (n == 0)
+		{
+
+			if (HW2FFlag > 0)
+			{
+				if (PowerSpreadFlagRcv == 0)
+				{
+					for (idx1 = 0; idx1 < NGreed; idx1++)
+					{
+						for (idx2 = 0; idx2 < NGreed; idx2++)
+						{
+							Rate_Rcv = Rate_Rcv_2F[LastFixingIdxRcv][idx1][idx2];
+							Rate_Pay = Rate_Pay_2F[LastFixingIdxPay][idx1][idx2];
+							RgCpnRcv = 0.;
+							RgCpnPay = 0.;
+							if (Structured_Rcv[NCpnDateRcv - 1] > 0)
+							{
+								Rate = SlopeOfFixingRate_Rcv[NCpnDateRcv - 1] * Rate_Rcv;
+								if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * Rate_Rcv) + RangeCpn_Rcv[NCpnDateRcv - 1];
+							}
+							RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv) * DeltatRcv[NCpnDateRcv - 1]));
+							TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
+							if (Structured_Pay[NCpnDatePay - 1] > 0)
+							{
+								Rate = SlopeOfFixingRate_Pay[NCpnDatePay - 1] * Rate_Pay;
+								if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * Rate_Pay) + RangeCpn_Pay[NCpnDatePay - 1];
+							}
+							PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay) * DeltatPay[NCpnDatePay - 1]));
+							TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
+							FDMValue_2F[idx1][idx2] = RcvCpn - PayCpn;
+						}
+					}
+					ResultFixingRateCpnRcv[NCpnDateRcv - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Rcv_2F[LastFixingIdxRcv], 0.0, 0.0);
+					ResultFixingRateCpnPay[NCpnDatePay - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Pay_2F[LastFixingIdxPay], 0.0, 0.0);
+					ResultFixingRateCpnRcv[2 * NCpnDateRcv - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayRcv_2F, 0.0, 0.0);
+					ResultFixingRateCpnPay[2 * NCpnDatePay - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayPay_2F, 0.0, 0.0);
+				}
+				else
+				{
+					for (idx1 = 0; idx1 < NGreed; idx1++)
+					{
+						for (idx2 = 0; idx2 < NGreed; idx2++)
+						{
+							Rate_Rcv = Rate_Rcv_2F[LastFixingIdxRcv][idx1][idx2];
+							Rate_Rcv_p = Rate_RcvPowerSpread_2F[LastFixingIdxRcv][idx1][idx2];
+							Rate_Pay = Rate_Pay_2F[LastFixingIdxPay][idx1][idx2];
+							Rate_Pay_p = Rate_PayPowerSpread_2F[LastFixingIdxPay][idx1][idx2];
+							RgCpnRcv = 0.;
+							RgCpnPay = 0.;
+							if (Structured_Rcv[NCpnDateRcv - 1] > 0)
+							{
+								Rate = SlopeOfFixingRate_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p);
+								if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p)) + RangeCpn_Rcv[NCpnDateRcv - 1];
+							}
+							RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv) * DeltatRcv[NCpnDateRcv - 1]));
+							TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
+							if (Structured_Pay[NCpnDatePay - 1] > 0)
+							{
+								Rate = SlopeOfFixingRate_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p);
+								if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p)) + RangeCpn_Pay[NCpnDatePay - 1];
+							}
+							PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay) * DeltatPay[NCpnDatePay - 1]));
+							TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
+							FDMValue_2F[idx1][idx2] = RcvCpn - PayCpn;
+						}
+					}
+					ResultFixingRateCpnRcv[NCpnDateRcv - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Rcv_2F[LastFixingIdxRcv], 0.0, 0.0) - Calc_Volatility(NGreed, NGreed, xt, yt, Rate_RcvPowerSpread_2F[LastFixingIdxRcv], 0.0, 0.0);
+					ResultFixingRateCpnPay[NCpnDatePay - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Pay_2F[LastFixingIdxPay], 0.0, 0.0) - Calc_Volatility(NGreed, NGreed, xt, yt, Rate_PayPowerSpread_2F[LastFixingIdxPay], 0.0, 0.0);
+					ResultFixingRateCpnRcv[2 * NCpnDateRcv - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayRcv_2F, 0.0, 0.0);
+					ResultFixingRateCpnPay[2 * NCpnDatePay - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayPay_2F, 0.0, 0.0);
+				}
+			}
+			else
+			{
+				if (PowerSpreadFlagRcv == 0)
+				{
+					for (idx1 = 0; idx1 < NGreed; idx1++)
+					{
+						Rate_Rcv = Rate_Rcv_1F[LastFixingIdxRcv][idx1];
+						Rate_Pay = Rate_Pay_1F[LastFixingIdxPay][idx1];
+						RgCpnRcv = 0.;
+						RgCpnPay = 0.;
+						if (Structured_Rcv[NCpnDateRcv - 1] > 0)
+						{
+							Rate = SlopeOfFixingRate_Rcv[NCpnDateRcv - 1] * Rate_Rcv;
+							if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * Rate_Rcv) + RangeCpn_Rcv[NCpnDateRcv - 1];
+						}
+						RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv) * DeltatRcv[NCpnDateRcv - 1]));
+						TempCpnArrayRcv_1F[idx1] = RcvCpn;
+						if (Structured_Pay[NCpnDatePay - 1] > 0)
+						{
+							Rate = SlopeOfFixingRate_Pay[NCpnDatePay - 1] * Rate_Pay;
+							if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * Rate_Pay) + RangeCpn_Pay[NCpnDatePay - 1];
+						}
+						PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay) * DeltatPay[NCpnDatePay - 1]));
+						TempCpnArrayPay_1F[idx1] = PayCpn;
+						FDMValue_1F[idx1] = RcvCpn - PayCpn;
+					}
+					ResultFixingRateCpnRcv[NCpnDateRcv - 1] = Interpolate_Linear(xt, Rate_Rcv_1F[LastFixingIdxRcv], NGreed, 0.0);
+					ResultFixingRateCpnPay[NCpnDatePay - 1] = Interpolate_Linear(xt, Rate_Pay_1F[LastFixingIdxRcv], NGreed, 0.0);
+					ResultFixingRateCpnRcv[2 * NCpnDateRcv - 1] = Interpolate_Linear(xt, TempCpnArrayRcv_1F, NGreed, 0.0);
+					ResultFixingRateCpnPay[2 * NCpnDatePay - 1] = Interpolate_Linear(xt, TempCpnArrayPay_1F, NGreed, 0.0);
+				}
+				else
+				{
+					for (idx1 = 0; idx1 < NGreed; idx1++)
+					{
+						Rate_Rcv = Rate_Rcv_1F[LastFixingIdxRcv][idx1];
+						Rate_Rcv_p = Rate_RcvPowerSpread_1F[LastFixingIdxRcv][idx1];
+						Rate_Pay = Rate_Pay_1F[LastFixingIdxPay][idx1];
+						Rate_Pay_p = Rate_PayPowerSpread_1F[LastFixingIdxPay][idx1];
+						RgCpnRcv = 0.;
+						RgCpnPay = 0.;
+						if (Structured_Rcv[NCpnDateRcv - 1] > 0)
+						{
+							Rate = SlopeOfFixingRate_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p);
+							if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p)) + RangeCpn_Rcv[NCpnDateRcv - 1];
+						}
+						RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv) * DeltatRcv[NCpnDateRcv - 1]));
+						TempCpnArrayRcv_1F[idx1] = RcvCpn;
+						if (Structured_Pay[NCpnDatePay - 1] > 0)
+						{
+							Rate = SlopeOfFixingRate_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p);
+							if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p)) + RangeCpn_Pay[NCpnDatePay - 1];
+						}
+						PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay) * DeltatPay[NCpnDatePay - 1]));
+						TempCpnArrayPay_1F[idx1] = PayCpn;
+						FDMValue_1F[idx1] = RcvCpn - PayCpn;
+					}
+					ResultFixingRateCpnRcv[NCpnDateRcv - 1] = Interpolate_Linear(xt, Rate_Rcv_1F[LastFixingIdxRcv], NGreed, 0.0) - Interpolate_Linear(xt, Rate_RcvPowerSpread_1F[LastFixingIdxRcv], NGreed, 0.0);
+					ResultFixingRateCpnPay[NCpnDatePay - 1] = Interpolate_Linear(xt, Rate_Pay_1F[LastFixingIdxRcv], NGreed, 0.0) - Interpolate_Linear(xt, Rate_PayPowerSpread_1F[LastFixingIdxRcv], NGreed, 0.0);
+					ResultFixingRateCpnRcv[2 * NCpnDateRcv - 1] = Interpolate_Linear(xt, TempCpnArrayRcv_1F, NGreed, 0.0);
+					ResultFixingRateCpnPay[2 * NCpnDatePay - 1] = Interpolate_Linear(xt, TempCpnArrayPay_1F, NGreed, 0.0);
+				}
+			}
+		}
+		else
+		{
+			t2 = Time[NTotalSimul - i];
+			t1 = Time[NTotalSimul - 1 - i];
+			df_t = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZeroRate, t1);
+			df_T = Calc_Discount_Factor(ZeroTerm, ZeroRate, NZeroRate, t2);
+			vol1 = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, (t1 + t2) / 2.0);
+			Instant_FwdDF = df_T / df_t;
+			deltat = t2 - t1;
+			Instant_B_s_t = B_s_to_t(kappa1, t1, t2);
+			Instant_QVTerm = HullWhiteQVTerm(t1, t2, kappa1, 1, HWVolTerm, &vol1);
+			if (HW2FFlag > 0)
+			{
+				vol2 = Interpolate_Linear(HWVolTerm, HWVol2, NHWVol, (t1 + t2) / 2.0);
+				Instant_B_s_t_2F = B_s_to_t(kappa2, t1, t2);
+				Instant_QVTerm_2F = HullWhiteQVTerm(t1, t2, kappa2, 1, HWVolTerm, &vol1);
+				Instant_Cross_QVTerm_2F = HullWhite2F_CrossTerm(t1, t2, kappa1, 1, HWVolTerm, &vol1, kappa2, HWVolTerm, &vol2, FactorCorrelation);
+
+				for (idx1 = 0; idx1 < NGreed; idx1++)
+				{
+					PtT = Instant_FwdDF;
+					Alpha_1Curve[idx1] = -deltat * 0.5 * (kappa1 * xt[idx1] / dxt + vol1 * vol1 / (dxt * dxt));
+					Beta_1Curve[idx1] = (1.0 + deltat * vol1 * vol1 / (dxt * dxt)) + (1.0 / PtT - 1.0) * 0.5;
+					Gamma_1Curve[idx1] = deltat * 0.5 * (kappa1 * xt[idx1] / dxt - vol1 * vol1 / (dxt * dxt));
+				}
+
+				for (idx2 = 0; idx2 < NGreed; idx2++)
+				{
+					PtT = Instant_FwdDF;
+					Alpha_2Curve[idx2] = -deltat * 0.5 * (kappa2 * yt[idx2] / dyt + vol2 * vol2 / (dyt * dyt));
+					Beta_2Curve[idx2] = (1.0 + deltat * vol2 * vol2 / (dyt * dyt)) + (1.0 / PtT - 1.0) * 0.5;
+					Gamma_2Curve[idx2] = deltat * 0.5 * (kappa2 * yt[idx2] / dyt - vol2 * vol2 / (dyt * dyt));
+				}
+
+				b0 = Beta_1Curve[0] + 2.0 * Alpha_1Curve[0];
+				c0 = Gamma_1Curve[0] - Alpha_1Curve[0];
+				bN = Beta_1Curve[NGreed - 1] + 2.0 * Gamma_1Curve[NGreed - 1];
+				aN = Alpha_1Curve[NGreed - 1] - Gamma_1Curve[NGreed - 1];
+				Beta_1Curve[0] = b0;
+				Gamma_1Curve[0] = c0;
+				Beta_1Curve[NGreed - 1] = bN;;
+				Alpha_1Curve[NGreed - 1] = aN;
+
+				ResultRHS_2F(NGreed, xt, yt, kappa1, kappa2, vol1, vol2, FactorCorrelation, dxt, dyt, deltat, FDMValue_2F, RHSValue_2F);
+				Tri_diagonal_Matrix_Fast(Alpha_1Curve, Beta_1Curve, Gamma_1Curve, RHSValue_2F, NGreed, TempAlphaArray, TempBetaArray, TempGammaArray);
+				TransposeMat(NGreed, RHSValue_2F);
+				Copy2dMatrix(FDMValue_2F, RHSValue_2F, NGreed, NGreed);
+
+				b0 = Beta_2Curve[0] + 2.0 * Alpha_2Curve[0];
+				c0 = Gamma_2Curve[0] - Alpha_2Curve[0];
+				bN = Beta_2Curve[NGreed - 1] + 2.0 * Gamma_2Curve[NGreed - 1];
+				aN = Alpha_2Curve[NGreed - 1] - Gamma_2Curve[NGreed - 1];
+				Beta_2Curve[0] = b0;
+				Gamma_2Curve[0] = c0;
+				Beta_2Curve[NGreed - 1] = bN;;
+				Alpha_2Curve[NGreed - 1] = aN;
+				ResultRHS_2F(NGreed, xt, yt, kappa1, kappa2, vol1, vol2, FactorCorrelation, dxt, dyt, deltat, FDMValue_2F, RHSValue_2F);
+				Tri_diagonal_Matrix_Fast(Alpha_2Curve, Beta_2Curve, Gamma_2Curve, RHSValue_2F, NGreed, TempAlphaArray, TempBetaArray, TempGammaArray);
+				TransposeMat(NGreed, RHSValue_2F);
+				Copy2dMatrix(FDMValue_2F, RHSValue_2F, NGreed, NGreed);
+
+			}
+			else
+			{
+				for (idx1 = 0; idx1 < NGreed; idx1++)
+				{
+					PtT = Instant_FwdDF;
+					Alpha_1Curve[idx1] = -deltat * 0.5 * (kappa1 * xt[idx1] / dxt + vol1 * vol1 / (dxt * dxt));
+					Beta_1Curve[idx1] = (1.0 + deltat * vol1 * vol1 / (dxt * dxt)) + (1.0 / PtT - 1.0) * 0.5;
+					Gamma_1Curve[idx1] = deltat * 0.5 * (kappa1 * xt[idx1] / dxt - vol1 * vol1 / (dxt * dxt));
+				}
+
+				b0 = Beta_1Curve[0] + 2.0 * Alpha_1Curve[0];
+				c0 = Gamma_1Curve[0] - Alpha_1Curve[0];
+				bN = Beta_1Curve[NGreed - 1] + 2.0 * Gamma_1Curve[NGreed - 1];
+				aN = Alpha_1Curve[NGreed - 1] - Gamma_1Curve[NGreed - 1];
+				Beta_1Curve[0] = b0;
+				Gamma_1Curve[0] = c0;
+				Beta_1Curve[NGreed - 1] = bN;;
+				Alpha_1Curve[NGreed - 1] = aN;
+
+				Tri_diagonal_Fast(Alpha_1Curve, Beta_1Curve, Gamma_1Curve, FDMValue_1F, NGreed, TempAlphaArray, TempBetaArray, TempGammaArray);
+			}
+
+			if (Today <= PriceDate)
+			{
+
+				// 만약 오늘이 평가일이라면 FDM 종료
+				break;
+			}
+
+
+			if (i != 0 && isin_Longtype(Today, RcvPaymentDate, NCpnDateRcv))
+			{
+				idxrcv = -1;
+				for (idxrcv = 0; idxrcv < NCpnDateRcv; idxrcv++)
+				{
+					if (RcvPaymentDate[idxrcv] == Today)
+					{
+						break;
+					}
+				}
+
+				idxrcvfix = -1;
+				for (idxrcvfix = 0; idxrcvfix < NTotalSimul; idxrcvfix++)
+				{
+					if (TotalArrayDateSimul[idxrcvfix] == RcvFixingDate[idxrcv])
+					{
+						break;
+					}
+				}
+
+				if (RcvPaymentDate[idxrcv] > PriceDate)
+				{
+					if (TotalArrayDateSimul[idxrcvfix] >= PriceDate)
+					{
+						if (HW2FFlag > 0)
+						{
+							if (PowerSpreadFlagRcv == 0)
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									for (idx2 = 0; idx2 < NGreed; idx2++)
+									{
+										Rate_Rcv = Rate_Rcv_2F[idxrcvfix][idx1][idx2];
+										RgCpnRcv = 0.;
+										if (Structured_Rcv[idxrcv] > 0)
+										{
+											Rate = SlopeOfFixingRate_Rcv[idxrcv] * Rate_Rcv;
+											if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * Rate_Rcv + RangeCpn_Rcv[idxrcv];
+										}
+										RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv]));
+										TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
+										FDMValue_2F[idx1][idx2] += RcvCpn;
+									}
+								}
+								ResultFixingRateCpnRcv[idxrcv] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Rcv_2F[idxrcvfix], 0.0, 0.0);
+								ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayRcv_2F, 0.0, 0.0);
+							}
+							else
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									for (idx2 = 0; idx2 < NGreed; idx2++)
+									{
+										Rate_Rcv = Rate_Rcv_2F[idxrcvfix][idx1][idx2];
+										Rate_Rcv_p = Rate_RcvPowerSpread_2F[idxrcvfix][idx1][idx2];
+										RgCpnRcv = 0.;
+										if (Structured_Rcv[idxrcv] > 0)
+										{
+											Rate = SlopeOfFixingRate_Rcv[idxrcv] * (Rate_Rcv- Rate_Rcv_p);
+											if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[idxrcv];
+										}
+										RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv]));
+										TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
+										FDMValue_2F[idx1][idx2] += RcvCpn;
+									}
+								}
+								ResultFixingRateCpnRcv[idxrcv] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Rcv_2F[idxrcvfix], 0.0, 0.0) - Calc_Volatility(NGreed, NGreed, xt, yt, Rate_RcvPowerSpread_2F[idxrcvfix], 0.0, 0.0);
+								ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayRcv_2F, 0.0, 0.0);
+							}
+						}
+						else
+						{
+							if (PowerSpreadFlagRcv == 0)
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									Rate_Rcv = Rate_Rcv_1F[idxrcvfix][idx1];
+									RgCpnRcv = 0.;
+									if (Structured_Rcv[idxrcv] > 0)
+									{
+										Rate = SlopeOfFixingRate_Rcv[idxrcv] * Rate_Rcv;
+										if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * Rate_Rcv + RangeCpn_Rcv[idxrcv];
+									}
+									RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv]));
+									TempCpnArrayRcv_1F[idx1] = RcvCpn;
+									FDMValue_1F[idx1] += RcvCpn;
+								}
+								ResultFixingRateCpnRcv[idxrcv] = Interpolate_Linear(xt, Rate_Rcv_1F[idxrcvfix], NGreed, 0.0);
+								ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = Interpolate_Linear(xt, TempCpnArrayRcv_1F, NGreed, 0.0);
+							}
+							else
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									Rate_Rcv = Rate_Rcv_1F[idxrcvfix][idx1];
+									Rate_Rcv_p = Rate_RcvPowerSpread_1F[idxrcvfix][idx1];
+									RgCpnRcv = 0.;
+									if (Structured_Rcv[idxrcv] > 0)
+									{
+										Rate = SlopeOfFixingRate_Rcv[idxrcv] * (Rate_Rcv- Rate_Rcv_p);
+										if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[idxrcv];
+									}
+									RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv]));
+									TempCpnArrayRcv_1F[idx1] = RcvCpn;
+									FDMValue_1F[idx1] += RcvCpn;
+								}
+								ResultFixingRateCpnRcv[idxrcv] = Interpolate_Linear(xt, Rate_Rcv_1F[idxrcvfix], NGreed, 0.0);
+								ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = Interpolate_Linear(xt, TempCpnArrayRcv_1F, NGreed, 0.0);
+							}
+						}
+					}
+				}
+				else
+				{
+					// History 참고
+					if (isin_Longtype(TotalArrayDateSimul[idxrcvfix], RcvRateHistoryDate, NRcvRateHistory))
+					{
+						for (idxhist = 0; idxhist < NRcvRateHistory; idxhist++)
+						{
+							if (TotalArrayDateSimul[idxrcvfix] == RcvRateHistoryDate[idxhist])
+							{
+								break;
+							}
+						}
+						Rate_Rcv = RcvRateHistory[idxhist];
+						RgCpnRcv = 0.;
+						if (Structured_Rcv[idxrcv] > 0)
+						{
+							Rate = SlopeOfFixingRate_Rcv[idxrcv] * Rate_Rcv;
+							if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * Rate_Rcv + RangeCpn_Rcv[idxrcv];
+						}
+						RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv]));
+						if (HW2FFlag == 0) for (idx1 = 0; idx1 < NGreed; idx1++) FDMValue_1F[idx1] += RcvCpn;
+						else for (idx1 = 0; idx1 < NGreed; idx1++) for (idx2 = 0; idx2 < NGreed; idx2++) FDMValue_2F[idx1][idx2] += RcvCpn;
+						ResultFixingRateCpnRcv[idxrcv] = Rate_Rcv;
+						ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = RcvCpn;
+					}
+				}
+			}
+
+			if (i != 0 && isin_Longtype(Today, PayPaymentDate, NCpnDatePay))
+			{
+				idxpay = -1;
+				for (idxpay = 0; idxpay < NCpnDatePay; idxpay++)
+				{
+					if (PayPaymentDate[idxpay] == Today)
+					{
+						break;
+					}
+				}
+
+				idxpayfix = -1;
+				for (idxpayfix = 0; idxpayfix < NTotalSimul; idxpayfix++)
+				{
+					if (TotalArrayDateSimul[idxpayfix] == PayFixingDate[idxpay])
+					{
+						break;
+					}
+				}
+
+				if (PayPaymentDate[idxpay] > PriceDate)
+				{
+					if (TotalArrayDateSimul[idxpayfix] >= PriceDate)
+					{
+						if (HW2FFlag > 0)
+						{
+							if (PowerSpreadFlagPay == 0)
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									for (idx2 = 0; idx2 < NGreed; idx2++)
+									{
+										Rate_Pay = Rate_Pay_2F[idxpayfix][idx1][idx2];
+										RgCpnPay = 0.;
+										if (Structured_Pay[idxpay] > 0)
+										{
+											Rate = SlopeOfFixingRate_Pay[idxpay] * Rate_Pay;
+											if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * Rate_Pay + RangeCpn_Pay[idxpay];
+										}
+										PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay]));
+										TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
+										FDMValue_2F[idx1][idx2] -= PayCpn;
+									}
+								}
+								ResultFixingRateCpnPay[idxpay] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Pay_2F[idxpayfix], 0.0, 0.0);
+								ResultFixingRateCpnPay[NCpnDatePay + idxpay] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayPay_2F, 0.0, 0.0);
+							}
+							else
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									for (idx2 = 0; idx2 < NGreed; idx2++)
+									{
+										Rate_Pay = Rate_Pay_2F[idxpayfix][idx1][idx2];
+										Rate_Pay_p = Rate_PayPowerSpread_2F[idxpayfix][idx1][idx2];
+										RgCpnPay = 0.;
+										if (Structured_Pay[idxpay] > 0)
+										{
+											Rate = SlopeOfFixingRate_Pay[idxpay] * (Rate_Pay - Rate_Pay_p);
+											if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[idxpay];
+										}
+										PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay]));
+										TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
+										FDMValue_2F[idx1][idx2] -= PayCpn;
+									}
+								}
+								ResultFixingRateCpnPay[idxpay] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Pay_2F[idxpayfix], 0.0, 0.0) - Calc_Volatility(NGreed, NGreed, xt, yt, Rate_PayPowerSpread_2F[idxpayfix], 0.0, 0.0);
+								ResultFixingRateCpnPay[NCpnDatePay + idxpay] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayPay_2F, 0.0, 0.0);
+							}
+						}
+						else
+						{
+							if (PowerSpreadFlagPay == 0)
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									Rate_Pay = Rate_Pay_1F[idxpayfix][idx1];
+									RgCpnPay = 0.;
+									if (Structured_Pay[idxpay] > 0)
+									{
+										Rate = SlopeOfFixingRate_Pay[idxpay] * Rate_Pay;
+										if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * Rate_Pay + RangeCpn_Pay[idxpay];
+									}
+									PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay]));
+									TempCpnArrayPay_1F[idx1] = PayCpn;
+									FDMValue_1F[idx1] -= PayCpn;
+								}
+								ResultFixingRateCpnPay[idxpay] = Interpolate_Linear(xt, Rate_Pay_1F[idxpayfix], NGreed, 0.0);
+								ResultFixingRateCpnPay[NCpnDatePay + idxpay] = Interpolate_Linear(xt, TempCpnArrayPay_1F, NGreed, 0.0);
+							}
+							else
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									Rate_Pay = Rate_Pay_1F[idxpayfix][idx1];
+									Rate_Pay_p = Rate_PayPowerSpread_1F[idxpayfix][idx1];
+									RgCpnPay = 0.;
+									if (Structured_Pay[idxpay] > 0)
+									{
+										Rate = SlopeOfFixingRate_Pay[idxpay] * (Rate_Pay - Rate_Pay_p);
+										if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[idxpay];
+									}
+									PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay]));
+									TempCpnArrayPay_1F[idx1] = PayCpn;
+									FDMValue_1F[idx1] -= PayCpn;
+								}
+								ResultFixingRateCpnPay[idxpay] = Interpolate_Linear(xt, Rate_Pay_1F[idxpayfix], NGreed, 0.0);
+								ResultFixingRateCpnPay[NCpnDatePay + idxpay] = Interpolate_Linear(xt, TempCpnArrayPay_1F, NGreed, 0.0);
+							}
+						}
+					}
+				}
+				else
+				{
+					// History 참고
+					if (isin_Longtype(TotalArrayDateSimul[idxpayfix], PayRateHistoryDate, NPayRateHistory))
+					{
+						for (idxhist = 0; idxhist < NPayRateHistory; idxhist++)
+						{
+							if (TotalArrayDateSimul[idxpayfix] == PayRateHistoryDate[idxhist])
+							{
+								break;
+							}
+						}
+						Rate_Pay = PayRateHistory[idxhist];
+						RgCpnPay = 0.;
+						if (Structured_Pay[idxpay] > 0)
+						{
+							Rate = SlopeOfFixingRate_Pay[idxpay] * Rate_Pay;
+							if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * Rate_Pay + RangeCpn_Pay[idxpay];
+						}
+						PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay]));
+						if (HW2FFlag == 0) for (idx1 = 0; idx1 < NGreed; idx1++) FDMValue_1F[idx1] -= PayCpn;
+						else for (idx1 = 0; idx1 < NGreed; idx1++) for (idx2 = 0; idx2 < NGreed; idx2++) FDMValue_2F[idx1][idx2] -= PayCpn;
+						ResultFixingRateCpnPay[idxpay] = Rate_Pay;
+						ResultFixingRateCpnPay[NCpnDatePay + idxpay] = PayCpn;
+					}
+				}
+			}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		}
+
+
+		n += 1;
+	}
+
+	if (HW2FFlag == 0) ResultValue = Interpolate_Linear(xt, FDMValue_1F, NGreed, 0.0);
+	else ResultValue = Calc_Volatility(NGreed, NGreed, xt, yt, FDMValue_2F, 0.0, 0.0);
 
 	for (i = 0; i < 2; i++) free(TotalHolidays[i]);
 	free(TotalHolidays);
@@ -1113,6 +1934,44 @@ long MyFunc(
 	free(QVTerm_DiscOpt_2F);
 	free(CrossQVTerm_DiscOpt);
 
+	free(SlopeOfFixingRate_Rcv);
+	free(SlopeOfPayoff_Rcv);
+	free(FixedRate_Rcv);
+	free(Structured_Rcv);
+	free(RangeCpn_Rcv);
+	free(DeltatRcv);
+	free(SlopeOfFixingRate_Pay);
+	free(SlopeOfPayoff_Pay);
+	free(FixedRate_Pay);
+	free(Structured_Pay);
+	free(RangeCpn_Pay);
+	free(DeltatPay);
+
+	free(Alpha_1Curve);
+	free(Beta_1Curve);
+	free(Gamma_1Curve);
+	free(Alpha_2Curve);
+	free(Beta_2Curve);
+	free(Gamma_2Curve);
+	free(FDMValue_1F);
+	for (i = 0; i < NGreed; i++) free(FDMValue_2F[i]);
+	free(FDMValue_2F);
+	for (i = 0; i < NGreed; i++) free(RHSValue_2F[i]);
+	free(RHSValue_2F);
+
+	free(TempAlphaArray);
+	free(TempBetaArray);
+	free(TempGammaArray);
+	for (i = 0; i < NGreed; i++)
+	{
+		free(TempCpnArrayRcv_2F[i]);
+		free(TempCpnArrayPay_2F[i]);
+	}
+	free(TempCpnArrayRcv_2F);
+	free(TempCpnArrayPay_2F);
+	free(TempCpnArrayRcv_1F);
+	free(TempCpnArrayPay_1F);
+
 	return 1;
 }
 
@@ -1123,31 +1982,31 @@ int main()
 	long EffectiveDate = 20240727;
 	long Maturity = 20340731;
 	long NAFlag = 0;
-	double NA = 400000000.0;
+	double NA = 10000.0;
 	long NAdditionalHolidays[2] = { 1, 2 };
 	long AddtionalHolidays[3] = { 20240101, 20240101, 20241225 };
 	long NationFlag[2] = { -1, -1 };
 	long NumCpnAnn[2] = { 4, 4 };
-	double MaxLossRefRcvPay[4] = { 0.99, 0.99, 0.99, 0.99 };
+	double MaxLossRetRcvPay[4] = { 0.0, 0.99, 0.00, 0.99 };
 	double MultipleRatefixPayoffRcvPay[4] = { 1.0, 1.0, 0.0, 0.0 };
-	long DayCountRcvPay[2] = { 0, 1 };
+	long DayCountRcvPay[2] = { 0, 0 };
 	long PowerSpreadFlagRcvPay[2] = { 0, 0 };
 	double RangeMaxMinRcvPay[4] = { 100.0, -1.0, 100.0, -1.0 };
-	double InfoRefRateRcvPay[8] = { 4.0, 10.0, 10.0, 5.0, 4.0, 0.25, 30.0, 10.0 };
+	double InfoRefRateRcvPay[8] = { 4.0, 0.25, 10.0, 5.0, 4.0, 0.25, 30.0, 10.0 };
 
 	double RcvLegFixedRate = 0.00;
 	double RcvLegRangeCoupon = 0.00;
 	long RcvLegStructuredFlag = 1;
-	double PayLegFixedRate = 0.03;
-	double PayLegRangeCoupon = 0.03;
+	double PayLegFixedRate = 0.04;
+	double PayLegRangeCoupon = 0.0;
 	long PayLegStructuredFlag = 0;
 
 	long Phase2Date = 20290727;
 	double Phase2RcvLegFixedRate = 0.00;
 	double Phase2RcvLegRangeCoupon = 0.00;
 	long Phase2RcvLegStructuredFlag = 1;
-	double Phase2PayLegFixedRate = 0.03;
-	double Phase2PayLegRangeCoupon = 0.03;
+	double Phase2PayLegFixedRate = 0.04;
+	double Phase2PayLegRangeCoupon = 0.0;
 	long Phase2PayLegStructuredFlag = 0;
 
 	long NOption = 2;
@@ -1175,23 +2034,24 @@ int main()
 	double FactorCorrelation = 0.132;
 	long NCpn[2] = { 0.0 };
 
-	NCpn[0] = Number_of_Coupons(1, CDateToExcelDate(EffectiveDate), CDateToExcelDate(Maturity), NumCpnAnn[0], 0, 0,0,0);
+	NCpn[0] = Number_of_Coupons(1, CDateToExcelDate(EffectiveDate), CDateToExcelDate(Maturity), NumCpnAnn[0], 0, 0, 0, 0);
 
-	NCpn[1] = Number_of_Coupons(1, CDateToExcelDate(EffectiveDate), CDateToExcelDate(Maturity), NumCpnAnn[0], 0, 0,0,0);
+	NCpn[1] = Number_of_Coupons(1, CDateToExcelDate(EffectiveDate), CDateToExcelDate(Maturity), NumCpnAnn[0], 0, 0, 0, 0);
 	long* ResultCpnDateRcv = (long*)malloc(sizeof(long) * NCpn[0] * 5);
 	long* ResultCpnDatePay = (long*)malloc(sizeof(long) * NCpn[1] * 5);
+	double* ResultFixingRateCpn = (double*)malloc(sizeof(double) * (NCpn[0] * 2 + NCpn[1] * 2));
 
 	MyFunc(PriceDate, EffectiveDate, Maturity, NAFlag, NA,
-		NAdditionalHolidays, NAdditionalHolidays, NationFlag, NumCpnAnn, MaxLossRefRcvPay,
+		NAdditionalHolidays, NAdditionalHolidays, NationFlag, NumCpnAnn, MaxLossRetRcvPay,
 		MultipleRatefixPayoffRcvPay, DayCountRcvPay, PowerSpreadFlagRcvPay, RangeMaxMinRcvPay, InfoRefRateRcvPay,
-		RcvLegFixedRate, RcvLegRangeCoupon, RcvLegStructuredFlag,PayLegFixedRate,PayLegRangeCoupon,
-		PayLegStructuredFlag,Phase2Date,Phase2RcvLegFixedRate,Phase2RcvLegRangeCoupon,Phase2RcvLegStructuredFlag,
-		Phase2PayLegFixedRate,Phase2PayLegRangeCoupon,Phase2PayLegStructuredFlag,NOption, OptionDate, 
-		OptionPayDate, OptionType, NRcvRateHistory,RcvRateHistoryDate, RcvRateHistory, 
-		NPayRateHistory, PayRateHistoryDate, PayRateHistory, NZeroRate, ZeroTerm, 
-		ZeroRate, HW2FFlag, NHWVol,HWVolTerm, HWVol, 
-		kappa, FactorCorrelation, ResultCpnDateRcv, ResultCpnDatePay
-		);
+		RcvLegFixedRate, RcvLegRangeCoupon, RcvLegStructuredFlag, PayLegFixedRate, PayLegRangeCoupon,
+		PayLegStructuredFlag, Phase2Date, Phase2RcvLegFixedRate, Phase2RcvLegRangeCoupon, Phase2RcvLegStructuredFlag,
+		Phase2PayLegFixedRate, Phase2PayLegRangeCoupon, Phase2PayLegStructuredFlag, NOption, OptionDate,
+		OptionPayDate, OptionType, NRcvRateHistory, RcvRateHistoryDate, RcvRateHistory,
+		NPayRateHistory, PayRateHistoryDate, PayRateHistory, NZeroRate, ZeroTerm,
+		ZeroRate, HW2FFlag, NHWVol, HWVolTerm, HWVol,
+		kappa, FactorCorrelation, ResultCpnDateRcv, ResultCpnDatePay, ResultFixingRateCpn
+	);
 	free(ResultCpnDateRcv);
 	free(ResultCpnDatePay);
 	_CrtDumpMemoryLeaks();
