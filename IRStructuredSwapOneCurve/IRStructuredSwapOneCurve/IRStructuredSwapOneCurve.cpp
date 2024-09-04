@@ -1409,6 +1409,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	double Instant_FwdDF, Instant_B_s_t, Instant_QVTerm, Instant_B_s_t_2F, Instant_QVTerm_2F, Instant_Cross_QVTerm_2F, R, PtT;
 	long LastFixingDateRcv, LastFixingDatePay, LastFixingIdxRcv = 0, LastFixingIdxPay = 0, idxrcv = 0, idxpay = 0, idxrcvfix = 0, idxpayfix = 0, idxhist = 0;
 
+	double* ForPrintVariable = (double*)malloc(sizeof(double) * 4);
 	LastFixingDateRcv = RcvFixingDate[NCpnDateRcv - 1];
 	LastFixingDatePay = PayFixingDate[NCpnDatePay - 1];
 	for (i = 0; i < NTotalSimul; i++)
@@ -1618,6 +1619,14 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 			if (fwdvar > 0.) vol1 = sqrt(fwdvar);
 			else vol1 = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, (t1 + t2) / 2.0);
 			Instant_FwdDF = df_T / df_t;
+			if (TextFlag > 0)
+			{
+				ForPrintVariable[0] = (double)Today;
+				ForPrintVariable[1] = t1;
+				ForPrintVariable[2] = t2;
+				ForPrintVariable[3] = Instant_FwdDF;
+				DumppingTextDataArray(CalcFunctionName, SaveFileName, "DF_in_FDMTimeGreed", 4, ForPrintVariable);
+			}
 			deltat = t2 - t1;
 			Instant_B_s_t = B_s_to_t(kappa1, t1, t2);
 			Instant_QVTerm = HullWhiteQVTerm(t1, t2, kappa1, 1, HWVolTerm, &vol1);
@@ -2174,6 +2183,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	free(TempCpnArrayPay_2F);
 	free(TempCpnArrayRcv_1F);
 	free(TempCpnArrayPay_1F);
+	free(ForPrintVariable);
 	//_CrtDumpMemoryLeaks();
 	return 1;
 }
