@@ -879,19 +879,19 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 				if (j == 0)
 				{
 					alpha[0] = 0.0;
-					beta[0] = B + 2.0 * A + R * dt;
+					beta[0] = B + 2.0 * A + (1.0 / InstantDF - 1.0);// +R * dt;
 					gamma[0] = C-A;
 				}
 				else if (j == NGreed_xt - 1)
 				{
 					alpha[NGreed_xt - 1] = A-C;
-					beta[NGreed_xt - 1] = B + 2.0 * C + R * dt;
+					beta[NGreed_xt - 1] = B + 2.0 * C + (1.0 / InstantDF - 1.0);// R* dt;
 					gamma[NGreed_xt - 1] = C;
 				}
 				else
 				{
 					alpha[j] = A;
-					beta[j] = B + R * dt;
+					beta[j] = B +(1.0 / InstantDF - 1.0);// R* dt;
 					gamma[j] = C;
 				}
 			}

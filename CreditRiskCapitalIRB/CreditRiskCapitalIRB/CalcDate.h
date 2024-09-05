@@ -1109,7 +1109,7 @@ long isin_Longtype(long x, long* array, long narray)
 
 long* MallocUnique(long* MyArray, long NArray, long& NUnique)
 {
-    long i, n = 0;
+    long i;
     long* TempArray = (long*)malloc(sizeof(long) * NArray);
     long nu = 0;
     for (i = 0; i < NArray; i++)
@@ -1118,16 +1118,14 @@ long* MallocUnique(long* MyArray, long NArray, long& NUnique)
         {
             TempArray[0] = MyArray[0];
             nu = 1;
-            n = 1;
         }
         else
         {
-            if (isin_Longtype(MyArray[i], TempArray, n) == 0)
+            if (isin_Longtype(MyArray[i], TempArray, nu) == 0)
             {
                 TempArray[nu] = MyArray[i];
                 nu += 1;
             }
-            n += 1;
         }
     }
     NUnique = nu;
@@ -1385,7 +1383,9 @@ void Mapping_Holiday16(long YYYY, long* Array16)
     Array16[5] = Labor;
 
     long Budda = Calc_Budda_Korea(YYYY);
-    Array16[6] = Budda;
+    if (Budda > 0) Array16[6] = Budda;
+    else Array16[6] = Jan01;
+
     long ChildrenDay = Calc_ChildrensDay_Korea(YYYY);
     Array16[7] = ChildrenDay;
     Array16[8] = YYYY * 10000 + 606;
@@ -1474,7 +1474,7 @@ long* Malloc_KoreaHolidayArray(long Start_YYYY, long End_YYYY, long& NHolidayArr
         }
     }
 
-    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++) if (Holidays[i]) free(Holidays[i]);
+    for (i = 0; i < max(1, (End_YYYY - Start_YYYY + 1)); i++) if (Holidays[i]) free(Holidays[i]);
     free(Holidays);                                                                                 // 메모리할당해제1
     free(nholidays);                                                                                // 메모리할당해제2
     return ResultArray;
@@ -1728,7 +1728,7 @@ long* Malloc_USHolidayArray(
         }
     }
 
-    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++) if (Holidays[i]) free(Holidays[i]);
+    for (i = 0; i < max(1, (End_YYYY - Start_YYYY + 1)); i++) if (Holidays[i]) free(Holidays[i]);
     free(Holidays);                                                                                 // 메모리할당해제1
     free(nholidays);                                                                                // 메모리할당해제2
     return ResultArray;
@@ -1837,7 +1837,7 @@ long* Malloc_US_NYMEX_HolidayArray(
         }
     }
 
-    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++) if (Holidays[i]) free(Holidays[i]);
+    for (i = 0; i < max(1, (End_YYYY - Start_YYYY + 1)); i++) if (Holidays[i]) free(Holidays[i]);
     free(Holidays);                                                                                 // 메모리할당해제1
     free(nholidays);                                                                                // 메모리할당해제2
     return ResultArray;
@@ -1918,7 +1918,7 @@ long* Malloc_US_NYSE_HolidayArray(
         }
     }
 
-    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++) if (Holidays[i]) free(Holidays[i]);
+    for (i = 0; i < max(1, (End_YYYY - Start_YYYY + 1)); i++) if (Holidays[i]) free(Holidays[i]);
     free(Holidays);                                                                                 // 메모리할당해제1
     free(nholidays);                                                                                // 메모리할당해제2
     return ResultArray;
@@ -2046,7 +2046,7 @@ long* Malloc_GBPHolidayArray(
     }
     bubble_sort_date(ResultArray, NHolidayArray, 1);
 
-    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++) if (Holidays[i]) free(Holidays[i]);
+    for (i = 0; i < max(1, (End_YYYY - Start_YYYY + 1)); i++) if (Holidays[i]) free(Holidays[i]);
     free(Holidays);                                                                                 // 메모리할당해제1
     free(nholidays);                                                                                // 메모리할당해제2
 
