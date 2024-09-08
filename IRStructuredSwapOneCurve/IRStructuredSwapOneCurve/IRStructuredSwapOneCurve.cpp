@@ -1774,9 +1774,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 			df_T = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, t2);
 			vols = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t1);
 			volt = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, t2);
-			fwdvar = (t2 * volt * volt - t1 * vols * vols) / (t2 - t1);
-			if (fwdvar > 0.) vol1 = sqrt(fwdvar);
-			else vol1 = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, (t1 + t2) / 2.0);
+			vol1 = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, (t1 + t2) / 2.0);
 			Instant_FwdDF = df_T / df_t;
 			if (TextFlag > 0)
 			{
@@ -1793,9 +1791,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 			{
 				vols = Interpolate_Linear(HWVolTerm, HWVol2, NHWVol, t1);
 				volt = Interpolate_Linear(HWVolTerm, HWVol2, NHWVol, t2);
-				fwdvar = (t2 * volt * volt - t1 * vols * vols) / (t2 - t1);
-				if (fwdvar > 0.) vol2 = sqrt(fwdvar);
-				else vol2 = Interpolate_Linear(HWVolTerm, HWVol2, NHWVol, (t1 + t2) / 2.0);
+				vol2 = Interpolate_Linear(HWVolTerm, HWVol2, NHWVol, (t1 + t2) / 2.0);
 				Instant_B_s_t_2F = B_s_to_t(kappa2, t1, t2);
 				Instant_QVTerm_2F = HullWhiteQVTerm(t1, t2, kappa2, 1, HWVolTerm, &vol1);
 				Instant_Cross_QVTerm_2F = HullWhite2F_CrossTerm(t1, t2, kappa1, 1, HWVolTerm, &vol1, kappa2, HWVolTerm, &vol2, FactorCorrelation);

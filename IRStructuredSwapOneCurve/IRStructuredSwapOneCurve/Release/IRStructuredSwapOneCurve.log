@@ -60,6 +60,7 @@ C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStruc
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1566,117): warning C4101: 'R' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(796,26): warning C4101: 'y_p' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(796,21): warning C4101: 'x_p' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1564,47): warning C4101: 'fwdvar' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(545,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
      C:\Users\ciiad\github5\IRStructuredSwapOneCurve\Release\IRStructuredSwapOneCurve.lib 라이브러리 및 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\Release\IRStructuredSwapOneCurve.exp 개체를 생성하고 있습니다.
   코드를 생성하고 있습니다.
