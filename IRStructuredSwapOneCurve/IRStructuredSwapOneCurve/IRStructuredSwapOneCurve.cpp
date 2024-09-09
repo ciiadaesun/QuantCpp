@@ -2208,7 +2208,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 									Rate_Rcv = Rate_Rcv_2F[idxrcv][idx1][idx2];
 									Rate_Rcv_p = Rate_RcvPowerSpread_2F[idxrcv][idx1][idx2];
 									RgCpnRcv = 0.;
-									if (Structured_Rcv[idxrcv] > 0)
+									if (Structured_Rcv[LastFixingIdxRcv] > 0)
 									{
 										Rate = SlopeOfFixingRate_Rcv[LastFixingIdxRcv] * (Rate_Rcv - Rate_Rcv_p);
 										if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[LastFixingIdxRcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[LastFixingIdxRcv];
@@ -2317,7 +2317,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 									Rate_Pay = Rate_Pay_2F[idxpay][idx1][idx2];
 									Rate_Pay_p = Rate_PayPowerSpread_2F[idxpay][idx1][idx2];
 									RgCpnPay = 0.;
-									if (Structured_Pay[idxpay] > 0)
+									if (Structured_Pay[LastFixingIdxPay] > 0)
 									{
 										Rate = SlopeOfFixingRate_Pay[LastFixingIdxPay] * (Rate_Pay - Rate_Pay_p);
 										if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[LastFixingIdxPay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[LastFixingIdxPay];
