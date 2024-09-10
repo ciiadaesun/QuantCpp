@@ -2251,18 +2251,27 @@ long* Malloc_CpnDate_Holiday(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long
     long n = ((SwapMat_YYYYMMDD / 10000 - PriceDateYYYYMMDD / 10000) + 2) * AnnCpnOneYear;
     long narray = 0;
     long CpnDate;
-    long m = max(1, 12 / AnnCpnOneYear);
-    for (i = 0; i < n; i++)
+    long m;
+    if (AnnCpnOneYear == 0)
     {
-        if (i == 0) CpnDate = SwapMat_YYYYMMDD;
-        else CpnDate = EDate_Cpp(SwapMat_YYYYMMDD, -i * m);
-        if (DayCountAtoB(PriceDateYYYYMMDD, CpnDate) < 7)
+        narray = 1;
+        n = 1;
+    }
+    else
+    {
+        m = max(1, 12 / AnnCpnOneYear);
+        for (i = 0; i < n; i++)
         {
-            FirstCpnDate = CpnDate;
-            break;
+            if (i == 0) CpnDate = SwapMat_YYYYMMDD;
+            else CpnDate = EDate_Cpp(SwapMat_YYYYMMDD, -i * m);
+            if (DayCountAtoB(PriceDateYYYYMMDD, CpnDate) < 7)
+            {
+                FirstCpnDate = CpnDate;
+                break;
+            }
+            if (CpnDate <= PriceDateYYYYMMDD) break;
+            narray++;
         }
-        if (CpnDate <= PriceDateYYYYMMDD) break;
-        narray++;
     }
 
     long* ResultCpnDate = (long*)malloc(sizeof(long) * narray);
