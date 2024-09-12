@@ -15,6 +15,24 @@
 #include "Structure.h"
 #include <crtdbg.h>
 
+double rounding_double(double x, long n_decimal)
+{
+	if (n_decimal == 0)
+	{
+		return x;
+	}
+	else
+	{
+		long i;
+		long j;
+		double div = 1.0;
+		for (i = 0; i < min(15, n_decimal); i++) div *= 10.0;
+
+		double resultvalue = ceil(x * div) / div;
+		return resultvalue;
+	}
+}
+
 DLLEXPORT(long) NCpnDate_Holiday_2Phase(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOneYearPhase1, long Phase2UseFlag, long AnnCpnOneYearPhase2, long Phase2Date, long ModifiedFollowing)
 {
 	long i;
@@ -532,25 +550,27 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 
 	double* kappa,
 	double FactorCorrelation,
+	long* InterestRateRoundingRcvPay,
 	long* ResultCpnDateRcv,
 	long* ResultCpnDatePay,
 	double* ResultFixingRateCpn,
 	long TextFlag
 )
 {
-	//if (PriceDate < 19000101) PriceDate = ExcelDateToCDate(PriceDate);
-	//if (Maturity < 19000101) Maturity = ExcelDateToCDate(Maturity);
-	//if (EffectiveDate < 19000101) EffectiveDate = ExcelDateToCDate(EffectiveDate);
-	//if (Phase2Date < 19000101) Phase2Date = ExcelDateToCDate(Phase2Date);
+	if (PriceDate < 19000101) PriceDate = ExcelDateToCDate(PriceDate);
+	if (Maturity < 19000101) Maturity = ExcelDateToCDate(Maturity);
+	if (EffectiveDate < 19000101) EffectiveDate = ExcelDateToCDate(EffectiveDate);
+	if (Phase2Date < 19000101) Phase2Date = ExcelDateToCDate(Phase2Date);
 	long i, j, k, n;
-	//for (i = 0; i < NAdditionalHolidays[0] + NAdditionalHolidays[1]; i++) if (AdditionalHolidays[i] < 19000101) AdditionalHolidays[i] = ExcelDateToCDate(AdditionalHolidays[i]);
-	//for (i = 0; i < NOption; i++) if (OptionDate[i] < 19000101) OptionDate[i] = ExcelDateToCDate(OptionDate[i]);
-	//for (i = 0; i < NOption; i++) if (OptionPayDate[i] < 19000101) OptionPayDate[i] = ExcelDateToCDate(OptionPayDate[i]);
-	//for (i = 0; i < NRcvRateHistory; i++) if (RcvRateHistoryDate[i] < 19000101) RcvRateHistoryDate[i] = ExcelDateToCDate(RcvRateHistoryDate[i]);
-	//for (i = 0; i < NPayRateHistory; i++) if (PayRateHistoryDate[i] < 19000101) PayRateHistoryDate[i] = ExcelDateToCDate(PayRateHistoryDate[i]);
+	for (i = 0; i < NAdditionalHolidays[0] + NAdditionalHolidays[1]; i++) if (AdditionalHolidays[i] < 19000101) AdditionalHolidays[i] = ExcelDateToCDate(AdditionalHolidays[i]);
+	for (i = 0; i < NOption; i++) if (OptionDate[i] < 19000101) OptionDate[i] = ExcelDateToCDate(OptionDate[i]);
+	for (i = 0; i < NOption; i++) if (OptionPayDate[i] < 19000101) OptionPayDate[i] = ExcelDateToCDate(OptionPayDate[i]);
+	for (i = 0; i < NRcvRateHistory; i++) if (RcvRateHistoryDate[i] < 19000101) RcvRateHistoryDate[i] = ExcelDateToCDate(RcvRateHistoryDate[i]);
+	for (i = 0; i < NPayRateHistory; i++) if (PayRateHistoryDate[i] < 19000101) PayRateHistoryDate[i] = ExcelDateToCDate(PayRateHistoryDate[i]);
 	char CalcFunctionName[] = "IRStructuredSwapFDM";
 	char SaveFileName[100];
-
+	long RoundingRcv = InterestRateRoundingRcvPay[0];
+	long RoundingPay = InterestRateRoundingRcvPay[1];
 	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
 	if (TextFlag > 0)
 	{
@@ -615,6 +635,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 		DumppingTextDataArray(CalcFunctionName, SaveFileName, "HWVol", NHWVol * 2, HWVol);
 		DumppingTextDataArray(CalcFunctionName, SaveFileName, "kappa", 2, kappa);
 		DumppingTextData(CalcFunctionName, SaveFileName, "FactorCorrelation", FactorCorrelation);
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "InterestRateRoundingRcvPay", 2, InterestRateRoundingRcvPay);
 
 
 	}
@@ -762,15 +783,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	long* PayFixingDate = ResultCpnDatePay;
 	long* PayPaymentDate = ResultCpnDatePay + 2 * NCpnDate[1];
 
-	long NTotalSimulNotAdj = NCpnDate[0] * 2 + NCpnDate[1] * 2 + NOption * 2 + 1;
+	long NTotalSimulNotAdj = NCpnDate[0] * 2 + NCpnDate[1] * 2 + NOption * 2 + 2;
 	long* TotalArraySimulNotAdj = (long*)malloc(sizeof(long) * NTotalSimulNotAdj);
-	TotalArraySimulNotAdj[0] = PriceDate;
-	for (i = 0; i < NCpnDate[0]; i++) TotalArraySimulNotAdj[1 + i] = CpnDate[0][i];
-	for (i = 0; i < NCpnDate[0]; i++) TotalArraySimulNotAdj[1 + i + NCpnDate[0]] = CpnPayDate[0][i];
-	for (i = 0; i < NCpnDate[1]; i++) TotalArraySimulNotAdj[1 + i + 2 * NCpnDate[0]] = CpnDate[1][i];
-	for (i = 0; i < NCpnDate[1]; i++) TotalArraySimulNotAdj[1 + i + 2 * NCpnDate[0] + NCpnDate[1]] = CpnPayDate[1][i];
-	for (i = 0; i < NOption; i++) TotalArraySimulNotAdj[1 + i + 2 * NCpnDate[0] + 2 * NCpnDate[1]] = OptionDate[i];
-	for (i = 0; i < NOption; i++) TotalArraySimulNotAdj[1 + i + 2 * NCpnDate[0] + 2 * NCpnDate[1] + NOption] = OptionPayDate[i];
+	TotalArraySimulNotAdj[0] = EffectiveDate;
+	TotalArraySimulNotAdj[1] = PriceDate;
+	for (i = 0; i < NCpnDate[0]; i++) TotalArraySimulNotAdj[2 + i] = CpnDate[0][i];
+	for (i = 0; i < NCpnDate[0]; i++) TotalArraySimulNotAdj[2 + i + NCpnDate[0]] = CpnPayDate[0][i];
+	for (i = 0; i < NCpnDate[1]; i++) TotalArraySimulNotAdj[2 + i + 2 * NCpnDate[0]] = CpnDate[1][i];
+	for (i = 0; i < NCpnDate[1]; i++) TotalArraySimulNotAdj[2 + i + 2 * NCpnDate[0] + NCpnDate[1]] = CpnPayDate[1][i];
+	for (i = 0; i < NOption; i++) TotalArraySimulNotAdj[2 + i + 2 * NCpnDate[0] + 2 * NCpnDate[1]] = OptionDate[i];
+	for (i = 0; i < NOption; i++) TotalArraySimulNotAdj[2 + i + 2 * NCpnDate[0] + 2 * NCpnDate[1] + NOption] = OptionPayDate[i];
 	long NTotalSimul = 0;
 	long* TotalArrayDateSimul = MallocUnique(TotalArraySimulNotAdj, NTotalSimulNotAdj, NTotalSimul);
 	bubble_sort_date(TotalArrayDateSimul, NTotalSimul, 1);
@@ -1485,6 +1507,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	long* Structured_Rcv = (long*)malloc(sizeof(long) * NCpnDateRcv);
 	double* RangeCpn_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);
 	double* DeltatRcv = (double*)malloc(sizeof(double) * NCpnDateRcv);
+	long* ZeroCouponFlagRcv = (long*)malloc(sizeof(long) * NCpnDateRcv);
 
 	double* SlopeOfFixingRate_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);
 	double* SlopeOfPayoff_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);
@@ -1492,6 +1515,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	long* Structured_Pay = (long*)malloc(sizeof(long) * NCpnDatePay);
 	double* RangeCpn_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);
 	double* DeltatPay = (double*)malloc(sizeof(double) * NCpnDatePay);
+	long* ZeroCouponFlagPay = (long*)malloc(sizeof(long) * NCpnDatePay);
 
 	long* CpnDateRcv = CpnDate[0];
 	long* CpnDatePay = CpnDate[1];
@@ -1507,12 +1531,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 			FixedRate_Rcv[i] = Phase2RcvLegFixedRate;
 			Structured_Rcv[i] = Phase2RcvLegStructuredFlag;
 			RangeCpn_Rcv[i] = Phase2RcvLegRangeCoupon;
+			if (NumCpnAnnPhase2RcvPay[0] == 0) ZeroCouponFlagRcv[i] = 1;
+			else ZeroCouponFlagRcv[i] = 0;
 		}
 		else
 		{
 			FixedRate_Rcv[i] = RcvLegFixedRate;
 			Structured_Rcv[i] = RcvLegStructuredFlag;
 			RangeCpn_Rcv[i] = RcvLegRangeCoupon;
+			if (NumCpnAnn[0] == 0) ZeroCouponFlagRcv[i] = 1;
+			else ZeroCouponFlagRcv[i] = 0;
 		}
 	}
 	for (i = 0; i < NCpnDatePay; i++)
@@ -1525,12 +1553,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 			FixedRate_Pay[i] = Phase2PayLegFixedRate;
 			Structured_Pay[i] = Phase2PayLegStructuredFlag;
 			RangeCpn_Pay[i] = Phase2PayLegRangeCoupon;
+			if (NumCpnAnnPhase2RcvPay[1] == 0) ZeroCouponFlagPay[i] = 1;
+			else ZeroCouponFlagPay[i] = 0;
 		}
 		else
 		{
 			FixedRate_Pay[i] = PayLegFixedRate;
 			Structured_Pay[i] = PayLegStructuredFlag;
 			RangeCpn_Pay[i] = PayLegRangeCoupon;
+			if (NumCpnAnn[1] == 0) ZeroCouponFlagPay[i] = 1;
+			else ZeroCouponFlagPay[i] = 0;
 		}
 	}
 
@@ -1567,6 +1599,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	long LastFixingDateRcv, LastFixingDatePay, LastFixingIdxRcv = 0, LastFixingIdxPay = 0, idxrcv = 0, idxpay = 0, idxrcvfix = 0, idxpayfix = 0, idxhist = 0;
 
 	double* ForPrintVariable = (double*)malloc(sizeof(double) * 4);
+	double deltat_fixing_to_pay = 0.;
 	LastFixingDateRcv = RcvFixingDate[NCpnDateRcv - 1];
 	LastFixingDatePay = PayFixingDate[NCpnDatePay - 1];
 	for (i = 0; i < NTotalSimul; i++)
@@ -1596,7 +1629,6 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 		t = Time[NTotalSimul - 1 - i];
 		if (n == 0)
 		{
-
 			if (HW2FFlag > 0)
 			{
 				if (PowerSpreadFlagRcv == 0)
@@ -1612,7 +1644,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 								Rate = SlopeOfFixingRate_Rcv[NCpnDateRcv - 1] * Rate_Rcv;
 								if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * Rate_Rcv) + RangeCpn_Rcv[NCpnDateRcv - 1];
 							}
-							RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv) * DeltatRcv[NCpnDateRcv - 1]));
+							
+							if (ZeroCouponFlagRcv[NCpnDateRcv - 1] == 0)
+							{
+								RcvCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv) * DeltatRcv[NCpnDateRcv - 1])), RoundingRcv);
+							}
+							else
+							{
+								deltat_fixing_to_pay = DeltatRcv[NCpnDateRcv - 1];
+								RcvCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+							}
 							TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
 							FDMValue_2F[idx1][idx2] = RcvCpn;
 						}
@@ -1634,7 +1675,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 								Rate = SlopeOfFixingRate_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p);
 								if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p)) + RangeCpn_Rcv[NCpnDateRcv - 1];
 							}
-							RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv) * DeltatRcv[NCpnDateRcv - 1]));
+
+							if (ZeroCouponFlagRcv[NCpnDateRcv - 1] == 0)
+							{
+								RcvCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv) * DeltatRcv[NCpnDateRcv - 1])), RoundingRcv);
+							}
+							else
+							{
+								deltat_fixing_to_pay = DeltatRcv[NCpnDateRcv - 1];
+								RcvCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+							}
 							TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
 							FDMValue_2F[idx1][idx2] = RcvCpn;
 						}
@@ -1656,7 +1706,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 								Rate = SlopeOfFixingRate_Pay[NCpnDatePay - 1] * Rate_Pay;
 								if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * Rate_Pay) + RangeCpn_Pay[NCpnDatePay - 1];
 							}
-							PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay) * DeltatPay[NCpnDatePay - 1]));
+
+							if (ZeroCouponFlagPay[NCpnDatePay - 1] == 0)
+							{
+								PayCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay) * DeltatPay[NCpnDatePay - 1])), RoundingPay);
+							}
+							else
+							{
+								deltat_fixing_to_pay = DeltatPay[NCpnDatePay - 1];
+								PayCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
+							}
 							TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
 							FDMValue_2F[idx1][idx2] -= PayCpn;
 						}
@@ -1678,7 +1737,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 								Rate = SlopeOfFixingRate_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p);
 								if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p)) + RangeCpn_Pay[NCpnDatePay - 1];
 							}
-							PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay) * DeltatPay[NCpnDatePay - 1]));
+
+							if (ZeroCouponFlagPay[NCpnDatePay - 1] == 0)
+							{
+								PayCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay) * DeltatPay[NCpnDatePay - 1])), RoundingPay);
+							}
+							else
+							{
+								deltat_fixing_to_pay = DeltatPay[NCpnDatePay - 1];
+								PayCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
+							}
 							TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
 							FDMValue_2F[idx1][idx2] -= PayCpn;
 						}
@@ -1700,7 +1768,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 							Rate = SlopeOfFixingRate_Rcv[NCpnDateRcv - 1] * Rate_Rcv;
 							if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * Rate_Rcv) + RangeCpn_Rcv[NCpnDateRcv - 1];
 						}
-						RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv) * DeltatRcv[NCpnDateRcv - 1]));
+
+						if (ZeroCouponFlagRcv[NCpnDateRcv - 1] == 0)
+						{
+							RcvCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv) * DeltatRcv[NCpnDateRcv - 1])), RoundingRcv);
+						}
+						else
+						{
+							deltat_fixing_to_pay = DeltatRcv[NCpnDateRcv - 1];
+							RcvCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+						}
 						TempCpnArrayRcv_1F[idx1] = RcvCpn;
 						FDMValue_1F[idx1] = RcvCpn;
 					}
@@ -1719,7 +1796,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 							Rate = SlopeOfFixingRate_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p);
 							if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p)) + RangeCpn_Rcv[NCpnDateRcv - 1];
 						}
-						RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv) * DeltatRcv[NCpnDateRcv - 1]));
+
+						if (ZeroCouponFlagRcv[NCpnDateRcv - 1] == 0)
+						{
+							RcvCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv) * DeltatRcv[NCpnDateRcv - 1])), RoundingRcv);
+						}
+						else
+						{
+							deltat_fixing_to_pay = DeltatRcv[NCpnDateRcv - 1];
+							RcvCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[NCpnDateRcv - 1] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+						}
 						TempCpnArrayRcv_1F[idx1] = RcvCpn;
 						FDMValue_1F[idx1] = RcvCpn;
 					}
@@ -1738,7 +1824,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 							Rate = SlopeOfFixingRate_Pay[NCpnDatePay - 1] * Rate_Pay;
 							if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * Rate_Pay) + RangeCpn_Pay[NCpnDatePay - 1];
 						}
-						PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay) * DeltatPay[NCpnDatePay - 1]));
+
+						if (ZeroCouponFlagPay[NCpnDatePay - 1] == 0)
+						{
+							PayCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay) * DeltatPay[NCpnDatePay - 1])), RoundingPay);
+						}
+						else
+						{
+							deltat_fixing_to_pay = DeltatPay[NCpnDatePay - 1];
+							PayCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
+						}
 						TempCpnArrayPay_1F[idx1] = PayCpn;
 						FDMValue_1F[idx1] -= PayCpn;
 					}
@@ -1757,7 +1852,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 							Rate = SlopeOfFixingRate_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p);
 							if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p)) + RangeCpn_Pay[NCpnDatePay - 1];
 						}
-						PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay) * DeltatPay[NCpnDatePay - 1]));
+
+						if (ZeroCouponFlagPay[NCpnDatePay - 1] == 0)
+						{
+							PayCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay) * DeltatPay[NCpnDatePay - 1])), RoundingPay);
+						}
+						else
+						{
+							deltat_fixing_to_pay = DeltatPay[NCpnDatePay - 1];
+							PayCpn = NA * (double)NAFlag + NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[NCpnDatePay - 1] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
+						}
 						TempCpnArrayPay_1F[idx1] = PayCpn;
 						FDMValue_1F[idx1] -= PayCpn;
 					}
@@ -1864,7 +1968,6 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 
 			if (Today <= PriceDate)
 			{
-
 				// 만약 오늘이 평가일이라면 FDM 종료
 				break;
 			}
@@ -1909,7 +2012,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 											Rate = SlopeOfFixingRate_Rcv[idxrcv] * Rate_Rcv;
 											if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * Rate_Rcv + RangeCpn_Rcv[idxrcv];
 										}
-										RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv]));
+
+										if (ZeroCouponFlagRcv[idxrcv] == 0)
+										{
+											RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])), RoundingRcv);
+										}
+										else
+										{
+											deltat_fixing_to_pay = DeltatRcv[idxrcv];
+											RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+										}
 										TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
 										FDMValue_2F[idx1][idx2] += RcvCpn;
 									}
@@ -1931,7 +2043,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 											Rate = SlopeOfFixingRate_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p);
 											if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[idxrcv];
 										}
-										RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv]));
+
+										if (ZeroCouponFlagRcv[idxrcv] == 0)
+										{
+											RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])), RoundingRcv);
+										}
+										else
+										{
+											deltat_fixing_to_pay = DeltatRcv[idxrcv];
+											RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+										}
 										TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
 										FDMValue_2F[idx1][idx2] += RcvCpn;
 									}
@@ -1953,7 +2074,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										Rate = SlopeOfFixingRate_Rcv[idxrcv] * Rate_Rcv;
 										if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * Rate_Rcv + RangeCpn_Rcv[idxrcv];
 									}
-									RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv]));
+
+									if (ZeroCouponFlagRcv[idxrcv] == 0)
+									{
+										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])), RoundingRcv);
+									}
+									else
+									{
+										deltat_fixing_to_pay = DeltatRcv[idxrcv];
+										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+									}
 									TempCpnArrayRcv_1F[idx1] = RcvCpn;
 									FDMValue_1F[idx1] += RcvCpn;
 								}
@@ -1972,7 +2102,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										Rate = SlopeOfFixingRate_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p);
 										if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[idxrcv];
 									}
-									RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv]));
+
+									if (ZeroCouponFlagRcv[idxrcv] == 0)
+									{
+										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])),RoundingRcv);
+									}
+									else
+									{
+										deltat_fixing_to_pay = DeltatRcv[idxrcv];
+										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)),RoundingRcv);
+									}
 									TempCpnArrayRcv_1F[idx1] = RcvCpn;
 									FDMValue_1F[idx1] += RcvCpn;
 								}
@@ -1997,7 +2136,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 							Rate = SlopeOfFixingRate_Rcv[idxrcv] * Rate_Rcv;
 							if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * Rate_Rcv + RangeCpn_Rcv[idxrcv];
 						}
-						RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv]));
+
+						if (ZeroCouponFlagRcv[idxrcv] == 0)
+						{
+							RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])),RoundingRcv);
+						}
+						else
+						{
+							deltat_fixing_to_pay = DeltatRcv[idxrcv];
+							RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)),RoundingRcv);
+						}
 						if (HW2FFlag == 0) for (idx1 = 0; idx1 < NGreed; idx1++) FDMValue_1F[idx1] += RcvCpn;
 						else for (idx1 = 0; idx1 < NGreed; idx1++) for (idx2 = 0; idx2 < NGreed; idx2++) FDMValue_2F[idx1][idx2] += RcvCpn;
 						ResultFixingRateCpnRcv[idxrcv] = Rate_Rcv;
@@ -2049,7 +2197,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 											Rate = SlopeOfFixingRate_Pay[idxpay] * Rate_Pay;
 											if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * Rate_Pay + RangeCpn_Pay[idxpay];
 										}
-										PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay]));
+										
+										if (ZeroCouponFlagPay[idxpay] == 0)
+										{
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])), RoundingPay);
+										}
+										else
+										{
+											deltat_fixing_to_pay = DeltatPay[idxpay];
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
+										}
 										TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
 										FDMValue_2F[idx1][idx2] -= PayCpn;
 									}
@@ -2071,7 +2228,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 											Rate = SlopeOfFixingRate_Pay[idxpay] * (Rate_Pay - Rate_Pay_p);
 											if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[idxpay];
 										}
-										PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay]));
+										
+										if (ZeroCouponFlagPay[idxpay] == 0)
+										{
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])),RoundingPay);
+										}
+										else
+										{
+											deltat_fixing_to_pay = DeltatPay[idxpay];
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
+										}
 										TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
 										FDMValue_2F[idx1][idx2] -= PayCpn;
 									}
@@ -2093,7 +2259,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										Rate = SlopeOfFixingRate_Pay[idxpay] * Rate_Pay;
 										if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * Rate_Pay + RangeCpn_Pay[idxpay];
 									}
-									PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay]));
+
+									if (ZeroCouponFlagPay[idxpay] == 0)
+									{
+										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])),RoundingPay);
+									}
+									else
+									{
+										deltat_fixing_to_pay = DeltatPay[idxpay];
+										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
+									}
 									TempCpnArrayPay_1F[idx1] = PayCpn;
 									FDMValue_1F[idx1] -= PayCpn;
 								}
@@ -2112,7 +2287,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										Rate = SlopeOfFixingRate_Pay[idxpay] * (Rate_Pay - Rate_Pay_p);
 										if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[idxpay];
 									}
-									PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay]));
+
+									if (ZeroCouponFlagPay[idxpay] == 0)
+									{
+										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])),RoundingPay);
+									}
+									else
+									{
+										deltat_fixing_to_pay = DeltatPay[idxpay];
+										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
+									}
 									TempCpnArrayPay_1F[idx1] = PayCpn;
 									FDMValue_1F[idx1] -= PayCpn;
 								}
@@ -2137,7 +2321,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 							Rate = SlopeOfFixingRate_Pay[idxpay] * Rate_Pay;
 							if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * Rate_Pay + RangeCpn_Pay[idxpay];
 						}
-						PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay]));
+
+						if (ZeroCouponFlagPay[idxpay] == 0)
+						{
+							PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])),RoundingPay);
+						}
+						else
+						{
+							deltat_fixing_to_pay = DeltatPay[idxpay];
+							PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
+						}
 						if (HW2FFlag == 0) for (idx1 = 0; idx1 < NGreed; idx1++) FDMValue_1F[idx1] -= PayCpn;
 						else for (idx1 = 0; idx1 < NGreed; idx1++) for (idx2 = 0; idx2 < NGreed; idx2++) FDMValue_2F[idx1][idx2] -= PayCpn;
 						ResultFixingRateCpnPay[idxpay] = Rate_Pay;
@@ -2160,7 +2353,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				LastFixingIdxRcv = -1;
 				for (idx1 = 0; idx1 < NCpnDateRcv; idx1++)
 				{
-					if (OptionDate[nextoptidx] <= RcvPaymentDate[idx1] && RcvFixingDate[idx1] >= OptionDate[nextoptidx])
+					if (OptionDate[nextoptidx] <= RcvPaymentDate[idx1] && RcvFixingDate[idx1] <= OptionDate[nextoptidx])
 					{
 						LastFixingIdxRcv = idx1;
 						break;
@@ -2177,7 +2370,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					}
 				}
 
-				if (LastFixingIdxRcv > 0)
+				if (LastFixingIdxRcv >= 0)
 				{
 					if (HW2FFlag > 0)
 					{
@@ -2194,7 +2387,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										Rate = SlopeOfFixingRate_Rcv[LastFixingIdxRcv] * Rate_Rcv;
 										if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[LastFixingIdxRcv] * Rate_Rcv + RangeCpn_Rcv[LastFixingIdxRcv];
 									}
-									RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv]));
+
+									if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 0)
+									{
+										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv])),RoundingRcv);
+									}
+									else
+									{
+										deltat_fixing_to_pay = DeltatRcv[LastFixingIdxRcv];
+										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)),RoundingRcv);
+									}
 									RcvLastFixingPayoff_2F[idx1][idx2] = RcvCpn;
 								}
 							}
@@ -2213,7 +2415,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										Rate = SlopeOfFixingRate_Rcv[LastFixingIdxRcv] * (Rate_Rcv - Rate_Rcv_p);
 										if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[LastFixingIdxRcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[LastFixingIdxRcv];
 									}
-									RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv]));
+									
+									if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 0)
+									{
+										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv])), RoundingRcv);
+									}
+									else
+									{
+										deltat_fixing_to_pay = DeltatRcv[LastFixingIdxRcv];
+										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)),RoundingRcv);
+									}
 									RcvLastFixingPayoff_2F[idx1][idx2] = RcvCpn;
 								}
 							}
@@ -2232,7 +2443,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 									Rate = SlopeOfFixingRate_Rcv[LastFixingIdxRcv] * Rate_Rcv;
 									if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[LastFixingIdxRcv] * Rate_Rcv + RangeCpn_Rcv[LastFixingIdxRcv];
 								}
-								RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv]));
+								
+								if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 0)
+								{
+									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv])), RoundingRcv);
+								}
+								else
+								{
+									deltat_fixing_to_pay = DeltatRcv[LastFixingIdxRcv];
+									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)),RoundingRcv);
+								}
 								RcvLastFixingPayoff_1F[idx1] = RcvCpn;
 							}
 						}
@@ -2248,7 +2468,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 									Rate = SlopeOfFixingRate_Rcv[LastFixingIdxRcv] * (Rate_Rcv - Rate_Rcv_p);
 									if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[LastFixingIdxRcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[LastFixingIdxRcv];
 								}
-								RcvCpn = NA * (double)NAFlag + NA * min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv]));
+
+								if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 0)
+								{
+									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv])),RoundingRcv);
+								}
+								else
+								{
+									deltat_fixing_to_pay = DeltatRcv[LastFixingIdxRcv];
+									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)),RoundingRcv);
+								}
 								RcvLastFixingPayoff_1F[idx1] = RcvCpn;
 							}
 						}
@@ -2269,7 +2498,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				LastFixingIdxPay = -1;
 				for (idx1 = 0; idx1 < NCpnDatePay; idx1++)
 				{
-					if (OptionDate[nextoptidx] <= PayPaymentDate[idx1] && PayFixingDate[idx1] >= OptionDate[nextoptidx])
+					if (OptionDate[nextoptidx] <= PayPaymentDate[idx1] && PayFixingDate[idx1] <= OptionDate[nextoptidx])
 					{
 						LastFixingIdxPay = idx1;
 						break;
@@ -2286,7 +2515,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					}
 				}
 
-				if (LastFixingIdxPay > 0)
+				if (LastFixingIdxPay >= 0)
 				{
 					if (HW2FFlag > 0)
 					{
@@ -2303,7 +2532,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										Rate = SlopeOfFixingRate_Pay[LastFixingIdxPay] * Rate_Pay;
 										if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[LastFixingIdxPay] * Rate_Pay + RangeCpn_Pay[LastFixingIdxPay];
 									}
-									PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay]));
+									
+									if (ZeroCouponFlagPay[LastFixingIdxPay] == 0)
+									{
+										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay])),RoundingPay);
+									}
+									else
+									{
+										deltat_fixing_to_pay = DeltatPay[LastFixingIdxPay];
+										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
+									}
 									PayLastFixingPayoff_2F[idx1][idx2] = PayCpn;
 								}
 							}
@@ -2322,7 +2560,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										Rate = SlopeOfFixingRate_Pay[LastFixingIdxPay] * (Rate_Pay - Rate_Pay_p);
 										if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[LastFixingIdxPay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[LastFixingIdxPay];
 									}
-									PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay]));
+									
+									if (ZeroCouponFlagPay[LastFixingIdxPay] == 0)
+									{
+										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay])),RoundingPay);
+									}
+									else
+									{
+										deltat_fixing_to_pay = DeltatPay[LastFixingIdxPay];
+										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
+									}
 									PayLastFixingPayoff_2F[idx1][idx2] = PayCpn;
 								}
 							}
@@ -2341,7 +2588,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 									Rate = SlopeOfFixingRate_Pay[LastFixingIdxPay] * Rate_Pay;
 									if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[LastFixingIdxPay] * Rate_Pay + RangeCpn_Pay[LastFixingIdxPay];
 								}
-								PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay]));
+								
+								if (ZeroCouponFlagPay[LastFixingIdxPay] == 0)
+								{
+									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay])),RoundingPay);
+								}
+								else
+								{
+									deltat_fixing_to_pay = DeltatPay[LastFixingIdxPay];
+									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
+								}
 								PayLastFixingPayoff_1F[idx1]= PayCpn;
 							}
 						}
@@ -2357,7 +2613,16 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 									Rate = SlopeOfFixingRate_Pay[LastFixingIdxPay] * (Rate_Pay - Rate_Pay_p);
 									if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[LastFixingIdxPay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[LastFixingIdxPay];
 								}
-								PayCpn = NA * (double)NAFlag + NA * min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay]));
+
+								if (ZeroCouponFlagPay[LastFixingIdxPay] == 0)
+								{
+									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay])),RoundingPay);
+								}
+								else
+								{
+									deltat_fixing_to_pay = DeltatPay[LastFixingIdxPay];
+									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
+								}
 								PayLastFixingPayoff_1F[idx1] = PayCpn;
 							}
 						}
@@ -2530,12 +2795,14 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	free(Structured_Rcv);
 	free(RangeCpn_Rcv);
 	free(DeltatRcv);
+	free(ZeroCouponFlagRcv);
 	free(SlopeOfFixingRate_Pay);
 	free(SlopeOfPayoff_Pay);
 	free(FixedRate_Pay);
 	free(Structured_Pay);
 	free(RangeCpn_Pay);
 	free(DeltatPay);
+	free(ZeroCouponFlagPay);
 
 	free(Alpha_1Curve);
 	free(Beta_1Curve);
