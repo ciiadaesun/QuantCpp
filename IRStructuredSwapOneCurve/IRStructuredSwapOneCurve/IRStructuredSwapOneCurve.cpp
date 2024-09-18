@@ -2646,7 +2646,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 							}
 						}
 						DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayLastFixingPayoff_1F", NGreed, PayLastFixingPayoff_1F);
-						DumppingTextData(CalcFunctionName, SaveFileName, "PayLastFixingPayoff_1F", cmpv);
+						DumppingTextData(CalcFunctionName, SaveFileName, "cmpv", cmpv);
 					}
 				}
 				else
