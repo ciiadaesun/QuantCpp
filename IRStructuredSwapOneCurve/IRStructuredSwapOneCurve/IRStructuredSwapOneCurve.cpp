@@ -2494,8 +2494,11 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 								RcvLastFixingPayoff_1F[idx1] = RcvCpn;
 							}
 						}
-						DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvLastFixingPayoff_1F", NGreed, RcvLastFixingPayoff_1F);
 
+						if (TextFlag > 0)
+						{
+							DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvLastFixingPayoff_1F", NGreed, RcvLastFixingPayoff_1F);
+						}
 					}
 				}
 				else
@@ -2645,8 +2648,11 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 								PayLastFixingPayoff_1F[idx1] = PayCpn;
 							}
 						}
-						DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayLastFixingPayoff_1F", NGreed, PayLastFixingPayoff_1F);
-						DumppingTextData(CalcFunctionName, SaveFileName, "cmpv", cmpv);
+
+						if (TextFlag > 0)
+						{
+							DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayLastFixingPayoff_1F", NGreed, PayLastFixingPayoff_1F);
+						}
 					}
 				}
 				else
@@ -2667,8 +2673,8 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					{
 						for (idx2 = 0; idx2 < NGreed; idx2++)
 						{
-							if (OptionType == 0) FDMValue_2F[idx1][idx2] = max(df_T/df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
-							else FDMValue_2F[idx1][idx2] = min(df_T / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
+							if (OptionType == 0) FDMValue_2F[idx1][idx2] = max((df_T / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - df_T / df_t * PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
+							else FDMValue_2F[idx1][idx2] = min((df_T / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - df_T / df_t * PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
 						}
 					}
 				}
@@ -2676,8 +2682,8 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				{
 					for (idx1 = 0; idx1 < NGreed; idx1++)
 					{
-						if (OptionType == 0) FDMValue_1F[idx1] = max(df_T / df_t * (RcvLastFixingPayoff_1F[idx1] - PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
-						else FDMValue_1F[idx1] = min(df_T / df_t * (RcvLastFixingPayoff_1F[idx1] - PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
+						if (OptionType == 0) FDMValue_1F[idx1] = max((df_T / df_t * RcvLastFixingPayoff_1F[idx1] - df_T / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
+						else FDMValue_1F[idx1] = min((df_T / df_t * RcvLastFixingPayoff_1F[idx1] - df_T / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
 					}
 				}
 
