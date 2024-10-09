@@ -36,6 +36,9 @@ double rounding_double(double x, long n_decimal)
 DLLEXPORT(long) NCpnDate_Holiday_2Phase(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOneYearPhase1, long Phase2UseFlag, long AnnCpnOneYearPhase2, long Phase2Date, long ModifiedFollowing)
 {
 	long i;
+	if (AnnCpnOneYearPhase1 < 0) AnnCpnOneYearPhase1 = 0;
+	if (AnnCpnOneYearPhase2 < 0) AnnCpnOneYearPhase2 = 0;
+
 	long Holidays[1] = { 19500101 };
 	long NHoliday = 1;
 	long FirstCpnDate = PriceDateYYYYMMDD;
@@ -68,6 +71,9 @@ DLLEXPORT(long) NCpnDate_Holiday_2Phase(long PriceDateYYYYMMDD, long SwapMat_YYY
 long* Malloc_CpnDate_Holiday_2Phase(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOneYearPhase1, long& lenArray, long& FirstCpnDate, long NHoliday, long* HolidayYYYYMMDD, long Phase2UseFlag, long AnnCpnOneYearPhase2, long Phase2Date, long ModifiedFollowing = 1)
 {
 	long i;
+	if (AnnCpnOneYearPhase1 < 0) AnnCpnOneYearPhase1 = 0;
+	if (AnnCpnOneYearPhase2 < 0) AnnCpnOneYearPhase2 = 0;
+
 	long LastForwardEndDate = (long)(SwapMat_YYYYMMDD / 100) * 100 + PriceDateYYYYMMDD - (long)(PriceDateYYYYMMDD / 100) * 100;
 	if (Phase2UseFlag == 0 || PriceDateYYYYMMDD == Phase2Date || Phase2Date < 0)
 	{
@@ -808,6 +814,19 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	double* ResultFixingRateCpnRcv = ResultFixingRateCpn + 1;
 	double* ResultFixingRateCpnPay = ResultFixingRateCpn + 1 + NCpnDate[0] * 2;
 
+	//////////////////////////
+	// KDB ZeroCallableSwap //
+	//////////////////////////
+
+	long KDBZeroCouponStyle_RcvLeg = 0;
+	long KDBZeroCouponStyle_PayLeg = 0;
+	double DF_to_LastPayDate_Rcv = 1.0;
+	double DF_to_LastPayDate_Pay = 1.0;
+	double t_to_LastPayDate_Rcv = 0.;
+	double t_to_LastPayDate_Pay = 0.;
+	if (NumCpnAnn[0] < 0 || NumCpnAnnPhase2RcvPay[0] < 0) KDBZeroCouponStyle_RcvLeg = 1;
+	if (NumCpnAnn[1] < 0 || NumCpnAnnPhase2RcvPay[1] < 0) KDBZeroCouponStyle_PayLeg = 1;
+
 	///////////////
 	// FDM Greed //
 	///////////////
@@ -901,7 +920,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	double t, t1, t2, deltat;
 
 	long Today, EndDate1, EndDate2, ncpn, ncpn1, ncpn2, isinflag = 0;
-	double df_t, df_T, temp = 0., temp2 = 0.;
+	double df_t, df_T, df_T_Rcv, df_T_Pay, temp = 0., temp2 = 0.;
 	long* TempDateArray;
 	long* TempDateArray2;
 
@@ -1531,7 +1550,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 			FixedRate_Rcv[i] = Phase2RcvLegFixedRate;
 			Structured_Rcv[i] = Phase2RcvLegStructuredFlag;
 			RangeCpn_Rcv[i] = Phase2RcvLegRangeCoupon;
-			if (NumCpnAnnPhase2RcvPay[0] == 0) ZeroCouponFlagRcv[i] = 1;
+			if (NumCpnAnnPhase2RcvPay[0] <= 0) ZeroCouponFlagRcv[i] = 1;
 			else ZeroCouponFlagRcv[i] = 0;
 		}
 		else
@@ -1539,7 +1558,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 			FixedRate_Rcv[i] = RcvLegFixedRate;
 			Structured_Rcv[i] = RcvLegStructuredFlag;
 			RangeCpn_Rcv[i] = RcvLegRangeCoupon;
-			if (NumCpnAnn[0] == 0) ZeroCouponFlagRcv[i] = 1;
+			if (NumCpnAnn[0] <= 0) ZeroCouponFlagRcv[i] = 1;
 			else ZeroCouponFlagRcv[i] = 0;
 		}
 	}
@@ -1553,7 +1572,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 			FixedRate_Pay[i] = Phase2PayLegFixedRate;
 			Structured_Pay[i] = Phase2PayLegStructuredFlag;
 			RangeCpn_Pay[i] = Phase2PayLegRangeCoupon;
-			if (NumCpnAnnPhase2RcvPay[1] == 0) ZeroCouponFlagPay[i] = 1;
+			if (NumCpnAnnPhase2RcvPay[1] <= 0) ZeroCouponFlagPay[i] = 1;
 			else ZeroCouponFlagPay[i] = 0;
 		}
 		else
@@ -1561,7 +1580,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 			FixedRate_Pay[i] = PayLegFixedRate;
 			Structured_Pay[i] = PayLegStructuredFlag;
 			RangeCpn_Pay[i] = PayLegRangeCoupon;
-			if (NumCpnAnn[1] == 0) ZeroCouponFlagPay[i] = 1;
+			if (NumCpnAnn[1] <= 0) ZeroCouponFlagPay[i] = 1;
 			else ZeroCouponFlagPay[i] = 0;
 		}
 	}
@@ -2379,8 +2398,15 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					}
 				}
 
+				DF_to_LastPayDate_Rcv = df_T;
 				if (LastFixingIdxRcv >= 0)
 				{
+					if (KDBZeroCouponStyle_RcvLeg > 0)
+					{
+						t_to_LastPayDate_Rcv = ((double)DayCountAtoB(PriceDate, RcvPaymentDate[NCpnDateRcv - 1])) / 365.;
+						DF_to_LastPayDate_Rcv = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, t_to_LastPayDate_Rcv);
+					}
+
 					if (HW2FFlag > 0)
 					{
 						if (PowerSpreadFlagRcv == 0)
@@ -2533,8 +2559,15 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					}
 				}
 
+				DF_to_LastPayDate_Pay = df_T;
 				if (LastFixingIdxPay >= 0)
 				{
+					if (KDBZeroCouponStyle_PayLeg > 0)
+					{
+						t_to_LastPayDate_Pay = ((double)DayCountAtoB(PriceDate, PayPaymentDate[NCpnDatePay - 1])) / 365.;
+						DF_to_LastPayDate_Pay = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, t_to_LastPayDate_Pay);
+					}
+
 					if (HW2FFlag > 0)
 					{
 						if (PowerSpreadFlagPay == 0)
@@ -2673,8 +2706,8 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					{
 						for (idx2 = 0; idx2 < NGreed; idx2++)
 						{
-							if (OptionType == 0) FDMValue_2F[idx1][idx2] = max((df_T / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - df_T / df_t * PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
-							else FDMValue_2F[idx1][idx2] = min((df_T / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - df_T / df_t * PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
+							if (OptionType == 0) FDMValue_2F[idx1][idx2] = max((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
+							else FDMValue_2F[idx1][idx2] = min((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
 						}
 					}
 				}
@@ -2682,8 +2715,8 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				{
 					for (idx1 = 0; idx1 < NGreed; idx1++)
 					{
-						if (OptionType == 0) FDMValue_1F[idx1] = max((df_T / df_t * RcvLastFixingPayoff_1F[idx1] - df_T / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
-						else FDMValue_1F[idx1] = min((df_T / df_t * RcvLastFixingPayoff_1F[idx1] - df_T / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
+						if (OptionType == 0) FDMValue_1F[idx1] = max((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
+						else FDMValue_1F[idx1] = min((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
 					}
 				}
 
