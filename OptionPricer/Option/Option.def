@@ -10,3 +10,5 @@ EXPORTS
 	CDateToExcelDate		 @107
 	MapLastFixingDate		 @108
 	CalcCommodityAsianOption @109
+	Preprocessing_TermAndRate @110
+	Preprocessing_TermAndVol  @111

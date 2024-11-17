@@ -9,3 +9,4 @@ EXPORTS
 	Mapping_Holiday_CType		@007
 	Pricing_CapFloor	@008
 	Pricing_CapFloor_to_Volatility	@009
+	Preprocessing_TermAndRate		@010

@@ -1617,6 +1617,10 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	double Instant_FwdDF, Instant_B_s_t, Instant_QVTerm, Instant_B_s_t_2F, Instant_QVTerm_2F, Instant_Cross_QVTerm_2F, R, PtT;
 	long LastFixingDateRcv, LastFixingDatePay, LastFixingIdxRcv = 0, LastFixingIdxPay = 0, idxrcv = 0, idxpay = 0, idxrcvfix = 0, idxpayfix = 0, idxhist = 0;
 
+	long** OptionExerciseFlag_2F = (long**)malloc(sizeof(long) * NGreed);
+	for (i = 0; i < NGreed; i++) OptionExerciseFlag_2F[i] = (long*)malloc(sizeof(long) * NGreed);
+	long* OptionExerciseFlag_1F = (long*)malloc(sizeof(long) * NGreed);
+
 	double* ForPrintVariable = (double*)malloc(sizeof(double) * 4);
 	double deltat_fixing_to_pay = 0.;
 	LastFixingDateRcv = RcvFixingDate[NCpnDateRcv - 1];
@@ -2373,6 +2377,18 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 
 			if (i != 0 && NOption > 0 && (Today <= OptionPayDate[nextoptidx] && Today >= OptionDate[nextoptidx]))
 			{
+				if (Today == OptionPayDate[nextoptidx])
+				{
+					if (HW2FFlag == 0)
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++) OptionExerciseFlag_1F[idx1] = 0;
+					}
+					else
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++) for (idx2 = 0; idx2 < NGreed; idx2++) OptionExerciseFlag_2F[idx1][idx2] = 0;
+					}
+				}
+
 				t1 = t;
 				t2 = ((double)DayCountAtoB(PriceDate, OptionPayDate[nextoptidx])) / 365.;
 				df_T = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroRate, t2);
@@ -2389,12 +2405,15 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				}
 
 				idxrcv = -1;
-				for (idx1 = 0; idx1 < NTotalSimul; idx1++)
+				if (LastFixingIdxRcv >= 0)
 				{
-					if (RcvFixingDate[LastFixingIdxRcv] == TotalArrayDateSimul[idx1])
+					for (idx1 = 0; idx1 < NTotalSimul; idx1++)
 					{
-						idxrcv = idx1;
-						break;
+						if (RcvFixingDate[LastFixingIdxRcv] == TotalArrayDateSimul[idx1])
+						{
+							idxrcv = idx1;
+							break;
+						}
 					}
 				}
 
@@ -2550,12 +2569,15 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				}
 
 				idxpay = -1;
-				for (idx1 = 0; idx1 < NTotalSimul; idx1++)
+				if (LastFixingIdxPay >= 0)
 				{
-					if (PayFixingDate[LastFixingIdxPay] == TotalArrayDateSimul[idx1])
+					for (idx1 = 0; idx1 < NTotalSimul; idx1++)
 					{
-						idxpay = idx1;
-						break;
+						if (PayFixingDate[LastFixingIdxPay] == TotalArrayDateSimul[idx1])
+						{
+							idxpay = idx1;
+							break;
+						}
 					}
 				}
 
@@ -2702,22 +2724,72 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 
 				if (HW2FFlag > 0)
 				{
+					if (Today == OptionPayDate[nextoptidx])
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++)
+						{
+							for (idx2 = 0; idx2 < NGreed; idx2++)
+							{
+								if (OptionType == 0)
+								{
+									if (DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_2F[idx1][idx2] > FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
+									else OptionExerciseFlag_2F[idx1][idx2] = 0;
+								}
+								else
+								{
+									if (DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_2F[idx1][idx2] < FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
+									else OptionExerciseFlag_2F[idx1][idx2] = 0;
+								}
+							}
+						}
+					}
+
 					for (idx1 = 0; idx1 < NGreed; idx1++)
 					{
 						for (idx2 = 0; idx2 < NGreed; idx2++)
 						{
-							if (OptionType == 0) FDMValue_2F[idx1][idx2] = max((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
-							else FDMValue_2F[idx1][idx2] = min((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
+							if (OptionExerciseFlag_2F[idx1][idx2] == 1) FDMValue_2F[idx1][idx2] = DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_2F[idx1][idx2];
 						}
 					}
+
+					//for (idx1 = 0; idx1 < NGreed; idx1++)
+					//{
+					//	for (idx2 = 0; idx2 < NGreed; idx2++)
+					//	{
+					//		if (OptionType == 0) FDMValue_2F[idx1][idx2] = max((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
+					//		else FDMValue_2F[idx1][idx2] = min((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
+					//	}
+					//}
 				}
 				else
 				{
+					if (Today == OptionPayDate[nextoptidx])
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++)
+						{
+							if (OptionType == 0)
+							{
+								if (DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1] > FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
+								else OptionExerciseFlag_1F[idx1] = 0;
+							}
+							else
+							{
+								if (DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1] < FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
+								else OptionExerciseFlag_1F[idx1] = 0;
+							}
+						}
+					}
+
 					for (idx1 = 0; idx1 < NGreed; idx1++)
 					{
-						if (OptionType == 0) FDMValue_1F[idx1] = max((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
-						else FDMValue_1F[idx1] = min((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
+						if (OptionExerciseFlag_1F[idx1] == 1) FDMValue_1F[idx1] = DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1];
 					}
+
+					//for (idx1 = 0; idx1 < NGreed; idx1++)
+					//{
+					//	if (OptionType == 0) FDMValue_1F[idx1] = max((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
+					//	else FDMValue_1F[idx1] = min((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
+					//}
 				}
 
 				if (Today == min(OptionDate[nextoptidx], OptionPayDate[nextoptidx]))
@@ -2888,6 +2960,11 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	free(TempCpnArrayPay_2F);
 	free(TempCpnArrayRcv_1F);
 	free(TempCpnArrayPay_1F);
+
+	for (i = 0; i < NGreed; i++) free(OptionExerciseFlag_2F[i]);
+	free(OptionExerciseFlag_2F);
+	free(OptionExerciseFlag_1F);
+
 	free(ForPrintVariable);
 	free(RcvLastFixingPayoff_1F);
 	free(PayLastFixingPayoff_1F);

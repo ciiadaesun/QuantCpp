@@ -13,12 +13,14 @@ C:\Users\ciiad\github5\CreditDerivatives\CreditDerivatives\CalcDate.h(2172,10): 
 C:\Users\ciiad\github5\CreditDerivatives\CreditDerivatives\CalcDate.h(2244,10): warning C4101: 'LastBusiDay' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\CreditDerivatives\CreditDerivatives\CalcDate.h(2456,14): warning C4101: 'TempDateExcelType' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\CreditDerivatives\CreditDerivatives\CalcDate.h(2624,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditDerivatives\CreditDerivatives\CalcDate.h(2674,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditDerivatives\CreditDerivatives\CalcDate.h(2725,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\CreditDerivatives\CreditDerivatives\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\CreditDerivatives\CreditDerivatives\CreditDerivatives.cpp(91,7): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\CreditDerivatives\CreditDerivatives\CreditDerivatives.cpp(857,8): warning C4101: 'idx' :참조되지 않은 지역 변수입니다.
      C:\Users\ciiad\github5\CreditDerivatives\x64\Release\CreditDerivatives.lib 라이브러리 및 C:\Users\ciiad\github5\CreditDerivatives\x64\Release\CreditDerivatives.exp 개체를 생성하고 있습니다.
   코드를 생성하고 있습니다.
   Previous IPDB not found, fall back to full compilation.
-  All 89 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  All 91 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   코드를 생성했습니다.
   CreditDerivatives.vcxproj -> C:\Users\ciiad\github5\CreditDerivatives\x64\Release\CreditDerivatives.dll

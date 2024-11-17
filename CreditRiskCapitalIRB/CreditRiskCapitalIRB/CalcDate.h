@@ -2640,10 +2640,10 @@ DLLEXPORT(long) Preprocessing_TermAndRate(long PriceDate, long NZeroTerm, double
 
     if (m_rate > 1.2)
     {
-        // Mean Rate가 120%보다 크면 단위가 %단위로 들어온듯
+        // Max Rate가 120%보다 크면 단위가 %단위로 들어온듯
         for (i = 0; i < NZeroTerm; i++)
         {
-            Rate[i] = Rate[i] / 100;
+            Rate[i] = Rate[i] / 100.;
         }
     }
     return 1;
@@ -2658,6 +2658,104 @@ DLLEXPORT(long) Preprocessing_TermAndRate_MultiCurve(long nCurve, long PriceDate
     {
         Preprocessing_TermAndRate(PriceDate, NZeroTerm[i], Term + n, Rate + n);
         n += NZeroTerm[i];
+    }
+    return 1;
+}
+
+DLLEXPORT(long) Preprocessing_TermAndVol(long PriceDate, long NZeroTerm, double* Term, double* Vols, long IR_0_EQ_1)
+{
+    long i;
+    long PriceDateYYYYMMDD = PriceDate;
+    if (PriceDate < 19000101) PriceDateYYYYMMDD = ExcelDateToCDate(PriceDate);
+    long PriceDateExcel = CDateToExcelDate(PriceDateYYYYMMDD);
+
+    double m_rate = 0.;
+    long TempExcelDate;
+    long TempYYYYMMDD;
+    for (i = 0; i < NZeroTerm; i++)
+    {
+        if (Term[i] > 19000101.0)
+        {
+            TempExcelDate = CDateToExcelDate(((long)(Term[i] + 0.00001)));
+            Term[i] = ((double)(TempExcelDate - PriceDateExcel)) / 365.0;
+        }
+        else if (Term[i] > 300.0)
+        {
+            TempExcelDate = (long)(Term[i] + 0.00001);
+            Term[i] = ((double)(TempExcelDate - PriceDateExcel)) / 365.0;
+        }
+        if (m_rate < fabs(Vols[i])) m_rate = fabs(Vols[i]);
+
+    }
+
+    if (IR_0_EQ_1 == 0)
+    {
+        if (m_rate > 0.25)
+        {
+            // Max Vols가 25%보다 크면 단위가 bp단위로 들어온듯
+            for (i = 0; i < NZeroTerm; i++)
+            {
+                Vols[i] = Vols[i] / 100.;
+            }
+        }
+    }
+    else
+    {
+        if (m_rate > 10.0)
+        {
+            // Max Vols가 1000%보다 크면 단위가 %단위로 들어온듯
+            for (i = 0; i < NZeroTerm; i++)
+            {
+                Vols[i] = Vols[i] / 100.;
+            }
+        }
+    }
+    return 1;
+}
+
+DLLEXPORT(long) Preprocessing_TermAndEqVol(long PriceDate, long NZeroTerm, double* Term, long NParity, double* Parity, double* Vols)
+{
+    long i, j, n;
+    long PriceDateYYYYMMDD = PriceDate;
+    if (PriceDate < 19000101) PriceDateYYYYMMDD = ExcelDateToCDate(PriceDate);
+    long PriceDateExcel = CDateToExcelDate(PriceDateYYYYMMDD);
+
+    double m_rate = 0.;
+    long TempExcelDate;
+    long TempYYYYMMDD;
+    n = 0;
+    for (i = 0; i < NZeroTerm; i++)
+    {
+        if (Term[i] > 19000101.0)
+        {
+            TempExcelDate = CDateToExcelDate(((long)(Term[i] + 0.00001)));
+            Term[i] = ((double)(TempExcelDate - PriceDateExcel)) / 365.0;
+        }
+        else if (Term[i] > 300.0)
+        {
+            TempExcelDate = (long)(Term[i] + 0.00001);
+            Term[i] = ((double)(TempExcelDate - PriceDateExcel)) / 365.0;
+        }
+
+        for (j = 0; j < NParity; j++)
+        {
+            if (m_rate < fabs(Vols[n])) m_rate = fabs(Vols[n]);
+            n += 1;
+        }
+    }
+
+    n = 0;
+    if (m_rate > 10.0)
+    {
+        // Max Vols가 1000%보다 크면 단위가 %단위로 들어온듯
+        for (i = 0; i < NZeroTerm; i++)
+        {
+            for (j = 0; j < NParity; j++)
+            {
+                Vols[n] = Vols[n] / 100.;
+                n += 1;
+            }
+        }
     }
     return 1;
 }

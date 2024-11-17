@@ -15,4 +15,5 @@ EXPORTS
 	Mapping_Holiday_CType										@13
 	Preprocessing_TermAndRate									@14
 	Preprocessing_TermAndRate_MultiCurve						@15
-	IRStructuredSwapFDM											@16
+	Preprocessing_TermAndVol									@16
+	IRStructuredSwapFDM											@17

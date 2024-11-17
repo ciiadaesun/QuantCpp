@@ -12,3 +12,4 @@ EXPORTS
 	ExcelDateToCDate							@009
 	CDateToExcelDate							@010
 	Preprocessing_TermAndRate					@011
+	Preprocessing_TermAndRate_MultiCurve		@012

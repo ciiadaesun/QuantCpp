@@ -14,6 +14,8 @@ C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDat
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2244,10): warning C4101: 'LastBusiDay' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2456,14): warning C4101: 'TempDateExcelType' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2624,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2674,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2725,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(2844,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(2978,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
@@ -71,6 +73,6 @@ C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStruc
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4768): warning C4715: 'HWCapHWSwaption_2FCalibration': 모든 제어 경로에서 값을 반환하지는 않습니다.
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1160): warning C4723: 0의 나누기 연산이 발생할 수 있습니다.
 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1457): warning C4723: 0의 나누기 연산이 발생할 수 있습니다.
-  All 171 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  All 173 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   코드를 생성했습니다.
   IRStructuredSwapOneCurve.vcxproj -> C:\Users\ciiad\github5\IRStructuredSwapOneCurve\Release\IRStructuredSwapOneCurve.dll

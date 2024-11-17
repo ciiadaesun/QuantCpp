@@ -13,6 +13,8 @@ C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\CalcDate.h(2172,10): warning C4101:
 C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\CalcDate.h(2244,10): warning C4101: 'LastBusiDay' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\CalcDate.h(2456,14): warning C4101: 'TempDateExcelType' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\CalcDate.h(2624,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\CalcDate.h(2674,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\CalcDate.h(2725,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\SABR.h(47,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\HiFive_ELS\HiFive_ELS\SABR.h(108,7): warning C4101: 'temp' :참조되지 않은 지역 변수입니다.
