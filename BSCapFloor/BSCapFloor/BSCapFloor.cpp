@@ -227,11 +227,11 @@ long* Generate_CpnDate_Holiday_CapFloor(long PriceDateYYYYMMDD, long SwapMat_YYY
 double ForwardSwapRate(
 	long PriceDate,
 	long StartDate,
-	long NCpn,
+	long NCpnDate,
 	long* SwapDate,
-	long Fix_NTerm,
-	double* Fix_Term,
-	double* Fix_Rate,
+	long Disc_NTerm,
+	double* Disc_Term,
+	double* Disc_Rate,
 	long Est_NTerm,
 	double* Est_Term,
 	double* Est_Rate,
@@ -240,63 +240,54 @@ double ForwardSwapRate(
 )
 {
 	long i;
-	long idx1 = 0;
-	long idx2 = 0;
-	long idx3 = 0;
-	double t0, dt, t_pay, t1, t2, DF_t1, DF_t2;
-	double a, b, f, p;
-	a = 0.0;
+	long n;
+	double F;
+	double Swap_Rate;
 
-	for (i = 0; i < NCpn; i++)
+	double t = 0.0;
+	t = ((double)DayCountAtoB(PriceDate, StartDate)) / 365.0;
+	double* P0T = (double*)malloc(sizeof(double) * (NCpnDate + 1));
+	P0T[0] = Calc_Discount_Factor(Est_Term, Est_Rate, Est_NTerm, t);
+	for (i = 1; i < NCpnDate + 1; i++)
 	{
-		if (i == 0)
+		t = ((double)DayCountAtoB(PriceDate, SwapDate[i - 1])) / 365.0;
+		P0T[i] = Calc_Discount_Factor(Est_Term, Est_Rate, Est_NTerm, t);
+	}
+
+	double a, b, dt;
+	a = 0.;
+	for (i = 1; i < NCpnDate + 1; i++)
+	{
+		t = ((double)DayCountAtoB(PriceDate, SwapDate[i-1])) / 365.0;
+
+		if (i == 1) dt = DayCountFrc(StartDate, SwapDate[i-1], DayCountFracFlag);
+		else dt = DayCountFrc(SwapDate[i - 2], SwapDate[i - 1], DayCountFracFlag);
+
+		if (i == 1 && (FirstFixingRate > 0.000001 || FirstFixingRate < -0.000001))
 		{
-			t1 = ((double)DayCountAtoB(PriceDate, StartDate)) / 365.0;
-			t2 = ((double)DayCountAtoB(PriceDate, SwapDate[i])) / 365.0;
+			F = FirstFixingRate;
 		}
 		else
 		{
-			t1 = ((double)DayCountAtoB(PriceDate, SwapDate[i - 1])) / 365.0;
-			t2 = ((double)DayCountAtoB(PriceDate, SwapDate[i])) / 365.0;
+			F = (P0T[i - 1] / P0T[i] - 1.0) / dt;
 		}
 
-		if (i == 0)
-		{
-			dt = DayCountFrc(StartDate, SwapDate[i], DayCountFracFlag);
-		}
-		else
-		{
-			dt = DayCountFrc(SwapDate[i - 1], SwapDate[i], DayCountFracFlag);
-		}
-
-
-		DF_t1 = Calc_Discount_Factor(Est_Term, Est_Rate, Est_NTerm, t1);
-		DF_t2 = Calc_Discount_Factor(Est_Term, Est_Rate, Est_NTerm, t2);
-
-		f = 1.0 / (t2 - t1) * (DF_t1 / DF_t2 - 1.0);
-		if ((FirstFixingRate > 0.000001 || FirstFixingRate < -0.000001) && i == 0) f = FirstFixingRate;
-		t_pay = t2;
-		p = Calc_Discount_Factor(Fix_Term, Fix_Rate, Fix_NTerm, t_pay);
-		a += f * dt * p;
+		a += dt * F * Calc_Discount_Factor(Disc_Term, Disc_Rate, Disc_NTerm, t);
 	}
 
 	b = 0.0;
-	idx1 = 0;
-	for (i = 0; i < NCpn; i++)
+	for (i = 0; i < NCpnDate; i++)
 	{
-		if (i == 0)
-		{
-			dt = DayCountFrc(StartDate, SwapDate[i], DayCountFracFlag);
-		}
-		else
-		{
-			dt = DayCountFrc(SwapDate[i - 1], SwapDate[i], DayCountFracFlag);
-		}
-		t_pay = ((double)DayCountAtoB(PriceDate, SwapDate[i])) / 365.0;
-		p = Calc_Discount_Factor(Fix_Term, Fix_Rate, Fix_NTerm, t_pay);
-		b += dt * p;
+		t = ((double)DayCountAtoB(PriceDate, SwapDate[i])) / 365.0;
+
+		if (i == 0) dt = DayCountFrc(StartDate, SwapDate[i], DayCountFracFlag);
+		else dt = DayCountFrc(SwapDate[i - 1], SwapDate[i], DayCountFracFlag);
+		b += dt * Calc_Discount_Factor(Disc_Term, Disc_Rate, Disc_NTerm, t);
 	}
-	return a / b;
+	Swap_Rate = a / b;
+
+	if (P0T) free(P0T);
+	return Swap_Rate;
 }
 
 double _stdcall BS_Cap(
@@ -745,7 +736,48 @@ DLLEXPORT(long) Pricing_CapFloor(
 		);
 		for (i = 0; i < min(NHoliday, NHolidayInput); i++) HolidayYYYYMMDD[i] = HolidayInput[i];
 	}
-	long TempDate = StartDate;
+	long TempDate;
+	long TempExcelDate;
+	long MOD7;
+	long SaturSundayFlag;
+	long isholiflag;
+	long StartDateExcel = CDateToExcelDate(StartDate);
+	MOD7 = StartDateExcel % 7;
+	if (MOD7 == 1 || MOD7 == 0) SaturSundayFlag = 1;
+	else SaturSundayFlag = 0;
+
+	if (isin(StartDate, HolidayInput, NHolidayInput)) isholiflag = 1;
+	else isholiflag = 0;
+
+	if (SaturSundayFlag || isholiflag)
+	{
+		// StartDate이 휴일인 경우 차영업일로 이전
+		for (i = 0; i < 10; i++)
+		{
+			TempExcelDate = StartDateExcel + i;
+			TempDate = ExcelDateToCDate(TempExcelDate);
+			MOD7 = TempExcelDate % 7;
+			
+			if (MOD7 == 1 || MOD7 == 0) SaturSundayFlag = 1;
+			else SaturSundayFlag = 0;
+			
+			if (isin(TempDate, HolidayInput, NHolidayInput)) isholiflag = 1;
+			else isholiflag = 0;
+			
+			if (SaturSundayFlag == 0 && isholiflag == 0)
+			{
+				StartDate = TempDate;
+				break;
+			}
+		}
+	}
+
+	// StartDate에 맞춰서 EndDate도 세팅
+	long EndYYYYMM = SwapMaturityDate / 100;
+	long EndDD = StartDate - ((long)(StartDate / 100)) * 100;
+	SwapMaturityDate = EndYYYYMM * 100 + EndDD;
+	
+	TempDate = StartDate;
 	long NCpnDate;
 	long* CpnDate = Generate_CpnDate_Holiday_CapFloor(StartDate, SwapMaturityDate, AnnCpnOneYear, NCpnDate, TempDate, NHolidayInput, HolidayInput);
 	long* DaysCpnDate = (long*)malloc(sizeof(long) * NCpnDate);
@@ -791,7 +823,7 @@ DLLEXPORT(long) Pricing_CapFloor(
 		StrikePrice = F_Avg;
 	}
 
-	double swprate = ForwardSwapRate(PriceDate, StartDate, NCpnDate, CpnDate, NTerm,Term, Term, NTerm, Term, Rate, DayCountFracFlag, FirstFixingRate);
+	double swprate = ForwardSwapRate(PriceDate, StartDate, NCpnDate, CpnDate, NTerm,Term, Rate, NTerm, Term, Rate, DayCountFracFlag, FirstFixingRate);
 
 	if (CapFloorFlag == 0)
 	{
