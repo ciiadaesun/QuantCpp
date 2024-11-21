@@ -693,9 +693,49 @@ DLLEXPORT(long) Pricing_BS_Swaption(
 		DumppingTextDataArray(CalcFunctionName, SaveFileName, "HolidayInput", NHolidayInput, HolidayInput);
 	}
 
+	long TempDate;
+	long TempExcelDate;
+	long MOD7;
+	long SaturSundayFlag;
+	long isholiflag;
+	long StartDateExcel = CDateToExcelDate(StartDate);
+	MOD7 = StartDateExcel % 7;
+	if (MOD7 == 1 || MOD7 == 0) SaturSundayFlag = 1;
+	else SaturSundayFlag = 0;
+
+	if (isin(StartDate, HolidayInput, NHolidayInput)) isholiflag = 1;
+	else isholiflag = 0;
+
+	if (SaturSundayFlag || isholiflag)
+	{
+		// StartDate이 휴일인 경우 차영업일로 이전
+		for (i = 0; i < 10; i++)
+		{
+			TempExcelDate = StartDateExcel + i;
+			TempDate = ExcelDateToCDate(TempExcelDate);
+			MOD7 = TempExcelDate % 7;
+
+			if (MOD7 == 1 || MOD7 == 0) SaturSundayFlag = 1;
+			else SaturSundayFlag = 0;
+
+			if (isin(TempDate, HolidayInput, NHolidayInput)) isholiflag = 1;
+			else isholiflag = 0;
+
+			if (SaturSundayFlag == 0 && isholiflag == 0)
+			{
+				StartDate = TempDate;
+				break;
+			}
+		}
+	}
+	
+	// StartDate에 맞춰서 EndDate도 세팅
+	long EndYYYYMM = SwapMaturityDate / 100;
+	long EndDD = StartDate - ((long)(StartDate / 100)) * 100;
+	SwapMaturityDate = EndYYYYMM * 100 + EndDD;
 
 	long nCpnDates = 0;
-	long TempDate = StartDate;
+	TempDate = StartDate;
 	long TempStartDate = StartDate;
 	if (AmericanFlag > 0 && NAutocall > 0) StartDate = max(StartDate, AutocallDate[NAutocall-1]);
 	long* CpnDates = Generate_CpnDate_Holiday_IRSwaption(StartDate, SwapMaturityDate, AnnCpnOneYear, nCpnDates, TempDate, NHoliday, HolidayYYYYMMDD);
