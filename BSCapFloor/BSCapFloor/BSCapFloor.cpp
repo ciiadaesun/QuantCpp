@@ -741,36 +741,7 @@ DLLEXPORT(long) Pricing_CapFloor(
 	long MOD7;
 	long SaturSundayFlag;
 	long isholiflag;
-	long StartDateExcel = CDateToExcelDate(StartDate);
-	MOD7 = StartDateExcel % 7;
-	if (MOD7 == 1 || MOD7 == 0) SaturSundayFlag = 1;
-	else SaturSundayFlag = 0;
-
-	if (isin(StartDate, HolidayInput, NHolidayInput)) isholiflag = 1;
-	else isholiflag = 0;
-
-	if (SaturSundayFlag || isholiflag)
-	{
-		// StartDate이 휴일인 경우 차영업일로 이전
-		for (i = 0; i < 10; i++)
-		{
-			TempExcelDate = StartDateExcel + i;
-			TempDate = ExcelDateToCDate(TempExcelDate);
-			MOD7 = TempExcelDate % 7;
-			
-			if (MOD7 == 1 || MOD7 == 0) SaturSundayFlag = 1;
-			else SaturSundayFlag = 0;
-			
-			if (isin(TempDate, HolidayInput, NHolidayInput)) isholiflag = 1;
-			else isholiflag = 0;
-			
-			if (SaturSundayFlag == 0 && isholiflag == 0)
-			{
-				StartDate = TempDate;
-				break;
-			}
-		}
-	}
+	StartDate = ParseBusinessDateIfHoliday(StartDate, HolidayInput, NHolidayInput);
 
 	// StartDate에 맞춰서 EndDate도 세팅
 	long EndYYYYMM = SwapMaturityDate / 100;

@@ -4739,12 +4739,22 @@ DLLEXPORT(long) Generate_CpnDate_IRStructuredSwapModule_Using_Holiday(long Effec
     if (EffectiveDate < 19000101) EffectiveDate = ExcelDateToCDate(EffectiveDate);
     if (MaturityDate < 19000101) MaturityDate = ExcelDateToCDate(MaturityDate);
 
-    long RealPayDate = MaturityDate;
+    long RealPayDate = MaturityDate + 0;
     long EffectiveYYYYMM = EffectiveDate / 100;
     long EffectiveDD = EffectiveDate - EffectiveYYYYMM * 100;
 
     long MaturityYYYYMM = MaturityDate / 100;
-    MaturityDate = MaturityYYYYMM * 100 + EffectiveDD;
+    long MaturityDD = MaturityDate - MaturityYYYYMM * 100;
+    // 만약 EndDate가 26~31일이고 PayDate가 1일, 2일, 3일, 4일 등
+    if (EffectiveDD > 25 && MaturityDD < 5)
+    {
+        NBusinessCountFromEndToPay(EffectiveDate, RealPayDate, Holidays, NHoliday, 1, &MaturityDate);
+        MaturityDate = ((long)(MaturityDate/100))*100 + EffectiveDD;
+    }
+    else
+    {
+        MaturityDate = MaturityYYYYMM * 100 + EffectiveDD;
+    }
 
     long TempDate = EffectiveDate;
     long NCpnDate;

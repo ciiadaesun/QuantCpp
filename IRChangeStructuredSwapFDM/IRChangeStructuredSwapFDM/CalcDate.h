@@ -42,6 +42,13 @@ DLLEXPORT(long) DayPlus(long Cdate, long NDays);            // Day Plus YYYYMMDD
 
 long _info_array_raw[N_Info_Array * 12] = {
     // 한국 음력 관련 하드코딩
+    // 1: 평달29
+    // 2: 평달30
+    // 3: 평달29 윤달29
+    // 4: 평달29 윤달30
+    // 5: 평달30 윤달29
+    // 6: 평달30 윤달30
+    
     // 1841
     1, 2, 4, 1, 1, 2,   1, 2, 1, 2, 2, 1,
     2, 2, 1, 2, 1, 1,   2, 1, 2, 1, 2, 1,
@@ -1146,14 +1153,13 @@ long* Calc_NTempHoliday_Korea(long YYYY, long& ArrayLength)
     // ArrayLength는 특정 년도 임시공휴일 개수를 리턴한다.
     // 함수 리턴으로 메모리 할당하므로 나중에 해제해야함.
     long i, k;
-    const long NTempHoliday = 8;
+    const long NTempHoliday = 9;
     long TempHolidayList[NTempHoliday] =
     {
 
         // 더 있으면 추가하고 NTempHoliday 바꾸기
         20020701, 20150814, 20171002, 20200817, 20220309,
-        20220601, 20231002, 20240410
-
+        20220601, 20231002, 20240410, 20241001
     };
     ArrayLength = 0;
     for (i = 0; i < NTempHoliday; i++) if (YYYY == (long)(TempHolidayList[i] / 10000)) ArrayLength += 1;
@@ -2758,4 +2764,230 @@ DLLEXPORT(long) Preprocessing_TermAndEqVol(long PriceDate, long NZeroTerm, doubl
         }
     }
     return 1;
+}
+
+DLLEXPORT(long) ParseBusinessDateIfHoliday(long YYYYMMDD, long* Holidays, long NHolidays)
+{
+    if (YYYYMMDD < 19000101) YYYYMMDD = ExcelDateToCDate(YYYYMMDD);
+    // 만약 Holiday라면 WorkingDate 날짜를 Return한다.
+    long i;
+    for (i = 0; i < NHolidays; i++)
+    {
+        if (Holidays[i] < 19000101)
+        {
+            Holidays[i] = ExcelDateToCDate(Holidays[i]);
+        }
+    }
+
+    long ResultYYYYMMDD;
+
+    long TempExcelDate;
+    long TempYYYYMMDD;
+
+    long ExcelDate = CDateToExcelDate(YYYYMMDD);
+    long IsHolidayFlag = 0;
+    long IsSaturSundayFlag = 0;
+    long MOD7 = ExcelDate % 7;
+    if (MOD7 == 0 || MOD7 == 1) IsSaturSundayFlag = 1;
+    if (isin_Longtype(YYYYMMDD, Holidays, NHolidays)) IsHolidayFlag = 1;
+    
+    if (IsSaturSundayFlag == 0 && IsHolidayFlag == 0)
+    {
+        ResultYYYYMMDD = YYYYMMDD;
+    }
+    else
+    {
+        for (i = 0; i < 100; i++)
+        {
+            TempExcelDate = ExcelDate + 1 + i;
+            TempYYYYMMDD = ExcelDateToCDate(TempExcelDate);
+            MOD7 = TempExcelDate % 7;
+            
+            if (MOD7 == 0 || MOD7 == 1) IsSaturSundayFlag = 1;
+            else IsSaturSundayFlag = 0;
+
+            if (isin_Longtype(TempYYYYMMDD, Holidays, NHolidays)) IsHolidayFlag = 1;
+            else IsHolidayFlag = 0;
+
+            if (IsSaturSundayFlag == 0 && IsHolidayFlag == 0)
+            {
+                ResultYYYYMMDD = TempYYYYMMDD;
+                break;
+            }
+        }
+    }
+    return ResultYYYYMMDD;
+}
+
+DLLEXPORT(long) NextNthBusinessDate(long YYYYMMDD, long NBDate, long* Holidays, long NHolidays)
+{
+    /////////////////////////////////////
+    // Calculate Next Nth BusinessDate //
+    /////////////////////////////////////
+
+    if (YYYYMMDD < 19000101) YYYYMMDD = ExcelDateToCDate(YYYYMMDD);
+    long StartDate = ParseBusinessDateIfHoliday(YYYYMMDD, Holidays, NHolidays);
+    long StartDateExcel = CDateToExcelDate(StartDate);
+    long i;
+    for (i = 0; i < NHolidays; i++)
+    {
+        if (Holidays[i] < 19000101)
+        {
+            Holidays[i] = ExcelDateToCDate(Holidays[i]);
+        }
+    }
+    long n;
+    long TempExcelDate;
+    long TempYYYYMMDD;
+    long IsHolidayFlag = 0;
+    long IsSaturSundayFlag = 0;
+    long MOD7;
+    long ResultYYYYMMDD = YYYYMMDD;
+    if (NBDate > 0)
+    {
+        n = 0;
+        for (i = 0; i < 100; i++)
+        {
+            TempExcelDate = StartDateExcel + 1 + i;
+            TempYYYYMMDD = ExcelDateToCDate(TempExcelDate);
+            MOD7 = TempExcelDate % 7;
+
+            if (MOD7 == 0 || MOD7 == 1) IsSaturSundayFlag = 1;
+            else IsSaturSundayFlag = 0;
+
+            if (isin_Longtype(TempYYYYMMDD, Holidays, NHolidays)) IsHolidayFlag = 1;
+            else IsHolidayFlag = 0;
+
+            if (IsSaturSundayFlag == 0 && IsHolidayFlag == 0)
+            {
+                n += 1;
+            }
+
+            if (n >= NBDate)
+            {
+                ResultYYYYMMDD = TempYYYYMMDD;
+                break;
+            }
+        }
+    }
+    return ResultYYYYMMDD;
+}
+
+DLLEXPORT(long) NBusinessCountFromEndToPay(long EndYYYYMMDD, long PayYYYYMMDD, long* Holidays, long NHolidays, long ModifiedFollowing, long* ResultEndDate)
+{
+    ///////////////////////////////////////////////////
+    // Business Date From ENDYYYYMMDD To PayYYYYMMDD //
+    ///////////////////////////////////////////////////
+
+    if (EndYYYYMMDD < 19000101) EndYYYYMMDD = ExcelDateToCDate(EndYYYYMMDD);
+    if (PayYYYYMMDD < 19000101) PayYYYYMMDD = ExcelDateToCDate(PayYYYYMMDD);
+
+    if (EndYYYYMMDD > PayYYYYMMDD)
+    {
+        return -NBusinessCountFromEndToPay(PayYYYYMMDD, EndYYYYMMDD, Holidays, NHolidays, ModifiedFollowing, ResultEndDate);
+    }
+    else if (EndYYYYMMDD == PayYYYYMMDD)
+    {
+        *ResultEndDate = EndYYYYMMDD;
+        return 0;
+    }
+
+    long i;
+    for (i = 0; i < NHolidays; i++)
+    {
+        if (Holidays[i] < 19000101)
+        {
+            Holidays[i] = ExcelDateToCDate(Holidays[i]);
+        }
+    }
+    long nbd;
+    long TempExcelDate;
+    long TempDate;
+    long MOD7;
+    long IsSaturSundayFlag;
+    long IsHolidayFlag;
+
+    long EndYYYY = EndYYYYMMDD / 10000;
+    long EndMM = (EndYYYYMMDD - EndYYYY * 10000) / 100;
+    long EndDD = (EndYYYYMMDD - EndYYYY * 10000 - EndMM * 100);
+    long EndExcelDate = CDateToExcelDate(EndYYYYMMDD);
+
+    long PayYYYY = PayYYYYMMDD / 10000;
+    long PayMM = (PayYYYYMMDD - PayYYYY * 10000) / 100;
+    long PayDD = (PayYYYYMMDD - PayYYYY * 10000 - PayMM * 100);
+    long PayExcelDate = CDateToExcelDate(PayYYYYMMDD);
+
+    long TempYYYY;
+    long TempMM;
+    long TempDD;
+    long LastBD;
+
+    long PrevTempMM, PrevTempDD;
+    if (EndDD == PayDD)
+    {
+        *ResultEndDate = PayYYYYMMDD;
+        nbd = 0;
+    }
+    else
+    {
+        nbd = 0;
+        for (i = 0; i < 30; i++)
+        {
+            ///////////////////////////////////
+            // PayDate로부터 앞으로 땡겨서   //
+            // EndDate까지 BDate를 계산      //
+            ///////////////////////////////////
+            TempExcelDate = PayExcelDate - 1 - i;
+            TempDate = ExcelDateToCDate(TempExcelDate);
+
+            TempYYYY = TempDate / 10000;
+            TempMM = (TempDate - TempYYYY * 10000) / 100;
+            TempDD = (TempDate - TempYYYY * 10000 - TempMM * 100);
+
+            MOD7 = TempExcelDate % 7;
+
+            if (MOD7 == 0 || MOD7 == 1) IsSaturSundayFlag = 1;
+            else IsSaturSundayFlag = 0;
+
+            if (isin_Longtype(TempDate, Holidays, NHolidays)) IsHolidayFlag = 1;
+            else IsHolidayFlag = 0;
+
+            if (IsSaturSundayFlag == 0 && IsHolidayFlag == 0)
+            {
+                nbd += 1;
+            }
+
+            if (i > 0)
+            {
+                if (PrevTempMM > TempMM)
+                {
+                    ///////////////////////////////
+                    // 월이 전달로 넘어가는 경우 // 
+                    // EndDate의 ModifiedFollow  //
+                    ///////////////////////////////
+
+                    if (ModifiedFollowing == 1)
+                    {
+                        LastBD = LastBusinessDate(TempYYYY * 100 + TempMM, NHolidays, Holidays);
+                        if (EndDD > LastBD - (long)(LastBD / 100) * 100)
+                        {
+                            EndDD = LastBD - (long)(LastBD / 100) * 100;
+                        }
+                    }
+                }
+            }
+
+            if (TempDD == EndDD)
+            {
+                // Day가 동일하면 종료
+                break;
+            }
+
+            PrevTempMM = TempMM;
+        }
+
+        *ResultEndDate = TempYYYY * 10000 + TempMM * 100 + EndDD;
+    }
+
+    return nbd;
 }

@@ -692,6 +692,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	long* TempHoliday;
 	long NTempHoliday;
 	long LastForwardEndDate = (long)(Maturity / 100) * 100 + EffectiveDate - (long)(EffectiveDate / 100) * 100;
+	
 	long TempExcelDate, TempYYYYMMDD;
 	long NBD = 0;
 	long NBDFromEndToPay = 0;
@@ -715,6 +716,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 			for (i = 0; i < NTempHoliday; i++) TotalHolidays[n][i] = TempHoliday[i];
 			for (i = 0; i < NAdditionalHolidays[n]; i++) TotalHolidays[n][i + NTempHoliday] = (AdditionalHolidays + nsum)[i];
 		}
+		NBD = NBusinessCountFromEndToPay(EffectiveDate, Maturity, TotalHolidays[n], NTotalHoliday[n], 1, &LastForwardEndDate);
 		//CpnDate[n] = Malloc_CpnDate_Holiday(EffectiveDate, LastForwardEndDate, NumCpnAnn[n], NCpnDate[n], TempDate, NTotalHoliday[n], TotalHolidays[n], 1);
 		CpnDate[n] = Malloc_CpnDate_Holiday_2Phase(EffectiveDate, LastForwardEndDate, NumCpnAnn[n], NCpnDate[n], TempDate, NTotalHoliday[n], TotalHolidays[n], Phase2UseFlag, NumCpnAnnPhase2RcvPay[n], Phase2Date);
 		CpnPayDate[n] = (long*)malloc(sizeof(long) * NCpnDate[n]);

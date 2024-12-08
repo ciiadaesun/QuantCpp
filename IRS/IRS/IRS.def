@@ -13,3 +13,7 @@ EXPORTS
 	CDateToExcelDate							@010
 	Preprocessing_TermAndRate					@011
 	Preprocessing_TermAndRate_MultiCurve		@012
+	Number_Coupon_YYYYMMDD						@013
+	ResultCpnMapping_YYYYMMDD					@014
+	NBusinessCountFromEndToPay					@015
+	ParseBusinessDateIfHoliday					@016
