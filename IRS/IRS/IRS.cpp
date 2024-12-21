@@ -5,7 +5,7 @@
 #include "Structure.h"
 #include "Util.h"
 #include "GetTextDump.h"
-//#include <crtdbg.h>
+#include <crtdbg.h>
 #ifndef DLLEXPORT(A)
 #ifdef WIN32
 #define DLLEXPORT(A) extern "C" __declspec(dllexport) A _stdcall
@@ -651,7 +651,7 @@ DLLEXPORT(long) ResultCpnMapping(
     long i;
     long j;
     long n;
-    long PayDateExcelType, PayDateYYYYMMDD, EndDateYYYYMMDD,EndDateExcel, MOD7;
+    long PayDateExcelType, PayDateYYYYMMDD, EndDateYYYYMMDD, EndDateExcel, MOD7;
     long PriceDateYYYYMMDD = ExcelDateToCDate(PriceDateExcelType);          // 평가일
     long StartDateYYYYMMDD = ExcelDateToCDate(StartDateExcelType);          // 평가일
     long SwapMat_YYYYMMDD = ExcelDateToCDate(SwapMatExcelType);             // 스왑 만기
@@ -718,7 +718,7 @@ DLLEXPORT(long) ResultCpnMapping(
         long* CpnDate;
         long TempYYYYMMDD = PriceDateYYYYMMDD;
         long TempDateExcelType;
-        long StartYYYYMM = (long) StartDateYYYYMMDD / 100;
+        long StartYYYYMM = (long)StartDateYYYYMMDD / 100;
         long StartDD = StartDateYYYYMMDD - StartYYYYMM * 100;
         long EndYYYYMM = (long)SwapMat_YYYYMMDD / 100;
         //EndDateYYYYMMDD = EndYYYYMM * 100 + StartDD;
@@ -1130,7 +1130,7 @@ double FSR(
     long NCPN_Ann,
     long DayCountFlag,
     long NHoliday,
-    long *Holiday,
+    long* Holiday,
     double* Term,            // 기간구조 Term Array
     double* Rate,            // 기간구조 Rate Array
     long NTerm,                // 기간구조 Term 개수
@@ -1148,10 +1148,10 @@ double FSR(
     double t = 0.0;
     t = ((double)DayCountAtoB(PricingDate, SwapStartDate)) / 365.0;
     double* P0T = (double*)malloc(sizeof(double) * (NCpnDate + 1));
-    P0T[0] = Calc_Discount_Factor(Term, Rate, NTerm, t); 
+    P0T[0] = Calc_Discount_Factor(Term, Rate, NTerm, t);
     for (i = 1; i < NCpnDate + 1; i++)
     {
-        t = ((double)DayCountAtoB(PricingDate, CpnDate[i-1])) / 365.0;
+        t = ((double)DayCountAtoB(PricingDate, CpnDate[i - 1])) / 365.0;
         P0T[i] = Calc_Discount_Factor(Term, Rate, NTerm, t);
     }
 
@@ -1163,7 +1163,7 @@ double FSR(
         t = ((double)DayCountAtoB(PricingDate, CpnDate[i])) / 365.0;
 
         if (i == 0) dt = DayCountFractionAtoB(SwapStartDate, CpnDate[i], DayCountFlag);
-        else dt = DayCountFractionAtoB(CpnDate[i-1], CpnDate[i], DayCountFlag);
+        else dt = DayCountFractionAtoB(CpnDate[i - 1], CpnDate[i], DayCountFlag);
         b += dt * Calc_Discount_Factor(TermDisc, RateDisc, NTermDisc, t);
     }
     Swap_Rate = a / b;
@@ -1212,7 +1212,7 @@ typedef struct schd_info {
 
     long N_NotHoliday;          // Holiday가 아닌 영업일 Array개수
     long* NotHoliday;
-    long* DayCount_NotHoliday;  
+    long* DayCount_NotHoliday;
 } SCHD;
 
 double Calc_Current_IRS(
@@ -1249,7 +1249,7 @@ double Calc_Current_IRS(
     FloatValue = 0.0;
     for (i = 0; i < Float_Schedule->NCF; i++)
     {
-        T1 = ((double)DayCountAtoB(Float_Schedule->ForwardStart_C[0],Float_Schedule->ForwardEnd_C[i]))/365.0 ;
+        T1 = ((double)DayCountAtoB(Float_Schedule->ForwardStart_C[0], Float_Schedule->ForwardEnd_C[i])) / 365.0;
         TPay = ((double)DayCountAtoB(Float_Schedule->ForwardStart_C[0], Float_Schedule->PayDate_C[i])) / 365.0;
         P1 = exp(-Float_RefCurve.Interpolated_Rate(T1) * T1);
         P_Pay = exp(-Float_DiscCurve.Interpolated_Rate(TPay) * TPay);
@@ -1278,7 +1278,7 @@ double Calc_Current_IRS(
         dt_Fix = DayCountFractionAtoB(Fix_Schedule->StartDate_C[i], Fix_Schedule->EndDate_C[i], Fix_Schedule->DayCount);
         TPay = DayCountFractionAtoB(Fix_Schedule->StartDate_C[0], Fix_Schedule->PayDate_C[i], Fix_Schedule->DayCount);
         P_Pay = exp(-Fix_DiscCurve.Interpolated_Rate(TPay) * TPay);
-        
+
         if (CalcCRSFlag == 0)
         {
             NA = 1.0;
@@ -1336,7 +1336,7 @@ double SOFR_ForwardRate_Compound(
 
     long TimePos = 0;
     long TimePos2 = 0;
-    double T1Est, T2Est,T3Est, Delta_T1_T2;
+    double T1Est, T2Est, T3Est, Delta_T1_T2;
 
     double dt = 1.0 / 365.0;
     double PrevForwardRate;
@@ -1374,8 +1374,8 @@ double SOFR_ForwardRate_Compound(
 
     long EstStartIdx = isinfindindex(EstStart, NotHoliday, N_NotHoliday);
     long EstEndIdx = isinfindindex(EstEnd, NotHoliday, N_NotHoliday);
-    double T = ((double)DayCountAtoB(EstStart, EstEnd))/denominator;
-    double CurrentRate= Calc_Forward_Rate(RefCrvTerm, RefCrvRate, NRefCrvTerm, 0., dt);
+    double T = ((double)DayCountAtoB(EstStart, EstEnd)) / denominator;
+    double CurrentRate = Calc_Forward_Rate(RefCrvTerm, RefCrvRate, NRefCrvTerm, 0., dt);
     PrevForwardRate = CurrentRate;
 
     long ObservShiftFlag = 0;
@@ -1546,7 +1546,7 @@ double Calc_Current_SOFR_Swap(
 }
 
 double Calc_Forward_SOFR_Swap(
-    long PriceDate, 
+    long PriceDate,
     long SwapStartDate,
     long SwapMaturity,
     long NCPN_Ann,
@@ -1608,19 +1608,19 @@ double Calc_Forward_SOFR_Swap(
     double SOFR_Compound;
     double Annual_OIS = 0.0;
 
-    
+
     FloatValue = 0.0;
     for (i = 0; i < NCpnDate; i++)
     {
         if (i == 0)
         {
-            SOFR_Compound = SOFR_ForwardRate_Compound(PriceDate, Float_RefCurve, SwapStartDate, CpnDate[i], Float_RefLockOut, 
-                                                      Float_RefLookBack, ObservationShift, HolidayCalcFlag, N_NotHoliday, NotHoliday, 
-                                                      DayCountNotHoliday, NRefHistory, RefHistoryDate, RefHistory, denominator, Annual_OIS, 1);
+            SOFR_Compound = SOFR_ForwardRate_Compound(PriceDate, Float_RefCurve, SwapStartDate, CpnDate[i], Float_RefLockOut,
+                Float_RefLookBack, ObservationShift, HolidayCalcFlag, N_NotHoliday, NotHoliday,
+                DayCountNotHoliday, NRefHistory, RefHistoryDate, RefHistory, denominator, Annual_OIS, 1);
         }
         else
         {
-            SOFR_Compound = SOFR_ForwardRate_Compound(PriceDate, Float_RefCurve, CpnDate[i-1], CpnDate[i], Float_RefLockOut,
+            SOFR_Compound = SOFR_ForwardRate_Compound(PriceDate, Float_RefCurve, CpnDate[i - 1], CpnDate[i], Float_RefLockOut,
                 Float_RefLookBack, ObservationShift, HolidayCalcFlag, N_NotHoliday, NotHoliday,
                 DayCountNotHoliday, NRefHistory, RefHistoryDate, RefHistory, denominator, Annual_OIS, 1);
         }
@@ -1632,7 +1632,7 @@ double Calc_Forward_SOFR_Swap(
     for (i = 0; i < NCpnDate; i++)
     {
         if (i == 0) dt = DayCountFractionAtoB(SwapStartDate, CpnDate[0], DayCountFrac);
-        else dt = DayCountFractionAtoB(CpnDate[i-1], CpnDate[i], DayCountFrac);
+        else dt = DayCountFractionAtoB(CpnDate[i - 1], CpnDate[i], DayCountFrac);
         FixValue += dt * P0T[i + 1];
     }
 
@@ -1819,9 +1819,9 @@ double LegValue(
                     else FixedRateFlag = 0;
 
                     Floating_PartialValue(
-                        Schedule->PriceDate_C, CRSFlag, DiscCurve, RefCurve, FXCurve, 
+                        Schedule->PriceDate_C, CRSFlag, DiscCurve, RefCurve, FXCurve,
                         FixedRateFlag, Schedule->FixedRefRate[i], Schedule->Slope[i], Schedule->CPN[i], Schedule->NotionalAmount,
-                        Schedule->ForwardStart_C[i], Schedule->ForwardEnd_C[i], Schedule->StartDate_C[i], Schedule->EndDate_C[i], Schedule->PayDate_C[i], 
+                        Schedule->ForwardStart_C[i], Schedule->ForwardEnd_C[i], Schedule->StartDate_C[i], Schedule->EndDate_C[i], Schedule->PayDate_C[i],
                         Schedule->DayCount, ResultRefRate + i, ResultCPN + i, ResultDF + i, DiscCFArray + i);
                 }
                 else
@@ -1850,7 +1850,7 @@ double LegValue(
                     SwapMaturityYYYYMMDD = EDate_Cpp(Schedule->ForwardStart_C[i], (long)(Schedule->RefSwapMaturity * 12.0 + 0.01));
                     Pay_T = ((double)DayCountAtoB(Schedule->PriceDate_C, Schedule->PayDate_C[i])) / 365.0;
                     dt = DayCountFractionAtoB(Schedule->StartDate_C[i], Schedule->EndDate_C[i], Schedule->DayCount);
-                    SwapStartT = ((double)DayCountAtoB(Schedule->PriceDate_C, Schedule->ForwardStart_C[i]))/365.0;
+                    SwapStartT = ((double)DayCountAtoB(Schedule->PriceDate_C, Schedule->ForwardStart_C[i])) / 365.0;
 
                     if (Schedule->ForwardStart_C[i] <= Schedule->PriceDate_C) FixedRateFlag = 1;
                     else FixedRateFlag = 0;
@@ -1911,6 +1911,7 @@ double LegValue(
                 if (PrevFlag == 0)
                 {
                     Pay_T = ((double)DayCountAtoB(Schedule->PriceDate_C, Schedule->PayDate_C[i])) / 365.0;
+                    dt = DayCountFractionAtoB(Schedule->StartDate_C[i], Schedule->EndDate_C[i], Schedule->DayCount);
 
                     if (Schedule->ForwardStart_C[i] < Schedule->PriceDate_C) UseHistorySOFR = 1;
                     else UseHistorySOFR = 0;
@@ -1918,13 +1919,13 @@ double LegValue(
                     if (CRSFlag == 0) FXRate = 1.0;
                     else FXRate = Interpolate_Linear(FXCurve.Term, FXCurve.Rate, FXCurve.nterm(), Pay_T);
 
-                    OIS_Compound = SOFR_ForwardRate_Compound(Schedule->PriceDate_C, RefCurve, Schedule->ForwardStart_C[i], Schedule->ForwardEnd_C[i], Schedule->LockOutRef, 
-                                                            Schedule->LookBackRef, Schedule->ObservationShift, Schedule->HolidayFlag_Ref, Schedule->N_NotHoliday, Schedule->NotHoliday, 
-                                                            Schedule->DayCount_NotHoliday, Schedule->NRefHistory, Schedule->RefHistoryDate, Schedule->RefHistory, denominator, 
-                                                            OIS_Annual, 1);
+                    OIS_Compound = SOFR_ForwardRate_Compound(Schedule->PriceDate_C, RefCurve, Schedule->ForwardStart_C[i], Schedule->ForwardEnd_C[i], Schedule->LockOutRef,
+                        Schedule->LookBackRef, Schedule->ObservationShift, Schedule->HolidayFlag_Ref, Schedule->N_NotHoliday, Schedule->NotHoliday,
+                        Schedule->DayCount_NotHoliday, Schedule->NRefHistory, Schedule->RefHistoryDate, Schedule->RefHistory, denominator,
+                        OIS_Annual, 1);
 
                     ResultRefRate[i] = OIS_Annual;
-                    ResultCPN[i] = FXRate * Schedule->NotionalAmount * (OIS_Compound * Schedule->Slope[i] + Schedule->CPN[i]);
+                    ResultCPN[i] = FXRate * Schedule->NotionalAmount * (OIS_Compound * Schedule->Slope[i]) + FXRate * Schedule->NotionalAmount * Schedule->CPN[i] * dt;
                     ResultDF[i] = exp(-DiscCurve.Interpolated_Rate(Pay_T) * Pay_T);
                     DiscCFArray[i] = ResultCPN[i] * ResultDF[i];
                 }
@@ -1964,11 +1965,11 @@ double LegValue(
                     SwapMaturityYYYYMMDD = EDate_Cpp(Schedule->ForwardStart_C[i], (long)(Schedule->RefSwapMaturity * 12.0 + 0.01));
                     FreqMonth = 12.0 / (double)Schedule->NSwapPayAnnual;
 
-                    ResultRefRate[i] = Calc_Forward_SOFR_Swap(Schedule->PriceDate_C, Schedule->ForwardStart_C[i], SwapMaturityYYYYMMDD,  Schedule->NSwapPayAnnual, Schedule->DayCount, 
-                                                              RefCurve, DiscCurve, DiscCurve, Schedule->HolidayFlag_Ref, Schedule->NHolidays_Ref, 
-                                                              Schedule->Holidays_Ref, Schedule->N_NotHoliday, Schedule->NotHoliday, Schedule->DayCount_NotHoliday, 
-                                                              Schedule->NRefHistory, Schedule->RefHistoryDate, Schedule->RefHistory, denominator, Schedule->LockOutRef, 
-                                                              Schedule->LookBackRef, Schedule->ObservationShift);
+                    ResultRefRate[i] = Calc_Forward_SOFR_Swap(Schedule->PriceDate_C, Schedule->ForwardStart_C[i], SwapMaturityYYYYMMDD, Schedule->NSwapPayAnnual, Schedule->DayCount,
+                        RefCurve, DiscCurve, DiscCurve, Schedule->HolidayFlag_Ref, Schedule->NHolidays_Ref,
+                        Schedule->Holidays_Ref, Schedule->N_NotHoliday, Schedule->NotHoliday, Schedule->DayCount_NotHoliday,
+                        Schedule->NRefHistory, Schedule->RefHistoryDate, Schedule->RefHistory, denominator, Schedule->LockOutRef,
+                        Schedule->LookBackRef, Schedule->ObservationShift);
                     if (ConvAdjFlag > 0)
                     {
                         FSRVol = Interpolate_Linear(ConvAdjVolTerm, ConvAdjVol, NConvAdjVolTerm, SwapStartT);
@@ -2036,7 +2037,7 @@ double LegValue(
 long SwapPricer(
     long PriceDate_C,
     long CalcCRSFlag,
-    
+
     SCHD* RcvSchedule,
     long RcvDisc_NTerm,
     double* RcvDisc_Term,
@@ -2625,7 +2626,7 @@ long ErrorCheckIRS(
     long* Pay_EndDate = PayCashFlowSchedule + 3 * NPayCF;
     long* Pay_PayDate = PayCashFlowSchedule + 4 * NPayCF;
 
-    if (PriceDate <= 0 || PriceDate > Rcv_PayDate[NRcvCF - 1] || PriceDate > Pay_PayDate[NPayCF - 1] || PriceDate < Rcv_ForwardStart[0] - 20000 || PriceDate < Pay_ForwardStart[0] - 20000 ) return -1;
+    if (PriceDate <= 0 || PriceDate > Rcv_PayDate[NRcvCF - 1] || PriceDate > Pay_PayDate[NPayCF - 1] || PriceDate < Rcv_ForwardStart[0] - 20000 || PriceDate < Pay_ForwardStart[0] - 20000) return -1;
 
     if (GreekFlag != 0 && GreekFlag != 1 && GreekFlag != 999) return -2;
 
@@ -2803,9 +2804,9 @@ DLLEXPORT(long) CalcIRS(
 
     double* Pay_FixedRefRate,           // Pay Leg 과거 확정금리 Array
     double* ResultPrice,                // Output 계산결과 [0] Current Swap Rate [1] Rcv Value [2] Payment Value
-    double* ResultRefRate,              // Output 기초금리 Array
-    double* ResultCPN,                  // Output 추정 쿠폰 Array
-    double* ResultDF,                   // Output Discount Factor Array
+    double* ResultRefRate,              // Output 기초금리 Array [길이 = NCpnRcv + NCpnPay]
+    double* ResultCPN,                  // Output 추정 쿠폰 Array[길이 = NCpnRcv + NCpnPay]
+    double* ResultDF,                   // Output Discount Factor Array [길이 = NCpnRcv + NCpnPay]
 
     double* PV01,                       // Output PV01[0]RcvDisc [1]RcvRef [2]both [3]PayDisc [4]PayRef [5]both
     double* KeyRateRcvPV01,             // Output Rcv Key Rate PV01 .rehaped(-1)
@@ -2990,17 +2991,17 @@ DLLEXPORT(long) CalcIRS(
     long PayRef_NHolidays = NHolidays[1];
 
     long* RcvRef_Holidays = Holidays;
-    long* PayRef_Holidays= Holidays + RcvRef_HolidayCalc;
+    long* PayRef_Holidays = Holidays + RcvRef_HolidayCalc;
 
     MaxDay = EDate_Cpp(max(Rcv_PayDate[NPayCF - 1], Pay_PayDate[NPayCF - 1]), 1);
     MinDay = min(min(PriceDate, min(EDate_Cpp(Rcv_ForwardStart[0], -12), Pay_ForwardStart[0])), min(Rcv_StartDate[0], Pay_StartDate[0]));
     // RcvRef
     NHolidays_Array[0] = 0;
-    for (i = 0; i < RcvRef_NHolidays; i++) 
+    for (i = 0; i < RcvRef_NHolidays; i++)
     {
-        if (RcvRef_Holidays[i] <= MaxDay && RcvRef_Holidays[i] > MinDay) 
-        { 
-            NHolidays_Array[0] += 1; 
+        if (RcvRef_Holidays[i] <= MaxDay && RcvRef_Holidays[i] > MinDay)
+        {
+            NHolidays_Array[0] += 1;
         }
     }
     long* RcvRef_Holiday_Optimal = (long*)malloc(sizeof(long) * max(1, NHolidays_Array[0]));            // 1
@@ -3174,7 +3175,7 @@ DLLEXPORT(long) CalcIRS(
         PayRef_NTerm, PayRef_Term, PayRef_Rate,
         Rcv_NTermFX, Rcv_TermFX, Rcv_FX, Pay_NTermFX, Pay_TermFX, Pay_FX,
         GreekFlag, ResultPrice, ResultRefRate, ResultCPN, ResultDF,
-        PV01, KeyRateRcvPV01, KeyRatePayPV01, 
+        PV01, KeyRateRcvPV01, KeyRatePayPV01,
         PricingOnly, RcvConvexityAdjFlag, PayConvexityAdjFlag, NRcvConvexAdjVol, NPayConvexAdjVol, RcvConvexAdjTerm,
         RcvConvexAdjVol, PayConvexAdjTerm, PayConvexAdjVol);
 
@@ -3366,7 +3367,7 @@ long FindZeroRate(
     free(Holiday);
     free(HistoryDateExl);
     free(HistoryRate);
-    
+
     return 1;
 }
 
@@ -3644,5 +3645,836 @@ DLLEXPORT(long) Generate_CpnDate_IRSModule_Using_Holiday(long EffectiveDate, lon
         }
     }
     free(CpnDate);
+    return ResultCode;
+}
+
+int main2()
+{
+    long NHolidays = Number_Holiday(2020, 2050, 1);
+    long* Holidays = (long*)malloc(sizeof(long) * NHolidays);
+    Mapping_Holiday_CType(2020, 2050, 1, NHolidays, Holidays);
+    long TempDate = LastBusinessDate(202305, NHolidays, Holidays);
+
+    long Date = DayPlus(20240101, 366);
+    long N = Number_of_Coupons(1, 20240627, 20300102, 4, 1, NHolidays, Holidays, 1);
+    long* ResultStart = (long*)malloc(sizeof(long) * N);
+    long* ResultEnd = (long*)malloc(sizeof(long) * N);
+    long* ResultPay = (long*)malloc(sizeof(long) * N);
+
+    MappingCouponDates(1, 20240627, 20240627, 20300102, -1, 4, 1, NHolidays, Holidays, 1, N, ResultStart, ResultEnd, ResultPay);
+    double ZeroTermFore[25] = { 0.002739726,	0.035616438,	0.098630137,	0.180821918	,0.257534247	,0.515068493	,0.767123288	,1.016438356	,1.515068493	,2.016438356	,3.01369863	,4.01369863	,5.01369863	,6.019178082	,7.019178082	,8.019178082	,9.016438356	,10.01643836	,12.02465753	,15.01917808	,20.02465753	,25.03013699	,30.03561644	,40.04383562	,50.04383562 };
+    double ZeroRateFore[25] = { 0.04663591, 	0.04652330 	,0.04504692 	,0.04461912 	,0.04435352 	,0.04298215 	,0.04186334 	,0.04101891 	,0.03982147 	,0.03902380 	,0.03805355 	,0.03742306 	,0.03703927 	,0.03687159 	,0.03678656 	,0.03677524 	,0.03680684 	,0.03688299 	,0.03711687 	,0.03740166 	,0.03719903 	,0.03610472 	,0.03474796 	,0.03161303 	,0.02838960 };
+    double S = 1426.95;
+    long PriceDate = 20241210;
+    double ToDate = 20250113;
+    double T = ((double)DayCountAtoB(PriceDate, ToDate)) / 365.;
+    double SwapPoint = -175.0;
+    double SwapPointUnit = 100.0;
+    double r = Calc_ZeroRate_FromSwapPoint(SwapPoint, S, SwapPointUnit, T, 25, ZeroTermFore, ZeroRateFore);
+    free(Holidays);
+    free(ResultStart);
+    free(ResultEnd);
+    free(ResultPay);
+    return 1;
+}
+
+double Calc_ZeroRate_FromDiscFactor(long PriceDate, long StartDate, long EndDate, double MarketQuote, long DayCountFlag, long NZero, double* ZeroTerm, double* ZeroRate)
+{
+    if (StartDate < 19000100) StartDate = ExcelDateToCDate(StartDate);
+    if (EndDate < 19000100) EndDate = ExcelDateToCDate(EndDate);
+    double r;
+    if (PriceDate == StartDate)
+    {
+        r = 365.0 / ((double)DayCountAtoB(StartDate, EndDate)) * log(1.0 + MarketQuote * DayCountFractionAtoB(StartDate, EndDate, DayCountFlag));
+    }
+    else
+    {
+        double t0 = ((double)DayCountAtoB(PriceDate, StartDate)) / 365.;
+        double DF_Start_To_EndDate = 1.0 / (1.0 + MarketQuote * DayCountFractionAtoB(StartDate, EndDate, DayCountFlag));
+        double r0 = Interpolate_Linear(ZeroTerm, ZeroRate, NZero, t0);
+        double DF_0_To_EndDate = exp(-r0 * t0) * DF_Start_To_EndDate;
+        r = -365.0 / ((double)DayCountAtoB(PriceDate, EndDate)) * log(DF_0_To_EndDate);
+    }
+    return r;
+}
+
+DLLEXPORT(long) ZeroRateGenerator(
+    long PriceDate,                     // 
+    double SpotPrice,                   // Spot Price if Using SwapPoint
+    long NationFlag,                    // Currency 0: KRW, 1: USD, 2: GBP, -1: Custom(AdditionalHolidays Self Input)
+    long NAdditionalHoliday,            // Additional Holidays Number
+    long* AdditionalHolidays,           // Additional Holidays Array
+
+    long DayCountFlag,                  // 0 : Act365, 1: Act360 2: ActAct 3:30/360
+    long* RefRateType,                  // [0] Domestic [1] Foreign Estimation 0: CD, LIBOR, 1: SOFR, SONIA etc.. Array Length = 2 
+    long NZeroTermFore,                 // SOFR Curve Number (Currency Swap)
+    double* ZeroTermFore,               // SOFR Curve Term
+    double* ZeroRateFore,               // SOFR Curve Rate
+
+    long NZeroTermEstCurve,             // Domestic Estimate Curve Number
+    double* ZeroTermEstCurve,           // Domestic Estimate Curve Term
+    double* ZeroRateEstCurve,           // Domestic Estimate Curve Rate
+    long NGenerator,                    // Number of Generator
+    long* ProductType,                  // 0: Deposit, 1: Swap, 2: SwapPoint, 3: CRS, 4: Basis CRS, 5: KOFR etc.., Array Length = NGenerator 
+
+    long* EstimateStart,                // Estimation Start Date, Array Length = NGenerator  
+    long* Maturity,                     // Swap PayMaturity Date, Array Length = NGenerator  
+    double* MarketQuote,                // Market Quote, Array Length = NGenerator  
+    long* NCpnsAnn,                     // Annual Payment Number, Array Length = NGenerator  
+    long* CalcNCpn0CalcZeroResult1,     // Array Length = 1, 0: Calculate Number of Swap Coupon of Each Generator, 1: ZeroCurve Generate MODE
+
+    long* NResultCpnArray,              // OutPut : NCoupon of Each Generators, Array Length = NGenerator  
+    long* ResultForwardStart,
+    long* ResultForwardEnd,
+    long* ResultStartDate,
+    long* ResultEndDate,
+
+    long* ResultPayDate,
+    long* ResultForwardStartUSD,
+    long* ResultForwardEndUSD,
+    long* ResultStartUSD,
+    long* ResultEndUSD,
+
+    long* ResultPayUSD,
+    double* ResultZeroTerm,
+    double* ResultZeroRate,
+    double* ResultIRSInfoDomestic1,
+    double* ResultIRSInfoUSD1,
+
+    double* ResultIRSInfoDomestic2,
+    double* ResultIRSInfoUSD2,
+    double* ResultIRSInfoDomestic3,
+    double* ResultIRSInfoUSD3
+)
+{
+    long i;
+    long j;
+    long n;
+    long k;
+    long nbd;
+
+    long ncpn;
+    long StartYYYY, EndYYYY;
+    long n1;
+    long ntotal;
+    long ResultCode = 0;
+    if (PriceDate < 19000100) PriceDate = ExcelDateToCDate(PriceDate);
+    for (i = 0; i < NAdditionalHoliday; i++) if (AdditionalHolidays[i] < 19000100) AdditionalHolidays[i] = ExcelDateToCDate(AdditionalHolidays[i]);
+
+    if (PriceDate > EstimateStart[0]) return -1;
+    if (ProductType[0] > 2) return -2;
+    StartYYYY = PriceDate / 10000;
+    EndYYYY = StartYYYY + 50;       // 최대 Holiday 반영년도
+    Preprocessing_TermAndRate(PriceDate, NZeroTermFore, ZeroTermFore, ZeroRateFore);
+    Preprocessing_TermAndRate(PriceDate, NZeroTermEstCurve, ZeroTermEstCurve, ZeroRateEstCurve);
+
+    double MaxMarketQuote = 0.;
+    double MaxBasisPoint = 0.;
+    for (i = 0; i < NGenerator; i++)
+    {
+        if (ProductType[i] == 0 || ProductType[i] == 1 || ProductType[i] == 3 || ProductType[i] == 5)
+        {
+            MaxMarketQuote = max(MaxMarketQuote, fabs(MarketQuote[i]));
+        }
+        else if (ProductType[i] == 4)
+        {
+            MaxBasisPoint = max(MaxBasisPoint, fabs(MarketQuote[i]));
+        }
+    }
+    double MinBasisPoint = MaxBasisPoint;
+    for (i = 0; i < NGenerator; i++) if (ProductType[i] == 4) MinBasisPoint = min(MinBasisPoint, fabs(MarketQuote[i]));
+
+    if (MaxMarketQuote > 0.8)
+    {
+        ///////////////////////////////
+        // 이자율이 0.8 이상인 경우  //
+        // 단위가 %인걸로 간주하고   //
+        // 100으로 나누자            //
+        // 4.3 등일 경우 0.043 변환  //
+        ///////////////////////////////
+        for (i = 0; i < NGenerator; i++) if (ProductType[i] != 2 && ProductType[i] != 4) MarketQuote[i] = MarketQuote[i] / 100.;
+    }
+    if (MaxBasisPoint - MinBasisPoint > 0.05)
+    {
+        ///////////////////////////////
+        // 베이시스 스왑의 경우      //
+        // 위의 조건의 경우          //
+        // 단위가 %인걸로 간주하고   //
+        // 100으로 나누자            //
+        // 4.3 등일 경우 0.043 변환  //
+        ///////////////////////////////
+        for (i = 0; i < NGenerator; i++) if (ProductType[i] == 4) MarketQuote[i] = MarketQuote[i] / 100.;
+    }
+    Preprocessing_TermAndRate(PriceDate, NZeroTermFore, ZeroTermFore, ZeroRateFore);
+
+    //////////////////////
+    // Domestic Holiday //
+    //////////////////////
+
+    long NDomesticHolidays;
+    long* DomesticHolidays;
+    if (NationFlag >= 0 && NationFlag < 5)
+    {
+        // 0 KRW, 1:USD, 2:GBP, 3:NYSE, 4:NYMEX
+        n1 = Number_Holiday(StartYYYY, EndYYYY, NationFlag);
+        NDomesticHolidays = NAdditionalHoliday + n1;
+        DomesticHolidays = (long*)malloc(sizeof(long) * NDomesticHolidays);
+        Mapping_Holiday_CType(StartYYYY, EndYYYY, NationFlag, n1, DomesticHolidays);
+        for (i = n1; i < NDomesticHolidays; i++)
+        {
+            DomesticHolidays[i] = AdditionalHolidays[i - n1];
+        }
+    }
+    else
+    {
+        NDomesticHolidays = NAdditionalHoliday;
+        DomesticHolidays = (long*)malloc(sizeof(long) * NDomesticHolidays);
+        for (i = 0; i < NAdditionalHoliday; i++) DomesticHolidays[i] = AdditionalHolidays[i];
+    }
+
+    long SpotDate = NextNthBusinessDate(PriceDate, 2, DomesticHolidays, NDomesticHolidays);
+    double T_SpotDate = ((double)DayCountAtoB(PriceDate, SpotDate)) / 365.;
+    /////////////////
+    // USD Holiday //
+    /////////////////
+
+    long NHolidayUSD = Number_Holiday(StartYYYY, EndYYYY, 1);
+    long* HolidaysUSD = (long*)malloc(sizeof(long) * NHolidayUSD);
+    Mapping_Holiday_CType(StartYYYY, EndYYYY, 1, NHolidayUSD, HolidaysUSD);
+
+    ///////////////////
+    // Holiday Union //
+    ///////////////////
+
+    long NHolidayUnionDomesticUSD = NHolidayUSD + NDomesticHolidays;
+    long* HolidayUnionDomesticUSD = (long*)malloc(sizeof(long) * NHolidayUnionDomesticUSD);
+    for (i = 0; i < NHolidayUSD; i++) HolidayUnionDomesticUSD[i] = HolidaysUSD[i];
+    for (i = NHolidayUSD; i < NHolidayUnionDomesticUSD; i++) HolidayUnionDomesticUSD[i] = DomesticHolidays[i - NHolidayUSD];
+
+    ////////////////////////////////////
+    // Variable For CalcIRS Function  //
+    ////////////////////////////////////
+
+    double dblErrorRange = 0.000001;
+    double ObjValue;
+    double MaxRate;
+    double MinRate;
+    double TargetRate;
+    double PrevRate;
+    double dblCalcPrice;
+    long ResultCodeTemp;
+    long GreekFlag = 0;
+    long NAFlag = 0;
+    long CRS_Flag[4] = { 0,0,0,0 };
+    double CRS_Info[4] = { 0.,0.,0.,0., };
+    long Rcv_RefRateType = 0;
+    long Pay_RefRateType = 0;
+
+    if (RefRateType[0] == 0) Rcv_RefRateType = 0;
+    else Rcv_RefRateType = 2;
+
+    if (RefRateType[1] == 0) Pay_RefRateType = 0;
+    else Pay_RefRateType = 2;
+
+    long Rcv_SwapYearlyNPayment = 4.;           // 실질적으로 안쓰는 변수(기초금리가 CMS가아니므로)
+    double Rcv_SwapMaturity = 0.25;             // 실질적으로 안쓰는 변수(기초금리가 CMS가아니므로)
+    long Rcv_FixFloFlag;                        // 제너레이터에 따라 반복문 안에서 결정
+    long Rcv_DayCount = DayCountFlag;
+    double Rcv_NotionalAMT = 100.;              // BasisSwap일 경우 반복문 안에서 결정
+    long Rcv_NotionalPayDate;                   // 반복문 안에서 결정
+    long NRcvCF;                                // 반복문 안에서 결정
+    long* RcvCashFlowSchedule;                  // 반복문 안에서 결정
+
+    long Pay_SwapYearlyNPayment = 4.;           // 실질적으로 안쓰는 변수(기초금리가 CMS가아니므로)
+    double Pay_SwapMaturity = 0.25;             // 실질적으로 안쓰는 변수(기초금리가 CMS가아니므로)
+    long Pay_FixFloFlag;                        // 제너레이터에 따라 반복문 안에서 결정
+    long Pay_DayCount = DayCountFlag;       // 반복문 안에서 결정
+    double Pay_NotionalAMT = 100.;              // BasisSwap일 경우 반복문 안에서 결정
+    long Pay_NotionalPayDate;                   // 반복문 안에서 결정
+    long NPayCF;                                // 반복문 안에서 결정
+    long* PayCashFlowSchedule;                  // 반복문 안에서 결정
+
+    double ResultPrice[10] = { 0., };
+    double PV01[100] = { 0., };
+    double KeyRateRcvPV01[100] = { 0., };
+    double KeyRatePayPV01[100] = { 0., };
+    long SOFRConv[6] = { 0 , };
+    long HolidayCalcFlag[8] = { 0, };
+    long NHolidays[2] = { 0, 0 };               // 반복문 안에서 결정
+    long* Holidays;                             // 반복문 안에서 결정
+    long RcvPayConvexityAdjFlag[2] = { 0,0 };
+    double TempDoubleArray[2] = { 0.,0. };
+    long NOverNightHistory[2] = { 1,1 };
+    long OverNightHistoryDate[2] = { 20211101 ,20211101 };
+    double OverNightHistoryRate[2] = { 1.314,1.314 };
+
+    if (CalcNCpn0CalcZeroResult1[0] <= 0)
+    {
+        //////////////////////////////
+        // 이 함수를 처음 실행하면  //
+        // 각 제너레이터            //
+        // 스왑쿠폰개수들을 넣어줌  //
+        //////////////////////////////
+        ntotal = 0;
+        for (i = 0; i < NGenerator; i++)
+        {
+            if (ProductType[i] == 2 || ProductType[i] == 0)
+            {
+                // Deposit, SwapPoint
+                ncpn = 1;
+            }
+            else if (ProductType[i] == 3 || ProductType[i] == 4)
+            {
+                // CRS, Basis CRS
+                ncpn = Number_of_Coupons(ProductType[i], PriceDate, Maturity[i], NCpnsAnn[i], 1, NHolidayUnionDomesticUSD, HolidayUnionDomesticUSD, 1);
+            }
+            else
+            {
+                // Swap
+                ncpn = Number_of_Coupons(ProductType[i], PriceDate, Maturity[i], NCpnsAnn[i], 1, NDomesticHolidays, DomesticHolidays, 1);
+            }
+
+            NResultCpnArray[i] = ncpn;
+            ntotal += ncpn;
+        }
+
+        CalcNCpn0CalcZeroResult1[0] = 1;
+        ResultCode = ntotal;
+    }
+    else
+    {
+        long ncurve = 0;
+        long** ResultForwardStart2D = (long**)malloc(sizeof(long*) * NGenerator);
+        long** ResultForwardEnd2D = (long**)malloc(sizeof(long*) * NGenerator);
+        long** ResultStart2D = (long**)malloc(sizeof(long*) * NGenerator);
+        long** ResultEnd2D = (long**)malloc(sizeof(long*) * NGenerator);
+        long** ResultPay2D = (long**)malloc(sizeof(long*) * NGenerator);
+        long** ResultSchedule = (long**)malloc(sizeof(long*) * NGenerator);
+
+        double** ResultSlope2D = (double**)malloc(sizeof(double*) * NGenerator);
+        double** ResultCPN2D = (double**)malloc(sizeof(double*) * NGenerator);
+        double** ResultFixedRefRate2D = (double**)malloc(sizeof(double*) * NGenerator);
+        long** ResultPaySchedule2D = (long**)malloc(sizeof(long*) * NGenerator);
+
+        long** ResultForwardStart2DUSD = (long**)malloc(sizeof(long*) * NGenerator);
+        long** ResultForwardEnd2DUSD = (long**)malloc(sizeof(long*) * NGenerator);
+        long** ResultStart2DUSD = (long**)malloc(sizeof(long*) * NGenerator);
+        long** ResultEnd2DUSD = (long**)malloc(sizeof(long*) * NGenerator);
+        long** ResultPay2DUSD = (long**)malloc(sizeof(long*) * NGenerator);
+        long** ResultScheduleUSD = (long**)malloc(sizeof(long*) * NGenerator);
+
+        double** ResultSlope2DUSD = (double**)malloc(sizeof(double*) * NGenerator);
+        double** ResultCPN2DUSD = (double**)malloc(sizeof(double*) * NGenerator);
+        double** ResultFixedRefRate2DUSD = (double**)malloc(sizeof(double*) * NGenerator);
+        long** ResultPaySchedule2DUSD = (long**)malloc(sizeof(long*) * NGenerator);
+
+        double t, rb;
+        double dffo, df_to_startdate;
+
+        long DayAtoB;
+        long W1Flag;
+
+        for (i = 0; i < NGenerator; i++)
+        {
+            ResultForwardStart2D[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i]);
+            ResultForwardEnd2D[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i]);
+            ResultStart2D[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i]);
+            ResultEnd2D[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i]);
+            ResultPay2D[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i]);
+            ResultSlope2D[i] = (double*)malloc(sizeof(double) * NResultCpnArray[i]);
+            ResultSchedule[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i] * 5);
+
+            ResultCPN2D[i] = (double*)malloc(sizeof(double) * NResultCpnArray[i]);
+            ResultFixedRefRate2D[i] = (double*)malloc(sizeof(double) * NResultCpnArray[i]);
+            ResultPaySchedule2D[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i]);
+
+            ResultForwardStart2DUSD[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i]);
+            ResultForwardEnd2DUSD[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i]);
+            ResultStart2DUSD[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i]);
+            ResultEnd2DUSD[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i]);
+            ResultPay2DUSD[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i]);
+            ResultSlope2DUSD[i] = (double*)malloc(sizeof(double) * NResultCpnArray[i]);
+            ResultScheduleUSD[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i] * 5);
+
+            ResultCPN2DUSD[i] = (double*)malloc(sizeof(double) * NResultCpnArray[i]);
+            ResultFixedRefRate2DUSD[i] = (double*)malloc(sizeof(double) * NResultCpnArray[i]);
+            ResultPaySchedule2DUSD[i] = (long*)malloc(sizeof(long) * NResultCpnArray[i]);
+        }
+
+        k = 0;
+        for (i = 0; i < NGenerator; i++)
+        {
+            if (ProductType[i] == 0 || ProductType[i] == 2)
+            {
+                ResultForwardStart2D[i][0] = EstimateStart[i];
+                ResultForwardEnd2D[i][0] = Maturity[i];
+                ResultStart2D[i][0] = EstimateStart[i];
+                ResultEnd2D[i][0] = Maturity[i];
+                ResultPay2D[i][0] = Maturity[i];
+                ResultForwardStart2DUSD[i][0] = ResultForwardStart2D[i][0];
+                ResultForwardEnd2DUSD[i][0] = ResultForwardEnd2D[i][0];
+                ResultStart2DUSD[i][0] = ResultStart2D[i][0];
+                ResultEnd2DUSD[i][0] = ResultEnd2D[i][0];
+                ResultPay2DUSD[i][0] = ResultPay2D[i][0];
+
+            }
+            else if (ProductType[i] == 3 || ProductType[i] == 4)
+            {
+                dffo = Calc_Discount_Factor(ZeroTermFore, ZeroRateFore, NZeroTermFore, T_SpotDate);
+                if (i >= 1) df_to_startdate = Calc_Discount_Factor(ResultZeroTerm, ResultZeroRate, ncurve, T_SpotDate);
+                else df_to_startdate = 1.;
+                NAFlag = 1;
+                nbd = NBusinessCountFromEndToPay(EstimateStart[i], Maturity[i], HolidayUnionDomesticUSD, NHolidayUnionDomesticUSD, 1, &ResultEnd2D[i][NResultCpnArray[i] - 1]);
+                // CRS or Basis CRS
+
+                MappingCouponDates2(ProductType[i], EstimateStart[i], EstimateStart[i], Maturity[i], nbd,
+                    NCpnsAnn[i], 1, NDomesticHolidays, DomesticHolidays, NHolidayUnionDomesticUSD, HolidayUnionDomesticUSD, 1,
+                    NResultCpnArray[i], ResultForwardStart2D[i], ResultForwardEnd2D[i], ResultPay2D[i]);
+
+                MappingCouponDates2(ProductType[i], EstimateStart[i], EstimateStart[i], Maturity[i], nbd,
+                    NCpnsAnn[i], 1, NHolidayUSD, HolidaysUSD, NHolidayUnionDomesticUSD, HolidayUnionDomesticUSD, 1,
+                    NResultCpnArray[i], ResultForwardStart2DUSD[i], ResultForwardEnd2DUSD[i], ResultPay2DUSD[i]);
+                for (j = 0; j < NResultCpnArray[i]; j++)
+                {
+                    ResultStart2D[i][j] = ResultForwardStart2D[i][j];
+                    ResultEnd2D[i][j] = ResultForwardEnd2D[i][j];
+                    ResultStart2DUSD[i][j] = ResultForwardStart2DUSD[i][j];
+                    ResultEnd2DUSD[i][j] = ResultForwardEnd2DUSD[i][j];
+                }
+
+                if (ProductType[i] == 3)
+                {
+                    Rcv_FixFloFlag = 0;
+                    Pay_FixFloFlag = 1;
+                    Pay_NotionalAMT = Rcv_NotionalAMT;
+                    Rcv_NotionalAMT = Rcv_NotionalAMT * dffo / df_to_startdate;
+                }
+                else
+                {
+                    Rcv_FixFloFlag = 1;
+                    Pay_FixFloFlag = 1;
+                    Pay_NotionalAMT = Rcv_NotionalAMT;
+                    Rcv_NotionalAMT = Rcv_NotionalAMT * dffo / df_to_startdate;
+                }
+
+                for (j = 0; j < NResultCpnArray[i]; j++)
+                {
+                    ResultStart2D[i][j] = ResultForwardStart2D[i][j];
+                    ResultEnd2D[i][j] = ResultForwardEnd2D[i][j];
+                    ResultSchedule[i][j] = ResultForwardStart2D[i][j];
+                    ResultSchedule[i][j + NResultCpnArray[i]] = ResultForwardEnd2D[i][j];
+                    ResultSchedule[i][j + NResultCpnArray[i] * 2] = ResultForwardStart2D[i][j];
+                    ResultSchedule[i][j + NResultCpnArray[i] * 3] = ResultForwardEnd2D[i][j];
+                    ResultSchedule[i][j + NResultCpnArray[i] * 4] = ResultPay2D[i][j];
+                    if (ProductType[i] == 3) ResultSlope2D[i][j] = 0.0;
+                    else ResultSlope2D[i][j] = 1.0;
+                    ResultCPN2D[i][j] = MarketQuote[i];
+                    ResultFixedRefRate2D[i][j] = 0.;
+
+                    ResultForwardStart2DUSD[i][j] = ResultForwardStart2D[i][j];
+                    ResultEnd2DUSD[i][j] = ResultEnd2D[i][j];
+                    ResultStart2DUSD[i][j] = ResultForwardStart2D[i][j];
+                    ResultEnd2DUSD[i][j] = ResultForwardEnd2D[i][j];
+                    ResultPay2DUSD[i][j] = ResultPay2D[i][j];
+
+                    ResultScheduleUSD[i][j] = ResultForwardStart2D[i][j];
+                    ResultScheduleUSD[i][j + NResultCpnArray[i]] = ResultForwardEnd2D[i][j];
+                    ResultScheduleUSD[i][j + NResultCpnArray[i] * 2] = ResultForwardStart2D[i][j];
+                    ResultScheduleUSD[i][j + NResultCpnArray[i] * 3] = ResultForwardEnd2D[i][j];
+                    ResultScheduleUSD[i][j + NResultCpnArray[i] * 4] = ResultPay2D[i][j];
+
+                    ResultSlope2DUSD[i][j] = 1.0;
+                    ResultCPN2DUSD[i][j] = 0.;
+                    ResultFixedRefRate2DUSD[i][j] = 0.;
+
+                }
+                Rcv_NotionalPayDate = ResultEnd2D[i][NResultCpnArray[i] - 1];
+                Pay_NotionalPayDate = ResultEnd2DUSD[i][NResultCpnArray[i] - 1];
+
+                NRcvCF = NResultCpnArray[i];
+                NPayCF = NRcvCF;
+
+                NHolidays[0] = NDomesticHolidays;
+                NHolidays[1] = NHolidayUSD;
+            }
+            else
+            {
+                // CRS가 아닌 경우
+                Rcv_FixFloFlag = 1;
+                Pay_FixFloFlag = 0;
+                Pay_NotionalAMT = Rcv_NotionalAMT;
+                DayAtoB = DayCountAtoB(EstimateStart[i], Maturity[i]);
+                W1Flag = 0;
+                if (DayAtoB < 14 && DayAtoB > 6) W1Flag = 1;
+                else if (DayAtoB < 21) W1Flag = 2;
+                else W1Flag = 0;
+                if (W1Flag == 1 && NResultCpnArray[i] == 1)
+                {
+                    ResultForwardStart2D[i][0] = EstimateStart[i];
+                    ResultForwardEnd2D[i][0] = ParseBusinessDateIfHoliday(DayPlus(EstimateStart[i], 7), DomesticHolidays, NDomesticHolidays);
+                    ResultPay2D[i][0] = Maturity[i];
+                }
+                else if (W1Flag == 2 && NResultCpnArray[i] == 1)
+                {
+                    ResultForwardStart2D[i][0] = EstimateStart[i];
+                    ResultForwardEnd2D[i][0] = ParseBusinessDateIfHoliday(DayPlus(EstimateStart[i], 14), DomesticHolidays, NDomesticHolidays);
+                    ResultPay2D[i][0] = Maturity[i];
+                }
+                else
+                {
+                    MappingCouponDates(ProductType[i], EstimateStart[i], EstimateStart[i], Maturity[i], -1,
+                        NCpnsAnn[i], 1, NDomesticHolidays, DomesticHolidays, 1,
+                        NResultCpnArray[i], ResultForwardStart2D[i], ResultForwardEnd2D[i], ResultPay2D[i]);
+                }
+                Rcv_NotionalPayDate = ResultPay2D[i][NResultCpnArray[i] - 1];
+                Pay_NotionalPayDate = Rcv_NotionalPayDate;
+
+                NRcvCF = NResultCpnArray[i];
+                NPayCF = NRcvCF;
+
+                NHolidays[0] = NDomesticHolidays;
+                NHolidays[1] = NDomesticHolidays;
+
+                for (j = 0; j < NResultCpnArray[i]; j++)
+                {
+                    ResultStart2D[i][j] = ResultForwardStart2D[i][j];
+                    ResultEnd2D[i][j] = ResultForwardEnd2D[i][j];
+                    ResultSchedule[i][j] = ResultForwardStart2D[i][j];
+                    ResultSchedule[i][j + NResultCpnArray[i]] = ResultForwardEnd2D[i][j];
+                    ResultSchedule[i][j + NResultCpnArray[i] * 2] = ResultForwardStart2D[i][j];
+                    ResultSchedule[i][j + NResultCpnArray[i] * 3] = ResultForwardEnd2D[i][j];
+                    ResultSchedule[i][j + NResultCpnArray[i] * 4] = ResultPay2D[i][j];
+
+                    ResultSlope2D[i][j] = 1.0;
+                    ResultCPN2D[i][j] = 0.;
+                    ResultFixedRefRate2D[i][j] = 0.;
+
+                    ResultForwardStart2DUSD[i][j] = ResultForwardStart2D[i][j];
+                    ResultEnd2DUSD[i][j] = ResultEnd2D[i][j];
+                    ResultStart2DUSD[i][j] = ResultForwardStart2D[i][j];
+                    ResultEnd2DUSD[i][j] = ResultForwardEnd2D[i][j];
+                    ResultPay2DUSD[i][j] = ResultPay2D[i][j];
+
+                    ResultScheduleUSD[i][j] = ResultForwardStart2D[i][j];
+                    ResultScheduleUSD[i][j + NResultCpnArray[i]] = ResultForwardEnd2D[i][j];
+                    ResultScheduleUSD[i][j + NResultCpnArray[i] * 2] = ResultForwardStart2D[i][j];
+                    ResultScheduleUSD[i][j + NResultCpnArray[i] * 3] = ResultForwardEnd2D[i][j];
+                    ResultScheduleUSD[i][j + NResultCpnArray[i] * 4] = ResultPay2D[i][j];
+
+                    ResultSlope2DUSD[i][j] = 0.0;
+                    ResultCPN2DUSD[i][j] = MarketQuote[i];
+                    ResultFixedRefRate2DUSD[i][j] = 0.;
+
+                }
+
+                Rcv_NotionalPayDate = ResultPay2D[i][NResultCpnArray[i] - 1];
+                Pay_NotionalPayDate = ResultPay2DUSD[i][NResultCpnArray[i] - 1];
+            }
+
+            ResultZeroTerm[i] = ((double)DayCountAtoB(PriceDate, Maturity[i])) / 365.;
+
+            if (ProductType[i] == 0)
+            {
+                /////////////
+                // Deposit // 
+                /////////////
+                ResultZeroRate[i] = Calc_ZeroRate_FromDiscFactor(PriceDate, EstimateStart[i], Maturity[i], MarketQuote[i], DayCountFlag, ncurve, ResultZeroTerm, ResultZeroRate);
+                (ResultIRSInfoDomestic1 + k)[0] = MarketQuote[i];
+                (ResultIRSInfoDomestic1 + k)[1] = (ResultIRSInfoDomestic1 + k)[0];
+                (ResultIRSInfoDomestic2 + k)[0] = 100. * MarketQuote[i] * DayCountFractionAtoB(EstimateStart[i], Maturity[i], DayCountFlag);
+                (ResultIRSInfoDomestic2 + k)[1] = (ResultIRSInfoDomestic2 + k)[0];
+                (ResultIRSInfoDomestic3 + k)[0] = 100. / (100. + (ResultIRSInfoDomestic2 + k)[0]);
+                (ResultIRSInfoDomestic3 + k)[1] = (ResultIRSInfoDomestic3 + k)[0];
+            }
+            else if (ProductType[i] == 2)
+            {
+                ///////////////
+                // SwapPoint // 
+                ///////////////
+                ResultZeroRate[i] = Calc_ZeroRate_FromSwapPoint(MarketQuote[i], SpotPrice, 100., ResultZeroTerm[i], NZeroTermFore, ZeroTermFore, ZeroRateFore);
+                (ResultIRSInfoDomestic3 + k)[0] = Calc_DiscountFactor_FromSwapPoint(MarketQuote[i], SpotPrice, 100., ResultZeroTerm[i], NZeroTermFore, ZeroTermFore, ZeroRateFore);
+                (ResultIRSInfoDomestic1 + k)[0] = (1.0 / (ResultIRSInfoDomestic3 + k)[0] - 1.) / DayCountFractionAtoB(EstimateStart[i], Maturity[i], DayCountFlag);
+                (ResultIRSInfoDomestic2 + k)[0] = 100. * (1.0 / (ResultIRSInfoDomestic3 + k)[0] - 1.);
+                (ResultIRSInfoDomestic1 + k)[1] = (ResultIRSInfoDomestic1 + k)[0];
+                (ResultIRSInfoDomestic2 + k)[1] = (ResultIRSInfoDomestic2 + k)[0];
+                (ResultIRSInfoDomestic3 + k)[1] = (ResultIRSInfoDomestic3 + k)[0];
+            }
+            else if (ProductType[i] == 1)
+            {
+                ///////////////////
+                // Interest Swap // 
+                ///////////////////
+                Holidays = (long*)malloc(sizeof(long) * (NHolidays[0] + NHolidays[1]));
+                for (j = 0; j < NDomesticHolidays; j++)
+                {
+                    Holidays[j] = DomesticHolidays[j];
+                    Holidays[j + NDomesticHolidays] = DomesticHolidays[j];
+                }
+
+                Rcv_SwapYearlyNPayment = NCpnsAnn[i];
+
+                dblErrorRange = 0.000001;
+                ObjValue = 0.0;
+                MaxRate = MarketQuote[i] + 0.2;
+                MinRate = MarketQuote[i] - 0.15;
+                TargetRate = MaxRate;
+                PrevRate = MaxRate;
+                Pay_DayCount = Rcv_DayCount;
+
+                for (n = 0; n < 1000; n++)
+                {
+                    ResultZeroRate[ncurve] = TargetRate;
+                    ResultCodeTemp = CalcIRS(
+                        PriceDate, 0, NAFlag, CRS_Flag, CRS_Info,
+                        Rcv_RefRateType, Rcv_SwapYearlyNPayment, Rcv_SwapMaturity, Rcv_FixFloFlag, Rcv_DayCount,
+                        Rcv_NotionalAMT, Rcv_NotionalPayDate, ncurve + 1, ResultZeroTerm, ResultZeroRate,
+                        ncurve + 1, ResultZeroTerm, ResultZeroRate, NResultCpnArray[i], ResultSchedule[i],
+                        ResultSlope2D[i], ResultCPN2D[i], ResultFixedRefRate2D[i], Pay_RefRateType, Pay_SwapYearlyNPayment,
+                        Pay_SwapMaturity, Pay_FixFloFlag, Pay_DayCount, Pay_NotionalAMT, Pay_NotionalPayDate,
+                        ncurve + 1, ResultZeroTerm, ResultZeroRate, ncurve + 1, ResultZeroTerm,
+                        ResultZeroRate, NResultCpnArray[i], ResultScheduleUSD[i], ResultSlope2DUSD[i], ResultCPN2DUSD[i],
+                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfoDomestic1 + k, ResultIRSInfoDomestic2 + k,
+                        ResultIRSInfoDomestic3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
+                        NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
+                        RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
+
+                    dblCalcPrice = ResultPrice[1] - ResultPrice[2];
+                    if (fabs(dblCalcPrice) < dblErrorRange) break;
+                    if (dblCalcPrice > 0)
+                    {
+                        MaxRate = TargetRate;
+                        TargetRate = (MaxRate + MinRate) / 2.0;
+                    }
+                    else
+                    {
+                        MinRate = TargetRate;
+                        TargetRate = (MinRate + MaxRate) / 2.0;
+                    }
+                }
+                free(Holidays);
+            }
+            else if (ProductType[i] == 3)
+            {
+                Holidays = (long*)malloc(sizeof(long) * (NHolidays[0] + NHolidays[1]));
+                for (j = 0; j < NDomesticHolidays; j++) Holidays[j] = DomesticHolidays[j];
+                for (j = 0; j < NHolidayUSD; j++) Holidays[j + NDomesticHolidays] = HolidaysUSD[j];
+
+                Rcv_SwapYearlyNPayment = NCpnsAnn[i];
+
+                dblErrorRange = 0.00001;
+                ObjValue = 0.0;
+                MaxRate = MarketQuote[i] + 0.2;
+                MinRate = MarketQuote[i] - 0.15;
+                TargetRate = MaxRate;
+                PrevRate = MaxRate;
+                Pay_DayCount = 1; // USD Act 360
+                for (n = 0; n < 1000; n++)
+                {
+                    ResultZeroRate[ncurve] = TargetRate;
+                    ResultCodeTemp = CalcIRS(
+                        PriceDate, 0, NAFlag, CRS_Flag, CRS_Info,
+                        0, Rcv_SwapYearlyNPayment, Rcv_SwapMaturity, Rcv_FixFloFlag, Rcv_DayCount,
+                        Rcv_NotionalAMT, Rcv_NotionalPayDate, ncurve + 1, ResultZeroTerm, ResultZeroRate,
+                        ncurve + 1, ResultZeroTerm, ResultZeroRate, NResultCpnArray[i], ResultSchedule[i],
+                        ResultSlope2D[i], ResultCPN2D[i], ResultFixedRefRate2D[i], Pay_RefRateType, Pay_SwapYearlyNPayment,
+                        Pay_SwapMaturity, Pay_FixFloFlag, Pay_DayCount, Pay_NotionalAMT, Pay_NotionalPayDate,
+                        NZeroTermFore, ZeroTermFore, ZeroRateFore, NZeroTermFore, ZeroTermFore,
+                        ZeroRateFore, NResultCpnArray[i], ResultScheduleUSD[i], ResultSlope2DUSD[i], ResultCPN2DUSD[i],
+                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfoDomestic1 + k, ResultIRSInfoDomestic2 + k,
+                        ResultIRSInfoDomestic3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
+                        NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
+                        RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
+
+                    dblCalcPrice = -ResultPrice[1] + ResultPrice[2];
+
+                    if (fabs(dblCalcPrice) < dblErrorRange) break;
+                    if (dblCalcPrice > 0)
+                    {
+                        MaxRate = TargetRate;
+                        TargetRate = (MaxRate + MinRate) / 2.0;
+                    }
+                    else
+                    {
+                        MinRate = TargetRate;
+                        TargetRate = (MinRate + MaxRate) / 2.0;
+                    }
+                }
+                free(Holidays);
+            }
+            else if (ProductType[i] == 4)
+            {
+                Holidays = (long*)malloc(sizeof(long) * (NHolidays[0] + NHolidays[1]));
+                for (j = 0; j < NDomesticHolidays; j++) Holidays[j] = DomesticHolidays[j];
+                for (j = 0; j < NHolidayUSD; j++) Holidays[j + NDomesticHolidays] = HolidaysUSD[j];
+
+                Rcv_SwapYearlyNPayment = NCpnsAnn[i];
+                t = ((double)DayCountAtoB(PriceDate, Maturity[i])) / 365.;
+                rb = Interpolate_Linear(ZeroTermFore, ZeroRateFore, NZeroTermFore, t);
+
+                dblErrorRange = 0.000001;
+                ObjValue = 0.0;
+                MaxRate = rb - MarketQuote[i] + 0.10;
+                MinRate = rb - MarketQuote[i] - 0.05;
+                TargetRate = MaxRate;
+                PrevRate = MaxRate;
+                Pay_DayCount = 1; // USD Act 360
+
+                for (n = 0; n < 1000; n++)
+                {
+                    ResultZeroRate[ncurve] = TargetRate;
+                    ResultCodeTemp = CalcIRS(
+                        PriceDate, 0, NAFlag, CRS_Flag, CRS_Info,
+                        Rcv_RefRateType, Rcv_SwapYearlyNPayment, Rcv_SwapMaturity, Rcv_FixFloFlag, Rcv_DayCount,
+                        Rcv_NotionalAMT, Rcv_NotionalPayDate, ncurve + 1, ResultZeroTerm, ResultZeroRate,
+                        NZeroTermEstCurve, ZeroTermEstCurve, ZeroRateEstCurve, NResultCpnArray[i], ResultSchedule[i],
+                        ResultSlope2D[i], ResultCPN2D[i], ResultFixedRefRate2D[i], Pay_RefRateType, Pay_SwapYearlyNPayment,
+                        Pay_SwapMaturity, Pay_FixFloFlag, Pay_DayCount, Pay_NotionalAMT, Pay_NotionalPayDate,
+                        NZeroTermFore, ZeroTermFore, ZeroRateFore, NZeroTermFore, ZeroTermFore,
+                        ZeroRateFore, NResultCpnArray[i], ResultScheduleUSD[i], ResultSlope2DUSD[i], ResultCPN2DUSD[i],
+                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfoDomestic1 + k, ResultIRSInfoDomestic2 + k,
+                        ResultIRSInfoDomestic3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
+                        NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
+                        RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
+
+                    dblCalcPrice = -ResultPrice[1] + ResultPrice[2];
+                    if (fabs(dblCalcPrice) < dblErrorRange) break;
+                    if (dblCalcPrice > 0)
+                    {
+                        MaxRate = TargetRate;
+                        TargetRate = (MaxRate + MinRate) / 2.0;
+                    }
+                    else
+                    {
+                        MinRate = TargetRate;
+                        TargetRate = (MinRate + MaxRate) / 2.0;
+                    }
+                }
+                free(Holidays);
+            }
+            else if (ProductType[i] == 5)
+            {
+                // If Disc Curve is different from Estimation Curve
+                // For Example KOFR, 
+                Holidays = (long*)malloc(sizeof(long) * (NHolidays[0] + NHolidays[1]));
+                for (j = 0; j < NDomesticHolidays; j++)
+                {
+                    Holidays[j] = DomesticHolidays[j];
+                    Holidays[j + NDomesticHolidays] = DomesticHolidays[j];
+                }
+
+                Rcv_SwapYearlyNPayment = NCpnsAnn[i];
+                dblErrorRange = 0.000001;
+                ObjValue = 0.0;
+                MaxRate = MarketQuote[i] + 0.2;
+                MinRate = MarketQuote[i] - 0.15;
+                TargetRate = MaxRate;
+                PrevRate = MaxRate;
+                Pay_DayCount = Rcv_DayCount;
+
+                for (n = 0; n < 1000; n++)
+                {
+                    ResultZeroRate[ncurve] = TargetRate;
+                    ResultCodeTemp = CalcIRS(
+                        PriceDate, 0, NAFlag, CRS_Flag, CRS_Info,
+                        Rcv_RefRateType, Rcv_SwapYearlyNPayment, Rcv_SwapMaturity, Rcv_FixFloFlag, Rcv_DayCount,
+                        Rcv_NotionalAMT, Rcv_NotionalPayDate, NZeroTermEstCurve, ZeroTermEstCurve, ZeroRateEstCurve,
+                        ncurve + 1, ResultZeroTerm, ResultZeroRate, NResultCpnArray[i], ResultSchedule[i],
+                        ResultSlope2D[i], ResultCPN2D[i], ResultFixedRefRate2D[i], Pay_RefRateType, Pay_SwapYearlyNPayment,
+                        Pay_SwapMaturity, Pay_FixFloFlag, Pay_DayCount, Pay_NotionalAMT, Pay_NotionalPayDate,
+                        NZeroTermEstCurve, ZeroTermEstCurve, ZeroRateEstCurve, ncurve + 1, ResultZeroTerm,
+                        ResultZeroRate, NResultCpnArray[i], ResultScheduleUSD[i], ResultSlope2DUSD[i], ResultCPN2DUSD[i],
+                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfoDomestic1 + k, ResultIRSInfoDomestic2 + k,
+                        ResultIRSInfoDomestic3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
+                        NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
+                        RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
+
+                    dblCalcPrice = ResultPrice[1] - ResultPrice[2];
+                    if (fabs(dblCalcPrice) < dblErrorRange) break;
+                    if (dblCalcPrice > 0)
+                    {
+                        MaxRate = TargetRate;
+                        TargetRate = (MaxRate + MinRate) / 2.0;
+                    }
+                    else
+                    {
+                        MinRate = TargetRate;
+                        TargetRate = (MinRate + MaxRate) / 2.0;
+                    }
+                }
+                free(Holidays);
+
+            }
+            ncurve += 1;
+            k += NResultCpnArray[i] * 2;
+        }
+
+        n = 0;
+        for (i = 0; i < NGenerator; i++)
+        {
+            for (j = 0; j < NResultCpnArray[i]; j++)
+            {
+                ResultForwardStart[n] = ResultForwardStart2D[i][j];
+                ResultForwardEnd[n] = ResultForwardEnd2D[i][j];
+                ResultStartDate[n] = ResultStart2D[i][j];
+                ResultEndDate[n] = ResultEnd2D[i][j];
+                ResultPayDate[n] = ResultPay2D[i][j];
+                ResultForwardStartUSD[n] = ResultForwardStart2DUSD[i][j];
+                ResultForwardEndUSD[n] = ResultForwardEnd2DUSD[i][j];
+                ResultStartUSD[n] = ResultStart2DUSD[i][j];
+                ResultEndUSD[n] = ResultEnd2DUSD[i][j];
+                ResultPayUSD[n] = ResultPay2DUSD[i][j];
+                n++;
+            }
+        }
+
+        for (i = 0; i < NGenerator; i++)
+        {
+            free(ResultForwardStart2D[i]);
+            free(ResultForwardEnd2D[i]);
+            free(ResultStart2D[i]);
+            free(ResultEnd2D[i]);
+            free(ResultPay2D[i]);
+            free(ResultSchedule[i]);
+            free(ResultSlope2D[i]);
+            free(ResultCPN2D[i]);
+            free(ResultFixedRefRate2D[i]);
+            free(ResultPaySchedule2D[i]);
+
+            free(ResultForwardStart2DUSD[i]);
+            free(ResultForwardEnd2DUSD[i]);
+            free(ResultStart2DUSD[i]);
+            free(ResultEnd2DUSD[i]);
+            free(ResultPay2DUSD[i]);
+            free(ResultScheduleUSD[i]);
+            free(ResultSlope2DUSD[i]);
+            free(ResultCPN2DUSD[i]);
+            free(ResultFixedRefRate2DUSD[i]);
+            free(ResultPaySchedule2DUSD[i]);
+        }
+        free(ResultForwardStart2D);
+        free(ResultForwardEnd2D);
+        free(ResultStart2D);
+        free(ResultEnd2D);
+        free(ResultPay2D);
+        free(ResultSlope2D);
+        free(ResultSchedule);
+        free(ResultCPN2D);
+        free(ResultFixedRefRate2D);
+
+        free(ResultForwardStart2DUSD);
+        free(ResultForwardEnd2DUSD);
+        free(ResultStart2DUSD);
+        free(ResultEnd2DUSD);
+        free(ResultPay2DUSD);
+        free(ResultScheduleUSD);
+        free(ResultSlope2DUSD);
+        free(ResultCPN2DUSD);
+        free(ResultFixedRefRate2DUSD);
+        free(ResultPaySchedule2D);
+        free(ResultPaySchedule2DUSD);
+    }
+    free(DomesticHolidays);
+    free(HolidaysUSD);
+    free(HolidayUnionDomesticUSD);
     return ResultCode;
 }
