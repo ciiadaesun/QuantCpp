@@ -17,3 +17,4 @@ EXPORTS
 	ResultCpnMapping_YYYYMMDD					@014
 	NBusinessCountFromEndToPay					@015
 	ParseBusinessDateIfHoliday					@016
+	ZeroRateGenerator							@017

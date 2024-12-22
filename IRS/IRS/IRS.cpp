@@ -3724,27 +3724,24 @@ DLLEXPORT(long) ZeroRateGenerator(
     long* CalcNCpn0CalcZeroResult1,     // Array Length = 1, 0: Calculate Number of Swap Coupon of Each Generator, 1: ZeroCurve Generate MODE
 
     long* NResultCpnArray,              // OutPut : NCoupon of Each Generators, Array Length = NGenerator  
-    long* ResultForwardStart,
-    long* ResultForwardEnd,
-    long* ResultStartDate,
-    long* ResultEndDate,
+    long* ResultForwardStart,           // Output : ResultForwardStart, Array Length = sum(NResultCpnArray)
+    long* ResultForwardEnd,             // Output : ResultForwardEnd, Array Length = sum(NResultCpnArray)
+    long* ResultStartDate,              // Output : ResultStartDate, Array Length = sum(NResultCpnArray)
+    long* ResultEndDate,                // Output : ResultEndDate, Array Length = sum(NResultCpnArray)
 
-    long* ResultPayDate,
-    long* ResultForwardStartUSD,
-    long* ResultForwardEndUSD,
-    long* ResultStartUSD,
-    long* ResultEndUSD,
+    long* ResultPayDate,                // Output : ResultPayDate, Array Length = sum(NResultCpnArray)
+    long* ResultForwardStartUSD,        // Output : ResultForwardStartUSD, Array Length = sum(NResultCpnArray)
+    long* ResultForwardEndUSD,          // Output : ResultForwardEndUSD, Array Length = sum(NResultCpnArray)
+    long* ResultStartUSD,               // Output : ResultStartUSD, Array Length = sum(NResultCpnArray)
+    long* ResultEndUSD,                 // Output : ResultEndUSD, Array Length = sum(NResultCpnArray)
 
-    long* ResultPayUSD,
-    double* ResultZeroTerm,
-    double* ResultZeroRate,
-    double* ResultIRSInfoDomestic1,
-    double* ResultIRSInfoUSD1,
+    long* ResultPayUSD,                 // Output : ResultPayUSD, Array Length = sum(NResultCpnArray)
+    double* ResultZeroTerm,             // Output : Result ZeroCurve Term, Array Length = NGenerator
+    double* ResultZeroRate,             // Output : Result ZeroCurve Rate, Array Length = NGenerator
+    double* ResultIRSInfo1,             // Output : Result Reference Rate(Rcv,Pay), Array Legnth = (sum(NResultCpnArray) + NGenerator) x 2
+    double* ResultIRSInfo2,             // Output : Result Reference Rate(Rcv,Pay), Array Legnth = (sum(NResultCpnArray) + NGenerator) x 2
 
-    double* ResultIRSInfoDomestic2,
-    double* ResultIRSInfoUSD2,
-    double* ResultIRSInfoDomestic3,
-    double* ResultIRSInfoUSD3
+    double* ResultIRSInfo3
 )
 {
     long i;
@@ -3759,6 +3756,9 @@ DLLEXPORT(long) ZeroRateGenerator(
     long ntotal;
     long ResultCode = 0;
     if (PriceDate < 19000100) PriceDate = ExcelDateToCDate(PriceDate);
+    for (i = 0; i < NGenerator; i++) if (EstimateStart[i] < 19000100) EstimateStart[i] = ExcelDateToCDate(EstimateStart[i]);
+    for (i = 0; i < NGenerator; i++) if (Maturity[i] < 19000100) Maturity[i] = ExcelDateToCDate(Maturity[i]);
+
     for (i = 0; i < NAdditionalHoliday; i++) if (AdditionalHolidays[i] < 19000100) AdditionalHolidays[i] = ExcelDateToCDate(AdditionalHolidays[i]);
 
     if (PriceDate > EstimateStart[0]) return -1;
@@ -3805,7 +3805,6 @@ DLLEXPORT(long) ZeroRateGenerator(
         ///////////////////////////////
         for (i = 0; i < NGenerator; i++) if (ProductType[i] == 4) MarketQuote[i] = MarketQuote[i] / 100.;
     }
-    Preprocessing_TermAndRate(PriceDate, NZeroTermFore, ZeroTermFore, ZeroRateFore);
 
     //////////////////////
     // Domestic Holiday //
@@ -4179,12 +4178,20 @@ DLLEXPORT(long) ZeroRateGenerator(
                 // Deposit // 
                 /////////////
                 ResultZeroRate[i] = Calc_ZeroRate_FromDiscFactor(PriceDate, EstimateStart[i], Maturity[i], MarketQuote[i], DayCountFlag, ncurve, ResultZeroTerm, ResultZeroRate);
-                (ResultIRSInfoDomestic1 + k)[0] = MarketQuote[i];
-                (ResultIRSInfoDomestic1 + k)[1] = (ResultIRSInfoDomestic1 + k)[0];
-                (ResultIRSInfoDomestic2 + k)[0] = 100. * MarketQuote[i] * DayCountFractionAtoB(EstimateStart[i], Maturity[i], DayCountFlag);
-                (ResultIRSInfoDomestic2 + k)[1] = (ResultIRSInfoDomestic2 + k)[0];
-                (ResultIRSInfoDomestic3 + k)[0] = 100. / (100. + (ResultIRSInfoDomestic2 + k)[0]);
-                (ResultIRSInfoDomestic3 + k)[1] = (ResultIRSInfoDomestic3 + k)[0];
+                (ResultIRSInfo1 + k)[0] = MarketQuote[i];
+                (ResultIRSInfo1 + k)[1] = (ResultIRSInfo1 + k)[0];
+                (ResultIRSInfo1 + k)[2] = (ResultIRSInfo1 + k)[0];
+                (ResultIRSInfo1 + k)[3] = (ResultIRSInfo1 + k)[0];
+
+                (ResultIRSInfo2 + k)[0] = 100. * MarketQuote[i] * DayCountFractionAtoB(EstimateStart[i], Maturity[i], DayCountFlag);
+                (ResultIRSInfo2 + k)[1] = (ResultIRSInfo2 + k)[0];
+                (ResultIRSInfo2 + k)[2] = (ResultIRSInfo2 + k)[0];
+                (ResultIRSInfo2 + k)[3] = (ResultIRSInfo2 + k)[0];
+
+                (ResultIRSInfo3 + k)[0] = 100. / (100. + (ResultIRSInfo2 + k)[0]);
+                (ResultIRSInfo3 + k)[1] = (ResultIRSInfo3 + k)[0];
+                (ResultIRSInfo3 + k)[2] = (ResultIRSInfo3 + k)[0];
+                (ResultIRSInfo3 + k)[3] = (ResultIRSInfo3 + k)[0];
             }
             else if (ProductType[i] == 2)
             {
@@ -4192,12 +4199,21 @@ DLLEXPORT(long) ZeroRateGenerator(
                 // SwapPoint // 
                 ///////////////
                 ResultZeroRate[i] = Calc_ZeroRate_FromSwapPoint(MarketQuote[i], SpotPrice, 100., ResultZeroTerm[i], NZeroTermFore, ZeroTermFore, ZeroRateFore);
-                (ResultIRSInfoDomestic3 + k)[0] = Calc_DiscountFactor_FromSwapPoint(MarketQuote[i], SpotPrice, 100., ResultZeroTerm[i], NZeroTermFore, ZeroTermFore, ZeroRateFore);
-                (ResultIRSInfoDomestic1 + k)[0] = (1.0 / (ResultIRSInfoDomestic3 + k)[0] - 1.) / DayCountFractionAtoB(EstimateStart[i], Maturity[i], DayCountFlag);
-                (ResultIRSInfoDomestic2 + k)[0] = 100. * (1.0 / (ResultIRSInfoDomestic3 + k)[0] - 1.);
-                (ResultIRSInfoDomestic1 + k)[1] = (ResultIRSInfoDomestic1 + k)[0];
-                (ResultIRSInfoDomestic2 + k)[1] = (ResultIRSInfoDomestic2 + k)[0];
-                (ResultIRSInfoDomestic3 + k)[1] = (ResultIRSInfoDomestic3 + k)[0];
+                (ResultIRSInfo3 + k)[0] = Calc_DiscountFactor_FromSwapPoint(MarketQuote[i], SpotPrice, 100., ResultZeroTerm[i], NZeroTermFore, ZeroTermFore, ZeroRateFore);
+                (ResultIRSInfo1 + k)[0] = (1.0 / (ResultIRSInfo3 + k)[0] - 1.) / DayCountFractionAtoB(EstimateStart[i], Maturity[i], DayCountFlag);
+                (ResultIRSInfo2 + k)[0] = 100. * (1.0 / (ResultIRSInfo3 + k)[0] - 1.);
+
+                (ResultIRSInfo1 + k)[1] = (ResultIRSInfo1 + k)[0];
+                (ResultIRSInfo2 + k)[1] = (ResultIRSInfo2 + k)[0];
+                (ResultIRSInfo3 + k)[1] = (ResultIRSInfo3 + k)[0];
+
+                (ResultIRSInfo1 + k)[2] = (ResultIRSInfo1 + k)[0];
+                (ResultIRSInfo2 + k)[2] = (ResultIRSInfo2 + k)[0];
+                (ResultIRSInfo3 + k)[2] = (ResultIRSInfo3 + k)[0];
+
+                (ResultIRSInfo1 + k)[3] = (ResultIRSInfo1 + k)[0];
+                (ResultIRSInfo2 + k)[3] = (ResultIRSInfo2 + k)[0];
+                (ResultIRSInfo3 + k)[3] = (ResultIRSInfo3 + k)[0];
             }
             else if (ProductType[i] == 1)
             {
@@ -4233,8 +4249,8 @@ DLLEXPORT(long) ZeroRateGenerator(
                         Pay_SwapMaturity, Pay_FixFloFlag, Pay_DayCount, Pay_NotionalAMT, Pay_NotionalPayDate,
                         ncurve + 1, ResultZeroTerm, ResultZeroRate, ncurve + 1, ResultZeroTerm,
                         ResultZeroRate, NResultCpnArray[i], ResultScheduleUSD[i], ResultSlope2DUSD[i], ResultCPN2DUSD[i],
-                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfoDomestic1 + k, ResultIRSInfoDomestic2 + k,
-                        ResultIRSInfoDomestic3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
+                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfo1 + k, ResultIRSInfo2 + k,
+                        ResultIRSInfo3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
                         NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
                         RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
 
@@ -4280,8 +4296,8 @@ DLLEXPORT(long) ZeroRateGenerator(
                         Pay_SwapMaturity, Pay_FixFloFlag, Pay_DayCount, Pay_NotionalAMT, Pay_NotionalPayDate,
                         NZeroTermFore, ZeroTermFore, ZeroRateFore, NZeroTermFore, ZeroTermFore,
                         ZeroRateFore, NResultCpnArray[i], ResultScheduleUSD[i], ResultSlope2DUSD[i], ResultCPN2DUSD[i],
-                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfoDomestic1 + k, ResultIRSInfoDomestic2 + k,
-                        ResultIRSInfoDomestic3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
+                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfo1 + k, ResultIRSInfo2 + k,
+                        ResultIRSInfo3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
                         NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
                         RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
 
@@ -4331,8 +4347,8 @@ DLLEXPORT(long) ZeroRateGenerator(
                         Pay_SwapMaturity, Pay_FixFloFlag, Pay_DayCount, Pay_NotionalAMT, Pay_NotionalPayDate,
                         NZeroTermFore, ZeroTermFore, ZeroRateFore, NZeroTermFore, ZeroTermFore,
                         ZeroRateFore, NResultCpnArray[i], ResultScheduleUSD[i], ResultSlope2DUSD[i], ResultCPN2DUSD[i],
-                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfoDomestic1 + k, ResultIRSInfoDomestic2 + k,
-                        ResultIRSInfoDomestic3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
+                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfo1 + k, ResultIRSInfo2 + k,
+                        ResultIRSInfo3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
                         NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
                         RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
 
@@ -4383,8 +4399,8 @@ DLLEXPORT(long) ZeroRateGenerator(
                         Pay_SwapMaturity, Pay_FixFloFlag, Pay_DayCount, Pay_NotionalAMT, Pay_NotionalPayDate,
                         NZeroTermEstCurve, ZeroTermEstCurve, ZeroRateEstCurve, ncurve + 1, ResultZeroTerm,
                         ResultZeroRate, NResultCpnArray[i], ResultScheduleUSD[i], ResultSlope2DUSD[i], ResultCPN2DUSD[i],
-                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfoDomestic1 + k, ResultIRSInfoDomestic2 + k,
-                        ResultIRSInfoDomestic3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
+                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfo1 + k, ResultIRSInfo2 + k,
+                        ResultIRSInfo3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
                         NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
                         RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
 
@@ -4405,7 +4421,7 @@ DLLEXPORT(long) ZeroRateGenerator(
 
             }
             ncurve += 1;
-            k += NResultCpnArray[i] * 2;
+            k += (NResultCpnArray[i]+1) * 2;
         }
 
         n = 0;
@@ -4418,11 +4434,22 @@ DLLEXPORT(long) ZeroRateGenerator(
                 ResultStartDate[n] = ResultStart2D[i][j];
                 ResultEndDate[n] = ResultEnd2D[i][j];
                 ResultPayDate[n] = ResultPay2D[i][j];
-                ResultForwardStartUSD[n] = ResultForwardStart2DUSD[i][j];
-                ResultForwardEndUSD[n] = ResultForwardEnd2DUSD[i][j];
-                ResultStartUSD[n] = ResultStart2DUSD[i][j];
-                ResultEndUSD[n] = ResultEnd2DUSD[i][j];
-                ResultPayUSD[n] = ResultPay2DUSD[i][j];
+                if (ProductType[i] == 1 || ProductType[i] == 5)
+                {
+                    ResultForwardStartUSD[n] = ResultForwardStart[n];
+                    ResultForwardEndUSD[n] = ResultForwardEnd[n];
+                    ResultStartUSD[n] = ResultStartUSD[n];
+                    ResultEndUSD[n] = ResultEndDate[n];
+                    ResultPayUSD[n] = ResultPayDate[n];
+                }
+                else
+                {
+                    ResultForwardStartUSD[n] = ResultForwardStart2DUSD[i][j];
+                    ResultForwardEndUSD[n] = ResultForwardEnd2DUSD[i][j];
+                    ResultStartUSD[n] = ResultStart2DUSD[i][j];
+                    ResultEndUSD[n] = ResultEnd2DUSD[i][j];
+                    ResultPayUSD[n] = ResultPay2DUSD[i][j];
+                }
                 n++;
             }
         }
