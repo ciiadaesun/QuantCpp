@@ -3701,46 +3701,47 @@ double Calc_ZeroRate_FromDiscFactor(long PriceDate, long StartDate, long EndDate
 DLLEXPORT(long) ZeroRateGenerator(
     long PriceDate,                     // 
     double SpotPrice,                   // Spot Price if Using SwapPoint
+    double SwapPointUnit,               // SwapPointUnit
     long NationFlag,                    // Currency 0: KRW, 1: USD, 2: GBP, -1: Custom(AdditionalHolidays Self Input)
     long NAdditionalHoliday,            // Additional Holidays Number
-    long* AdditionalHolidays,           // Additional Holidays Array
 
+    long* AdditionalHolidays,           // Additional Holidays Array
     long DayCountFlag,                  // 0 : Act365, 1: Act360 2: ActAct 3:30/360
     long* RefRateType,                  // [0] Domestic [1] Foreign Estimation 0: CD, LIBOR, 1: SOFR, SONIA etc.. Array Length = 2 
     long NZeroTermFore,                 // SOFR Curve Number (Currency Swap)
     double* ZeroTermFore,               // SOFR Curve Term
-    double* ZeroRateFore,               // SOFR Curve Rate
 
+    double* ZeroRateFore,               // SOFR Curve Rate
     long NZeroTermEstCurve,             // Domestic Estimate Curve Number
     double* ZeroTermEstCurve,           // Domestic Estimate Curve Term
     double* ZeroRateEstCurve,           // Domestic Estimate Curve Rate
     long NGenerator,                    // Number of Generator
-    long* ProductType,                  // 0: Deposit, 1: Swap, 2: SwapPoint, 3: CRS, 4: Basis CRS, 5: KOFR etc.., Array Length = NGenerator 
 
+    long* ProductType,                  // 0: Deposit, 1: Swap, 2: SwapPoint, 3: CRS, 4: Basis CRS, 5: KOFR etc.., Array Length = NGenerator 
     long* EstimateStart,                // Estimation Start Date, Array Length = NGenerator  
     long* Maturity,                     // Swap PayMaturity Date, Array Length = NGenerator  
     double* MarketQuote,                // Market Quote, Array Length = NGenerator  
     long* NCpnsAnn,                     // Annual Payment Number, Array Length = NGenerator  
-    long* CalcNCpn0CalcZeroResult1,     // Array Length = 1, 0: Calculate Number of Swap Coupon of Each Generator, 1: ZeroCurve Generate MODE
 
+    long* CalcNCpn0CalcZeroResult1,     // Array Length = 1, 0: Calculate Number of Swap Coupon of Each Generator, 1: ZeroCurve Generate MODE
     long* NResultCpnArray,              // OutPut : NCoupon of Each Generators, Array Length = NGenerator  
     long* ResultForwardStart,           // Output : ResultForwardStart, Array Length = sum(NResultCpnArray)
     long* ResultForwardEnd,             // Output : ResultForwardEnd, Array Length = sum(NResultCpnArray)
     long* ResultStartDate,              // Output : ResultStartDate, Array Length = sum(NResultCpnArray)
-    long* ResultEndDate,                // Output : ResultEndDate, Array Length = sum(NResultCpnArray)
 
+    long* ResultEndDate,                // Output : ResultEndDate, Array Length = sum(NResultCpnArray)
     long* ResultPayDate,                // Output : ResultPayDate, Array Length = sum(NResultCpnArray)
     long* ResultForwardStartUSD,        // Output : ResultForwardStartUSD, Array Length = sum(NResultCpnArray)
     long* ResultForwardEndUSD,          // Output : ResultForwardEndUSD, Array Length = sum(NResultCpnArray)
     long* ResultStartUSD,               // Output : ResultStartUSD, Array Length = sum(NResultCpnArray)
-    long* ResultEndUSD,                 // Output : ResultEndUSD, Array Length = sum(NResultCpnArray)
 
+    long* ResultEndUSD,                 // Output : ResultEndUSD, Array Length = sum(NResultCpnArray)
     long* ResultPayUSD,                 // Output : ResultPayUSD, Array Length = sum(NResultCpnArray)
     double* ResultZeroTerm,             // Output : Result ZeroCurve Term, Array Length = NGenerator
     double* ResultZeroRate,             // Output : Result ZeroCurve Rate, Array Length = NGenerator
     double* ResultIRSInfo1,             // Output : Result Reference Rate(Rcv,Pay), Array Legnth = (sum(NResultCpnArray) + NGenerator) x 2
-    double* ResultIRSInfo2,             // Output : Result Reference Rate(Rcv,Pay), Array Legnth = (sum(NResultCpnArray) + NGenerator) x 2
 
+    double* ResultIRSInfo2,             // Output : Result Reference Rate(Rcv,Pay), Array Legnth = (sum(NResultCpnArray) + NGenerator) x 2
     double* ResultIRSInfo3
 )
 {
@@ -3794,7 +3795,7 @@ DLLEXPORT(long) ZeroRateGenerator(
         ///////////////////////////////
         for (i = 0; i < NGenerator; i++) if (ProductType[i] != 2 && ProductType[i] != 4) MarketQuote[i] = MarketQuote[i] / 100.;
     }
-    if (MaxBasisPoint - MinBasisPoint > 0.05)
+    if (MaxBasisPoint - MinBasisPoint > 0.01)
     {
         ///////////////////////////////
         // 베이시스 스왑의 경우      //
@@ -4045,15 +4046,11 @@ DLLEXPORT(long) ZeroRateGenerator(
                 {
                     Rcv_FixFloFlag = 0;
                     Pay_FixFloFlag = 1;
-                    Pay_NotionalAMT = Rcv_NotionalAMT;
-                    Rcv_NotionalAMT = Rcv_NotionalAMT * dffo / df_to_startdate;
                 }
                 else
                 {
                     Rcv_FixFloFlag = 1;
                     Pay_FixFloFlag = 1;
-                    Pay_NotionalAMT = Rcv_NotionalAMT;
-                    Rcv_NotionalAMT = Rcv_NotionalAMT * dffo / df_to_startdate;
                 }
 
                 for (j = 0; j < NResultCpnArray[i]; j++)
@@ -4198,8 +4195,8 @@ DLLEXPORT(long) ZeroRateGenerator(
                 ///////////////
                 // SwapPoint // 
                 ///////////////
-                ResultZeroRate[i] = Calc_ZeroRate_FromSwapPoint(MarketQuote[i], SpotPrice, 100., ResultZeroTerm[i], NZeroTermFore, ZeroTermFore, ZeroRateFore);
-                (ResultIRSInfo3 + k)[0] = Calc_DiscountFactor_FromSwapPoint(MarketQuote[i], SpotPrice, 100., ResultZeroTerm[i], NZeroTermFore, ZeroTermFore, ZeroRateFore);
+                ResultZeroRate[i] = Calc_ZeroRate_FromSwapPoint(MarketQuote[i], SpotPrice, SwapPointUnit, ResultZeroTerm[i], NZeroTermFore, ZeroTermFore, ZeroRateFore);
+                (ResultIRSInfo3 + k)[0] = Calc_DiscountFactor_FromSwapPoint(MarketQuote[i], SpotPrice, SwapPointUnit, ResultZeroTerm[i], NZeroTermFore, ZeroTermFore, ZeroRateFore);
                 (ResultIRSInfo1 + k)[0] = (1.0 / (ResultIRSInfo3 + k)[0] - 1.) / DayCountFractionAtoB(EstimateStart[i], Maturity[i], DayCountFlag);
                 (ResultIRSInfo2 + k)[0] = 100. * (1.0 / (ResultIRSInfo3 + k)[0] - 1.);
 
@@ -4236,7 +4233,7 @@ DLLEXPORT(long) ZeroRateGenerator(
                 TargetRate = MaxRate;
                 PrevRate = MaxRate;
                 Pay_DayCount = Rcv_DayCount;
-
+                Pay_RefRateType = Rcv_RefRateType;
                 for (n = 0; n < 1000; n++)
                 {
                     ResultZeroRate[ncurve] = TargetRate;
@@ -4276,7 +4273,6 @@ DLLEXPORT(long) ZeroRateGenerator(
                 for (j = 0; j < NHolidayUSD; j++) Holidays[j + NDomesticHolidays] = HolidaysUSD[j];
 
                 Rcv_SwapYearlyNPayment = NCpnsAnn[i];
-
                 dblErrorRange = 0.00001;
                 ObjValue = 0.0;
                 MaxRate = MarketQuote[i] + 0.2;
@@ -4290,7 +4286,7 @@ DLLEXPORT(long) ZeroRateGenerator(
                     ResultCodeTemp = CalcIRS(
                         PriceDate, 0, NAFlag, CRS_Flag, CRS_Info,
                         0, Rcv_SwapYearlyNPayment, Rcv_SwapMaturity, Rcv_FixFloFlag, Rcv_DayCount,
-                        Rcv_NotionalAMT, Rcv_NotionalPayDate, ncurve + 1, ResultZeroTerm, ResultZeroRate,
+                        Rcv_NotionalAMT * dffo / df_to_startdate , Rcv_NotionalPayDate, ncurve + 1, ResultZeroTerm, ResultZeroRate,
                         ncurve + 1, ResultZeroTerm, ResultZeroRate, NResultCpnArray[i], ResultSchedule[i],
                         ResultSlope2D[i], ResultCPN2D[i], ResultFixedRefRate2D[i], Pay_RefRateType, Pay_SwapYearlyNPayment,
                         Pay_SwapMaturity, Pay_FixFloFlag, Pay_DayCount, Pay_NotionalAMT, Pay_NotionalPayDate,
@@ -4341,7 +4337,7 @@ DLLEXPORT(long) ZeroRateGenerator(
                     ResultCodeTemp = CalcIRS(
                         PriceDate, 0, NAFlag, CRS_Flag, CRS_Info,
                         Rcv_RefRateType, Rcv_SwapYearlyNPayment, Rcv_SwapMaturity, Rcv_FixFloFlag, Rcv_DayCount,
-                        Rcv_NotionalAMT, Rcv_NotionalPayDate, ncurve + 1, ResultZeroTerm, ResultZeroRate,
+                        Rcv_NotionalAMT * dffo / df_to_startdate, Rcv_NotionalPayDate, ncurve + 1, ResultZeroTerm, ResultZeroRate,
                         NZeroTermEstCurve, ZeroTermEstCurve, ZeroRateEstCurve, NResultCpnArray[i], ResultSchedule[i],
                         ResultSlope2D[i], ResultCPN2D[i], ResultFixedRefRate2D[i], Pay_RefRateType, Pay_SwapYearlyNPayment,
                         Pay_SwapMaturity, Pay_FixFloFlag, Pay_DayCount, Pay_NotionalAMT, Pay_NotionalPayDate,
@@ -4386,7 +4382,7 @@ DLLEXPORT(long) ZeroRateGenerator(
                 TargetRate = MaxRate;
                 PrevRate = MaxRate;
                 Pay_DayCount = Rcv_DayCount;
-
+                Pay_RefRateType = Rcv_RefRateType;
                 for (n = 0; n < 1000; n++)
                 {
                     ResultZeroRate[ncurve] = TargetRate;

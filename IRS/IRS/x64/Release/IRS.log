@@ -40,10 +40,10 @@ C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(3230,10): warning C4101: 'NotionalPayDate
 C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(3224,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(3224,19): warning C4101: 'n' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(3670,49): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(3878,33): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(3887,33): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(3894,11): warning C4101: 'PayCashFlowSchedule' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(3885,11): warning C4101: 'RcvCashFlowSchedule' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(3879,33): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(3888,33): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(3895,11): warning C4101: 'PayCashFlowSchedule' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRS\IRS\IRS.cpp(3886,11): warning C4101: 'RcvCashFlowSchedule' :참조되지 않은 지역 변수입니다.
      C:\Users\ciiad\github5\IRS\x64\Release\IRS.lib 라이브러리 및 C:\Users\ciiad\github5\IRS\x64\Release\IRS.exp 개체를 생성하고 있습니다.
   코드를 생성하고 있습니다.
   Previous IPDB not found, fall back to full compilation.
