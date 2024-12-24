@@ -2776,7 +2776,7 @@ DLLEXPORT(long) CalcIRS(
     double* RcvRef_Term,               // Rcv Leg 레퍼런스 금리 Term Array
     double* RcvRef_Rate,               // Rcv Leg 레퍼런스 금리 Rate Array
     long NRcvCF,                       // Rcv Leg CashFlow 개수
-    long* RcvCashFlowSchedule,         // Rcv Forward Start, End, 기산, 기말, 지급일 ExlDate
+    long* RcvCashFlowSchedule,         // Rcv Forward Start, End, 기산, 기말, 지급일
 
     double* Rcv_Slope,                 // Rcv Leg 변동금리 기울기 Array
     double* Rcv_CPN,                   // Rcv Leg 고정쿠폰 Array
@@ -2798,7 +2798,7 @@ DLLEXPORT(long) CalcIRS(
 
     double* PayRef_Rate,                // Pay Leg 할인 금리 Rate Array 
     long NPayCF,                        // Pay Leg CashFlow 개수
-    long* PayCashFlowSchedule,          // Pay Forward Start, End, 기산, 기말, 지급일 ExlDate
+    long* PayCashFlowSchedule,          // Pay Forward Start, End, 기산, 기말, 지급일
     double* Pay_Slope,                  // Pay Leg 변동금리 기울기 Array
     double* Pay_CPN,                    // Pay Leg 고정쿠폰 Array
 
@@ -4177,18 +4177,12 @@ DLLEXPORT(long) ZeroRateGenerator(
                 ResultZeroRate[i] = Calc_ZeroRate_FromDiscFactor(PriceDate, EstimateStart[i], Maturity[i], MarketQuote[i], DayCountFlag, ncurve, ResultZeroTerm, ResultZeroRate);
                 (ResultIRSInfo1 + k)[0] = MarketQuote[i];
                 (ResultIRSInfo1 + k)[1] = (ResultIRSInfo1 + k)[0];
-                (ResultIRSInfo1 + k)[2] = (ResultIRSInfo1 + k)[0];
-                (ResultIRSInfo1 + k)[3] = (ResultIRSInfo1 + k)[0];
 
                 (ResultIRSInfo2 + k)[0] = 100. * MarketQuote[i] * DayCountFractionAtoB(EstimateStart[i], Maturity[i], DayCountFlag);
                 (ResultIRSInfo2 + k)[1] = (ResultIRSInfo2 + k)[0];
-                (ResultIRSInfo2 + k)[2] = (ResultIRSInfo2 + k)[0];
-                (ResultIRSInfo2 + k)[3] = (ResultIRSInfo2 + k)[0];
 
                 (ResultIRSInfo3 + k)[0] = 100. / (100. + (ResultIRSInfo2 + k)[0]);
                 (ResultIRSInfo3 + k)[1] = (ResultIRSInfo3 + k)[0];
-                (ResultIRSInfo3 + k)[2] = (ResultIRSInfo3 + k)[0];
-                (ResultIRSInfo3 + k)[3] = (ResultIRSInfo3 + k)[0];
             }
             else if (ProductType[i] == 2)
             {
@@ -4203,14 +4197,6 @@ DLLEXPORT(long) ZeroRateGenerator(
                 (ResultIRSInfo1 + k)[1] = (ResultIRSInfo1 + k)[0];
                 (ResultIRSInfo2 + k)[1] = (ResultIRSInfo2 + k)[0];
                 (ResultIRSInfo3 + k)[1] = (ResultIRSInfo3 + k)[0];
-
-                (ResultIRSInfo1 + k)[2] = (ResultIRSInfo1 + k)[0];
-                (ResultIRSInfo2 + k)[2] = (ResultIRSInfo2 + k)[0];
-                (ResultIRSInfo3 + k)[2] = (ResultIRSInfo3 + k)[0];
-
-                (ResultIRSInfo1 + k)[3] = (ResultIRSInfo1 + k)[0];
-                (ResultIRSInfo2 + k)[3] = (ResultIRSInfo2 + k)[0];
-                (ResultIRSInfo3 + k)[3] = (ResultIRSInfo3 + k)[0];
             }
             else if (ProductType[i] == 1)
             {
@@ -4499,5 +4485,6 @@ DLLEXPORT(long) ZeroRateGenerator(
     free(DomesticHolidays);
     free(HolidaysUSD);
     free(HolidayUnionDomesticUSD);
+    //_CrtDumpMemoryLeaks();
     return ResultCode;
 }

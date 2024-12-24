@@ -1728,7 +1728,7 @@ long* Malloc_USHolidayArray(
 // U.S NYMEX Holiday Mapping
 void Mapping_US_NYMEXHoliday(
     long YYYY,                  // 연도 
-    long* HolidayArray         // 미리 할당된 Array(10개
+    long* HolidayArray         // 미리 할당된 Array(11개
 )
 {
     long TempDate;
@@ -2044,6 +2044,159 @@ long* Malloc_GBPHolidayArray(
     return ResultArray;
 }
 
+// EUR Holiday Mapping
+void Mapping_EUR_Holiday(
+    long YYYY,                  // 연도 
+    long* HolidayArray         // 미리 할당된 Array(7개
+)
+{
+    long TempDate;
+    long Jan01 = YYYY * 10000 + 101;
+    long RebirthMinus2;
+    long RebirthPlus1;
+
+    if (YYYY < LunarDateKoreanHardCodeYear) RebirthMinus2 = RebirthDayMinus2(YYYY);     // 부활절 쉼
+    else RebirthMinus2 = Jan01;
+
+    if (YYYY < LunarDateKoreanHardCodeYear) RebirthPlus1= RebirthDayPlus1(YYYY);     // 부활절 쉼
+    else RebirthPlus1 = Jan01;
+
+    long May01 = YYYY * 10000 + 101;
+    long Christmas = YYYY * 10000 + 1225;
+    long ChristmasPlus1 = YYYY * 10000 + 1226;
+
+    HolidayArray[0] = Jan01;
+    HolidayArray[1] = RebirthMinus2;
+    HolidayArray[2] = RebirthPlus1;
+    HolidayArray[3] = RebirthMinus2;
+    HolidayArray[4] = May01;
+    HolidayArray[5] = Christmas;
+    HolidayArray[6] = ChristmasPlus1;
+}
+
+// EUR Holiday Array를 Malloc하는 함수
+long* Malloc_EURHolidayArray(
+    long Start_YYYY,                            // 시작 연도
+    long End_YYYY,                              // 종료 연도
+    long& NHolidayArray                        // 할당된 Array 길이
+)
+{
+    long i, j, k;
+    long** Holidays = (long**)malloc(sizeof(long*) * max(1, (End_YYYY - Start_YYYY + 1)));          // 메모리할당1
+    long* nholidays = (long*)malloc(sizeof(long) * max(1, (End_YYYY - Start_YYYY + 1)));            // 메모리할당2
+    long n = 0;
+    long nh = 0;
+
+    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++)
+    {
+        Holidays[i] = (long*)malloc(sizeof(long) * 15);
+        Mapping_EUR_Holiday(Start_YYYY + i, Holidays[i]);
+        nholidays[i] = 7;
+        bubble_sort_date(Holidays[i], nholidays[i], 1);
+        n += nholidays[i];
+    }
+
+    NHolidayArray = n;
+    long* ResultArray = (long*)malloc(sizeof(long) * max(1, n));                                    // 리턴용할당
+    k = 0;
+    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++)
+    {
+        for (j = 0; j < nholidays[i]; j++)
+        {
+            ResultArray[k] = Holidays[i][j];
+            k += 1;
+        }
+    }
+    bubble_sort_date(ResultArray, NHolidayArray, 1);
+
+    for (i = 0; i < max(1, (End_YYYY - Start_YYYY + 1)); i++) if (Holidays[i]) free(Holidays[i]);
+    free(Holidays);                                                                                 // 메모리할당해제1
+    free(nholidays);                                                                                // 메모리할당해제2
+
+    return ResultArray;
+}
+
+// JPY Holiday Mapping
+void Mapping_JPY_Holiday(
+    long YYYY,                  // 연도 
+    long* HolidayArray          // 미리 할당된 Array(14개
+)
+{
+    long TempDate;
+    long Jan01 = FixedHoliday_YYYYMMDD_GBP(YYYY * 10000 + 101);
+    long SeiJinNoHee = Nth_Date(YYYY, 1, 2, 2);        // 1월 2번째 월요일
+    long KenKoKuKynenHee = FixedHoliday_YYYYMMDD_GBP(YYYY * 10000 + 211);
+    long TennoTanjobi = FixedHoliday_YYYYMMDD_GBP(YYYY * 10000 + 223);
+    long Showhanohee = FixedHoliday_YYYYMMDD_GBP(YYYY * 10000 + 429);
+    long KenpoKinenbee = FixedHoliday_YYYYMMDD_GBP(YYYY * 10000 + 503);
+    long Midorinohee = FixedHoliday_YYYYMMDD_GBP(YYYY * 10000 + 504);
+    long Kodomonohee = FixedHoliday_YYYYMMDD_GBP(YYYY * 10000 + 505);
+    long Uminohee = Nth_Date(YYYY, 7, 3, 2);        // 7월 3번째 월요일
+    long Yamanohee = FixedHoliday_YYYYMMDD_GBP(YYYY * 10000 + 811);
+    long Keronohee = Nth_Date(YYYY, 9, 3, 2);        // 9월 3번째 월요일
+    long Sportsnohee = Nth_Date(YYYY, 10, 2, 2);        // 9월 3번째 월요일
+    if (YYYY == 2020) Sportsnohee = 20200724;
+    long Bunkanohee = FixedHoliday_YYYYMMDD_GBP(YYYY * 10000 + 1103);
+    long KinroKanshyanohee = FixedHoliday_YYYYMMDD_GBP(YYYY * 10000 + 1123);
+
+    HolidayArray[0] = Jan01;
+    HolidayArray[1] = SeiJinNoHee;
+    HolidayArray[2] = KenKoKuKynenHee;
+    HolidayArray[3] = TennoTanjobi;
+    HolidayArray[4] = Showhanohee;
+    HolidayArray[5] = KenpoKinenbee;
+    HolidayArray[6] = Midorinohee;
+    HolidayArray[7] = Kodomonohee;
+    HolidayArray[8] = Uminohee;
+    HolidayArray[9] = Yamanohee;
+    HolidayArray[10] = Keronohee;
+    HolidayArray[11] = Sportsnohee;
+    HolidayArray[12] = Bunkanohee;
+    HolidayArray[13] = KinroKanshyanohee;
+}
+
+// JPY Holiday Array를 Malloc하는 함수
+long* Malloc_JPYHolidayArray(
+    long Start_YYYY,                            // 시작 연도
+    long End_YYYY,                              // 종료 연도
+    long& NHolidayArray                        // 할당된 Array 길이
+)
+{
+    long i, j, k;
+    long** Holidays = (long**)malloc(sizeof(long*) * max(1, (End_YYYY - Start_YYYY + 1)));          // 메모리할당1
+    long* nholidays = (long*)malloc(sizeof(long) * max(1, (End_YYYY - Start_YYYY + 1)));            // 메모리할당2
+    long n = 0;
+    long nh = 0;
+    long EasterMonday;
+    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++)
+    {
+        Holidays[i] = (long*)malloc(sizeof(long) * 15);
+        Mapping_JPY_Holiday(Start_YYYY + i, Holidays[i]);
+        nholidays[i] = 14;
+        bubble_sort_date(Holidays[i], nholidays[i], 1);
+        n += nholidays[i];
+    }
+
+    NHolidayArray = n;
+    long* ResultArray = (long*)malloc(sizeof(long) * max(1, n));                                    // 리턴용할당
+    k = 0;
+    for (i = 0; i < (End_YYYY - Start_YYYY + 1); i++)
+    {
+        for (j = 0; j < nholidays[i]; j++)
+        {
+            ResultArray[k] = Holidays[i][j];
+            k += 1;
+        }
+    }
+    bubble_sort_date(ResultArray, NHolidayArray, 1);
+
+    for (i = 0; i < max(1, (End_YYYY - Start_YYYY + 1)); i++) if (Holidays[i]) free(Holidays[i]);
+    free(Holidays);                                                                                 // 메모리할당해제1
+    free(nholidays);                                                                                // 메모리할당해제2
+
+    return ResultArray;
+}
+
 // Counting HolidayNumber From Start YYYY to EndYYYY 
 DLLEXPORT(long) Number_Holiday(
     long StartYYYY,         // 시작연도
@@ -2063,6 +2216,8 @@ DLLEXPORT(long) Number_Holiday(
         else if (NationFlag == 1) Holidays = Malloc_USHolidayArray(StartYYYY, EndYYYY, NHoliday);
         else if (NationFlag == 3) Holidays = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, NHoliday);
         else if (NationFlag == 4) Holidays = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 5) Holidays = Malloc_EURHolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 6) Holidays = Malloc_JPYHolidayArray(StartYYYY, EndYYYY, NHoliday);
         else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
 
         long N = 0;
@@ -2087,7 +2242,7 @@ DLLEXPORT(long) Number_Holiday(
 DLLEXPORT(long) Mapping_Holiday_ExcelType(
     long StartYYYY,     // 시작연도
     long EndYYYY,       // 종료연도
-    long NationFlag,    // 국가Flag 0한국 1미국 2영국
+    long NationFlag,    // 국가Flag 0한국 1미국 2영국 3NYSE 4NYMEX 5GBP 6JPY
     long NResultArray,  // 배열 개수 Number_Holiday에서 확인
     long* ResultArray   // Holiday 들어가는 배열
 )
@@ -2103,6 +2258,8 @@ DLLEXPORT(long) Mapping_Holiday_ExcelType(
         else if (NationFlag == 1) Holidays = Malloc_USHolidayArray(StartYYYY, EndYYYY, NHoliday);
         else if (NationFlag == 3) Holidays = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, NHoliday);
         else if (NationFlag == 4) Holidays = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 5) Holidays = Malloc_EURHolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 6) Holidays = Malloc_JPYHolidayArray(StartYYYY, EndYYYY, NHoliday);
         else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
     }
     else
@@ -2117,12 +2274,16 @@ DLLEXPORT(long) Mapping_Holiday_ExcelType(
         else if (Nation1 == 1) Holidays1 = Malloc_USHolidayArray(StartYYYY, EndYYYY, N1);
         else if (Nation1 == 3) Holidays1 = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, N1);
         else if (Nation1 == 4) Holidays1 = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, N1);
+        else if (Nation1 == 5) Holidays1 = Malloc_EURHolidayArray(StartYYYY, EndYYYY, N1);
+        else if (Nation1 == 6) Holidays1 = Malloc_JPYHolidayArray(StartYYYY, EndYYYY, N1);
         else Holidays1 = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, N1);
 
         if (Nation2 == 0) Holidays2 = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, N2);
         else if (Nation2 == 1) Holidays2 = Malloc_USHolidayArray(StartYYYY, EndYYYY, N2);
         else if (Nation2 == 3) Holidays2 = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, N2);
         else if (Nation2 == 4) Holidays2 = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, N2);
+        else if (Nation2 == 5) Holidays2 = Malloc_EURHolidayArray(StartYYYY, EndYYYY, N2);
+        else if (Nation2 == 6) Holidays2 = Malloc_JPYHolidayArray(StartYYYY, EndYYYY, N2);
         else Holidays2 = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, N2);
 
         NHoliday = N1 + N2;
@@ -2153,7 +2314,7 @@ DLLEXPORT(long) Mapping_Holiday_ExcelType(
 DLLEXPORT(long) Mapping_Holiday_CType(
     long StartYYYY,     // 시작연도
     long EndYYYY,       // 종료연도
-    long NationFlag,    // 국가Flag 0한국 1미국 2영국
+    long NationFlag,    // 국가Flag 0한국 1미국 2영국 3NYSE 4NYMEX 5GBP 6JPY
     long NResultArray,  // 배열 개수 Number_Holiday에서 확인
     long* ResultArray   // Holiday 들어가는 배열
 )
@@ -2169,6 +2330,8 @@ DLLEXPORT(long) Mapping_Holiday_CType(
         else if (NationFlag == 1) Holidays = Malloc_USHolidayArray(StartYYYY, EndYYYY, NHoliday);
         else if (NationFlag == 3) Holidays = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, NHoliday);
         else if (NationFlag == 4) Holidays = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 5) Holidays = Malloc_EURHolidayArray(StartYYYY, EndYYYY, NHoliday);
+        else if (NationFlag == 6) Holidays = Malloc_JPYHolidayArray(StartYYYY, EndYYYY, NHoliday);
         else Holidays = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, NHoliday);
     }
     else
@@ -2183,12 +2346,16 @@ DLLEXPORT(long) Mapping_Holiday_CType(
         else if (Nation1 == 1) Holidays1 = Malloc_USHolidayArray(StartYYYY, EndYYYY, N1);
         else if (Nation1 == 3) Holidays1 = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, N1);
         else if (Nation1 == 4) Holidays1 = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, N1);
+        else if (Nation1 == 5) Holidays1 = Malloc_EURHolidayArray(StartYYYY, EndYYYY, N1);
+        else if (Nation1 == 6) Holidays1 = Malloc_JPYHolidayArray(StartYYYY, EndYYYY, N1);
         else Holidays1 = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, N1);
 
         if (Nation2 == 0) Holidays2 = Malloc_KoreaHolidayArray(StartYYYY, EndYYYY, N2);
         else if (Nation2 == 1) Holidays2 = Malloc_USHolidayArray(StartYYYY, EndYYYY, N2);
         else if (Nation2 == 3) Holidays2 = Malloc_US_NYSE_HolidayArray(StartYYYY, EndYYYY, N2);
         else if (Nation2 == 4) Holidays2 = Malloc_US_NYMEX_HolidayArray(StartYYYY, EndYYYY, N2);
+        else if (Nation2 == 5) Holidays2 = Malloc_EURHolidayArray(StartYYYY, EndYYYY, N2);
+        else if (Nation2 == 6) Holidays2 = Malloc_JPYHolidayArray(StartYYYY, EndYYYY, N2);
         else Holidays2 = Malloc_GBPHolidayArray(StartYYYY, EndYYYY, N2);
 
         NHoliday = N1 + N2;

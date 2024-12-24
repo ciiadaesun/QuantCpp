@@ -1,4 +1,0 @@
-LIBRARY
-EXPORTS
-	ZeroMakerExcel				@1
-	Calc_IRS					@2
