@@ -1,22 +1,25 @@
 ﻿  BSCapFloor.cpp
 C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(822,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(822,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1306,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1346,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1538,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1940,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2073,14): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2072,14): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2112,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2178,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2250,10): warning C4101: 'LastBusiDay' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2462,14): warning C4101: 'TempDateExcelType' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2630,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2680,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2731,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2925,22): warning C4101: 'PrevTempDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(819,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(819,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1302,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1342,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1541,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(1925,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2053,10): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2125,10): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2170,10): warning C4101: 'EasterMonday' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2211,14): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2210,14): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2252,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2324,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2490,22): warning C4101: 'PrevTempDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2576,10): warning C4101: 'LastBusiDay' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(2790,14): warning C4101: 'TempDateExcelType' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(3316,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(3366,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\CalcDate.h(3417,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\BSCapFloor.cpp(15,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
 C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\BSCapFloor.cpp(35,7): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\BSCapFloor\BSCapFloor\BSCapFloor.cpp(95,8): warning C4101: 'NextY' :참조되지 않은 지역 변수입니다.

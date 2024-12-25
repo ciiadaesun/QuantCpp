@@ -1803,7 +1803,7 @@ void Logging_HiFive_ELS_MC(
 
 }
 DLLEXPORT(long) Excel_HiFive_ELS_MC(
-	long PricingDate_Excel,			// 가격계산날짜 ExcelType Ex) 44201(2021년01월05일)
+	long PricingDate,				// 가격계산날짜
 	long NSimul,					// 시뮬레이션개수
 	long GreekFlag,					// 그릭계산할지여부
 	double FaceValue,				// 원금액
@@ -1816,8 +1816,8 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	long Now_KI_State,				// 현재 낙인상태
 
 	long KI_Method,					// 낙인처리방법
-	long* EvalDate_Excel,			// 조기상환 ExcelType평가일 Array [ Shape = (NEvaluate , ) ]
-	long* PayDate_Excel,			// 조기상환 ExcelType지급일 Array [ Shape = (NEvaluate , ) ]
+	long* EvalDate,					// 조기상환 ExcelType평가일 Array [ Shape = (NEvaluate , ) ]
+	long* PayDate,					// 조기상환 ExcelType지급일 Array [ Shape = (NEvaluate , ) ]
 	long* NStrike,					// 조기상환 회차별 행사가격개수 Array [ Shape = (NEvaluate , ) ]
 	double* StrikeLevel,			// 조기상환 회차별 행사가격 Array [ Shape = reshape(3 * NEvaluate) ]
 
@@ -1825,16 +1825,16 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	double* FixedAmount,			// 조기상환 회차별 쿠폰 [ Shape = reshape(3 * NEvaluate)  ]
 	long NLizard,					// 리자드상환 평가일 개수
 	long* LizardFlag,				// 조기상환 회차별 리자드상환 평가할지 여부 Array [ Shape = (NLizard , ) ]
-	long* LizardStartDate_Excel,	// 조기상환 회차별 리자드배리어 체크 시작일 ExcelType Array [ Shape = (NLizard , ) ]
+	long* LizardStartDate,			// 조기상환 회차별 리자드배리어 체크 시작일 ExcelType Array [ Shape = (NLizard , ) ]
 
-	long* LizardEndDate_Excel,		// 조기상환 회차별 리자드배리어 체크 종료일 ExcelType Array [ Shape = (NLizard , ) ]
+	long* LizardEndDate,			// 조기상환 회차별 리자드배리어 체크 종료일 ExcelType Array [ Shape = (NLizard , ) ]
 	double* LizardBarrierLevel,		// 조기상환 회차별 리자드배리어 배리어레벨 Array
 	long* Now_LizardHitting,		// 조기상환 회차별 리자드배리어 현재 Hitting여부 Array
 	double* LizardCoupon,			// 조기상환 회차별 리자드배리어 쿠폰이자율 Array
 	long NCPN,						// 일반 쿠폰 지급 개수
 
-	long* CPN_EvaluateDate_Excel,	// 일반 쿠폰 평가일 ExcelType Array [ Shape = (NCPN , ) ]
-	long* CPN_PayDate_Excel,		// 일반 쿠폰 지급일 ExcelType Array [ Shape = (NCPN , ) ]
+	long* CPN_EvaluateDate,			// 일반 쿠폰 평가일 ExcelType Array [ Shape = (NCPN , ) ]
+	long* CPN_PayDate,				// 일반 쿠폰 지급일 ExcelType Array [ Shape = (NCPN , ) ]
 	double* CPN_Lower_Barrier,		// 일반 쿠폰 하방배리어 Array [ Shape = (NCPN , ) ]
 	double* CPN_Upper_Barrier,		// 일반 쿠폰 하방배리어 Array [ Shape = (NCPN , ) ]
 	double* CPN_Rate,				// 일반 쿠폰 쿠폰이자율 Array [ Shape = (NCPN , ) ]
@@ -1885,12 +1885,12 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	/////////////
 
 	ResultCode = ErrorCheck(
-		PricingDate_Excel, NSimul, GreekFlag, FaceValue, FaceValueFlag,
+		PricingDate, NSimul, GreekFlag, FaceValue, FaceValueFlag,
 		MaxProfit, MaxLoss, NEvaluate, KI_Barrier_Level, Now_KI_State,
-		KI_Method, EvalDate_Excel, PayDate_Excel, NStrike, StrikeLevel,
-		Slope, FixedAmount, NLizard, LizardFlag, LizardStartDate_Excel,
-		LizardEndDate_Excel, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
-		CPN_EvaluateDate_Excel, CPN_PayDate_Excel, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
+		KI_Method, EvalDate, PayDate, NStrike, StrikeLevel,
+		Slope, FixedAmount, NLizard, LizardFlag, LizardStartDate,
+		LizardEndDate, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
+		CPN_EvaluateDate, CPN_PayDate, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
 		NStock, S0X0, CorrelationReshaped, NTerm, TermRate,
 		Rate, NDivTerm, DivFlag, TermDiv, Div,
 		QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto, VolQuanto,
@@ -1907,12 +1907,12 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	if (TextDumpFlag > 0)
 	{
 
-		Logging_HiFive_ELS_MC(PricingDate_Excel, NSimul, GreekFlag, FaceValue, FaceValueFlag,
+		Logging_HiFive_ELS_MC(PricingDate, NSimul, GreekFlag, FaceValue, FaceValueFlag,
 			MaxProfit, MaxLoss, NEvaluate, KI_Barrier_Level, Now_KI_State,
-			KI_Method, EvalDate_Excel, PayDate_Excel, NStrike, StrikeLevel,
-			Slope, FixedAmount, NLizard, LizardFlag, LizardStartDate_Excel,
-			LizardEndDate_Excel, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
-			CPN_EvaluateDate_Excel, CPN_PayDate_Excel, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
+			KI_Method, EvalDate, PayDate, NStrike, StrikeLevel,
+			Slope, FixedAmount, NLizard, LizardFlag, LizardStartDate,
+			LizardEndDate, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
+			CPN_EvaluateDate, CPN_PayDate, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
 			NStock, S0X0, CorrelationReshaped, NTerm, TermRate,
 			Rate, NDivTerm, DivFlag, TermDiv, Div,
 			QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto, VolQuanto,
@@ -2033,30 +2033,41 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	// 날짜 다 Ctype으로 바꾸기
 	/////////////
 
-	long PricingDate_Ctype = ExcelDateToCDate(PricingDate_Excel);
+	long PricingDate_Ctype;
+	if (PricingDate < 19000101) PricingDate_Ctype = ExcelDateToCDate(PricingDate);
+	else PricingDate_Ctype = PricingDate;
 
 	long* EvalDate_Ctype = (long*)malloc(sizeof(long) * max(NEvaluate, 1));			// 4
 	long* PayDate_Ctype = (long*)malloc(sizeof(long) * max(NEvaluate, 1));			// 5
 	for (i = 0; i < NEvaluate; i++)
 	{
-		EvalDate_Ctype[i] = ExcelDateToCDate(EvalDate_Excel[i]);
-		PayDate_Ctype[i] = ExcelDateToCDate(PayDate_Excel[i]);
+		if (EvalDate[i] < 19000101) EvalDate_Ctype[i] = ExcelDateToCDate(EvalDate[i]);
+		else EvalDate_Ctype[i] = EvalDate[i];
+
+		if (PayDate[i] < 19000101) PayDate_Ctype[i] = ExcelDateToCDate(PayDate[i]);
+		else PayDate_Ctype[i] = PayDate[i];
 	}
 
 	long* LizardStartDate_Ctype = (long*)malloc(sizeof(double) * max(NLizard, 1));	// 6
 	long* LizardEndDate_Ctype = (long*)malloc(sizeof(double) * max(NLizard, 1));	// 7
 	for (i = 0; i < NLizard; i++)
 	{
-		LizardStartDate_Ctype[i] = ExcelDateToCDate(LizardStartDate_Excel[i]);
-		LizardEndDate_Ctype[i] = ExcelDateToCDate(LizardEndDate_Excel[i]);
+		if (LizardStartDate[i] < 19000101) LizardStartDate_Ctype[i] = ExcelDateToCDate(LizardStartDate[i]);
+		else LizardStartDate_Ctype[i] = LizardStartDate[i];
+
+		if (LizardEndDate[i] < 19000101) LizardEndDate_Ctype[i] = ExcelDateToCDate(LizardEndDate[i]);
+		else LizardEndDate_Ctype[i] = LizardEndDate[i];
 	}
 
 	long* CPN_EvaluateDate_Ctype = (long*)malloc(sizeof(double) * max(NCPN, 1));	// 8
 	long* CPN_PayDate_Ctype = (long*)malloc(sizeof(double) * max(NCPN, 1));			// 9
 	for (i = 0; i < NCPN; i++)
 	{
-		CPN_EvaluateDate_Ctype[i] = ExcelDateToCDate(CPN_EvaluateDate_Excel[i]);
-		CPN_PayDate_Ctype[i] = ExcelDateToCDate(CPN_PayDate_Excel[i]);
+		if (CPN_EvaluateDate[i] < 19000101) CPN_EvaluateDate_Ctype[i] = ExcelDateToCDate(CPN_EvaluateDate[i]);
+		else CPN_EvaluateDate_Ctype[i] = CPN_EvaluateDate[i];
+
+		if (CPN_PayDate[i] < 19000101) CPN_PayDate_Ctype[i] = ExcelDateToCDate(CPN_PayDate[i]);
+		else CPN_PayDate_Ctype[i] = CPN_PayDate[i];
 	}
 
 	k = 0;

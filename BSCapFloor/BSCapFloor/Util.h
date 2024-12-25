@@ -4157,10 +4157,28 @@ DLLEXPORT(double) Calc_Value_FXSwap(double K1, double K2, double Spot, double T1
 									long NDomestic, double* DomesticTerm, double* DomesticRate, long NForeign, double* ForeignTerm, 
 									double* ForeignRate, long long0short1)
 {
-	double v_F_t1 = Calc_Value_FXForward(K1, Spot, T1, NDomestic, DomesticTerm, DomesticRate, NForeign, ForeignTerm, ForeignRate, 0);
+	double v_F_t1;
+	if (T1 >= 0.0) v_F_t1 = Calc_Value_FXForward(K1, Spot, T1, NDomestic, DomesticTerm, DomesticRate, NForeign, ForeignTerm, ForeignRate, 0);
+	else v_F_t1 = 0.;
 	double v_F_t2 = Calc_Value_FXForward(K2, Spot, T2, NDomestic, DomesticTerm, DomesticRate, NForeign, ForeignTerm, ForeignRate, 0);
 	double P = v_F_t1 - v_F_t2;
 	if (long0short1 == 0) return P;
 	else return -P;
 }
 
+DLLEXPORT(double) Calc_DiscountFactor_FromSwapPoint(double SwapPoint, double S, double SwapPointUnit, double t, long NZeroTermForeign, double* ZeroTermForeign, double* ZeroRateForeign)
+{
+	double F = S + SwapPoint / SwapPointUnit;
+	double r_f = Interpolate_Linear(ZeroTermForeign, ZeroRateForeign, NZeroTermForeign, t);
+	double DF_f = exp(-r_f * t);
+	double DF_d = S / F * DF_f;
+	return DF_d;
+}
+
+DLLEXPORT(double) Calc_ZeroRate_FromSwapPoint(double SwapPoint, double S, double SwapPointUnit, double t, long NZeroTermForeign, double* ZeroTermForeign, double* ZeroRateForeign)
+{
+	double F = S + SwapPoint / SwapPointUnit;
+	double r_f = Interpolate_Linear(ZeroTermForeign, ZeroRateForeign, NZeroTermForeign, t);
+	double r_d = r_f + 1.0 / t * log(F / S);
+	return r_d;
+}
