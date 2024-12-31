@@ -1656,7 +1656,10 @@ void Mapping_USHoliday(
     long* HolidayArray         // 미리 할당된 Array 길이 11개
 )
 {
-    long Jan01 = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 101);
+    long Jan01 = (YYYY * 10000 + 101);
+    long Jan01Excel = CDateToExcelDate(Jan01);
+    if (Jan01Excel % 7 == 1) Jan01 = DayPlus(Jan01, 1); // 새해 첫날이 일요일일경우만 대체해줌
+
     long President = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 120);  // 대통령 취임식 안쉼
     long Juneteenth = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 619);
     long Independence = FixedHoliday_YYYYMMDD_US(YYYY * 10000 + 704);
@@ -2524,7 +2527,7 @@ DLLEXPORT(long) NBusinessCountFromEndToPay(long EndYYYYMMDD, long PayYYYYMMDD, l
 
             if (i > 0)
             {
-                if (PrevTempMM > TempMM)
+                if (PrevTempMM > TempMM || (PrevTempMM == 1 && TempMM == 12))
                 {
                     ///////////////////////////////
                     // 월이 전달로 넘어가는 경우 // 
@@ -2552,9 +2555,7 @@ DLLEXPORT(long) NBusinessCountFromEndToPay(long EndYYYYMMDD, long PayYYYYMMDD, l
         }
 
         *ResultEndDate = ParseBusinessDateIfHoliday(TempYYYY * 10000 + TempMM * 100 + EndDD, Holidays, NHolidays);
-        
     }
-
     return nbd;
 }
 
@@ -2925,7 +2926,7 @@ DLLEXPORT(long) MappingCouponDates(
                 PayDateYYYYMMDD = SwapMat_YYYYMMDD;
                 PayDateExcelType = CDateToExcelDate(PayDateYYYYMMDD);
                 MOD7 = PayDateExcelType % 7;
-                for (i = 1; i < 7; i++)
+                for (i = 1; i < 35; i++)
                 {
                     if (isweekendflag(PayDateExcelType) || isin_Longtype(PayDateYYYYMMDD, HolidayYYYYMMDD, NHoliday))
                     {
@@ -2944,7 +2945,7 @@ DLLEXPORT(long) MappingCouponDates(
 
                 EndDateYYYYMMDD = PayDateYYYYMMDD;
                 EndDateExcel = PayDateExcelType;
-                for (i = 1; i < 10; i++)
+                for (i = 1; i < 35; i++)
                 {
                     EndDateExcel = EndDateExcel - 1;
                     EndDateYYYYMMDD = ExcelDateToCDate(EndDateExcel);
@@ -3024,7 +3025,7 @@ DLLEXPORT(long) MappingCouponDates(
             else
             {
                 n = 0;
-                for (j = 1; j < 10; j++)
+                for (j = 1; j < 35; j++)
                 {
                     PayDateYYYYMMDD = DayPlus(CpnDate[i], j);
                     PayDateExcelType = CDateToExcelDate(PayDateYYYYMMDD);
@@ -3177,7 +3178,7 @@ DLLEXPORT(long) MappingCouponDates2(
                 PayDateYYYYMMDD = SwapMat_YYYYMMDD;
                 PayDateExcelType = CDateToExcelDate(PayDateYYYYMMDD);
                 MOD7 = PayDateExcelType % 7;
-                for (i = 1; i < 7; i++)
+                for (i = 1; i < 35; i++)
                 {
                     if (isweekendflag(PayDateExcelType) || isin_Longtype(PayDateYYYYMMDD, HolidayYYYYMMDDPayDate, NHolidayPayDate))
                     {
@@ -3196,7 +3197,7 @@ DLLEXPORT(long) MappingCouponDates2(
 
                 EndDateYYYYMMDD = PayDateYYYYMMDD;
                 EndDateExcel = PayDateExcelType;
-                for (i = 1; i < 10; i++)
+                for (i = 1; i < 35; i++)
                 {
                     EndDateExcel = EndDateExcel - 1;
                     EndDateYYYYMMDD = ExcelDateToCDate(EndDateExcel);
@@ -3276,7 +3277,7 @@ DLLEXPORT(long) MappingCouponDates2(
             else
             {
                 n = 0;
-                for (j = 1; j < 10; j++)
+                for (j = 1; j < 35; j++)
                 {
                     PayDateYYYYMMDD = DayPlus(CpnDate[i], j);
                     PayDateExcelType = CDateToExcelDate(PayDateYYYYMMDD);
@@ -3452,6 +3453,9 @@ DLLEXPORT(long) Preprocessing_TermAndEqVol(long PriceDate, long NZeroTerm, doubl
     return 1;
 }
 
+/////////////////////////////////////
+// Calculate Next Nth BusinessDate //
+/////////////////////////////////////
 DLLEXPORT(long) NextNthBusinessDate(long YYYYMMDD, long NBDate, long* Holidays, long NHolidays)
 {
     /////////////////////////////////////
@@ -3504,4 +3508,346 @@ DLLEXPORT(long) NextNthBusinessDate(long YYYYMMDD, long NBDate, long* Holidays, 
         }
     }
     return ResultYYYYMMDD;
+}
+
+// Linear Interpolation (X변수, Y변수, X길이, 타겟X)
+double LinterpDate(long* DateArray, double* fx, long NDate, long TargetDate, long extrapolateflag)
+{
+    long i;
+    double result = 0.0;
+    for (i = 0; i < NDate; i++) if (DateArray[i] < 19000101) DateArray[i] = ExcelDateToCDate(DateArray[i]);
+
+    if (NDate == 1 || TargetDate == DateArray[0]) return fx[0];
+    else if (TargetDate == DateArray[NDate - 1]) return fx[NDate - 1];
+
+
+    if (TargetDate < DateArray[0])
+    {
+        if (extrapolateflag == 0) return fx[0];
+        else return (fx[1] - fx[0]) / ((double)DayCountAtoB(DateArray[0], DateArray[1])) * -((double)DayCountAtoB(TargetDate, DateArray[0])) + fx[0];
+    }
+    else if (TargetDate > DateArray[NDate - 1])
+    {
+        if (extrapolateflag == 0) return fx[NDate - 1];
+        else return (fx[NDate - 1] - fx[NDate - 2]) / ((double)DayCountAtoB(DateArray[NDate - 2], DateArray[NDate - 1])) * ((double)DayCountAtoB(DateArray[NDate - 1], TargetDate)) + fx[NDate - 1];
+    }
+    else
+    {
+        for (i = 1; i < NDate; i++)
+        {
+            if (TargetDate < DateArray[i])
+            {
+                result = (fx[i] - fx[i - 1]) / ((double)DayCountAtoB(DateArray[i - 1], DateArray[i])) * ((double)DayCountAtoB(DateArray[i - 1], TargetDate)) + fx[i - 1];
+                break;
+            }
+        }
+        return result;
+    }
+}
+
+// DayCountFraction(A, B, flag = 0:Act/365 1:Act/360 2: ActAct 3:30/360 4:BD/252, HolidaysArray, HolidayArrayLength)
+double FractionAtoB(long Day1, long Day2, long Flag, long* Holidays, long NHolidays)
+{
+    long i;
+    double tau;
+    long imax;
+    double Div;
+
+    if (Day1 < 19000101) Day1 = ExcelDateToCDate(Day1);
+    if (Day2 < 19000101) Day2 = ExcelDateToCDate(Day2);
+
+    if (Flag == 0) return DayCountAtoB(Day1, Day2) / 365.0;
+    else if (Flag == 1) return DayCountAtoB(Day1, Day2) / 360.;
+    else if (Flag == 2)
+    {
+        // Act/Act
+        long YearA, YearB;
+        long MonthA, MonthB;
+        long DayA, DayB;
+        long CurrentY;
+        long NextY;
+
+        YearA = Day1 / 10000;
+        MonthA = (Day1 - YearA * 10000) / 100;
+        DayA = (Day1 - YearA * 10000 - MonthA * 100);
+
+        YearB = Day2 / 10000;
+        MonthB = (Day2 - YearB * 10000) / 100;
+        DayB = (Day2 - YearB * 10000 - MonthB * 100);
+
+        NextY = Day1 + 10000;
+        if (Day2 > Day1 && Day2 < NextY)
+        {
+            Div = DayCountAtoB(Day1, NextY);
+            return DayCountAtoB(Day1, Day2) / Div;
+        }
+        else
+        {
+            tau = 0.;
+            for (i = 0; i <= YearB - YearA; i++)
+            {
+                CurrentY = Day1 + i * 10000;
+                NextY = Day1 + (i + 1) * 10000;
+                if (Day2 > CurrentY && Day2 <= NextY)
+                {
+                    Div = DayCountAtoB(CurrentY, NextY);
+                    tau += DayCountAtoB(CurrentY, Day2) / Div;
+                    break;
+                }
+                else
+                {
+                    tau += 1.0;
+                }
+            }
+            return tau;
+        }
+    }
+    else if (Flag == 3)
+    {
+        // 30/360
+        long YearA, YearB;
+        long MonthA, MonthB;
+        long nMonth;
+        YearA = Day1 / 10000;
+        MonthA = (Day1 - YearA * 10000) / 100;
+
+        YearB = Day2 / 10000;
+        MonthB = (Day2 - YearB * 10000) / 100;
+
+        nMonth = (YearB - YearA) * 12 + (MonthB - MonthA);
+        return ((double)30. * (nMonth)) / 360.0;
+    }
+    else
+    {
+        long Day1Excel = CDateToExcelDate(Day1);
+        long Day2Excel = CDateToExcelDate(Day2);
+        for (i = 0; i < NHolidays; i++) if (Holidays[i] < 19000101) Holidays[i] = ExcelDateToCDate(Holidays[i]);
+        long TempDateExcel;
+        long TempCDate;
+        long nbd = 0;
+        long MOD7;
+        for (TempDateExcel = Day1Excel; TempDateExcel < Day2Excel; TempDateExcel++)
+        {
+            TempCDate = ExcelDateToCDate(TempDateExcel);
+            MOD7 = TempDateExcel % 7;
+            if ((MOD7 != 0 && MOD7 != 1) && (isin_Longtype(TempCDate, Holidays, NHolidays) == 0))
+            {
+                nbd += 1;
+            }
+        }
+        return ((double)nbd )/ 252.;
+    }
+}
+
+double CalcDiscountFactor_FromDate(long PriceDate, long* DateArray, double* Rate, long NDate, long TargetDate, long extrapolateflag)
+{
+    if (PriceDate < 19000101) PriceDate = ExcelDateToCDate(PriceDate);
+    if (PriceDate == TargetDate) return 1.0;
+    long i;
+    double maxrate = 0.;
+    double* RateCopy = (double*)malloc(sizeof(double) * NDate);
+    for (i = 0; i < NDate; i++) RateCopy[i] = Rate[i];
+
+    long div100flag = 0;
+    for (i = 0; i < NDate; i++) if (fabs(RateCopy[i]) >= maxrate) maxrate = fabs(RateCopy[i]);
+    // 이자율이 0.5가 넘어가면 
+    // 퍼센트 단위인걸로 간주
+    if (maxrate >= 0.5) div100flag = 1;
+
+    if (div100flag == 1)
+    {
+        for (i = 0; i < NDate; i++) RateCopy[i] /= 100.;
+    }
+    double r = LinterpDate(DateArray, RateCopy, NDate, TargetDate, extrapolateflag);
+    double t = ((double)DayCountAtoB(PriceDate, TargetDate)) / 365.;
+    free(RateCopy);
+    return exp(-r * t);
+}
+
+long CalcZeroRateAnalytic(
+    long PriceDateYYYYMMDD,
+    long StartDateYYYYMMDD,
+    long NCpnDate,
+    long* CpnDateYYYYMMDD,
+    long NZero,
+    long* ZeroDate,
+    double* ZeroRate,
+    double SwapRate,
+    long DayCountFracFlag,
+    double& ResultZeroRate)
+{
+    // EndDate == PayDate일 경우 Analytic으로 계산
+    long i;
+    double t = 0.;
+    double a = 0.;
+    double b = 0.;
+    double deltat = 0.;
+    double DF = 0.;
+    double zero = 0.;
+    long MyNaN = 0;
+
+    if (NZero == 0) return -1;
+
+    double DF_Start = CalcDiscountFactor_FromDate(PriceDateYYYYMMDD, ZeroDate, ZeroRate, NZero, StartDateYYYYMMDD, 0);
+    if (NCpnDate == 1)
+    {
+        // 일반 스왑이 한개라면 
+        // 적어도 StartDate까지의 
+        // ZeroRate는 있어야함
+        if (ZeroDate[NZero - 1] < StartDateYYYYMMDD) return -1;
+        else
+        {
+            DF = DF_Start / (1.0 + SwapRate * FractionAtoB(StartDateYYYYMMDD, CpnDateYYYYMMDD[NCpnDate - 1], DayCountFracFlag, &MyNaN, MyNaN));
+            t = ((double)DayCountAtoB(PriceDateYYYYMMDD, CpnDateYYYYMMDD[NCpnDate - 1])) / 365.;
+            ResultZeroRate = -1.0 / t * log(DF);
+            return 1;
+        }
+    }
+    else if (NCpnDate > 1)
+    {
+        // 적어도 CpnDate[NCpnDate-2]까지의 
+        // ZeroRate는 있어야함
+        if (ZeroDate[NZero - 1] < CpnDateYYYYMMDD[NCpnDate - 2]) return -1;
+
+        a = DF_Start;
+        for (i = 0; i < NCpnDate - 1; i++)
+        {
+            if (i == 0) deltat = FractionAtoB(StartDateYYYYMMDD, CpnDateYYYYMMDD[i], DayCountFracFlag, &MyNaN, MyNaN);
+            else deltat = FractionAtoB(CpnDateYYYYMMDD[i - 1], CpnDateYYYYMMDD[i], DayCountFracFlag, &MyNaN, MyNaN);
+            t = ((double)DayCountAtoB(PriceDateYYYYMMDD, CpnDateYYYYMMDD[i])) / 365.;
+            a -= (SwapRate * deltat * CalcDiscountFactor_FromDate(PriceDateYYYYMMDD, ZeroDate, ZeroRate, NZero, CpnDateYYYYMMDD[i], 0));
+        }
+        b = 1.0 + SwapRate * FractionAtoB(CpnDateYYYYMMDD[NCpnDate - 2], CpnDateYYYYMMDD[NCpnDate - 1], DayCountFracFlag, &MyNaN, MyNaN);
+        DF = a / b;
+        t = ((double)DayCountAtoB(PriceDateYYYYMMDD, CpnDateYYYYMMDD[NCpnDate - 1])) / 365.;
+        ResultZeroRate = -1.0 / t * log(DF);
+        return 1;
+    }
+    else
+    {
+        return -1;
+    }
+}
+
+// ZeroCurve Analytic으로 어림계산
+DLLEXPORT(long) CalcZeroRateAnalyticFast(
+    long PriceDateYYYYMMDD,     // PriceDate
+    long NTerm,                 // Number of Par Rate Term(Maturity)
+    double* Term,               // Par Rate Term(Maturity)
+    double* MarketQuote,        // Par Rate or YTM
+    long DayCountFracFlag,      // 0:ACT365, 1:ACT360 2: ACTACT  3:30/360
+    long AnnCpnOneYear,         // Annual Payment Number of Swap
+    long NationFlag,            // 0:KRW, 1:USD, 2:GBP, ...
+    double* ResultRate          // Output : Result (ArrayLength = NTerm)
+)
+{
+    // ZeroCurve Analytic으로 어림계산
+    if (PriceDateYYYYMMDD < 19000101) PriceDateYYYYMMDD = ExcelDateToCDate(PriceDateYYYYMMDD);
+    long PriceDateExcel = CDateToExcelDate(PriceDateYYYYMMDD);
+    long NHolidays = Number_Holiday(PriceDateYYYYMMDD / 100, PriceDateYYYYMMDD / 100 + 50, NationFlag);
+    long* Holidays = (long*)malloc(sizeof(long) * NHolidays);           // 할당1
+    Mapping_Holiday_CType(PriceDateYYYYMMDD / 100, PriceDateYYYYMMDD / 100 + 50, NationFlag, NHolidays, Holidays);
+    
+    long i = 0;
+    long n = 0;
+    double maxrate = 0.;
+    for (i = 0; i < NTerm; i++) if (fabs(MarketQuote[i]) >= maxrate) maxrate = fabs(MarketQuote[i]);
+    // 이자율이 0.5가 넘어가면 
+    // 퍼센트 단위인걸로 간주
+    if (maxrate >= 0.5) 
+    {
+        for (i = 0; i < NTerm; i++) MarketQuote[i] /= 100.;
+    }
+
+    long Num_MMF = 0;
+
+    long* Maturity = (long*)malloc(sizeof(long) * NTerm);
+    long NCpnDate = 0;
+    long FirstCpnDate = PriceDateYYYYMMDD;
+    long MyNaN = 0;
+
+    long StartDate = NextNthBusinessDate(PriceDateYYYYMMDD, 1, Holidays, NHolidays);
+    long StartDateExcel = CDateToExcelDate(StartDate);
+    for (i = 0; i < NTerm; i++)
+    {
+        if (Term[i] < 300.) Maturity[i] = ExcelDateToCDate(PriceDateExcel + (long)(Term[i] * 365. + 0.1e-5));
+        else if (Term[i] < 19000101) Maturity[i] = ExcelDateToCDate(Term[i]);
+        else Maturity[i] = ((long)Term[i] + 0.1e-9);
+    }
+
+    long EndDate = ((long)Maturity[NTerm - 1]/100) * 100 + (StartDate % 100);
+    long* CpnDate = Malloc_CpnDate_Holiday(StartDate, EndDate, AnnCpnOneYear, NCpnDate, FirstCpnDate, MyNaN, &MyNaN, 1);
+    double* SwapRate = (double*)malloc(sizeof(double) * NCpnDate);
+    for (i = 0; i < NCpnDate; i++)
+    {
+        SwapRate[i] = LinterpDate(Maturity, MarketQuote, NTerm, CpnDate[i], 0);
+    }
+
+    for (i = 0; i < NTerm; i++)
+    {
+        if (Maturity[i] < CpnDate[0]) Num_MMF += 1;
+    }
+
+    double df0, df, t, r;
+    double* ResultZeroRate;
+    long* ResultZeroDate;
+    long ResultCode;
+    double OvNightRate;
+    long NCurve = 0;
+    if (Num_MMF == 0)
+    {
+        OvNightRate = LinterpDate(CpnDate, SwapRate, NCpnDate, StartDate, 1);
+        ResultZeroRate = (double*)malloc(sizeof(double) * (1 + NCpnDate));
+        ResultZeroDate = (long*)malloc(sizeof(long) * (1 + NCpnDate));
+        ResultZeroDate[0] = StartDate;
+        df = 1.0 / (1.0 + OvNightRate * FractionAtoB(PriceDateYYYYMMDD, StartDate, DayCountFracFlag, &MyNaN, MyNaN));
+        t = ((double)DayCountAtoB(PriceDateYYYYMMDD, StartDate)) / 365.;
+        r = -1. / t * log(df);
+        ResultZeroRate[0] = r;
+        NCurve = 1;
+    }
+    else
+    {
+        OvNightRate = LinterpDate(Maturity, MarketQuote, NTerm, StartDate, 1);
+        df0 = 1.0 / (1.0 + OvNightRate * FractionAtoB(PriceDateYYYYMMDD, StartDate, DayCountFracFlag, &MyNaN, MyNaN));
+        ResultZeroRate = (double*)malloc(sizeof(double) * (Num_MMF + NCpnDate));
+        ResultZeroDate = (long*)malloc(sizeof(long) * (Num_MMF + NCpnDate));
+        n = 0;
+        for (i = 0; i < NTerm; i++)
+        {
+            if (Maturity[i] < CpnDate[0])
+            {
+                ResultZeroDate[n] = Maturity[i];
+                if (Maturity[i] > StartDate) df = df0 / (1.0 + MarketQuote[i] * FractionAtoB(StartDate, Maturity[i], DayCountFracFlag, &MyNaN, MyNaN));
+                else df = 1.0 / (1.0 + MarketQuote[i] * FractionAtoB(PriceDateYYYYMMDD, StartDate, DayCountFracFlag, &MyNaN, MyNaN));
+                t = ((double)DayCountAtoB(PriceDateYYYYMMDD, Maturity[i])) / 365.;
+                ResultZeroRate[n] = -1. / t * log(df);
+                n += 1;
+            }
+        }
+        NCurve = Num_MMF;
+    }
+
+    r = -99.9;
+    for (i = 0; i < NCpnDate; i++)
+    {
+        ResultCode = CalcZeroRateAnalytic(PriceDateYYYYMMDD, StartDate, i+1, CpnDate, NCurve,
+            ResultZeroDate,ResultZeroRate,SwapRate[i],DayCountFracFlag, r);
+        if (ResultCode >= 0) ResultZeroRate[NCurve] = r;
+        else ResultZeroRate[NCurve] = ResultZeroRate[NCurve - 1];
+        ResultZeroDate[NCurve] = CpnDate[i];
+        NCurve += 1;
+    }
+
+    for (i = 0; i < NTerm; i++)
+    {
+        ResultRate[i] = LinterpDate(ResultZeroDate, ResultZeroRate, NCurve, Maturity[i], 1);
+    }
+    free(Holidays);
+    free(Maturity);
+    free(CpnDate);
+    free(SwapRate);
+    free(ResultZeroRate);
+    free(ResultZeroDate);
+    return 1;
 }

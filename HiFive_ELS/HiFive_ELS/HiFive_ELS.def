@@ -7,3 +7,4 @@ EXPORTS
 	Excel_SABR_Vol							@5
 	Preprocessing_TermAndRate_MultiCurve	@6
 	Preprocessing_TermAndEqVol				@7
+	CalcZeroRateAnalyticFast				@8

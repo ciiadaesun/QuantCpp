@@ -133,28 +133,6 @@ double Continuous_ForwardRate(curveinfo& Curve, double T0, double T1)
     return Result;
 }
 
-long NPaymentSwap(double T_OptionMaturity, double T_SwapMaturity, double PayFreqOfMonth)
-{
-    double dT = (T_SwapMaturity - T_OptionMaturity + 0.00001);
-    double Num_AnnPayment = 12.0 / PayFreqOfMonth;
-    long N;
-    N = (long)(dT * Num_AnnPayment + 0.5);
-    return N;
-}
-
-long MappingPaymentDates(double T_SwapMaturity, double FreqMonth, long* TempDatesArray, long NDates)
-{
-    long i;
-    long DayDiff = (long)(FreqMonth / 12.0 * 365.0);
-
-    TempDatesArray[NDates - 1] = (long)(365.0 * T_SwapMaturity + 0.5);
-    for (i = NDates - 2; i >= 0; i--)
-    {
-        TempDatesArray[i] = TempDatesArray[i + 1] - DayDiff;
-    }
-    return NDates;
-}
-
 //Forward Rate 계산
 double Calc_Forward_Rate_ForSOFR(
     double* TermArray, // 기간구조의 기간 Array [0.25,  0.5,   1.0, ....]
@@ -925,6 +903,7 @@ double DayCountFractionAtoB(long Day1, long Day2, long Flag)
     else if (Flag == 1) return DayCountAtoB(Day1, Day2) / 360.;
     else if (Flag == 2)
     {
+        // Act/Act
         long YearA, YearB;
         long MonthA, MonthB;
         long DayA, DayB;
@@ -3749,10 +3728,12 @@ DLLEXPORT(long) ZeroRateGenerator(
     long j;
     long n;
     long k;
-    long nbd;
-
+    long nbd = -1;
+    
     long ncpn;
     long StartYYYY, EndYYYY;
+    long StartDD, PayDD;
+    long LastBDTemp;
     long n1;
     long ntotal;
     long ResultCode = 0;
@@ -4024,7 +4005,10 @@ DLLEXPORT(long) ZeroRateGenerator(
                 if (i >= 1) df_to_startdate = Calc_Discount_Factor(ResultZeroTerm, ResultZeroRate, ncurve, T_SpotDate);
                 else df_to_startdate = 1.;
                 NAFlag = 1;
-                nbd = NBusinessCountFromEndToPay(EstimateStart[i], Maturity[i], HolidayUnionDomesticUSD, NHolidayUnionDomesticUSD, 1, &ResultEnd2D[i][NResultCpnArray[i] - 1]);
+                StartDD = EstimateStart[i] - ((long)(EstimateStart[i] / 100)) * 100;
+                PayDD = Maturity[i] - ((long)(Maturity[i] / 100)) * 100;
+                if (StartDD > 27 && PayDD > 27 && StartDD > PayDD) nbd = 0;
+                else nbd = NBusinessCountFromEndToPay(EstimateStart[i], Maturity[i], HolidayUnionDomesticUSD, NHolidayUnionDomesticUSD, 1, &ResultEnd2D[i][NResultCpnArray[i] - 1]);
                 // CRS or Basis CRS
 
                 MappingCouponDates2(ProductType[i], EstimateStart[i], EstimateStart[i], Maturity[i], nbd,
@@ -4100,25 +4084,51 @@ DLLEXPORT(long) ZeroRateGenerator(
                 Pay_FixFloFlag = 0;
                 Pay_NotionalAMT = Rcv_NotionalAMT;
                 DayAtoB = DayCountAtoB(EstimateStart[i], Maturity[i]);
-                W1Flag = 0;
-                if (DayAtoB < 14 && DayAtoB > 6) W1Flag = 1;
-                else if (DayAtoB < 21) W1Flag = 2;
-                else W1Flag = 0;
-                if (W1Flag == 1 && NResultCpnArray[i] == 1)
+                W1Flag = -1;
+                // 짧은스왑만기인 경우 케이스별로 스왑 분류
+                if (DayAtoB < 7) W1Flag = 0;            // 1일 스왑인걸로 간주
+                else if (DayAtoB < 14) W1Flag = 1;      // 1주 스왑인걸로 간주
+                else if (DayAtoB < 21) W1Flag = 2;      // 2주 스왑인걸로 간주
+                else if (DayAtoB < 35) W1Flag = 3;      // 1달 스왑인걸로 간주
+                else W1Flag = -1;
+
+                if (W1Flag == 0 && NResultCpnArray[i] == 1)
                 {
+                    // 1일 스왑
+                    ResultForwardStart2D[i][0] = EstimateStart[i];
+                    ResultForwardEnd2D[i][0] = ParseBusinessDateIfHoliday(DayPlus(EstimateStart[i], 1), DomesticHolidays, NDomesticHolidays);
+                    ResultPay2D[i][0] = Maturity[i];
+                }
+                else if (W1Flag == 1 && NResultCpnArray[i] == 1)
+                {
+                    // 1주 스왑
                     ResultForwardStart2D[i][0] = EstimateStart[i];
                     ResultForwardEnd2D[i][0] = ParseBusinessDateIfHoliday(DayPlus(EstimateStart[i], 7), DomesticHolidays, NDomesticHolidays);
                     ResultPay2D[i][0] = Maturity[i];
                 }
                 else if (W1Flag == 2 && NResultCpnArray[i] == 1)
                 {
+                    // 2주 스왑
                     ResultForwardStart2D[i][0] = EstimateStart[i];
                     ResultForwardEnd2D[i][0] = ParseBusinessDateIfHoliday(DayPlus(EstimateStart[i], 14), DomesticHolidays, NDomesticHolidays);
                     ResultPay2D[i][0] = Maturity[i];
                 }
+                else if (W1Flag == 3 && NResultCpnArray[i] == 1)
+                {
+                    // 1달 스왑
+                    ResultForwardStart2D[i][0] = EstimateStart[i];
+                    LastBDTemp = LastBusinessDate(EDate_Cpp(EstimateStart[i], 1) / 100, NDomesticHolidays, DomesticHolidays);
+                    ResultForwardEnd2D[i][0] = ParseBusinessDateIfHoliday(min(LastBDTemp, EDate_Cpp(EstimateStart[i], 1)), DomesticHolidays, NDomesticHolidays);
+                    ResultPay2D[i][0] = Maturity[i];
+                }
                 else
                 {
-                    MappingCouponDates(ProductType[i], EstimateStart[i], EstimateStart[i], Maturity[i], -1,
+                    StartDD = EstimateStart[i] - ((long)(EstimateStart[i] / 100)) * 100;
+                    PayDD = Maturity[i] - ((long)(Maturity[i] / 100)) * 100;
+                    if (StartDD > 27 && PayDD > 27 && StartDD > PayDD) nbd = 0;
+                    else nbd = NBusinessCountFromEndToPay(EstimateStart[i], Maturity[i], HolidayUnionDomesticUSD, NHolidayUnionDomesticUSD, 1, &ResultEnd2D[i][NResultCpnArray[i] - 1]);
+
+                    MappingCouponDates(ProductType[i], EstimateStart[i], EstimateStart[i], Maturity[i], nbd,
                         NCpnsAnn[i], 1, NDomesticHolidays, DomesticHolidays, 1,
                         NResultCpnArray[i], ResultForwardStart2D[i], ResultForwardEnd2D[i], ResultPay2D[i]);
                 }
@@ -4220,35 +4230,44 @@ DLLEXPORT(long) ZeroRateGenerator(
                 PrevRate = MaxRate;
                 Pay_DayCount = Rcv_DayCount;
                 Pay_RefRateType = Rcv_RefRateType;
-                for (n = 0; n < 1000; n++)
+                if (i > 0)
                 {
-                    ResultZeroRate[ncurve] = TargetRate;
-                    ResultCodeTemp = CalcIRS(
-                        PriceDate, 0, NAFlag, CRS_Flag, CRS_Info,
-                        Rcv_RefRateType, Rcv_SwapYearlyNPayment, Rcv_SwapMaturity, Rcv_FixFloFlag, Rcv_DayCount,
-                        Rcv_NotionalAMT, Rcv_NotionalPayDate, ncurve + 1, ResultZeroTerm, ResultZeroRate,
-                        ncurve + 1, ResultZeroTerm, ResultZeroRate, NResultCpnArray[i], ResultSchedule[i],
-                        ResultSlope2D[i], ResultCPN2D[i], ResultFixedRefRate2D[i], Pay_RefRateType, Pay_SwapYearlyNPayment,
-                        Pay_SwapMaturity, Pay_FixFloFlag, Pay_DayCount, Pay_NotionalAMT, Pay_NotionalPayDate,
-                        ncurve + 1, ResultZeroTerm, ResultZeroRate, ncurve + 1, ResultZeroTerm,
-                        ResultZeroRate, NResultCpnArray[i], ResultScheduleUSD[i], ResultSlope2DUSD[i], ResultCPN2DUSD[i],
-                        ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfo1 + k, ResultIRSInfo2 + k,
-                        ResultIRSInfo3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
-                        NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
-                        RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
+                    for (n = 0; n < 1000; n++)
+                    {
+                        ResultZeroRate[ncurve] = TargetRate;
+                        ResultCodeTemp = CalcIRS(
+                            PriceDate, 0, NAFlag, CRS_Flag, CRS_Info,
+                            Rcv_RefRateType, Rcv_SwapYearlyNPayment, Rcv_SwapMaturity, Rcv_FixFloFlag, Rcv_DayCount,
+                            Rcv_NotionalAMT, Rcv_NotionalPayDate, ncurve + 1, ResultZeroTerm, ResultZeroRate,
+                            ncurve + 1, ResultZeroTerm, ResultZeroRate, NResultCpnArray[i], ResultSchedule[i],
+                            ResultSlope2D[i], ResultCPN2D[i], ResultFixedRefRate2D[i], Pay_RefRateType, Pay_SwapYearlyNPayment,
+                            Pay_SwapMaturity, Pay_FixFloFlag, Pay_DayCount, Pay_NotionalAMT, Pay_NotionalPayDate,
+                            ncurve + 1, ResultZeroTerm, ResultZeroRate, ncurve + 1, ResultZeroTerm,
+                            ResultZeroRate, NResultCpnArray[i], ResultScheduleUSD[i], ResultSlope2DUSD[i], ResultCPN2DUSD[i],
+                            ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfo1 + k, ResultIRSInfo2 + k,
+                            ResultIRSInfo3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
+                            NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
+                            RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
 
-                    dblCalcPrice = ResultPrice[1] - ResultPrice[2];
-                    if (fabs(dblCalcPrice) < dblErrorRange) break;
-                    if (dblCalcPrice > 0)
-                    {
-                        MaxRate = TargetRate;
-                        TargetRate = (MaxRate + MinRate) / 2.0;
+                        dblCalcPrice = ResultPrice[1] - ResultPrice[2];
+                        if (fabs(dblCalcPrice) < dblErrorRange) break;
+                        if (dblCalcPrice > 0)
+                        {
+                            MaxRate = TargetRate;
+                            TargetRate = (MaxRate + MinRate) / 2.0;
+                        }
+                        else
+                        {
+                            MinRate = TargetRate;
+                            TargetRate = (MinRate + MaxRate) / 2.0;
+                        }
                     }
-                    else
-                    {
-                        MinRate = TargetRate;
-                        TargetRate = (MinRate + MaxRate) / 2.0;
-                    }
+                }
+                else
+                {
+                    ResultZeroRate[ncurve] = Calc_ZeroRate_FromDiscFactor(PriceDate, EstimateStart[i], ResultForwardEnd2D[i][0], MarketQuote[i], DayCountFlag, ncurve, ResultZeroTerm, ResultZeroRate);
+                    (ResultIRSInfo3 + k)[0] = Calc_Discount_Factor(ResultZeroTerm, ResultZeroRate, ncurve, DayCountFractionAtoB(PriceDate, Maturity[i], 0));
+                    (ResultIRSInfo3 + k)[1] = (ResultIRSInfo3 + k)[0];                    
                 }
                 free(Holidays);
             }

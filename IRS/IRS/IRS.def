@@ -18,3 +18,4 @@ EXPORTS
 	NBusinessCountFromEndToPay					@015
 	ParseBusinessDateIfHoliday					@016
 	ZeroRateGenerator							@017
+	CalcZeroRateAnalyticFast					@018
