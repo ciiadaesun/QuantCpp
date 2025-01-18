@@ -1,0 +1,11 @@
+﻿  CreditMetrics.cpp
+C:\Users\ciiad\github5\CreditMetrics\CreditMetrics\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\CreditMetrics\CreditMetrics\CreditMetrics.cpp(7,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\CreditMetrics\CreditMetrics\CreditMetrics.cpp(121,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditMetrics\CreditMetrics\CreditMetrics.cpp(1168,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditMetrics\CreditMetrics\CreditMetrics.cpp(1382,49): warning C4101: 'cumprodvalue' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditMetrics\CreditMetrics\CreditMetrics.cpp(1382,34): warning C4101: 'marginal_pd_Q' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditMetrics\CreditMetrics\CreditMetrics.cpp(1464,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditMetrics\CreditMetrics\CreditMetrics.cpp(1509,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+     C:\Users\ciiad\github5\CreditMetrics\x64\Debug\CreditMetrics.lib 라이브러리 및 C:\Users\ciiad\github5\CreditMetrics\x64\Debug\CreditMetrics.exp 개체를 생성하고 있습니다.
+  CreditMetrics.vcxproj -> C:\Users\ciiad\github5\CreditMetrics\x64\Debug\CreditMetrics.dll

@@ -1,0 +1,37 @@
+﻿  CreditRiskCapitalIRB.cpp
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(819,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(819,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(1302,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(1342,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(1414,62): warning C4553: '==': 식의 결과가 사용되지 않습니다. '='을(를) 의도했습니까?
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(1548,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(1935,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(2063,10): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(2135,10): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(2180,10): warning C4101: 'EasterMonday' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(2221,14): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(2220,14): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(2262,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(2334,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(2500,22): warning C4101: 'PrevTempDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(2584,10): warning C4101: 'LastBusiDay' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(2798,14): warning C4101: 'TempDateExcelType' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(3324,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(3374,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(3425,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(3560,10): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(3781,75): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(3782,43): warning C4244: '=': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CalcDate.h(3874,10): warning C4101: 'n2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CreditRiskCapitalIRB.cpp(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CreditRiskCapitalIRB.cpp(163,9): warning C4101: 'EL' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CreditRiskCapitalIRB.cpp(158,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\CreditRiskCapitalIRB\CreditRiskCapitalIRB\CreditRiskCapitalIRB.cpp(162,9): warning C4101: 'UnExpectedLoss' :참조되지 않은 지역 변수입니다.
+     C:\Users\ciiad\github5\CreditRiskCapitalIRB\Release\CreditRiskCapitalIRB.lib 라이브러리 및 C:\Users\ciiad\github5\CreditRiskCapitalIRB\Release\CreditRiskCapitalIRB.exp 개체를 생성하고 있습니다.
+  코드를 생성하고 있습니다.
+  Previous IPDB not found, fall back to full compilation.
+  All 101 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  코드를 생성했습니다.
+  CreditRiskCapitalIRB.vcxproj -> C:\Users\ciiad\github5\CreditRiskCapitalIRB\Release\CreditRiskCapitalIRB.dll

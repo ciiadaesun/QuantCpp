@@ -1,0 +1,14 @@
+LIBRARY	
+
+EXPORTS
+	OPTIONPRICING_Excel		 @101
+	CalcForwardPrice		 @102
+	CalcImvolFromPrice		 @103
+	NSchedule_CommOpt		 @104
+	Malloc_Schedule_CommOpt  @105
+	ExcelDateToCDate		 @106
+	CDateToExcelDate		 @107
+	MapLastFixingDate		 @108
+	CalcCommodityAsianOption @109
+	Preprocessing_TermAndRate @110
+	Preprocessing_TermAndVol  @111

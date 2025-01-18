@@ -1,0 +1,18 @@
+LIBRARY "IRPhaseStructuredSwap"
+EXPORTS
+
+	HW_Calibration_ATM											@1
+	isin														@2
+	Pricing_IRPhaseStructuredSwap								@3
+	HWCapHWSwaptionCalibration									@4
+	HWCapHWSwaption_2FCalibration								@5
+	HWCapHWSwaptionCalibration2F								@6
+	HWCapHWSwaptionCalibrationForKDB							@7
+	HJM2FCalibrationForKDB										@8
+	Generate_CpnDate_IRStructuredSwapModule_Using_Holiday		@9
+	ExcelDateToCDate											@10
+	CDateToExcelDate											@11
+	Number_Holiday												@12
+	Mapping_Holiday_CType										@13
+	Preprocessing_TermAndRate									@14
+	Preprocessing_TermAndRate_MultiCurve						@15
