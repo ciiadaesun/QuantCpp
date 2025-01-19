@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 from numba import jit
 import warnings
+import os
+currdir = os.getcwd()
 warnings.filterwarnings('ignore')
 
 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
@@ -122,7 +124,7 @@ def ReadCSV(filedir) :
         df = pd.concat([df,i],axis = 0)
     return df
 
-def PreProcessingKDBData(KDBData) : 
+def PreProcessingKDBData(KDBData, dataformat = 'Combined') : 
     Data = KDBData.rename(columns = {"부점명":"Depart","포트폴리오":"Portfolio","리스크군":"Risk_Class",
                                      "버킷":"Bucket","리스크요소1":"RiskFactor1","리스크요소2":"RiskFactor2",
                                      "리스크요소3":"RiskFactor3","델타민감도":"Delta_Sensi","베가민감도":"Vega_Sensi",
@@ -177,8 +179,11 @@ def PreProcessingKDBData(KDBData) :
         DataCOMRVega = DataCOMRVega.rename(columns = {"RiskFactor1":"Underlying","RiskFactor2":"Tenor","RiskFactor3":"Delivery"})
         
         DataCOMR = pd.concat([DataCOMRDelta, DataCOMRCurvature, DataCOMRVega],axis = 0)
-    return pd.concat([DataCSR,DataGIRR,DataFXR,DataEQR,DataCOMR],axis = 0)
-
+    if dataformat == 'Combined' : 
+        return pd.concat([DataCSR,DataGIRR,DataFXR,DataEQR,DataCOMR],axis = 0)
+    else : 
+        return DataCSR,pd.DataFrame([]), pd.DataFrame([]), DataGIRR,DataFXR,DataEQR,DataCOMR
+    
 def PreProcessingMyData(RAWData) : 
     CSR = RAWData[RAWData["Risk_Class"].isin(["CSR","csr","신용스프레드","신용스프레드(CSR)"]) ]
     CSR_Delta = CSR[CSR["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Issuer"})
@@ -1566,6 +1571,92 @@ def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data
         TotalClass = pd.concat([TotalClass, TotalClassRiskCharge],axis = 0).sort_index()
     return TotalClass
     
+def FileListPrint(currdir) : 
+    files = os.listdir(currdir)
+    FileList = np.array(files)[np.vectorize(lambda x : True if ("raw" in str(x).lower()) or ("girr" in str(x).lower()) or ("csr" in str(x).lower()) or ("fxr" in str(x).lower())or ("eqr" in str(x).lower())or ("comr" in str(x).lower()) else False)(files)]
+    filenum, filenames, filenamesprint = [], [], []
+    k = 1
+    for name in FileList : 
+        if '.' not in name : 
+            newdir = currdir + '\\' + name 
+            files2 = os.listdir(newdir)
+            FileList2 = np.array(files2)[np.vectorize(lambda x : True if ("raw" in str(x).lower()) or ("girr" in str(x).lower()) or ("csr" in str(x).lower()) or ("fxr" in str(x).lower())or ("eqr" in str(x).lower())or ("comr" in str(x).lower()) else False)(files2)]
+            for name2 in FileList2 : 
+                filenum.append(k)
+                filenames.append(newdir + '\\' + name2)
+                filenamesprint.append(str(k) + '. ' + newdir + '\\' + name2)
+                k += 1
+        else : 
+            filenum.append(k)
+            filenames.append(currdir + '\\' + name)
+            filenamesprint.append(str(k) + '. ' + currdir + '\\' + name)
+            k += 1
+    return pd.DataFrame([filenum,filenames,filenamesprint],index = ["Number","Directory","DirectoryPrint"]).T   
+
+def LoggingUsedFileNames(MyFiles, MyClass = 'FRTB') : 
+    PrintStr = '\n'+MyClass+' 계산에 필요한 RAW 데이터 파일은 다음 중 무엇입니까?(번호입력)\n'
+    n = 0
+    for i in MyFiles["DirectoryPrint"] : 
+        if MyClass.lower() in i.lower() : 
+            PrintStr += i + str("\n")
+            n += 1
+    if n == 0 : 
+        return ''
+    else : 
+        return PrintStr
+    
+def MainFunction(currdir) : 
+    MyFiles = FileListPrint(currdir)
+    mynum = int(input("전체 리스크 RAW 파일의 경우 0를 입력하시오.(FRTB_RAW.csv)\n리스크 클래스별 RAW 파일로 입력할경우 숫자 1을 입력하시오.(GIRR_RAW.csv,CSR_RAW.csv,...)\n"))
+    if mynum == 0 : 
+        PrintStr = LoggingUsedFileNames(MyFiles, MyClass = 'FRTB')
+        Num = int(input(PrintStr))
+        Data = ReadCSV(MyFiles[MyFiles["Number"] == Num]["Directory"].iloc[0])
+    else : 
+        PrintStr1 = LoggingUsedFileNames(MyFiles, MyClass = 'GIRR')
+        if PrintStr1 == '' : 
+            Data1 = pd.DataFrame([])
+        else : 
+            GIRRFileNum = int(input(PrintStr1))
+            Data1 = ReadCSV(MyFiles[MyFiles["Number"] == GIRRFileNum]["Directory"].iloc[0])
+
+        PrintStr2 = LoggingUsedFileNames(MyFiles, MyClass = 'CSR')
+        if PrintStr2 == '' : 
+            Data2 = pd.DataFrame([])
+        else : 
+            CSRFileNum = int(input(PrintStr2))
+            Data2 = ReadCSV(MyFiles[MyFiles["Number"] == CSRFileNum]["Directory"].iloc[0])
+
+        PrintStr3 = LoggingUsedFileNames(MyFiles, MyClass = 'FXR')
+        if PrintStr3 == '' : 
+            Data3 = pd.DataFrame([])
+        else : 
+            FXRFileNum = int(input(PrintStr3))
+            Data3 = ReadCSV(MyFiles[MyFiles["Number"] == FXRFileNum]["Directory"].iloc[0])
+
+        PrintStr4 = LoggingUsedFileNames(MyFiles, MyClass = 'EQR')
+        if PrintStr4 == '' : 
+            Data4 = pd.DataFrame([])
+        else : 
+            EQRFileNum = int(input(PrintStr4))
+            Data4 = ReadCSV(MyFiles[MyFiles["Number"] == EQRFileNum]["Directory"].iloc[0])
+
+        PrintStr5 = LoggingUsedFileNames(MyFiles, MyClass = 'COMR')
+        if PrintStr5 == '' : 
+            Data5 = pd.DataFrame([])
+        else : 
+            COMRFileNum = int(input(PrintStr5))
+            Data5 = ReadCSV(MyFiles[MyFiles["Number"] == COMRFileNum]["Directory"].iloc[0])
+        Data = pd.concat([Data1, Data2, Data3, Data4, Data5],axis = 0)
+    return Data    
+
+RAWFORMAT = int(input("자체데이터 RAWData 엑셀 포멧이면 0을 KDB RAW Data 포멧의 경우 1을 입력하시오"))
+if RAWFORMAT == 0 : 
+    CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR = PreProcessingMyData(RAWData)
+else : 
+    CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR = PreProcessingKDBData(RAWData, dataformat = 'splited') 
+ResultData = AggregatedFRTB_RiskCharge(CSR, GIRR, FXR, EQR, COMR, CSR_SecuritizedNonCTP, CSR_CTP, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 0)
+ResultData.to_excel("ResultFRTB.xlsx")
 #if __name__ == __main__ : 
 #RAWData = pd.read_csv("FRTB_RAW.csv")
 #CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR = PreProcessingMyData(RAWData)
