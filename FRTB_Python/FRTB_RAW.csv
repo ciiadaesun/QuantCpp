@@ -1,5 +1,5 @@
 Depart,Risk_Class,Risk_Type,Portfolio,Bucket,RiskFactor1,RiskFactor2,RiskFactor3,Delta_Sensi,Value_Up,Value_Dn,Value,CVR_Plus,CVR_Minus,Vega_Sensi
-Trading Dept,CSR,Delta,BOND PORT1,3,CORP_BBB,0.5,ISSUER_A,98.54495992,,,,,,
+Trading Dept,CSR,Delta,BOND PORT1,3,CORP_BBB,0.5,ISSUER_A,98.54495991,,,,,,
 Trading Dept,CSR,Delta,BOND PORT1,3,CORP_BBB,1,ISSUER_A,411.0833685,,,,,,
 Trading Dept,CSR,Delta,BOND PORT1,3,CORP_BBB,3,ISSUER_A,2071.560071,,,,,,
 Trading Dept,CSR,Delta,BOND PORT1,3,CORP_BBB,5,ISSUER_A,35044.30879,,,,,,
