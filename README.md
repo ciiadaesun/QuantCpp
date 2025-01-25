@@ -20,6 +20,8 @@
 
 5.4 스왑션, 캡플로어, EQ옵션 -> 10bp 이내
 
+5.5 CDS Hazard Rate Curve Estimation -> 20bp 이내
+
 ## 6. FRTB SA 산출모듈 파이썬 개발 완료
 
 평가엔진모음.zip 압축파일 다운로드 가능
