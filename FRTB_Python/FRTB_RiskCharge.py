@@ -12,6 +12,9 @@ import warnings
 import os
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
+print("##############\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Quant Manager\nMy FRTB Module \nv1.0.1 \n##############\n")
+
+
 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
 GIRR_VegaRiskFactor1 = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
 GIRR_VegaRiskFactor2 = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
@@ -208,30 +211,35 @@ def PreProcessingMyData(RAWData) :
     CSR_CTP_Vega = CSR_CTP[CSR_CTP["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Issuer"})
     Result_CSR_CTP = pd.concat([CSR_CTP_Delta, CSR_CTP_Curvature, CSR_CTP_Vega],axis = 0)
 
-    GIRR = RAWData[RAWData["Risk_Class"] == "GIRR" ]
+    GIRR = RAWData[RAWData["Risk_Class"].isin(["GIRR","일반금리","일반금리(GIRR)"])]
     GIRR_Delta = GIRR[GIRR["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Type"})
     GIRR_Curvature = GIRR[GIRR["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Type"})
     GIRR_Vega = GIRR[GIRR["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor1","RiskFactor3":"Tenor2"})
     Result_GIRR = pd.concat([GIRR_Delta, GIRR_Curvature, GIRR_Vega],axis = 0)
 
-    FXR = RAWData[RAWData["Risk_Class"] == "FXR" ]
+    FXR = RAWData[RAWData["Risk_Class"].isin(["FXR","외환","외환(FXR)","외환리스크","외환리스크(FXR)"])]
     FXR_Delta = FXR[FXR["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Type"})
     FXR_Curvature = FXR[FXR["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Type"})
     FXR_Vega = FXR[FXR["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Temp_RiskFactor"})
     Result_FXR = pd.concat([FXR_Delta, FXR_Curvature, FXR_Vega],axis = 0)
 
-    EQR = RAWData[RAWData["Risk_Class"] == "EQR" ]
+    EQR = RAWData[RAWData["Risk_Class"].isin(["EQR","주식","주식(EQR)","주식리스크","주식리스크(EQR)"])]
     EQR_Delta = EQR[EQR["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Type","RiskFactor2":"StockName","RiskFactor3":"Temp_RiskFactor"})
     EQR_Curvature = EQR[EQR["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Type","RiskFactor2":"StockName","RiskFactor3":"Temp_RiskFactor"})
     EQR_Vega = EQR[EQR["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Type","RiskFactor2":"Tenor","RiskFactor3":"StockName"})
     Result_EQR = pd.concat([EQR_Delta, EQR_Curvature, EQR_Vega],axis = 0)
 
-    COMR = RAWData[RAWData["Risk_Class"] == "COMR" ]
+    COMR = RAWData[RAWData["Risk_Class"].isin(["COMR","일반상품","일반상품리스크","일반상품(COMR)","일반상품리스크(EQR)"])]
     COMR_Delta = COMR[COMR["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Underlying","RiskFactor2":"Tenor","RiskFactor3":"Delivery"})
     COMR_Curvature = COMR[COMR["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Underlying","RiskFactor2":"Tenor","RiskFactor3":"Delivery"})
     COMR_Vega = COMR[COMR["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Underlying","RiskFactor2":"Tenor","RiskFactor3":"Delivery"})
     Result_COMR = pd.concat([COMR_Delta, COMR_Curvature, COMR_Vega],axis = 0)
-    return Result_CSR, Result_CSR_SecuritizedNonCTP, Result_CSR_CTP, Result_GIRR, Result_FXR, Result_EQR, Result_COMR
+    
+    DRC = RAWData[RAWData["Risk_Class"].isin(["DRC","부도리스크","부도리스크(DRC)"])]
+    DRC = DRC.rename(columns = {"RiskFactor1" : "Rating", "RiskFactor2":"Issuer"})
+    RRAO = RAWData[RAWData["Risk_Class"].isin(["RRAO","잔여리스크","잔여리스크(RRAO)"])]
+    
+    return Result_CSR, Result_CSR_SecuritizedNonCTP, Result_CSR_CTP, Result_GIRR, Result_FXR, Result_EQR, Result_COMR, DRC, RRAO
 
 def PivotSensiByRiskFactor(Data, RiskFactorList, CurvatureFlag = 0) : 
     Data = Data.copy()
@@ -627,6 +635,27 @@ def CSR_DeltaRiskWeight(bucket, flagb8 = False) :
         w = 0.015
     else : 
         return pd.Series(Value, index = MyIndex).loc[b]
+
+def CSRCTP_DeltaRiskWeight(bucket, flagb8 = False) : 
+    '''
+    참고문헌 : 은행업감독업무 시행세칙 별표3의2 67.나
+    Description : Calculate CSR CTP Delta Risk Weight by Tenor, Currency, Type
+
+    Variables :    
+    Bucket - Bucket of Credit
+    flagb8 - is bucket flag 8?
+    
+    example : 
+        np.vectorize(CSRCTP_DeltaRiskWeight)( [1,1,1,2,3])
+        -> array([0.04, 0.04, 0.04, 0.08 , 0.05 ])
+    '''    
+    b = int(bucket)
+    MyIndex = np.arange(1,17)
+    Value = np.array([4.0, 4.0, 8, 5, 4, 3, 
+                      2, 6, 13, 13, 16, 
+                      10, 12, 12, 12, 13], 
+                     dtype = np.float64)/100
+    return pd.Series(Value, index = MyIndex).loc[b]    
     
 def FX_DeltaRiskWeight(FXPair, HighLiquidCurrency) : 
     '''
@@ -1103,6 +1132,15 @@ def GIRR_VegaSensiCorr(OptTenorList, UndTenorList) :
 
 calcsb = lambda df : df["WeightedSensi"].sum()
 
+def VegaRiskWeight_Scalar(Risk_Class, Bucket) : 
+    rc = str(Risk_Class)
+    b = str(Bucket)
+    if ((rc in ["EQR","Equity","주식리스크","주식","주식리스크(EQR)"]) and (b in ["1","2","3","4","5","6","7","8","12","13"])) :
+        return 0.7778
+    else : 
+        return 1.0
+VegaRiskWeight = np.vectorize(VegaRiskWeight_Scalar)    
+
 def Calc_CSRDelta_KB(DataByBucket, CorrScenario = 'm') : 
     '''
     설명 : 버킷(n)의 CSR KB를 계산한다
@@ -1160,14 +1198,53 @@ def Calc_CSRDelta_KB_ByBucket(MyData) :
     Data.columns = ["Bucket","KB_U","KB_M","KB_D","SB"]
     return Data
 
-def Calc_CSRDelta(Delta_Data, CSR_DeltaNonSecurCorrDf, SensitivityColumnName = "Delta") :
+def DRC_RW(RatingsString) : 
+    RatingsString = str(RatingsString).lower()
+    if 'aaa' in RatingsString : 
+        return 0.005
+    elif 'aa' in RatingsString : 
+        return 0.02
+    elif 'a' in RatingsString : 
+        return 0.03
+    elif 'bbb' in RatingsString : 
+        return 0.06
+    elif 'b' in RatingsString : 
+        return 0.15
+    elif 'b' in RatingsString : 
+        return 0.3
+    elif 'ccc' in RatingsString : 
+        return 0.15
+    else : 
+        return 1.0
+
+def HBR_bucket(MyData, col = "JTD") : 
+    HBR_b =  MyData[MyData[col] > 0][col].sum() /(np.abs(MyData[col]).sum())
+    return HBR_b
+
+def DRC_b(MyData, col = "JTD", FixedHBR = 0) : 
+    if len(MyData) == 0 : 
+        return 0
+    HBR_b =  MyData[MyData[col] > 0][col].sum() /(np.abs(MyData[col]).sum())
+    JTDP = MyData[MyData[col] >= 0]
+    JTDM = MyData[MyData[col] < 0]
+    if FixedHBR > 0.00000001 : 
+        v = max(0, (JTDP["RW"] * JTDP[col]).sum() -MyData["FixedHBR"].iloc[0] * (np.abs(JTDM["RW"] * JTDM[col]).sum()))
+    else : 
+        v = max(0, (JTDP["RW"] * JTDP[col]).sum() -HBR_b * (np.abs(JTDM["RW"] * JTDM[col]).sum()))
+    return v
+
+def Calc_CSRDelta(Delta_Data, CSR_DeltaNonSecurCorrDf, SensitivityColumnName = "Delta", CTPFlag = 0) :
     MyData = Delta_Data[Delta_Data["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])]
     if len(MyData) == 0 : 
         return pd.DataFrame([], columns = ["Bucket","KB_U","KB_M","KB_D","SB"])    
     MyData["Curve"] = MyData["Curve"].fillna("NaN")
     MyData["Tenor"] = MyData["Tenor"].fillna("NaN")
     MyData["Issuer"] = MyData["Issuer"].fillna("NaN")
-    MyData["RW"] = MyData["Bucket"].apply(CSR_DeltaRiskWeight)
+    if CTPFlag == 0 : 
+        MyData["RW"] = MyData["Bucket"].apply(CSR_DeltaRiskWeight)
+    else : 
+        MyData["RW"] = MyData["Bucket"].apply(CSRCTP_DeltaRiskWeight)
+        
     MyData["WeightedSensi"] = MyData["RW"] * MyData[SensitivityColumnName]
     
     CSRDelta_ByBuc = Calc_CSRDelta_KB_ByBucket(MyData)
@@ -1253,7 +1330,7 @@ def Calc_CSRVega_KB(DataByBucket, CorrScenario = 'm') :
     KB = Calc_Kb_DeltaVega(sensidata["WeightedSensi"].values.astype(np.float64), corrsensi, ScenarioFlag)
     return KB    
 
-def Calc_CSRVega_KB_ByBucket(MyData, SensitivityColumnName = "Delta") : 
+def Calc_CSRVega_KB_ByBucket(MyData) : 
     MyData["BucketCopy"] = MyData["Bucket"]
 
     KBByBucket_M = MyData.groupby("Bucket").apply(Calc_CSRVega_KB, 'm')
@@ -1275,7 +1352,7 @@ def Calc_CSRVega(Vega_Data, CSR_DeltaNonSecurCorrDf, SensitivityColumnName = "Ve
     MyData["RW"] = VegaRiskWeight(MyData["Risk_Class"].values, MyData["Bucket"].values)
     MyData["WeightedSensi"] = MyData["RW"] * MyData[SensitivityColumnName]    
     
-    CSRVega_ByBuc = Calc_CSRVega_KB_ByBucket(MyData, SensitivityColumnName)
+    CSRVega_ByBuc = Calc_CSRVega_KB_ByBucket(MyData)
     
     BucketCorr = CSRDeltaBucketRatingCorr(CSRVega_ByBuc["Bucket"]) * CSRDeltaBucketSectorCorr(CSRVega_ByBuc["Bucket"],CSR_DeltaNonSecurCorrDf)
     CSRVega_M = Calc_AggregatedDeltaVega(CSRVega_ByBuc["KB_M"].values.astype(np.float64), CSRVega_ByBuc["SB"].values.astype(np.float64), BucketCorr, 0)
@@ -1285,6 +1362,170 @@ def Calc_CSRVega(Vega_Data, CSR_DeltaNonSecurCorrDf, SensitivityColumnName = "Ve
     Result = pd.DataFrame([[99999,CSRVega_U, CSRVega_M, CSRVega_D, SB]], columns = ["Bucket","KB_U","KB_M","KB_D","SB"], index = [99999])
     return pd.concat([CSRVega_ByBuc, Result],axis = 0)    
 
+def Calc_CSRSecuritizedNonCTPDelta_KB(DataByBucket, CorrScenario = 'm') : 
+    '''
+    설명 : 버킷(n)의 CSR KB를 계산한다
+    Description : Calculate KB of bucket(n) 
+    
+    Variables :
+    DataByBucket - DataFrame that have columns ['BucketCopy','Curve','Tenor','Tranche','WeightedSensi']
+    
+    Example : 
+        mycol = ['BucketCopy','Curve','Tenor','Issuer','WeightedSensi']
+        DataByBucket = pd.DataFrame([[1,'CORP A',0.5, 'Senior',50.51],
+                                    [1,'CORP A',1.0, 'Senior',54.51],
+                                    [1,'CORP C',0.5, 'Junk',204.51]], columns = mycol)
+        Calc_CSRSecuritizedNonCTPDelta_KB(DataByBucket, CorrScenario = 'm')
+        ->280.797369
+    '''      
+    # Sensi Netting    
+    sensidata = PivotSensiByRiskFactor(DataByBucket, ["Curve","Tenor","Tranche"], CurvatureFlag = 0)    
+    if len(sensidata) < 1 : 
+        return 0
+    corrsensi = CSR_SecuritizedNonCTPDelta_sensicorr(sensidata["BucketCopy"].iloc[0], sensidata["Tranche"], sensidata["Tenor"].astype(np.float64), sensidata["Curve"])
+    ScenarioFlag = 0 if 'm' in str(CorrScenario) else (1 if 'u' in str(CorrScenario) else 2)
+    KB = Calc_Kb_DeltaVega(sensidata["WeightedSensi"].values.astype(np.float64), corrsensi, ScenarioFlag)
+    return float(KB)
+
+def Calc_CSRSecuritizedNonCTPDelta_KB_ByBucket(MyData) : 
+    '''
+    설명 : 버킷별 CSR KB를 계산한다
+    Description : Calculate KB of all buckets 
+    
+    Variables :
+    DataByBucket - DataFrame that have columns ['Bucket','Curve','Tenor','Issuer','WeightedSensi']
+    
+    Example : 
+        mycol = ['Bucket','Curve','Tenor','Tranche','WeightedSensi']
+        DataByBucket = pd.DataFrame([[3,'CORP AAA',0.5, 'Senior',-10.51],
+                                    [3,'CORP AAA',1.0, 'Senior',-24.51],
+                                    [1,'CORP AAA',0.5, 'Senior',50.51],
+                                    [1,'CORP AAA',1.0, 'Senior',54.51],
+                                    [1,'CORP C',2.0, 'Junk',204.51]], columns = mycol)
+        Calc_CSRSecuritizedNonCTPDelta_KB_ByBucket(DataByBucket)
+        ->	Bucket	KB_U	KB_M	KB_D	SB
+                1	294.48	280.79	266.40	309.53
+                3	33.61	32.34	31.02	-35.02
+    '''     
+    MyData["BucketCopy"] = MyData["Bucket"]
+
+    KBByBucket_M = MyData.groupby("Bucket").apply(Calc_CSRSecuritizedNonCTPDelta_KB, 'm')
+    KBByBucket_D = MyData.groupby("Bucket").apply(Calc_CSRSecuritizedNonCTPDelta_KB, 'd')
+    KBByBucket_U = MyData.groupby("Bucket").apply(Calc_CSRSecuritizedNonCTPDelta_KB, 'u')
+    SBByBucket = MyData.groupby("Bucket").apply(calcsb)
+
+    Data = pd.concat([KBByBucket_U,KBByBucket_M,KBByBucket_D,SBByBucket],axis = 1).reset_index()
+    Data.columns = ["Bucket","KB_U","KB_M","KB_D","SB"]
+    return Data
+
+def Calc_CSRSecuritizedNonCTPDelta(Delta_Data, CSR_SecuritizedNonCTPDelta_RW, SensitivityColumnName = "Delta") :
+    MyData = Delta_Data[Delta_Data["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])]
+    if len(MyData) == 0 : 
+        return pd.DataFrame([], columns = ["Bucket","KB_U","KB_M","KB_D","SB"])    
+    MyData["RW"] = MyData["Bucket"].astype(np.int64).map(CSR_SecuritizedNonCTPDelta_RW).fillna(0)
+    MyData["WeightedSensi"] = MyData["RW"] * MyData[SensitivityColumnName]
+    CSRDelta_ByBuc = Calc_CSRSecuritizedNonCTPDelta_KB_ByBucket(MyData)
+    CSRDelta_ByBucExcept25 = CSRDelta_ByBuc[CSRDelta_ByBuc["Bucket"].isin([25,"25"]) == False]
+    CSRDelta_ByBuc25 = CSRDelta_ByBuc[CSRDelta_ByBuc["Bucket"].isin([25,"25"])]
+    BucketCorr = np.identity(len(CSRDelta_ByBucExcept25))
+    CSRDelta_M = Calc_AggregatedDeltaVega(CSRDelta_ByBucExcept25["KB_M"].values.astype(np.float64), CSRDelta_ByBucExcept25["SB"].values.astype(np.float64), BucketCorr, 0) + CSRDelta_ByBuc25["KB_M"].sum()
+    CSRDelta_D = Calc_AggregatedDeltaVega(CSRDelta_ByBucExcept25["KB_D"].values.astype(np.float64), CSRDelta_ByBucExcept25["SB"].values.astype(np.float64), BucketCorr, 2) + CSRDelta_ByBuc25["KB_D"].sum()
+    CSRDelta_U = Calc_AggregatedDeltaVega(CSRDelta_ByBucExcept25["KB_U"].values.astype(np.float64), CSRDelta_ByBucExcept25["SB"].values.astype(np.float64), BucketCorr, 1) + CSRDelta_ByBuc25["KB_U"].sum()
+    SB = CSRDelta_ByBuc["SB"].sum()
+    Result = pd.DataFrame([[99999,CSRDelta_U, CSRDelta_M, CSRDelta_D, SB]], columns = ["Bucket","KB_U","KB_M","KB_D","SB"], index = [99999])
+    return pd.concat([CSRDelta_ByBuc, Result],axis = 0)    
+
+def Calc_CSRSecuritizedNonCTPCurvature(CurvatureData, CSR_SecuritizedNonCTPDelta_RW, DeltaSensitivityColumnName = "Delta") :
+    CurvatureData = CurvatureData[CurvatureData["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])]
+    if len(CurvatureData) == 0 : 
+        return pd.DataFrame([], columns = ["Bucket","KB_U","KB_M","KB_D","SB"])    
+
+    if CurvatureData["CVR_Plus"].isna().sum() == len(CurvatureData) and CurvatureData["CVR_Minus"].isna().sum() == len(CurvatureData) :    
+        CurvatureData["RW"] = CurvatureData["Bucket"].astype(np.int64).map(CSR_SecuritizedNonCTPDelta_RW).fillna(0)
+        CurvatureData["DeltaWeightedSensi"] = CurvatureData["RW"] * CurvatureData[DeltaSensitivityColumnName]
+        
+    KB_Median = CurvatureData.groupby("Bucket").apply(Calc_CSRKb_Curvature, 'm').reset_index()
+    KB_Median25 = KB_Median[KB_Median["Bucket"].isin([25,'25'])].set_index("Bucket")
+    KB_Median = KB_Median[KB_Median["Bucket"].isin([25,'25']) == False].set_index("Bucket")
+    
+    KB_Up = CurvatureData.groupby("Bucket").apply(Calc_CSRKb_Curvature, 'u').reset_index()
+    KB_Up25 = KB_Up[KB_Up["Bucket"].isin([25,'25'])].set_index("Bucket")
+    KB_Up = KB_Up[KB_Up["Bucket"].isin([25,'25']) == False].set_index("Bucket")
+
+    KB_Dn = CurvatureData.groupby("Bucket").apply(Calc_CSRKb_Curvature, 'd').reset_index()
+    KB_Dn25 = KB_Dn[KB_Dn["Bucket"].isin([25,'25'])].set_index("Bucket")
+    KB_Dn = KB_Dn[KB_Dn["Bucket"].isin([25,'25']) == False].set_index("Bucket")
+
+    SB = max(max(KB_Dn["SB"].sum(), KB_Median["SB"].sum()),KB_Dn["SB"].sum())
+    SB +=  max(max(KB_Dn25["SB"].sum(), KB_Median25["SB"].sum()),KB_Dn25["SB"].sum()) 
+    Data = pd.concat([KB_Up["KB"],KB_Median["KB"],KB_Dn["KB"]],axis = 1)
+    Data.columns = ["KB_U","KB_M","KB_D"]
+    Data["SB"] = np.maximum(np.maximum(KB_Median["SB"],KB_Up["SB"]),KB_Dn["SB"])
+    DataByBucket = Data.reset_index()
+    BucketCorr = np.identity(len(DataByBucket))
+    
+    KbPlus_Median = KB_Median["KB_PLUS"].values.astype(np.float64)
+    KbMinus_Median = KB_Median["KB_MINUS"].values.astype(np.float64)
+    SumCVRPlus_Median = KB_Median["SB_PLUS"].values.astype(np.float64)
+    SumCVRMinus_Median = KB_Median["SB_MINUS"].values.astype(np.float64)
+
+    KbPlus_Up = KB_Up["KB_PLUS"].values.astype(np.float64)
+    KbMinus_Up = KB_Up["KB_MINUS"].values.astype(np.float64)
+    SumCVRPlus_Up = KB_Up["SB_PLUS"].values.astype(np.float64)
+    SumCVRMinus_Up = KB_Up["SB_MINUS"].values.astype(np.float64)
+
+    KbPlus_Dn = KB_Dn["KB_PLUS"].values.astype(np.float64)
+    KbMinus_Dn = KB_Dn["KB_MINUS"].values.astype(np.float64)
+    SumCVRPlus_Dn = KB_Dn["SB_PLUS"].values.astype(np.float64)
+    SumCVRMinus_Dn = KB_Dn["SB_MINUS"].values.astype(np.float64)
+
+    Curvature_Median = Calc_AggregatedCurvature(KbPlus_Median, KbMinus_Median, SumCVRPlus_Median, SumCVRMinus_Median, BucketCorr, 0) + max(KB_Median25["KB_PLUS"].sum(),KB_Median25["KB_MINUS"].sum())
+    Curvature_Up = Calc_AggregatedCurvature(KbPlus_Up, KbMinus_Up, SumCVRPlus_Up, SumCVRMinus_Up, BucketCorr, 1) + max(KB_Up25["KB_PLUS"].sum(),KB_Up25["KB_MINUS"].sum())
+    Curvature_Dn = Calc_AggregatedCurvature(KbPlus_Dn, KbMinus_Dn, SumCVRPlus_Dn, SumCVRMinus_Dn, BucketCorr, 2) + max(KB_Dn25["KB_PLUS"].sum(),KB_Dn25["KB_MINUS"].sum())
+    Result = pd.DataFrame([[99999,Curvature_Up, Curvature_Median, Curvature_Dn, SB]], columns = ["Bucket","KB_U","KB_M","KB_D","SB"], index = [99999])
+    return pd.concat([DataByBucket, Result],axis = 0)    
+
+def Calc_CSRSecuritizedNonCTPVega_KB(DataByBucket, CorrScenario = 'm') : 
+    
+    # Sensi Netting
+    sensidata = PivotSensiByRiskFactor(DataByBucket, ["Curve","Tenor","Tranche"], CurvatureFlag = 0)
+    if len(sensidata) < 1 : 
+        return 0
+    tc = tenorcorr(sensidata["Tenor"])
+    corrsensi = CSR_SecuritizedNonCTPDelta_sensicorr(sensidata["BucketCopy"].iloc[0], sensidata["Tranche"], sensidata["Tenor"].astype(np.float64), sensidata["Curve"]) * tc
+        
+    ScenarioFlag = 0 if 'm' in str(CorrScenario) else (1 if 'u' in str(CorrScenario) else 2)
+    KB = Calc_Kb_DeltaVega(sensidata["WeightedSensi"].values.astype(np.float64), corrsensi, ScenarioFlag)
+    return KB    
+
+def Calc_CSRSecuritizedNonCTPVega_KB_ByBucket(MyData) : 
+    MyData["BucketCopy"] = MyData["Bucket"]
+
+    KBByBucket_M = MyData.groupby("Bucket").apply(Calc_CSRSecuritizedNonCTPVega_KB, 'm')
+    KBByBucket_D = MyData.groupby("Bucket").apply(Calc_CSRSecuritizedNonCTPVega_KB, 'd')
+    KBByBucket_U = MyData.groupby("Bucket").apply(Calc_CSRSecuritizedNonCTPVega_KB, 'u')
+    SBByBucket = MyData.groupby("Bucket").apply(calcsb)
+
+    Data = pd.concat([KBByBucket_U,KBByBucket_M,KBByBucket_D,SBByBucket],axis = 1).reset_index()
+    Data.columns = ["Bucket","KB_U","KB_M","KB_D","SB"]
+    return Data
+
+def Calc_CSRSecuritizedNonCTPVega(VegaData, SensitivityColumnName = "Vega") :
+    MyData = VegaData[VegaData["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])]
+    if len(MyData) == 0 : 
+        return pd.DataFrame([], columns = ["Bucket","KB_U","KB_M","KB_D","SB"])       
+    MyData["RW"] = VegaRiskWeight(MyData["Risk_Class"].values, MyData["Bucket"].values)
+    MyData["WeightedSensi"] = MyData["RW"] * MyData[SensitivityColumnName]
+    CSRVega_ByBuc = Calc_CSRSecuritizedNonCTPVega_KB_ByBucket(MyData)
+    CSRVega_ByBucExcept25 = CSRVega_ByBuc[CSRVega_ByBuc["Bucket"].isin([25,"25"]) == False]
+    CSRVega_ByBuc25 = CSRVega_ByBuc[CSRVega_ByBuc["Bucket"].isin([25,"25"])]
+    BucketCorr = np.identity(len(CSRVega_ByBucExcept25))
+    CSRDelta_M = Calc_AggregatedDeltaVega(CSRVega_ByBucExcept25["KB_M"].values.astype(np.float64), CSRVega_ByBucExcept25["SB"].values.astype(np.float64), BucketCorr, 0) + CSRVega_ByBuc25["KB_M"].sum()
+    CSRDelta_D = Calc_AggregatedDeltaVega(CSRVega_ByBucExcept25["KB_D"].values.astype(np.float64), CSRVega_ByBucExcept25["SB"].values.astype(np.float64), BucketCorr, 2) + CSRVega_ByBuc25["KB_D"].sum()
+    CSRDelta_U = Calc_AggregatedDeltaVega(CSRVega_ByBucExcept25["KB_U"].values.astype(np.float64), CSRVega_ByBucExcept25["SB"].values.astype(np.float64), BucketCorr, 1) + CSRVega_ByBuc25["KB_U"].sum()
+    SB = CSRVega_ByBuc["SB"].sum()
+    Result = pd.DataFrame([[99999,CSRDelta_U, CSRDelta_M, CSRDelta_D, SB]], columns = ["Bucket","KB_U","KB_M","KB_D","SB"], index = [99999])
+    return pd.concat([CSRVega_ByBuc, Result],axis = 0) 
 
 def Calc_GIRRDelta_KB(DataByBucket, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, CorrScenario = 'm') :
     
@@ -1392,15 +1633,6 @@ def Calc_GIRRCurvature(CurvatureData, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, De
     Curvature_Dn = Calc_AggregatedCurvature(KbPlus_Dn, KbMinus_Dn, SumCVRPlus_Dn, SumCVRMinus_Dn, KB_Corr, 2)
     Result = pd.DataFrame([[99999,Curvature_Up, Curvature_Median, Curvature_Dn, SB]], columns = ["Bucket","KB_U","KB_M","KB_D","SB"], index = [99999])
     return pd.concat([DataByBucket, Result],axis = 0)   
-
-def VegaRiskWeight_Scalar(Risk_Class, Bucket) : 
-    rc = str(Risk_Class)
-    b = str(Bucket)
-    if ((rc in ["EQR","Equity","주식리스크","주식","주식리스크(EQR)"]) and (b in ["1","2","3","4","5","6","7","8","12","13"])) :
-        return 0.7778
-    else : 
-        return 1.0
-VegaRiskWeight = np.vectorize(VegaRiskWeight_Scalar)    
              
 def Calc_GIRRVega_KB(DataByBucket, CorrScenario = 'm') : 
     
@@ -1832,12 +2064,89 @@ def Calc_COMRVega(VegaData, SensitivityColumnName = "Vega") :
     TOTALSB = COMRVega_ByBuc["SB"].sum()
     Result = pd.DataFrame([[99999,COMRVega_U, COMRVega_M, COMRVega_D, TOTALSB]], columns = ["Bucket","KB_U","KB_M","KB_D","SB"], index = [99999])
     return pd.concat([COMRVega_ByBuc, Result],axis = 0)     
+
+def CalcRRAORiskCharge(RRAO_Data) : 
+    RRAO_Data = RRAO_Data[RRAO_Data["Risk_Class"].isin(["RRAO","잔여리스크","RRAO(잔여리스크)","잔여리스크(RRAO)"])]
+    if len(RRAO_Data) > 0 : 
+        exotic = RRAO_Data[RRAO_Data["Risk_Type"].apply(lambda x : True if 'exotic' in str(x).lower() else False)]
+        etc = RRAO_Data[RRAO_Data["Risk_Type"].apply(lambda x : False if 'exotic' in str(x).lower() else True)]
+        b1 = exotic["DRC_RRAO_Nominal"].astype(np.float64).sum() * 0.01
+        b2 = etc["DRC_RRAO_Nominal"].astype(np.float64).sum() * 0.001
+        rrao = b1 + b2 
+        ResultData = pd.DataFrame([], index = [1,2,3])
+        ResultData["Risk_Type"] = ["RRAO_Exotic","RRAO_Etc","99999"]
+        ResultData["Bucket"] = ["RRAO_Exotic","RRAO_Etc","99999"]
+        ResultData["KB_U"] = ResultData["KB_M"] = ResultData["KB_D"] = ResultData["SB"] = [b1, b2, rrao]
+        ResultData["Risk_Class"] = "RRAO"
+    else : 
+        ResultData = pd.DataFrame([])
+    return ResultData
+        
+def CalcDRC3RiskCharge(DRC_Data) : 
+    if len(DRC_Data) > 0 : 
+        DRC_Data["JTD"] = DRC_Data["DRC_RRAO_Nominal"].astype(np.float64) * DRC_Data["DRC_LGD"].astype(np.float64).fillna(0) * DRC_Data["DRC_Position"].astype(np.float64) + DRC_Data["DRC_PL"].fillna(0)
+        DRC1Data = pd.DataFrame([])
+        DRC2Data = pd.DataFrame([])
+        DRC3Data = pd.DataFrame([])
+
+        DRC1 = DRC[DRC["Risk_Type"].isin(["DRC","DRC1"])]
+        if len(DRC1) > 0 : 
+            DRC1["RW"] = DRC1["Rating"].apply(DRC_RW)
+            DRC1_DRC_ByBuc = DRC1.groupby("Bucket").apply(DRC_b, "JTD")
+            DRC1_DRC = DRC1_DRC_ByBuc.sum()    
+            DRC1Data["Bucket"] = list(DRC1_DRC_ByBuc.index) + [99999]
+            DRC1Data["KB_U"] = DRC1Data["KB_M"] = DRC1Data["KB_D"] = DRC1Data["SB"] = list(DRC1_DRC_ByBuc) + [DRC1_DRC]
+        
+        DRC2 = DRC[DRC["Risk_Type"].isin(["DRC","DRC1","DRC_CTP","DRC3"]) == False]
+        if len(DRC2) > 0 : 
+            DRC2["RW"] = DRC2["DRC_RW"].fillna(0)
+            DRC2_DRC_ByBuc = DRC2.groupby("Bucket").apply(DRC_b, "JTD")
+            DRC2_DRC = DRC2_DRC_ByBuc.sum()
+            DRC2Data["Bucket"] = list(DRC2_DRC_ByBuc.index) + [99999]
+            DRC2Data["KB_U"] = DRC2Data["KB_M"] = DRC2Data["KB_D"] = DRC2Data["SB"] = list(DRC2_DRC_ByBuc) + [DRC2_DRC]
+
+        DRC3 = DRC[DRC["Risk_Type"].isin(["DRC_CTP","DRC3"])]
+        if len(DRC3) > 0 :
+            DRC3_Tranche = DRC3[DRC3["Issuer"].isin(["Tranche","tranche"])]
+            DRC3_Tranche["RW"] = DRC3_Tranche["DRC_RW"].fillna(0)
+            DRC3_NonTranche = DRC3[DRC3["Issuer"].isin(["Tranche","tranche"]) == False]
+            DRC3_NonTranche["RW"] = DRC3_NonTranche["Rating"].apply(DRC_RW)
+            DRC3_Adj = pd.concat([DRC3_Tranche, DRC3_NonTranche],axis = 0)
+            HBRMap = DRC3_Adj.groupby("Bucket").apply(HBR_bucket, "JTD")
+            DRC3_Adj["FixedHBR"] = DRC3_Adj["Bucket"].map(HBRMap)
+            DRC3_Adj_DRC_ByBuc = DRC3_Adj.groupby("Bucket").apply(DRC_b, "JTD", 1)
+            DRC3_DRC = max(0,(np.maximum(0, DRC3_Adj_DRC_ByBuc) + 0.5 * np.minimum(0, DRC3_Adj_DRC_ByBuc)).sum())
+            DRC3Data["Bucket"] = list(DRC3_Adj_DRC_ByBuc.index) + [99999]
+            DRC3Data["KB_U"] = DRC3Data["KB_M"] = DRC3Data["KB_D"] = DRC3Data["SB"] = list(DRC3_Adj_DRC_ByBuc) + [DRC3_DRC]
+        DRC_NonSecNonCTP = DRC1Data
+        DRC_NonSecNonCTP["Risk_Class"] = ["DRC"] * len(DRC1Data)
+        DRC_NonSecNonCTP["Risk_Type"] = ["DRC_NonSec"] * len(DRC1Data)
+        
+        DRC_SecData = DRC2Data
+        DRC_SecData["Risk_Class"] = ["DRC"] * len(DRC1Data)
+        DRC_SecData["Risk_Type"] = ["DRC_SecNonCTP"] * len(DRC1Data)
+
+        DRC_CTPData = DRC3Data
+        DRC_CTPData["Risk_Class"] = ["DRC"] * len(DRC1Data)
+        DRC_CTPData["Risk_Type"] = ["DRC_CTP"] * len(DRC1Data)
+        
+        return pd.concat([DRC_NonSecNonCTP, DRC_SecData, DRC_CTPData],axis = 0)
+    else : 
+        return pd.DataFrame([])
   
-def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data, CSR_Sec_NonCTP_Data, CSR_CTP_Data, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 0) : 
+def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data, CSR_Sec_NonCTP_Data, CSR_CTP_Data, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 0, DRC = [], RRAO = []) : 
     if GroupbyFlag == 0 : 
         CSRDelta_Total = Calc_CSRDelta(CSR_Data, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
         CSRCurvature_Total = Calc_CSRCurvature(CSR_Data, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
         CSRVega_Total = Calc_CSRVega(CSR_Data, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
+
+        CSRSecNonCTP_Delta_Total = Calc_CSRSecuritizedNonCTPDelta(CSR_Sec_NonCTP_Data, CSR_SecuritizedNonCTPDelta_RW, DeltaSensiName).reset_index()
+        CSRSecNonCTP_Curvature_Total = Calc_CSRSecuritizedNonCTPCurvature(CSR_Sec_NonCTP_Data, CSR_SecuritizedNonCTPDelta_RW, DeltaSensiName).reset_index()
+        CSRSecNonCTP_Vega_Total = Calc_CSRSecuritizedNonCTPVega(CSR_Sec_NonCTP_Data, VegaSensiName).reset_index()
+
+        CSRCTPDelta_Total = Calc_CSRDelta(CSR_CTP_Data, CSR_DeltaNonSecurCorrDf, DeltaSensiName, 1).reset_index()
+        CSRCTPCurvature_Total = Calc_CSRCurvature(CSR_CTP_Data, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
+        CSRCTPVega_Total = Calc_CSRVega(CSR_CTP_Data, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
 
         GIRRDelta_Total = Calc_GIRRDelta(GIRR_Data, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
         GIRRCurvature_Total = Calc_GIRRCurvature(GIRR_Data, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
@@ -1854,10 +2163,25 @@ def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data
         COMRDelta_Total = Calc_COMRDelta(COMR_Data, DeltaSensiName).reset_index()
         COMRCurvature_Total = Calc_COMRCurvature(COMR_Data, DeltaSensiName).reset_index()
         COMRVega_Total = Calc_COMRVega(COMR_Data, VegaSensiName).reset_index()  
+        
+        if len(DRC) > 0 :
+            DRC_Total = CalcDRC3RiskCharge(DRC).reset_index()
+        
+        if len(RRAO) > 0 : 
+            RRAO_Total = CalcRRAORiskCharge(RRAO).reset_index()
+        
     elif GroupbyFlag == 1 : 
         CSRDelta_Total = CSR_Data.groupby("Depart").apply(Calc_CSRDelta, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
         CSRCurvature_Total = CSR_Data.groupby("Depart").apply(Calc_CSRCurvature, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
         CSRVega_Total = CSR_Data.groupby("Depart").apply(Calc_CSRVega, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
+        
+        CSRSecNonCTP_Delta_Total = CSR_Sec_NonCTP_Data.groupby("Depart").apply(Calc_CSRSecuritizedNonCTPDelta, CSR_SecuritizedNonCTPDelta_RW, DeltaSensiName).reset_index()
+        CSRSecNonCTP_Curvature_Total = CSR_Sec_NonCTP_Data.groupby("Depart").apply(Calc_CSRSecuritizedNonCTPCurvature, CSR_SecuritizedNonCTPDelta_RW, DeltaSensiName).reset_index()
+        CSRSecNonCTP_Vega_Total = CSR_Sec_NonCTP_Data.groupby("Depart").apply(Calc_CSRSecuritizedNonCTPVega, VegaSensiName).reset_index()        
+
+        CSRCTPDelta_Total = CSR_CTP_Data.groupby("Depart").apply(Calc_CSRDelta, CSR_DeltaNonSecurCorrDf, DeltaSensiName, 1).reset_index()
+        CSRCTPCurvature_Total = CSR_CTP_Data.groupby("Depart").apply(Calc_CSRCurvature, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
+        CSRCTPVega_Total = CSR_CTP_Data.groupby("Depart").apply(Calc_CSRVega, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
         
         GIRRDelta_Total = GIRR_Data.groupby("Depart").apply(Calc_GIRRDelta, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
         GIRRCurvature_Total = GIRR_Data.groupby("Depart").apply(Calc_GIRRCurvature, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
@@ -1874,10 +2198,25 @@ def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data
         COMRDelta_Total = COMR_Data.groupby("Depart").apply(Calc_COMRDelta, DeltaSensiName).reset_index()
         COMRCurvature_Total = COMR_Data.groupby("Depart").apply(Calc_COMRCurvature, DeltaSensiName).reset_index()
         COMRVega_Total = COMR_Data.groupby("Depart").apply(Calc_COMRVega, VegaSensiName).reset_index()  
+
+        if len(DRC) > 0 :
+            DRC_Total = DRC.groupby("Depart").apply(CalcDRC3RiskCharge).reset_index()
+           
+        if len(RRAO) > 0 : 
+            RRAO_Total = RRAO.groupby("Depart").apply(CalcRRAORiskCharge).reset_index()
+            
     else : 
         CSRDelta_Total = CSR_Data.groupby("Portfolio").apply(Calc_CSRDelta, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
         CSRCurvature_Total = CSR_Data.groupby("Portfolio").apply(Calc_CSRCurvature, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
         CSRVega_Total = CSR_Data.groupby("Portfolio").apply(Calc_CSRVega, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
+
+        CSRSecNonCTP_Delta_Total = CSR_Sec_NonCTP_Data.groupby("Portfolio").apply(Calc_CSRSecuritizedNonCTPDelta, CSR_SecuritizedNonCTPDelta_RW, DeltaSensiName).reset_index()
+        CSRSecNonCTP_Curvature_Total = CSR_Sec_NonCTP_Data.groupby("Portfolio").apply(Calc_CSRSecuritizedNonCTPCurvature, CSR_SecuritizedNonCTPDelta_RW, DeltaSensiName).reset_index()
+        CSRSecNonCTP_Vega_Total = CSR_Sec_NonCTP_Data.groupby("Portfolio").apply(Calc_CSRSecuritizedNonCTPVega, VegaSensiName).reset_index()        
+
+        CSRCTPDelta_Total = CSR_CTP_Data.groupby("Portfolio").apply(Calc_CSRDelta, CSR_DeltaNonSecurCorrDf, DeltaSensiName, 1).reset_index()
+        CSRCTPCurvature_Total = CSR_CTP_Data.groupby("Portfolio").apply(Calc_CSRCurvature, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
+        CSRCTPVega_Total = CSR_CTP_Data.groupby("Portfolio").apply(Calc_CSRVega, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
         
         GIRRDelta_Total = GIRR_Data.groupby("Portfolio").apply(Calc_GIRRDelta, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
         GIRRCurvature_Total = GIRR_Data.groupby("Portfolio").apply(Calc_GIRRCurvature, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
@@ -1895,12 +2234,31 @@ def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data
         COMRCurvature_Total = COMR_Data.groupby("Portfolio").apply(Calc_COMRCurvature, DeltaSensiName).reset_index()
         COMRVega_Total = COMR_Data.groupby("Portfolio").apply(Calc_COMRVega, VegaSensiName).reset_index()  
     
+        if len(DRC) > 0 :
+            DRC_Total = DRC.groupby("Portfolio").apply(CalcDRC3RiskCharge).reset_index()    
+    
+        if len(RRAO) > 0 : 
+            RRAO_Total = RRAO.groupby("Portfolio").apply(CalcRRAORiskCharge).reset_index()
+
+    
     CSRDelta_Total["Risk_Type"] = "CSR_Delta"
     CSRDelta_Total["Risk_Class"] = "CSR"
     CSRCurvature_Total["Risk_Type"] = "CSR_Curvature"
     CSRCurvature_Total["Risk_Class"] = "CSR"
     CSRVega_Total["Risk_Type"] = "CSR_Vega"
     CSRVega_Total["Risk_Class"] = "CSR"    
+    CSRSecNonCTP_Delta_Total["Risk_Type"] = "CSRSecNonCTP_Delta"
+    CSRSecNonCTP_Delta_Total["Risk_Class"] = "CSRSecNonCTP"
+    CSRSecNonCTP_Curvature_Total["Risk_Type"] = "CSRSecNonCTP_Curvature"
+    CSRSecNonCTP_Curvature_Total["Risk_Class"] = "CSRSecNonCTP"
+    CSRSecNonCTP_Vega_Total["Risk_Type"] = "CSRSecNonCTP_Vega"
+    CSRSecNonCTP_Vega_Total["Risk_Class"] = "CSRSecNonCTP"    
+    CSRCTPDelta_Total["Risk_Type"] = "CSRCTP_Delta"
+    CSRCTPDelta_Total["Risk_Class"] = "CSRCTP"
+    CSRCTPCurvature_Total["Risk_Type"] = "CSRCTP_Curvature"
+    CSRCTPCurvature_Total["Risk_Class"] = "CSRCTP"
+    CSRCTPVega_Total["Risk_Type"] = "CSRCTP_Vega"
+    CSRCTPVega_Total["Risk_Class"] = "CSRCTP"    
     GIRRDelta_Total["Risk_Type"] = "GIRR_Delta"
     GIRRDelta_Total["Risk_Class"] = "GIRR"
     GIRRCurvature_Total["Risk_Type"] = "GIRR_Curvature"
@@ -1926,16 +2284,31 @@ def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data
     COMRVega_Total["Risk_Type"] = "COMR_Vega"
     COMRVega_Total["Risk_Class"] = "COMR"
     
-    AggregatedData = pd.concat([CSRDelta_Total, CSRCurvature_Total, CSRVega_Total,
-                                GIRRDelta_Total, GIRRCurvature_Total, GIRRVega_Total,
-                                FXRDelta_Total, FXRCurvature_Total, FXRVega_Total,
-                                EQRDelta_Total, EQRCurvature_Total, EQRVega_Total,
-                                COMRDelta_Total, COMRCurvature_Total, COMRVega_Total
-                               ], axis = 0)
+    if len(DRC) == 0 :
+        AggregatedData = pd.concat([CSRDelta_Total, CSRCurvature_Total, CSRVega_Total,
+                                    CSRSecNonCTP_Delta_Total, CSRSecNonCTP_Curvature_Total, CSRSecNonCTP_Vega_Total,
+                                    CSRCTPDelta_Total, CSRCTPCurvature_Total, CSRCTPVega_Total,
+                                    GIRRDelta_Total, GIRRCurvature_Total, GIRRVega_Total,
+                                    FXRDelta_Total, FXRCurvature_Total, FXRVega_Total,
+                                    EQRDelta_Total, EQRCurvature_Total, EQRVega_Total,
+                                    COMRDelta_Total, COMRCurvature_Total, COMRVega_Total
+                                ], axis = 0)
+    else : 
+        AggregatedData = pd.concat([CSRDelta_Total, CSRCurvature_Total, CSRVega_Total,
+                                    CSRSecNonCTP_Delta_Total, CSRSecNonCTP_Curvature_Total, CSRSecNonCTP_Vega_Total,
+                                    CSRCTPDelta_Total, CSRCTPCurvature_Total, CSRCTPVega_Total,
+                                    GIRRDelta_Total, GIRRCurvature_Total, GIRRVega_Total,
+                                    FXRDelta_Total, FXRCurvature_Total, FXRVega_Total,
+                                    EQRDelta_Total, EQRCurvature_Total, EQRVega_Total,
+                                    COMRDelta_Total, COMRCurvature_Total, COMRVega_Total,
+                                    DRC_Total], axis = 0)
+    if len(RRAO) > 0: 
+        AggregatedData = pd.concat([AggregatedData, RRAO_Total],axis=0)
+        
     if GroupbyFlag == 0 : 
         AggregatedGroupbyData = AggregatedData.groupby(["Risk_Class","Risk_Type","Bucket"])[["KB_U","KB_M","KB_D","SB"]].sum().reset_index()
         TotalClass = AggregatedGroupbyData[AggregatedGroupbyData["Bucket"].isin(['99999',99999])].groupby("Risk_Class")[["KB_U","KB_M","KB_D","SB"]].sum()
-        TotalClass.loc["SBM"] = TotalClass.sum(0)
+        TotalClass.loc["FRTB_SA"] = TotalClass.sum(0)
         TotalClass = TotalClass.reset_index()
         TotalClass["Risk_Type"] = "*"
         TotalClass["Bucket"] = "*"
@@ -1944,14 +2317,14 @@ def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data
         AggregatedGroupbyData = AggregatedData.groupby(["Depart","Risk_Class","Risk_Type","Bucket"])[["KB_U","KB_M","KB_D","SB"]].sum().reset_index()
         TotalClass = AggregatedGroupbyData[AggregatedGroupbyData["Bucket"].isin(['99999',99999])].groupby(["Depart","Risk_Class"])[["KB_U","KB_M","KB_D","SB"]].sum()
         TotalClassRiskCharge = TotalClass.groupby("Depart")[["KB_U","KB_M","KB_D","SB"]].sum().reset_index()
-        TotalClassRiskCharge["Risk_Class"] = "SBM"
+        TotalClassRiskCharge["Risk_Class"] = "FRTB_SA"
         TotalClassRiskCharge = TotalClassRiskCharge.set_index(["Depart","Risk_Class"])
         TotalClass = pd.concat([TotalClass, TotalClassRiskCharge],axis = 0).sort_index()
     else : 
         AggregatedGroupbyData = AggregatedData.groupby(["Portfolio","Risk_Class","Risk_Type","Bucket"])[["KB_U","KB_M","KB_D","SB"]].sum().reset_index()
         TotalClass = AggregatedGroupbyData[AggregatedGroupbyData["Bucket"].isin(['99999',99999])].groupby(["Portfolio","Risk_Class"])[["KB_U","KB_M","KB_D","SB"]].sum()
         TotalClassRiskCharge = TotalClass.groupby("Portfolio")[["KB_U","KB_M","KB_D","SB"]].sum().reset_index()
-        TotalClassRiskCharge["Risk_Class"] = "SBM"
+        TotalClassRiskCharge["Risk_Class"] = "FRTB_SA"
         TotalClassRiskCharge = TotalClassRiskCharge.set_index(["Portfolio","Risk_Class"])
         TotalClass = pd.concat([TotalClass, TotalClassRiskCharge],axis = 0).sort_index()
     return TotalClass
@@ -2039,22 +2412,29 @@ if __name__ == '__main__':
     RAWFORMAT = int(input("자체데이터 RAWData 엑셀 포멧이면 0을 KDB RAW Data 포멧의 경우 1을 입력하시오\n->"))
     RAWData = MainFunction(currdir)
     if RAWFORMAT == 0 : 
-        CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR = PreProcessingMyData(RAWData)
+        CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR, DRC, RRAO = PreProcessingMyData(RAWData)
     else : 
         CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR = PreProcessingKDBData(RAWData, dataformat = 'splited') 
-    ResultData = AggregatedFRTB_RiskCharge(CSR, GIRR, FXR, EQR, COMR, CSR_SecuritizedNonCTP, CSR_CTP, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 0)
-    ResultData.to_excel("ResultFRTB.xlsx")
+        DRC = pd.DataFrame([])
+        RRAO = pd.DataFrame([])
+    print("##############\n####산출중#####\n##############\n")
+    writer = pd.ExcelWriter('ResultFRTB.xlsx', engine='xlsxwriter')
+    ResultData1 = AggregatedFRTB_RiskCharge(CSR, GIRR, FXR, EQR, COMR, CSR_SecuritizedNonCTP, CSR_CTP, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 0, DRC = DRC, RRAO= RRAO)
+    ResultData2 = AggregatedFRTB_RiskCharge(CSR, GIRR, FXR, EQR, COMR, CSR_SecuritizedNonCTP, CSR_CTP, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 1, DRC = DRC, RRAO= RRAO)
+    ResultData3 = AggregatedFRTB_RiskCharge(CSR, GIRR, FXR, EQR, COMR, CSR_SecuritizedNonCTP, CSR_CTP, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 2, DRC = DRC, RRAO= RRAO)
+    
+    ResultData1.to_excel(writer, sheet_name = 'ByBucket')
+    ResultData2.to_excel(writer, sheet_name = 'ByDepart')
+    ResultData3.to_excel(writer, sheet_name = 'ByPortfolio')
+    writer.save()
+    writer.close()
 
 # %%
-#Calc_CSRCurvature(CSR, CSR_DeltaNonSecurCorrDf, DeltaSensitivityColumnName = "Delta_Sensi")
-#Calc_CSRVega(CSR, CSR_DeltaNonSecurCorrDf,  "Vega_Sensi")
-#CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR = PreProcessingMyData(RAWData)
-#if __name__ == __main__ : 
-#RAWData = pd.read_csv("FRTB_RAW.csv")
-#CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR = PreProcessingMyData(RAWData)
-#MyDf = AggregatedFRTB_RiskCharge(CSR, GIRR, FXR, EQR, COMR, CSR_SecuritizedNonCTP, CSR_CTP, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 0)    
+#CalcRRAORiskCharge(RRAO)
 # %%
 
+
 # %%
-#__name__
+Calc_CSRSecuritizedNonCTPCurvature(CSR_SecuritizedNonCTP, CSR_SecuritizedNonCTPDelta_RW, DeltaSensitivityColumnName = "Delta_Sensi")
+# %%
 # %%
