@@ -1,0 +1,88 @@
+﻿  IRStructuredSwapOneCurve.cpp
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(9,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(819,32): warning C4101: 'k2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(819,28): warning C4101: 'k1' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(1302,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(1342,14): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(1414,62): warning C4553: '==': 식의 결과가 사용되지 않습니다. '='을(를) 의도했습니까?
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(1548,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(1935,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2063,10): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2135,10): warning C4101: 'TempDate' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2180,10): warning C4101: 'EasterMonday' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2221,14): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2220,14): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2262,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2334,10): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2500,22): warning C4101: 'PrevTempDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2584,10): warning C4101: 'LastBusiDay' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(2798,14): warning C4101: 'TempDateExcelType' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(3324,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(3374,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(3425,10): warning C4101: 'TempYYYYMMDD' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(3560,10): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(3781,75): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(3782,43): warning C4244: '=': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\CalcDate.h(3874,10): warning C4101: 'n2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(10,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(2844,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(2978,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(3377,13): warning C4101: 'HWVol2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(3375,12): warning C4101: 'kappa2' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(3376,13): warning C4101: 'HWVol' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(3373,13): warning C4101: 'n' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(3374,12): warning C4101: 'kappa' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(3903,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4032,13): warning C4101: 'HWVol' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4026,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4441,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4542,17): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4538,12): warning C4101: 'Bst' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4540,15): warning C4101: 'ds' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4540,12): warning C4101: 's' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4537,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4538,17): warning C4101: 'BsT' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4598,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4777,12): warning C4101: 'sigma' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(5541,12): warning C4101: 'fm' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(27,8): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(38,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(170,9): warning C4101: 'u_i_j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(309,15): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(352,14): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(348,9): warning C4101: 'Bst' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(350,12): warning C4101: 'ds' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(350,9): warning C4101: 's' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(347,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(348,14): warning C4101: 'BsT' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(395,9): warning C4101: 'A' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(426,7): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(944,60): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(989,65): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(999,64): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1073,60): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1074,61): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1136,66): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1138,68): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1148,65): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1150,67): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1243,60): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1288,65): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1298,64): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1370,60): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1371,61): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1433,66): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1435,68): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1445,65): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1447,67): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1619,117): warning C4101: 'R' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(839,26): warning C4101: 'y_p' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(839,21): warning C4101: 'x_p' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1617,47): warning C4101: 'fwdvar' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(570,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(925,21): warning C4101: 'df_T_Rcv' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(925,31): warning C4101: 'df_T_Pay' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4985): warning C4715: 'HWCapHWSwaption_2FCalibration': 모든 제어 경로에서 값을 반환하지는 않습니다.
+     C:\Users\ciiad\github5\IRStructuredSwapOneCurve\x64\Debug\IRStructuredSwapOneCurve.lib 라이브러리 및 C:\Users\ciiad\github5\IRStructuredSwapOneCurve\x64\Debug\IRStructuredSwapOneCurve.exp 개체를 생성하고 있습니다.
+  IRStructuredSwapOneCurve.vcxproj -> C:\Users\ciiad\github5\IRStructuredSwapOneCurve\x64\Debug\IRStructuredSwapOneCurve.dll

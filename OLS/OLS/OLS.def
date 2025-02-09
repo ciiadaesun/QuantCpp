@@ -1,0 +1,4 @@
+LIBRARY "OLS"
+EXPORTS
+	MLE_Estimate			@1
+	OLS_Estimate			@2

@@ -1,0 +1,37 @@
+CSR : 
+  RiskFactor1 - 신용등급
+  RiskFactor2 - 테너
+  RiskFactor3 - 채권발행자
+
+CSR 유동화(CTP 제외): 
+  RiskFactor1 - 신용등급
+  RiskFactor2 - 테너
+  RiskFactor3 - 트렌치
+
+CSR CTP: 
+  RiskFactor1 - 신용등급
+  RiskFactor2 - 테너
+  RiskFactor3 - 채권발행자
+
+GIRR : 
+  RiskFactor1 - 커브
+  RiskFactor2 - 테너
+  RiskFactor3 - 타입(Rate : 이자율스왑, INF 인플레이션스왑, CRS : 통화스왑)
+                    베가의 경우 테너2(옵션만기)
+
+EQR : 
+  RiskFactor1 - price or repo 여부
+  RiskFactor2 - 주식종목명, 테너(베가)
+  RiskFactor3 - 
+
+FXR : 
+  RiskFactor1 - 통화
+  RiskFactor2 - 테너
+  RiskFactor3 - 
+
+COMR : 
+  RiskFactor1 - 기초자산
+  RiskFactor2 - 테너
+  RiskFactor3 - 장소
+
+

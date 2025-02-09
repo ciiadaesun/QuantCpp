@@ -1,0 +1,13 @@
+﻿  SABR.cpp
+C:\Users\ciiad\github5\SABR\SABR\Util.h(16,1): warning C4067: 전처리기 지시문 다음에 예기치 않은 토큰이 있습니다. 줄 바꿈 문자가 필요합니다.
+C:\Users\ciiad\github5\SABR\SABR\SABR.cpp(47,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\SABR\SABR\SABR.cpp(108,7): warning C4101: 'temp' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\SABR\SABR\SABR.cpp(329,7): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\SABR\SABR\SABR.cpp(511,10): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\SABR\SABR\SABR.cpp(511,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+     C:\Users\ciiad\github5\SABR\Release\SABR.lib 라이브러리 및 C:\Users\ciiad\github5\SABR\Release\SABR.exp 개체를 생성하고 있습니다.
+  코드를 생성하고 있습니다.
+  Previous IPDB not found, fall back to full compilation.
+  All 62 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  코드를 생성했습니다.
+  SABR.vcxproj -> C:\Users\ciiad\github5\SABR\Release\SABR.dll

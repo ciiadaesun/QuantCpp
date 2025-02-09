@@ -1,0 +1,7 @@
+LIBRARY
+
+EXPORTS
+	InflationSwap_Pricing				@001
+	CDateToExcelDate					@002
+	ExcelDateToCDate					@003
+	InflationCurveGenerate				@004
