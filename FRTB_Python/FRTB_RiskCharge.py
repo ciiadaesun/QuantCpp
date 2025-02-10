@@ -1,4 +1,4 @@
-
+#%%
 """
 Created By Daesun Lim (CIIA(R), FRM(R))
 Risk Quant Manager
@@ -7,12 +7,13 @@ v1.0.1
 """
 import numpy as np
 import pandas as pd
-from numba import jit
+# JIT은 쓰지말자
+#from numba import jit
 import warnings
 import os
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
-print("###############################\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Quant Manager\nMy FRTB Module \nv1.0.1 \n###############################\n")
+print("#####################################\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Quant Manager\nMy FRTB Module \nv1.0.1 \n#####################################\n")
 
 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
 GIRR_VegaRiskFactor1 = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
@@ -700,13 +701,15 @@ def BusinessDateArrayFromAtoB(StartY, EndY, HolidayList) :
     EndYYYYMMDD = EndY *10000 + 101
     n = DayCountAtoB(StartYYYYMMDD, EndYYYYMMDD) + 1
     BD = []
+    BDExcel = []
     for d in range(n) : 
         TempDate = StartYYYYMMDD if d == 0 else DayPlus(TempDate, 1)
         ExcelDate = YYYYMMDDToExcelDate(TempDate)
         MOD7 = ExcelDate % 7
         if (MOD7 not in [0,1]) and (TempDate not in HolidayList) :         
             BD.append(TempDate)
-    return BD
+            BDExcel.append(ExcelDate)
+    return BD, BDExcel
 
 def Calc_ChildrensDay_Korea(YYYY) :
     '''
@@ -1319,7 +1322,7 @@ def Number_of_Coupons(
                 nbd = NBusinessCountFromEndToPay(PriceDateYYYYMMDD, SwapMat_YYYYMMDD, HolidayYYYYMMDD, ModifiedFollowingFlag, TempEndList)
                 SwapMat_YYYYMMDD = TempEndList[0]
 
-            CpnDate = malloc_cpn_date_holiday(PriceDateYYYYMMDD, SwapMat_YYYYMMDD, AnnCpnOneYear, HolidayYYYYMMDD if HolidayUseFlag > 0 else [], ModifiedFollowingFlag)[0]
+            CpnDate, firstcpndate = malloc_cpn_date_holiday(PriceDateYYYYMMDD, SwapMat_YYYYMMDD, AnnCpnOneYear, HolidayYYYYMMDD if HolidayUseFlag > 0 else [], ModifiedFollowingFlag)[0]
             return len(CpnDate)
     else:
         StartDateYYYYMMDD = PriceDateYYYYMMDD
@@ -1332,7 +1335,7 @@ def Number_of_Coupons(
             nbd = NBusinessCountFromEndToPay(PriceDateYYYYMMDD, SwapMat_YYYYMMDD, HolidayYYYYMMDD, ModifiedFollowingFlag, TempEndList)
             EndDateYYYYMMDD = TempEndList[0]
         
-        CpnDate = malloc_cpn_date_holiday(PriceDateYYYYMMDD, EndDateYYYYMMDD, AnnCpnOneYear, HolidayYYYYMMDD if HolidayUseFlag > 0 else [], ModifiedFollowingFlag)[0]
+        CpnDate, firstcpndate = malloc_cpn_date_holiday(PriceDateYYYYMMDD, EndDateYYYYMMDD, AnnCpnOneYear, HolidayYYYYMMDD if HolidayUseFlag > 0 else [], ModifiedFollowingFlag)[0]
 
         return len(CpnDate)
 
@@ -1460,7 +1463,7 @@ def MappingCouponDates(
         else :
             EndDateYYYYMMDD = EndYYYYMM * 100 + StartDD
 
-        CpnDate = malloc_cpn_date_holiday(StartDateYYYYMMDD, EndDateYYYYMMDD, AnnCpnOneYear, HolidayYYYYMMDD if HolidayUseFlag > 0 else [], ModifiedFollowingFlag)[0]
+        CpnDate, firstcpndate = malloc_cpn_date_holiday(StartDateYYYYMMDD, EndDateYYYYMMDD, AnnCpnOneYear, HolidayYYYYMMDD if HolidayUseFlag > 0 else [], ModifiedFollowingFlag)[0]
         for i in range(min(NumberCoupon, len(CpnDate))) :
             if (i == 0) : 
                 if (ResultIsExcelType == 1) :
@@ -1496,7 +1499,7 @@ def MappingCouponDates(
                         break
     return ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD                    
 
-def Calc_Forward_Rate_ForSOFR(TermArray, RateArray, LengthArray, T1, T2, DeltaT):
+def Calc_Forward_Rate_ForSOFR(TermArray, RateArray, T1, T2, DeltaT):
     LengthArray = min(len(TermArray), len(RateArray))
     EXP_APPROX = 2.718281828459045
     # Linear Interpolation
@@ -1620,6 +1623,187 @@ def SOFR_ForwardRate_Compound(
     AnnualizedOISRate = (PI_0 - 1.0) / T
     return PI_0 - 1.0, AnnualizedOISRate
 
+def istermtype(termlist) : 
+    term = np.array(termlist, dtype = np.float64)
+    if term.min() >= 19000101 : 
+        return "YYYYMMDD"
+    elif term.min() > 30.0 : 
+        return "ExcelDate"
+    else : 
+        return "Term"
+
+def Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate) : 
+    if len(ZeroTerm) > 0 : 
+        istermtype_ZeroTerm = istermtype(ZeroTerm)
+        if istermtype_ZeroTerm == "YYYYMMDD" : 
+            for i in range(len(ZeroTerm)) : 
+                ZeroTerm[i] = (DayCountAtoB(PriceDate, ZeroTerm[i])/365)
+        elif istermtype_ZeroTerm == "ExcelDate" :
+            ExcelPriceDate = YYYYMMDDToExcelDate(PriceDate) if int(PriceDate) >= 19000101 else PriceDate
+            for i in range(len(ZeroTerm)) : 
+                ZeroTerm[i] = ((ZeroTerm[i] - ExcelPriceDate)/365)
+        
+        if np.abs(np.array(ZeroRate)).mean() > 0.6 : 
+            for i in range(len(ZeroRate)) : 
+                ZeroRate[i] = ZeroRate[i]/100
+
+def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
+              PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroCurveRate, 
+              AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [],
+              EstZeroCurveRate = [], FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
+              LoggingFlag = 0, LoggingDir = '', ModifiedFollow = 1, OverNightRateDateHistory = [], OverNightRateHistory = [], LookBackDays = 0, ObservShift = False) :
+    
+    LoggingStart = []
+    LoggingEnd = []
+    LoggingPayDate = []
+    LoggingFraction = []
+    LoggingForwardRate = []
+    LoggingCpnFix = []
+    LoggingCpnRate = []
+    LoggingDF = []
+    
+    ModifiedFollow = 1
+    PriceDateYYYY, MaturityYYYY = int(PriceDateYYYYMMDD // 10000), int(MaturityYYYYMMDD // 10000)
+    if len(AdditionalPayHolidayList) == 0 : 
+        if KoreanHoliday == True : 
+            HolidayYYYYMMDD = np.array(KoreaHolidaysFromStartToEnd(PriceDateYYYY, MaturityYYYY + 1), dtype = np.int64)
+        else : 
+            HolidayYYYYMMDD = np.array(AdditionalPayHolidayList, dtype = np.int64)            
+    else : 
+        HolidayYYYYMMDD = np.array(AdditionalPayHolidayList, dtype = np.int64)
+    
+    FixingHolidayYYYYMMDD = HolidayYYYYMMDD if len(FixingHolidayList) == 0 else np.array(FixingHolidayList, dtype = np.int64)
+    if (AnnCpnOneYear >= 4 and DayCountAtoB(EffectiveDateYYYYMMDD, MaturityYYYYMMDD) < 70) or (DayCountAtoB(EffectiveDateYYYYMMDD, MaturityYYYYMMDD) < 10) : 
+        Generated_CpnDate = np.array([MaturityYYYYMMDD], dtype = np.int64)
+    else : 
+        Generated_CpnDate, firstcpndate = malloc_cpn_date_holiday(EffectiveDateYYYYMMDD, MaturityYYYYMMDD, AnnCpnOneYear, FixingHolidayYYYYMMDD, ModifiedFollow)
+
+    BDate = []  
+    DayCountBDate = []
+    if FloatFlag == 2 : 
+        # SOFR의 경우 BusinessDate를 Generate
+        BDate, BDExcel = BusinessDateArrayFromAtoB(PriceDateYYYY - 1, MaturityYYYY + 1, FixingHolidayYYYYMMDD)
+        BDate = np.array(BDate[:-1])
+        BDExcel = np.array(BDExcel)
+        DayCountBDate = BDExcel[1:] - BDExcel[:-1]
+            
+    s = 0
+    for i in range(len(Generated_CpnDate)) : 
+        YYYYMMDDofNextDate = Generated_CpnDate[i]
+        tpay = DayCountAtoB(PriceDateYYYYMMDD, Generated_CpnDate[i])/365
+        r1 = 0.
+        r2 = 0.
+        if MaturityToPayDate > 0 : 
+            ExcelDate = YYYYMMDDToExcelDate(Generated_CpnDate[i])
+            n = 0
+            for k in range(20) : 
+                NextExcelDate = ExcelDate + (k + 1)
+                SaturSundayFlag = 1 if NextExcelDate % 7 in [0,1] else 0
+                YYYYMMDDofNextDate = ExcelDateToYYYYMMDD(NextExcelDate)
+                HolidayFlag = YYYYMMDDofNextDate in HolidayYYYYMMDD
+                if (HolidayFlag == 0) and (SaturSundayFlag == 0) : 
+                    n += 1
+                
+                if (n >= MaturityToPayDate) : 
+                    tpay = DayCountAtoB(PriceDateYYYYMMDD, YYYYMMDDofNextDate) / 365
+                    break
+        if (i > 0) : 
+            tstart = DayCountAtoB(PriceDateYYYYMMDD, Generated_CpnDate[i-1])/365
+            tend = DayCountAtoB(PriceDateYYYYMMDD, Generated_CpnDate[i])/365            
+            deltat = DayCountFractionAtoB(Generated_CpnDate[i-1], Generated_CpnDate[i], DayCountFlag, HolidayYYYYMMDD)
+        else : 
+            tstart = DayCountAtoB(PriceDateYYYYMMDD, EffectiveDateYYYYMMDD)/365
+            tend = DayCountAtoB(PriceDateYYYYMMDD, Generated_CpnDate[i])/365            
+            deltat = DayCountFractionAtoB(EffectiveDateYYYYMMDD, Generated_CpnDate[i], DayCountFlag, HolidayYYYYMMDD)
+            
+        LastFixingDate = EffectiveDateYYYYMMDD if i == 0 else Generated_CpnDate[i-1]
+        
+        f = 0
+        if LastFixingDate < PriceDateYYYYMMDD : 
+            f = FirstFloatFixRate
+        elif LastFixingDate >= PriceDateYYYYMMDD : 
+            if len(EstZeroCurveRate) == 0 and len(EstZeroCurveTerm) == 0 :
+                if FloatFlag == 2 : 
+                    Start = EDate_YYYYMMDD(Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, -1)
+                    End = Generated_CpnDate[i]
+                    BusinessDate = BDate[(BDate >= Start) & (BDate <= End)]
+                    NBDCount = DayCountBDate[(BDate >= Start) & (BDate <= End)]
+                    CompValue, f = SOFR_ForwardRate_Compound(PriceDateYYYYMMDD,    ZeroCurveTerm,    ZeroCurveRate,     Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD,    Generated_CpnDate[i],
+                                                            0,    LookBackDays,    ObservShift,    0,    BusinessDate,    NBDCount,
+                                                            OverNightRateDateHistory,    OverNightRateHistory,    365 if DayCountFlag == 0 else 360,    1)
+                else : 
+                    r1 = Linterp(ZeroCurveTerm, ZeroCurveRate, tstart)
+                    r2 = Linterp(ZeroCurveTerm, ZeroCurveRate, tend)
+                    f = 1.0 / deltat * (np.exp(-r1 * tstart)/np.exp(-r2 * tend) - 1.0)                    
+            else : 
+                if FloatFlag == 2 : 
+                    Start = EDate_YYYYMMDD(Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, -1)
+                    End = Generated_CpnDate[i]
+                    BusinessDate = BDate[(BDate >= Start) & (BDate <= End)]
+                    NBDCount = DayCountBDate[(BDate >= Start) & (BDate <= End)]
+                    CompValue, f = SOFR_ForwardRate_Compound(PriceDateYYYYMMDD,    EstZeroCurveTerm,    EstZeroCurveTerm,     Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD,    Generated_CpnDate[i],
+                                                            0,    LookBackDays,    ObservShift,    0,    BusinessDate,    NBDCount,
+                                                            OverNightRateDateHistory,    OverNightRateHistory,    365 if DayCountFlag == 0 else 360,    1)
+                else : 
+                    r1 = Linterp(EstZeroCurveTerm, EstZeroCurveRate, tstart)
+                    r2 = Linterp(EstZeroCurveTerm, EstZeroCurveRate, tend)
+                    f = 1.0 / deltat * (np.exp(-r1 * tstart)/np.exp(-r2 * tend) - 1.0)
+                    
+            
+        r = Linterp(ZeroCurveTerm, ZeroCurveRate, tpay)
+        if tpay > 0 : 
+            if DayCountFlag != 3 : 
+                cpn = (f * (FloatFlag > 0) + CpnRate) * Nominal * deltat * np.exp(-r * tpay)
+            else : 
+                if (AnnCpnOneYear == 1) : 
+                    cpn = (f * (FloatFlag > 0) + CpnRate) * Nominal * np.exp(-r * tpay) 
+                elif (AnnCpnOneYear == 2) : 
+                    cpn = (f * (FloatFlag > 0) + CpnRate) * 0.5 * Nominal * np.exp(-r * tpay) 
+                elif (AnnCpnOneYear == 3) : 
+                    cpn = (f * (FloatFlag > 0) + CpnRate) * 0.3333333333 * Nominal * np.exp(-r * tpay) 
+                elif (AnnCpnOneYear == 4) : 
+                    cpn = (f * (FloatFlag > 0) + CpnRate) * 0.25 * Nominal * np.exp(-r * tpay) 
+                elif (AnnCpnOneYear == 6) : 
+                    cpn = (f * (FloatFlag > 0) + CpnRate) * 0.166666666667 * Nominal * np.exp(-r * tpay) 
+                elif (AnnCpnOneYear == 12) : 
+                    cpn = (f * (FloatFlag > 0) + CpnRate) * 0.083333333333 * Nominal * np.exp(-r * tpay) 
+                else : 
+                    raise ValueError("Check AnnCpnNum")
+        else : 
+            cpn = 0
+        
+        s += cpn
+        if LoggingFlag > 0 : 
+            LoggingStart.append(Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD)
+            LoggingEnd.append(Generated_CpnDate[i])
+            LoggingPayDate.append(YYYYMMDDofNextDate)
+            LoggingFraction.append(deltat)
+            LoggingForwardRate.append(f)
+            LoggingCpnFix.append(CpnRate)
+            LoggingCpnRate.append(cpn)
+            LoggingDF.append(np.exp(-r * tpay))
+                    
+    if NominalFlag == 1 : 
+        if NominalDateIsNominalPayDate == True : 
+            tpay = DayCountAtoB(PriceDateYYYYMMDD, Generated_CpnDate[-1])/365
+            r = Linterp(ZeroCurveTerm, ZeroCurveRate, tpay)
+        s += Nominal * np.exp(-r * tpay)
+        if (LoggingFlag > 0) : 
+            LoggingStart.append(EffectiveDateYYYYMMDD)
+            LoggingEnd.append(Generated_CpnDate[-1])
+            LoggingPayDate.append(YYYYMMDDofNextDate if NominalDateIsNominalPayDate == False else Generated_CpnDate[-1])
+            LoggingFraction.append(tpay)
+            LoggingForwardRate.append(r)
+            LoggingCpnFix.append(CpnRate)
+            LoggingCpnRate.append(Nominal)
+            LoggingDF.append(np.exp(-r * tpay))             
+    
+    if LoggingFlag > 0 : 
+        LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingCpnFix, LoggingCpnRate, LoggingDF], index = ["Start","End","Pay","Frac","ForwardRate","CpnFixed","Cpn","DF"]).T               
+        LoggingDF["Price"] = s
+        LoggingDF.to_csv(LoggingDir + "\\LoggingFiles.csv", index = False)
+    return s                               
+    
 def ReadCSV(filedir) :
     try : 
         chunk_list = pd.read_csv(filedir, chunksize = 5000, engine = 'python')
@@ -1801,7 +1985,7 @@ def Calc_Kb_DeltaVega(WS, rho, median0up1dn2) :
     targetvalue = WSArray.dot(rhoArray).dot(WSArray)
     return np.sqrt(max(0, targetvalue))
 
-@jit('double(double[:],double[:],double[:,:], int64)', nopython = True)
+#@jit('double(double[:],double[:],double[:,:], int64)', nopython = True)
 def Calc_AggregatedDeltaVega(Kb, Sb, Corr, median0up1dn2) : 
     '''
     참고문헌 : 은행업감독업무 시행세칙 별표3의2 44.라
@@ -1863,7 +2047,7 @@ def Calc_AggregatedDeltaVega(Kb, Sb, Corr, median0up1dn2) :
         riskcharge = np.sqrt(riskcharge_sqaure)
     return riskcharge
 
-@jit('double(double[:],double[:],double[:], int32)', nopython = True)
+#@jit('double(double[:],double[:],double[:], int32)', nopython = True)
 def Calc_CVR(Vud, V, DeltaWS, plus0minus1) : 
     '''
     참고문헌 : 은행업감독업무 시행세칙 별표3의2 45.나
@@ -1893,7 +2077,7 @@ def Calc_CVR(Vud, V, DeltaWS, plus0minus1) :
             targetvalue += -(Vud[i] - V[i] + DeltaWS[i])
     return targetvalue
 
-@jit('double(double[:],double[:,:], int32)', nopython = True)
+#@jit('double(double[:],double[:,:], int32)', nopython = True)
 def Calc_Kb_Curvature(CVRPlusMinus, rho, median0up1dn2) : 
     '''
     참고문헌 : 은행업감독업무 시행세칙 별표3의2 45.다(1)
@@ -1930,7 +2114,7 @@ def Calc_Kb_Curvature(CVRPlusMinus, rho, median0up1dn2) :
                     targetvalue += rho[i][j] * CVRPlusMinus[i] * CVRPlusMinus[j] * phi
     return np.sqrt(max(0,targetvalue))
 
-@jit('double(double[:],double[:],double[:],double[:],double[:,:], int32)', nopython = True)
+#@jit('double(double[:],double[:],double[:],double[:],double[:,:], int32)', nopython = True)
 def Calc_AggregatedCurvature(KbPlus, KbMinus, SumCVRPlus, SumCVRMinus, Corr, median0up1dn2) : 
     '''
     참고문헌 : 은행업감독업무 시행세칙 별표3의2 45.다(2), 라
@@ -3863,16 +4047,94 @@ def FileListPrint(currdir) :
             files2 = os.listdir(newdir)
             FileList2 = np.array(files2)[np.vectorize(lambda x : True if ("raw" in str(x).lower()) or ("girr" in str(x).lower()) or ("csr" in str(x).lower()) or ("fxr" in str(x).lower())or ("eqr" in str(x).lower())or ("comr" in str(x).lower()) else False)(files2)]
             for name2 in FileList2 : 
-                filenum.append(k)
-                filenames.append(newdir + '\\' + name2)
-                filenamesprint.append(str(k) + '. ' + newdir + '\\' + name2)
-                k += 1
+                if '.pia' not in name2 : 
+                    filenum.append(k)
+                    filenames.append(newdir + '\\' + name2)
+                    filenamesprint.append(str(k) + '. ' + newdir + '\\' + name2)
+                    k += 1
         else : 
-            filenum.append(k)
-            filenames.append(currdir + '\\' + name)
-            filenamesprint.append(str(k) + '. ' + currdir + '\\' + name)
-            k += 1
+            if '.pia' not in name : 
+                filenum.append(k)
+                filenames.append(currdir + '\\' + name)
+                filenamesprint.append(str(k) + '. ' + currdir + '\\' + name)
+                k += 1
     return pd.DataFrame([filenum,filenames,filenamesprint],index = ["Number","Directory","DirectoryPrint"]).T   
+
+def MarketDataFileListPrint(currdir) : 
+    files = os.listdir(currdir) 
+    YYYYMMDD, filenum, folder, filenames, filenamesprint = [], [], [], [], []
+    k = 1
+    for name in files : 
+        if "." not in name : 
+            newdir = currdir + '\\' + name
+            files2 = os.listdir(newdir)
+            for name2 in files2 : 
+                if '.pia' not in str(name2) : 
+                    if '.' not in name : 
+                        newdir2 = newdir + '\\' + name2
+                        files3 = os.listdir(newdir2)
+                        for name3 in files3 : 
+                            filenum.append(k)
+                            folder.append(newdir2)
+                            filenames.append(newdir2 + '\\' + name3)
+                            filenamesprint.append(str(k) + ". " + newdir2 + "\\" + name3)
+                            YYYYMMDD.append(name)
+                            k += 1
+                    else : 
+                        filenum.append(k)
+                        folder.append(newdir)
+                        filenames.append(newdir + '\\' + name2)
+                        filenamesprint.append(str(k) + ". " + newdir + '\\' + name2)
+                        YYYYMMDD.append(name)
+                        k += 1
+    return pd.DataFrame([YYYYMMDD, filenum, folder, filenames, filenamesprint], index = ["YYYYMMDD","Number","Folder","Directory","DirectoryPrint"]).T
+
+def UsedMarketDataSetToPricing(MarketDataDir) : 
+    Data = MarketDataFileListPrint(MarketDataDir).sort_values(by = "YYYYMMDD")[-50:]
+    GroupbyYYYYMMDD = Data.groupby("YYYYMMDD").first().reset_index()
+    PrintDate = "\n 다음 중 MarketData 날짜를 고르세요. \n"
+    n = 0
+    for x, y in zip(GroupbyYYYYMMDD["Number"], GroupbyYYYYMMDD["YYYYMMDD"]) : 
+        PrintDate += str(n+1) + ". " + str(y) + "\n"
+        n = n + 1
+    DateMarketDataIdx = input(PrintDate)
+    YYYYMMDD = GroupbyYYYYMMDD["YYYYMMDD"].iloc[int(DateMarketDataIdx) - 1]
+    TargetFiles = Data[Data["YYYYMMDD"].astype(str) == YYYYMMDD].groupby("Directory").first().reset_index()
+    PrintMarketData = "\n 다음 중 MarketData를 고르세요.(ex : 1, ex2: 1, 2, 3 와 같은 여러개 선택)\n"
+    for x in TargetFiles["DirectoryPrint"] : 
+        PrintMarketData += ' ' + str(x) + "\n"
+    DataMarketData = input(PrintMarketData)
+    MarketDataList = []
+    MarketDataName = []
+    
+    if len(DataMarketData) == 1 : 
+        MarketDataList.append(ReadCSV(TargetFiles[TargetFiles["Number"] == int(DataMarketData)]["Directory"].iloc[0]))
+        MarketDataName.append(TargetFiles[TargetFiles["Number"] == int(DataMarketData)]["Directory"].iloc[0])
+    else : 
+        NumberList = DataMarketData.replace(" ","").split(",")
+        TargetFiles2 = TargetFiles[TargetFiles["Number"].astype(str).isin(NumberList)]
+        for idx in range(len(TargetFiles2)) : 
+            MarketDataList.append(ReadCSV(TargetFiles2["Directory"].iloc[idx]))
+            MarketDataName.append(TargetFiles2["Directory"].iloc[idx])
+    
+    for i in range(len(MarketDataList)) : 
+        MarketDataList[i] = MarketDataList[i].applymap(lambda x : str(x).replace("-",""))
+        if "Rate" in MarketDataList[i].columns and "Term" in MarketDataList[i].columns : 
+            Term = list(MarketDataList[i]["Term"].astype(np.float64))
+            Rate = list(MarketDataList[i]["Rate"].astype(np.float64))
+            PriceDate = MarketDataList[i]["PriceDate"].iloc[0]
+            Preprocessing_ZeroTermAndRate(Term, Rate, int(PriceDate))
+            MarketDataList[i]["Term"] = Term
+            MarketDataList[i]["Rate"] = Rate
+        elif "rate" in MarketDataList[i].columns and "term" in MarketDataList[i].columns : 
+            Term = list(MarketDataList[i]["trm"].astype(np.float64))
+            Rate = list(MarketDataList[i]["rate"].astype(np.float64))
+            PriceDate = MarketDataList[i]["PriceDate"].iloc[0]
+            Preprocessing_ZeroTermAndRate(Term, Rate, int(PriceDate))
+            MarketDataList[i]["term"] = Term
+            MarketDataList[i]["rate"] = Rate
+
+    return YYYYMMDD, MarketDataName, MarketDataList
 
 def LoggingUsedFileNames(MyFiles, MyClass = 'FRTB') : 
     PrintStr = '\n'+MyClass+' 계산에 필요한 RAW 데이터 파일은 다음 중 무엇입니까?(번호입력)\n'
@@ -3964,6 +4226,52 @@ while True :
         if str(MainFlag2).lower() == 'y' or len(str(MainFlag2)) == 0:
             print("\n#########################\n### 프로그램을 종료합니다.###\n#########################")
             break
-                
-
+    elif MainFlag in [1,'1'] :                     
+        YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata') 
+        print("\n 세팅된 커브는 다음과 같습니다. \n 평가날짜 : " + YYYYMMDD)
+        curvename = ''
+        for i in range(len(Name)) : 
+            if "Rate" in Data[i].columns or 'rate' in Data[i].columns : 
+                curvename += '\n\n' + str(i+1) + '. ' + Name[i].split('\\')[-1] + '\n'
+                Term = list(Data[i][Data[i].columns[1]].round(5))[:10]
+                Rate = list(Data[i][Data[i].columns[2]].round(5))[:10]
+                curvename += '\n Term = ' + str(Term).split(']')[0] + ', ...]'
+                curvename += '\n Rate = ' + str(Rate).split(']')[0] + ', ...]'
+        print(curvename)
+        if len(Name) == 1 : 
+            Curve = Data[0]
+        else : 
+            print("\n 채권을 평가하기 위해 사용할 커브 번호를 입력하세요.\n")        
+            n = int(input())
+            Curve = Data[n-1]
+        CurveTerm = list(Curve["Term" if "Term" in Curve.columns else "term"])
+        CurveRate = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
+        print("\n 채권 발행일(YYYYMMDD)을 입력하시오.\n")        
+        EffectiveDate = int(input())
+        print("\n 채권 만기일(YYYYMMDD)을 입력하시오.\n")        
+        MaturityDate = int(input())
+        print("\n 채권 만기일에서 결제일까지 영업일수를 입력하시오.\n")        
+        MaturityToPayDate = int(input())
+        print("\n 변동금리채라면 1을 입력하시오.\n")        
+        FloatFlag = int(input())
+        print("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n")        
+        CpnRate = float(input())
+        print("\n 1년에 이자지급횟수를 입력하시오.\n")        
+        AnnCpnOneYear = int(input())
+        print("\n Act365는 0을 Act360은 1을 ACTACT이면 2를 30/360이면 3를 입력하시오 \n")        
+        DayCountFlag = int(input())
+        print("\n 최초 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n")        
+        FixingRate = float(input())
+        
+        Value = Calc_Bond(10000, 1, FloatFlag, FixingRate, EffectiveDate, 
+              int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm, CurveRate, 
+              AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [],
+              EstZeroCurveRate = [], FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
+              LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1) 
+        print("채권가격은 " + str(np.round(Value,4)))
+        print("##############\n####산출완료#####\n##############\n")
+        MainFlag2 = input("종료하시겠습니까? (Y/N)")
+        if str(MainFlag2).lower() == 'y' or len(str(MainFlag2)) == 0:
+            print("\n#########################\n### 프로그램을 종료합니다.###\n#########################")
+            break
 
