@@ -1798,11 +1798,100 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
             LoggingCpnRate.append(Nominal)
             LoggingDF.append(np.exp(-r * tpay))             
     
-    if LoggingFlag > 0 : 
+    if LoggingFlag == 1 : 
         LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingCpnFix, LoggingCpnRate, LoggingDF], index = ["Start","End","Pay","Frac","ForwardRate","CpnFixed","Cpn","DF"]).T               
         LoggingDF["Price"] = s
         LoggingDF.to_csv(LoggingDir + "\\LoggingFiles.csv", index = False)
+    elif LoggingFlag == 2 : 
+        df = ReadCSV(LoggingDir + "\\LoggingFiles.csv")
+        LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingCpnFix, LoggingCpnRate, LoggingDF], index = ["Start","End","Pay","Frac","ForwardRate","CpnFixed","Cpn","DF"]).T               
+        LoggingDF["Price"] = s
+        pd.concat([df, LoggingDF],axis = 1).to_csv(LoggingDir + "\\LoggingFiles.csv", index = False)
+    
     return s                               
+
+def Calc_Bond_PV01(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
+                    PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroCurveRate, 
+                    AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [],
+                    EstZeroCurveRate = [], FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
+                    LoggingFlag = 0, LoggingDir = '', ModifiedFollow = 1, OverNightRateDateHistory = [], OverNightRateHistory = [], LookBackDays = 0, ObservShift = False) :
+    
+    P = Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
+            PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroCurveRate, 
+            AnnCpnOneYear, DayCountFlag, KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm ,
+            EstZeroCurveRate , FixingHolidayList , AdditionalPayHolidayList , NominalDateIsNominalPayDate ,
+            LoggingFlag, LoggingDir, ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift )
+
+    ResultArray = np.zeros(len(ZeroCurveRate))
+    for i in range(len(ZeroCurveTerm)) : 
+        ZeroUp = np.array(ZeroCurveRate).copy()
+        ZeroUp[i] += 0.0001
+        Pu = Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
+                PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroUp, 
+                AnnCpnOneYear, DayCountFlag, KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm ,
+                EstZeroCurveRate , FixingHolidayList , AdditionalPayHolidayList , NominalDateIsNominalPayDate ,
+                0, '', ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift )
+
+        ResultArray[i] = Pu - P
+        # Reset
+        
+    if (len(EstZeroCurveRate) > 0 and len(EstZeroCurveTerm) > 0 and len(EstZeroCurveRate) == len(EstZeroCurveTerm)) : 
+        ResultArray2 = np.zeros(len(EstZeroCurveTerm))
+        for i in range(len(EstZeroCurveRate)) : 
+            ZeroUp = np.array(EstZeroCurveRate).copy()
+            ZeroUp[i] += 0.0001            
+            Pu = Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
+                    PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroCurveRate, 
+                    AnnCpnOneYear, DayCountFlag, KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm ,
+                    ZeroUp , FixingHolidayList , AdditionalPayHolidayList , NominalDateIsNominalPayDate ,
+                    0, '', ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift )
+            ResultArray[i] = Pu - P
+            # Reset
+            ZeroUp[i] = EstZeroCurveRate[i]
+        df2 = pd.Series(ResultArray, index = ZeroCurveTerm).reset_index()
+        df2.columns = ["PV01Term","PV01"]
+        df3 = pd.Series(ResultArray2, index = EstZeroCurveTerm).reset_index()
+        df3.columns = ["PV01TermEst","PVEst01"]
+        if LoggingFlag > 0 : 
+            df = ReadCSV(LoggingDir + "\\LoggingFiles.csv")
+            pd.concat([df, df2, df3],axis = 1).to_csv(LoggingDir + "\\LoggingFiles.csv", index = False)
+        return P, df2, df3
+
+    df2 = pd.Series(ResultArray, index = ZeroCurveTerm).reset_index()
+    df2.columns = ["PV01Term","PV01"]
+    if LoggingFlag > 0 : 
+        df = ReadCSV(LoggingDir + "\\LoggingFiles.csv")
+        pd.concat([df, df2],axis = 1).to_csv(LoggingDir + "\\LoggingFiles.csv", index = False)
+    return P, df2            
+    
+def Calc_IRS(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
+             CpnRate, ZeroCurveTerm, ZeroCurveRate, AnnCpnOneYear, DayCountFlag, 
+             KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [], EstZeroCurveRate = [], FixingHolidayList = [], 
+             AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False, LoggingFlag = 0, LoggingDir = '', 
+             ModifiedFollow = 1, OverNightRateDateHistory = [], OverNightRateHistory = [], LookBackDays = 0, ObservShift = False, 
+             FixedPayerFlag = 0) :
+    
+    LoggingFlag1, LoggingFlag2 = 0,0
+    if LoggingFlag > 0 : 
+        LoggingFlag1, LoggingFlag2 = 1, 2 
+
+    Preprocessing_ZeroTermAndRate(ZeroCurveTerm, ZeroCurveRate, PriceDateYYYYMMDD)
+    
+    FixedLeg = Calc_Bond(Nominal, 0, 0, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
+              PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroCurveRate, 
+              AnnCpnOneYear, DayCountFlag, KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm = EstZeroCurveTerm,
+              EstZeroCurveRate = EstZeroCurveTerm, FixingHolidayList = FixingHolidayList, AdditionalPayHolidayList  = AdditionalPayHolidayList, NominalDateIsNominalPayDate = NominalDateIsNominalPayDate,
+              LoggingFlag = LoggingFlag1, LoggingDir = LoggingDir, ModifiedFollow = ModifiedFollow, OverNightRateDateHistory = OverNightRateDateHistory, OverNightRateHistory = OverNightRateHistory, LookBackDays = LookBackDays, ObservShift = ObservShift)
+
+    if len(EstZeroCurveTerm) >= 0 and len(EstZeroCurveRate) >= 0 : 
+        Preprocessing_ZeroTermAndRate(EstZeroCurveTerm, EstZeroCurveRate, PriceDateYYYYMMDD)
+
+    FloatLeg = Calc_Bond(Nominal, 0, 1, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
+            PriceDateYYYYMMDD, MaturityYYYYMMDD, 0.0, ZeroCurveTerm, ZeroCurveRate, 
+            AnnCpnOneYear, DayCountFlag, KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm = EstZeroCurveTerm,
+            EstZeroCurveRate = EstZeroCurveRate, FixingHolidayList = FixingHolidayList, AdditionalPayHolidayList  = AdditionalPayHolidayList, NominalDateIsNominalPayDate = NominalDateIsNominalPayDate,
+            LoggingFlag = LoggingFlag2, LoggingDir = LoggingDir, ModifiedFollow = ModifiedFollow, OverNightRateDateHistory = OverNightRateDateHistory, OverNightRateHistory = OverNightRateHistory, LookBackDays = LookBackDays, ObservShift = ObservShift)
+    return FixedLeg - FloatLeg if FixedPayerFlag == 0 else FloatLeg - FixedLeg    
     
 def ReadCSV(filedir) :
     try : 
@@ -4097,7 +4186,7 @@ def UsedMarketDataSetToPricing(MarketDataDir) :
     for x, y in zip(GroupbyYYYYMMDD["Number"], GroupbyYYYYMMDD["YYYYMMDD"]) : 
         PrintDate += str(n+1) + ". " + str(y) + "\n"
         n = n + 1
-    DateMarketDataIdx = input(PrintDate)
+    DateMarketDataIdx = input(PrintDate + "-> ")
     YYYYMMDD = GroupbyYYYYMMDD["YYYYMMDD"].iloc[int(DateMarketDataIdx) - 1]
     TargetFiles = Data[Data["YYYYMMDD"].astype(str) == YYYYMMDD].groupby("Directory").first().reset_index()
     PrintMarketData = "\n 다음 중 MarketData를 고르세요.(ex : 1, ex2: 1, 2, 3 와 같은 여러개 선택)\n"
@@ -4150,51 +4239,169 @@ def LoggingUsedFileNames(MyFiles, MyClass = 'FRTB') :
     
 def MainFunction(currdir) : 
     MyFiles = FileListPrint(currdir)
-    mynum = int(input("\n전체 리스크가 포함된 RAW 파일의 경우 0를 입력하시오.(ex: FRTB_RAW.csv)\n리스크 클래스별 RAW 파일로 각각 입력할경우 숫자 1을 입력하시오.(GIRR_RAW.csv,CSR_RAW.csv,...)\n->"))
+    print("\n전체 리스크가 포함된 RAW 파일의 경우 0를 입력하시오.(ex: FRTB_RAW.csv)\n리스크 클래스별 RAW 파일로 각각 입력할경우 숫자 1을 입력하시오.(GIRR_RAW.csv,CSR_RAW.csv,...)\n")
+    mynum = int(input("입력 -> "))
     if mynum == 0 : 
-        PrintStr = LoggingUsedFileNames(MyFiles, MyClass = 'FRTB') + '->'
-        Num = int(input(PrintStr))
+        PrintStr = LoggingUsedFileNames(MyFiles, MyClass = 'FRTB')
+        print(PrintStr)
+        Num = int(input('입력 ->'))
         Data = ReadCSV(MyFiles[MyFiles["Number"] == Num]["Directory"].iloc[0])
     else : 
         PrintStr1 = LoggingUsedFileNames(MyFiles, MyClass = 'GIRR')
         if PrintStr1 == '' : 
             Data1 = pd.DataFrame([])
         else : 
-            GIRRFileNum = int(input(PrintStr1+ '->'))
+            print(PrintStr1)
+            GIRRFileNum = int(input('입력 ->'))
             Data1 = ReadCSV(MyFiles[MyFiles["Number"] == GIRRFileNum]["Directory"].iloc[0])
 
         PrintStr2 = LoggingUsedFileNames(MyFiles, MyClass = 'CSR')
         if PrintStr2 == '' : 
             Data2 = pd.DataFrame([])
         else : 
-            CSRFileNum = int(input(PrintStr2+ '->'))
+            print(PrintStr2)
+            CSRFileNum = int(input('입력 ->'))
             Data2 = ReadCSV(MyFiles[MyFiles["Number"] == CSRFileNum]["Directory"].iloc[0])
 
         PrintStr3 = LoggingUsedFileNames(MyFiles, MyClass = 'FXR')
         if PrintStr3 == '' : 
             Data3 = pd.DataFrame([])
         else : 
-            FXRFileNum = int(input(PrintStr3+ '->'))
+            print(PrintStr3)
+            FXRFileNum = int(input('입력 ->'))
             Data3 = ReadCSV(MyFiles[MyFiles["Number"] == FXRFileNum]["Directory"].iloc[0])
 
         PrintStr4 = LoggingUsedFileNames(MyFiles, MyClass = 'EQR')
         if PrintStr4 == '' : 
             Data4 = pd.DataFrame([])
         else : 
-            EQRFileNum = int(input(PrintStr4+ '->'))
+            print(PrintStr4)
+            EQRFileNum = int(input('입력 ->'))
             Data4 = ReadCSV(MyFiles[MyFiles["Number"] == EQRFileNum]["Directory"].iloc[0])
 
         PrintStr5 = LoggingUsedFileNames(MyFiles, MyClass = 'COMR')
         if PrintStr5 == '' : 
             Data5 = pd.DataFrame([])
         else : 
-            COMRFileNum = int(input(PrintStr5+ '->'))
+            print(PrintStr5)
+            COMRFileNum = int(input('입력 ->'))
             Data5 = ReadCSV(MyFiles[MyFiles["Number"] == COMRFileNum]["Directory"].iloc[0])
         Data = pd.concat([Data1, Data2, Data3, Data4, Data5],axis = 0)
     return Data    
 
+def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) : 
+    print("\n 세팅된 커브는 다음과 같습니다. \n 평가날짜 : " + YYYYMMDD)
+    curvename = ''
+    for i in range(len(Name)) : 
+        if "Rate" in Data[i].columns or 'rate' in Data[i].columns : 
+            curvename += '\n\n' + str(i+1) + '. ' + Name[i].split('\\')[-1] + '\n'
+            Term = list(Data[i][Data[i].columns[1]].round(5))[:10]
+            Rate = list(Data[i][Data[i].columns[2]].round(5))[:10]
+            curvename += '\n Term = ' + str(Term).split(']')[0] + ', ...]'
+            curvename += '\n Rate = ' + str(Rate).split(']')[0] + ', ...]'
+    print(curvename)    
+    if len(MyMarketDataList) == 1 : 
+        Curve = MyMarketDataList[0]
+    else : 
+        print("\n 채권을 평가하기 위해 사용할 커브 번호를 입력하세요.\n")        
+        n = int(input())
+        Curve = MyMarketDataList[n-1]
+    CurveTerm = list(Curve["Term" if "Term" in Curve.columns else "term"])
+    CurveRate = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
+    print("\n 채권 발행일(YYYYMMDD)을 입력하시오.\n")        
+    EffectiveDate = int(input())
+    print("\n 채권 만기일(YYYYMMDD)을 입력하시오.(지급일 X)\n")        
+    MaturityDate = int(input())
+    print("\n 채권 만기일에서 대금결제일까지 영업일수를 입력하시오.\n")        
+    MaturityToPayDate = int(input())
+    print("\n 변동금리채라면 1을 입력하시오.\n")        
+    FloatFlag = int(input())
+    print("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n")        
+    CpnRate = float(input())
+    print("\n 1년에 이자지급횟수를 입력하시오.\n")        
+    AnnCpnOneYear = int(input())
+    print("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n")        
+    DayCountFlag = int(input())
+    FixingRate = 0.0
+    if FloatFlag in [1,'1', 2,'2'] : 
+        print("\n 최초 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n")        
+        FixingRate = float(input())
+    
+    Value, PV01 = Calc_Bond_PV01(10000, 1, FloatFlag, FixingRate, EffectiveDate, 
+            int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm, CurveRate, 
+            AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = [],
+            EstZeroCurveRate = [], FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
+            LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1)         
+    
+    print("##############\n채권가격은 " + str(np.round(Value,6)) + "\n##############\n")
+    print("##############\n####산출완료#####\n##############\n")
+    MainFlag2 = input("종료하시겠습니까? (Y/N)")
+    return MainFlag2
+
+def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) : 
+    print("\n 세팅된 커브는 다음과 같습니다. \n 평가날짜 : " + YYYYMMDD)
+    curvename = ''
+    for i in range(len(Name)) : 
+        if "Rate" in Data[i].columns or 'rate' in Data[i].columns : 
+            curvename += '\n\n' + str(i+1) + '. ' + Name[i].split('\\')[-1] + '\n'
+            Term = list(Data[i][Data[i].columns[1]].round(5))[:10]
+            Rate = list(Data[i][Data[i].columns[2]].round(5))[:10]
+            curvename += '\n Term = ' + str(Term).split(']')[0] + ', ...]'
+            curvename += '\n Rate = ' + str(Rate).split(']')[0] + ', ...]'
+    print(curvename)  
+    if len(MyMarketDataList) == 1 : 
+        Curve = MyMarketDataList[0]
+    else : 
+        print("\n IRS 스왑을 평가하기 위해 사용할 커브 번호를 입력하세요. \n * 두 커브를 선택할 경우 DiscCurveNum, EstCurveNum 순으로 입력하시오 (예 1, 2 -> 1DiscCurve, 2EstCurve)\n")        
+        MyStr = input()
+        if len(str(MyStr)) == 0 : 
+            print("\n 오입력으로 프로그램 종료합니다.")
+            return "" 
+        elif len(str(MyStr)) == 1: 
+            n = int(MyStr)
+            Curve = MyMarketDataList[n-1]
+            CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
+            CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
+            CurveTerm2, CurveRate2 = [], []
+        elif ',' in str(MyStr) : 
+            Splited = MyStr.replace(" ","").split(',')
+            n = Splited[0]
+            n2 = Splited[1]
+            Curve = MyMarketDataList[n-1]
+            CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
+            CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
+            Curve2 = MyMarketDataList[n2-1]
+            CurveTerm2 = list(Curve2["Term" if "Term" in Curve2.columns else "term"])
+            CurveRate2 = list(Curve2["Rate" if "Rate" in Curve2.columns else "rate"])
+            
+    print("\n IRS 발행일(YYYYMMDD)을 입력하시오.\n")        
+    EffectiveDate = int(input())
+    print("\n IRS 만기일(YYYYMMDD)을 입력하시오.(지급일 X)\n")        
+    MaturityDate = int(input())
+    print("\n IRS 만기일에서 대금결제일까지 영업일수를 입력하시오.\n")        
+    MaturityToPayDate = int(input())
+    print("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n")        
+    CpnRate = float(input())
+    print("\n 1년에 이자지급횟수를 입력하시오.\n")        
+    AnnCpnOneYear = int(input())
+    print("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n")        
+    DayCountFlag = int(input())
+    print("\n 최초 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n")        
+    FixingRate = float(input())
+    
+    Value = Calc_IRS(10000, FixingRate, EffectiveDate, 
+              int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm1, CurveRate1, 
+              AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = CurveTerm2,
+              EstZeroCurveRate = CurveRate2, FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
+              LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1)         
+    
+    print("##############\nIRS 가격은 " + str(np.round(Value,6)) + "\n##############\n")
+    print("##############\n####산출완료#####\n##############\n")
+    MainFlag2 = input("종료하시겠습니까? (Y/N)")
+    return MainFlag2
+
 while True : 
-    MainFlag = input("사용하실 기능은? \n 1: Pricer \n 2: FRTB SA Risk Calculation \n 3: CurveGenerator \n")
+    MainFlag = input("사용하실 기능은? \n 1: Pricer \n 2: FRTB SA Risk Calculation \n 3: CurveGenerator \n-> ")
     if len(str(MainFlag)) == 0 : 
         print("\n#########################\n### 프로그램을 종료합니다.###\n#########################")
         break
@@ -4202,7 +4409,7 @@ while True :
         print("\n#########################\n### 프로그램을 종료합니다.###\n#########################")
         break
     elif MainFlag in [2,'2'] :         
-        RAWFORMAT = int(input("자체데이터 RAWData 엑셀 포멧이면 0을 KDB RAW Data 포멧의 경우 1을 입력하시오\n->"))
+        RAWFORMAT = int(input("자체데이터 RAWData 엑셀 포멧이면 0을 KDB RAW Data 포멧의 경우 1을 입력하시오\n-> "))
         RAWData = MainFunction(currdir)
         if RAWFORMAT == 0 : 
             CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR, DRC, RRAO = PreProcessingMyData(RAWData)
@@ -4228,50 +4435,19 @@ while True :
             break
     elif MainFlag in [1,'1'] :                     
         YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata') 
-        print("\n 세팅된 커브는 다음과 같습니다. \n 평가날짜 : " + YYYYMMDD)
-        curvename = ''
-        for i in range(len(Name)) : 
-            if "Rate" in Data[i].columns or 'rate' in Data[i].columns : 
-                curvename += '\n\n' + str(i+1) + '. ' + Name[i].split('\\')[-1] + '\n'
-                Term = list(Data[i][Data[i].columns[1]].round(5))[:10]
-                Rate = list(Data[i][Data[i].columns[2]].round(5))[:10]
-                curvename += '\n Term = ' + str(Term).split(']')[0] + ', ...]'
-                curvename += '\n Rate = ' + str(Rate).split(']')[0] + ', ...]'
-        print(curvename)
-        if len(Name) == 1 : 
-            Curve = Data[0]
+        print("\nPricer를 선택하시오 : 1. 채권 2. IRS\n")
+        n = int(input())
+        if n == 1 : 
+            MainFlag2 = PricingBondProgram(YYYYMMDD, Name, Data)
         else : 
-            print("\n 채권을 평가하기 위해 사용할 커브 번호를 입력하세요.\n")        
-            n = int(input())
-            Curve = Data[n-1]
-        CurveTerm = list(Curve["Term" if "Term" in Curve.columns else "term"])
-        CurveRate = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
-        print("\n 채권 발행일(YYYYMMDD)을 입력하시오.\n")        
-        EffectiveDate = int(input())
-        print("\n 채권 만기일(YYYYMMDD)을 입력하시오.\n")        
-        MaturityDate = int(input())
-        print("\n 채권 만기일에서 결제일까지 영업일수를 입력하시오.\n")        
-        MaturityToPayDate = int(input())
-        print("\n 변동금리채라면 1을 입력하시오.\n")        
-        FloatFlag = int(input())
-        print("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n")        
-        CpnRate = float(input())
-        print("\n 1년에 이자지급횟수를 입력하시오.\n")        
-        AnnCpnOneYear = int(input())
-        print("\n Act365는 0을 Act360은 1을 ACTACT이면 2를 30/360이면 3를 입력하시오 \n")        
-        DayCountFlag = int(input())
-        print("\n 최초 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n")        
-        FixingRate = float(input())
-        
-        Value = Calc_Bond(10000, 1, FloatFlag, FixingRate, EffectiveDate, 
-              int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm, CurveRate, 
-              AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [],
-              EstZeroCurveRate = [], FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
-              LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1) 
-        print("채권가격은 " + str(np.round(Value,4)))
-        print("##############\n####산출완료#####\n##############\n")
-        MainFlag2 = input("종료하시겠습니까? (Y/N)")
+            MainFlag2 = PricingIRSProgram(YYYYMMDD, Name, Data)            
         if str(MainFlag2).lower() == 'y' or len(str(MainFlag2)) == 0:
             print("\n#########################\n### 프로그램을 종료합니다.###\n#########################")
             break
+    elif MainFlag in [3,'3'] : 
+        print("\n#########################\n### 커브제너레이터 아직 미완성이므로 종료합니다.###\n#########################")
+        break
+        
 
+
+# %%
