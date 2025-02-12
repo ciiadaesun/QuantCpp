@@ -427,20 +427,7 @@ def LeapCheck(Year) :
     return 1 if ((Year % 4 == 0 and Year % 100 != 0 ) or Year % 400 == 0) else 0
 
 def Linterp(x, y, targetx) : 
-    x = np.array(x, dtype = np.float64)
-    y = np.array(y, dtype = np.float64)
-    targetx = float(targetx)
-    srs = pd.Series(y, x).sort_index()
-    if targetx <= srs.index[0] : 
-        return srs.values[0]
-    elif targetx >= srs.index[-1] : 
-        return srs.values[-1]
-    else : 
-        if targetx in srs.index : 
-            return srs.loc[targetx]
-        else : 
-            srs.loc[targetx] = np.nan
-            return srs.sort_index().interpolate(method = 'linear').loc[targetx]
+    return np.interp(targetx, np.array(x), np.array(y))
 
 def DaysOfMonth(n) : 
     M = int(n) + 1
@@ -1833,7 +1820,6 @@ def Calc_Bond_PV01(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, Effective
                 0, '', ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift )
 
         ResultArray[i] = Pu - P
-        # Reset
         
     if (len(EstZeroCurveRate) > 0 and len(EstZeroCurveTerm) > 0 and len(EstZeroCurveRate) == len(EstZeroCurveTerm)) : 
         ResultArray2 = np.zeros(len(EstZeroCurveTerm))
@@ -1845,9 +1831,8 @@ def Calc_Bond_PV01(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, Effective
                     AnnCpnOneYear, DayCountFlag, KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm ,
                     ZeroUp , FixingHolidayList , AdditionalPayHolidayList , NominalDateIsNominalPayDate ,
                     0, '', ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift )
-            ResultArray[i] = Pu - P
-            # Reset
-            ZeroUp[i] = EstZeroCurveRate[i]
+            ResultArray2[i] = Pu - P
+
         df2 = pd.Series(ResultArray, index = ZeroCurveTerm).reset_index()
         df2.columns = ["PV01Term","PV01"]
         df3 = pd.Series(ResultArray2, index = EstZeroCurveTerm).reset_index()
@@ -1862,7 +1847,7 @@ def Calc_Bond_PV01(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, Effective
     if LoggingFlag > 0 : 
         df = ReadCSV(LoggingDir + "\\LoggingFiles.csv")
         pd.concat([df, df2],axis = 1).to_csv(LoggingDir + "\\LoggingFiles.csv", index = False)
-    return P, df2            
+    return P, df2, df2           
     
 def Calc_IRS(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
              CpnRate, ZeroCurveTerm, ZeroCurveRate, AnnCpnOneYear, DayCountFlag, 
@@ -1893,11 +1878,164 @@ def Calc_IRS(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMD
             LoggingFlag = LoggingFlag2, LoggingDir = LoggingDir, ModifiedFollow = ModifiedFollow, OverNightRateDateHistory = OverNightRateDateHistory, OverNightRateHistory = OverNightRateHistory, LookBackDays = LookBackDays, ObservShift = ObservShift)
     return FixedLeg - FloatLeg if FixedPayerFlag == 0 else FloatLeg - FixedLeg    
     
+def Calc_IRS_PV01(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
+             CpnRate, ZeroCurveTerm, ZeroCurveRate, AnnCpnOneYear, DayCountFlag, 
+             KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [], EstZeroCurveRate = [], FixingHolidayList = [], 
+             AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False, LoggingFlag = 0, LoggingDir = '', 
+             ModifiedFollow = 1, OverNightRateDateHistory = [], OverNightRateHistory = [], LookBackDays = 0, ObservShift = False, 
+             FixedPayerFlag = 0) : 
+    
+    P = Calc_IRS(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
+             CpnRate, ZeroCurveTerm, ZeroCurveRate, AnnCpnOneYear, DayCountFlag, 
+             KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm , EstZeroCurveRate , FixingHolidayList , 
+             AdditionalPayHolidayList , NominalDateIsNominalPayDate , LoggingFlag , LoggingDir , 
+             ModifiedFollow , OverNightRateDateHistory , OverNightRateHistory , LookBackDays , ObservShift, 
+             FixedPayerFlag)
+
+    ResultArray = np.zeros(len(ZeroCurveRate))
+    for i in range(len(ZeroCurveTerm)) : 
+        ZeroUp = np.array(ZeroCurveRate).copy()
+        ZeroUp[i] += 0.0001
+        Pu = Calc_IRS(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
+             CpnRate, ZeroCurveTerm, ZeroUp, AnnCpnOneYear, DayCountFlag, 
+             KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm , EstZeroCurveRate , FixingHolidayList , 
+             AdditionalPayHolidayList , NominalDateIsNominalPayDate , LoggingFlag , LoggingDir , 
+             ModifiedFollow , OverNightRateDateHistory , OverNightRateHistory , LookBackDays , ObservShift, 
+             FixedPayerFlag)
+
+        ResultArray[i] = Pu - P
+        
+    if (len(EstZeroCurveRate) > 0 and len(EstZeroCurveTerm) > 0 and len(EstZeroCurveRate) == len(EstZeroCurveTerm)) : 
+        ResultArray2 = np.zeros(len(EstZeroCurveTerm))
+        for i in range(len(EstZeroCurveRate)) : 
+            ZeroUp = np.array(EstZeroCurveRate).copy()
+            ZeroUp[i] += 0.0001            
+            Pu = Calc_IRS(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
+             CpnRate, ZeroCurveTerm, ZeroCurveRate, AnnCpnOneYear, DayCountFlag, 
+             KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm , ZeroUp , FixingHolidayList , 
+             AdditionalPayHolidayList , NominalDateIsNominalPayDate , LoggingFlag , LoggingDir , 
+             ModifiedFollow , OverNightRateDateHistory , OverNightRateHistory , LookBackDays , ObservShift, 
+             FixedPayerFlag)
+            ResultArray2[i] = Pu - P
+
+        df2 = pd.Series(ResultArray, index = ZeroCurveTerm).reset_index()
+        df2.columns = ["PV01Term","PV01"]
+        df3 = pd.Series(ResultArray2, index = EstZeroCurveTerm).reset_index()
+        df3.columns = ["PV01TermEst","PVEst01"]
+        if LoggingFlag > 0 : 
+            df = ReadCSV(LoggingDir + "\\LoggingFiles.csv")
+            pd.concat([df, df2, df3],axis = 1).to_csv(LoggingDir + "\\LoggingFiles.csv", index = False)
+        return P, df2, df3
+
+    df2 = pd.Series(ResultArray, index = ZeroCurveTerm).reset_index()
+    df2.columns = ["PV01Term","PV01"]
+    if LoggingFlag > 0 : 
+        df = ReadCSV(LoggingDir + "\\LoggingFiles.csv")
+        pd.concat([df, df2],axis = 1).to_csv(LoggingDir + "\\LoggingFiles.csv", index = False)
+    return P, df2, df2          
+    
+def MapGIRRDeltaGreeks(Greeks, RiskFactor) : 
+    ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
+    for i in range(len(Greeks)) : 
+        if float(Greeks.index[i]) < 0.251 :     
+            ResultSensi.loc[0.25] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 0.251 and float(Greeks.index[i]) < 0.51:
+            ResultSensi.loc[0.5] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 0.51 and float(Greeks.index[i]) < 1.01:
+            ResultSensi.loc[1.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 1.01 and float(Greeks.index[i]) < 2.01:
+            ResultSensi.loc[2.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 2.01 and float(Greeks.index[i]) < 3.01:
+            ResultSensi.loc[3.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 3.01 and float(Greeks.index[i]) < 5.01:
+            ResultSensi.loc[5.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 5.01 and float(Greeks.index[i]) < 10.01:
+            ResultSensi.loc[10.00] += Greeks.iloc[i]                 
+        elif float(Greeks.index[i]) >= 10.01 and float(Greeks.index[i]) < 15.01:
+            ResultSensi.loc[15.00] += Greeks.iloc[i]                 
+        elif float(Greeks.index[i]) >= 15.01 and float(Greeks.index[i]) < 20.01:
+            ResultSensi.loc[20.00] += Greeks.iloc[i]                 
+        else : 
+            ResultSensi.loc[30.00] += Greeks.iloc[i]                 
+    return ResultSensi            
+
+def MapCSRDeltaGreeks(Greeks, RiskFactor) : 
+    ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
+    for i in range(len(Greeks)) : 
+        if float(Greeks.index[i]) < 0.51 :     
+            ResultSensi.loc[0.5] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 0.51 and float(Greeks.index[i]) < 1.01:
+            ResultSensi.loc[1.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 1.01 and float(Greeks.index[i]) < 3.01:
+            ResultSensi.loc[3.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 3.01 and float(Greeks.index[i]) < 5.01:
+            ResultSensi.loc[5.00] += Greeks.iloc[i]
+        else : 
+            ResultSensi.loc[10.00] += Greeks.iloc[i]                 
+    return ResultSensi 
+
+def Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01 ,col = "PV01Term", bpv = "PV01") : 
+    GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
+    GIRR_DeltaRfCorr = np.array([[1.000,0.970,0.914,0.811,0.719,0.566,0.400,0.400,0.400,0.400 ],
+                                [0.970,1.000,0.970,0.914,0.861,0.763,0.566,0.419,0.400,0.400 ],
+                                [0.914,0.970,1.000,0.970,0.942,0.887,0.763,0.657,0.566,0.419 ],
+                                [0.811,0.914,0.970,1.000,0.985,0.956,0.887,0.823,0.763,0.657 ],
+                                [0.719,0.861,0.942,0.985,1.000,0.980,0.932,0.887,0.844,0.763 ],
+                                [0.566,0.763,0.887,0.956,0.980,1.000,0.970,0.942,0.914,0.861 ],
+                                [0.400,0.566,0.763,0.887,0.932,0.970,1.000,0.985,0.970,0.942 ],
+                                [0.400,0.419,0.657,0.823,0.887,0.942,0.985,1.000,0.990,0.970 ],
+                                [0.400,0.400,0.566,0.763,0.844,0.914,0.970,0.990,1.000,0.985 ],
+                                [0.400,0.400,0.419,0.657,0.763,0.861,0.942,0.970,0.985,1.000 ]])    
+    Data = MapGIRRDeltaGreeks(PV01.set_index(col)[bpv], GIRR_DeltaRiskFactor).reset_index()
+    Data.columns = ["Tenor","Delta_Sensi"]
+    Data["Delta_Sensi"] = Data["Delta_Sensi"] * 10000
+    Data["Risk_Class"] = "GIRR"
+    Data["Risk_Type"] = "Delta"
+    Data["Curve"] = "IRS"
+    Data["Type"] = "Rate"
+    Data["Bucket"] = "KRW"
+    Risk = Calc_GIRRDelta(Data, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, "Delta_Sensi").iloc[0]["KB_M"]
+    return Risk
+
+def Calc_CSRDeltaNotCorrelated_FromGreeks(PV01 ,col = "PV01Term", bpv = "PV01") : 
+    CSR_RiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)   
+    Data = MapCSRDeltaGreeks(PV01.set_index(col)[bpv], CSR_RiskFactor).reset_index()
+    Data.columns = ["Tenor","Delta_Sensi"]
+    Data["Delta_Sensi"] = Data["Delta_Sensi"] * 10000
+    Data["Risk_Class"] = "GIRR"
+    Data["Risk_Type"] = "Delta"
+    Data["Curve"] = "Bond"
+    Data["Issuer"] = "TempIssuer"
+    Data["Bucket"] = "KRW"
+    B = input("\n 채권 버킷을 입력하시오(숫자)\n")
+    if len(str(B)) == 0 : 
+        B = 1
+    else : 
+        B = int(B)
+    Data["Bucket"] = B
+    CSR_DeltaNonSecuritizedBucketCorr = np.array([[1.000,0.750,0.100,0.200,0.250,0.200,0.150,0.100,0.000,0.450,0.450],
+                                            [0.750,1.000,0.050,0.150,0.200,0.150,0.100,0.100,0.000,0.450,0.450 ],
+                                            [0.100,0.050,1.000,0.050,0.150,0.200,0.050,0.200,0.000,0.450,0.450 ],
+                                            [0.200,0.150,0.050,1.000,0.200,0.250,0.050,0.050,0.000,0.450,0.450 ],
+                                            [0.250,0.200,0.150,0.200,1.000,0.250,0.050,0.150,0.000,0.450,0.450 ],
+                                            [0.200,0.150,0.200,0.250,0.250,1.000,0.050,0.200,0.000,0.450,0.450 ],
+                                            [0.150,0.100,0.050,0.050,0.050,0.050,1.000,0.050,0.000,0.450,0.450 ],
+                                            [0.100,0.100,0.200,0.050,0.150,0.200,0.050,1.000,0.000,0.450,0.450 ],
+                                            [0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,1.000,0.000,0.000 ],
+                                            [0.450,0.450,0.450,0.450,0.450,0.450,0.450,0.450,0.000,1.000,0.750 ],
+                                            [0.450,0.450,0.450,0.450,0.450,0.450,0.450,0.450,0.000,0.750,1.000 ]])
+    
+    Risk = Calc_CSRDelta(Data, CSR_DeltaNonSecuritizedBucketCorr, "Delta_Sensi").iloc[0]["KB_M"]
+    return Risk
+
 def ReadCSV(filedir) :
     try : 
         chunk_list = pd.read_csv(filedir, chunksize = 5000, engine = 'python')
     except UnicodeDecodeError : 
-        chunk_list = pd.read_csv(filedir, chunksize = 5000, engine = 'python', encoding = 'cp949')
+        try : 
+            chunk_list = pd.read_csv(filedir, chunksize = 5000, engine = 'python', encoding = 'cp949')
+        except UnicodeDecodeError : 
+            chunk_list = pd.read_csv(filedir, chunksize = 5000, engine = 'python', encoding = 'utf-8')            
     
     df = pd.DataFrame()
     for i in chunk_list : 
@@ -3914,9 +4052,12 @@ def CalcDRC3RiskCharge(DRC_Data) :
   
 def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data, CSR_Sec_NonCTP_Data, CSR_CTP_Data, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 0, DRC = [], RRAO = []) : 
     if GroupbyFlag == 0 : 
-        CSRDelta_Total = Calc_CSRDelta(CSR_Data, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
-        CSRCurvature_Total = Calc_CSRCurvature(CSR_Data, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
-        CSRVega_Total = Calc_CSRVega(CSR_Data, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
+        if (len(CSR_Data) > 0) :  
+            CSRDelta_Total = Calc_CSRDelta(CSR_Data, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
+            CSRCurvature_Total = Calc_CSRCurvature(CSR_Data, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
+            CSRVega_Total = Calc_CSRVega(CSR_Data, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
+        else : 
+            CSRDelta_Total = CSRCurvature_Total = CSRVega_Total = pd.DataFrame([])
 
         if (len(CSR_Sec_NonCTP_Data) > 0) : 
             CSRSecNonCTP_Delta_Total = Calc_CSRSecuritizedNonCTPDelta(CSR_Sec_NonCTP_Data, CSR_SecuritizedNonCTPDelta_RW, DeltaSensiName).reset_index()
@@ -3932,22 +4073,34 @@ def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data
         else : 
             CSRCTPDelta_Total = CSRCTPCurvature_Total = CSRCTPVega_Total = pd.DataFrame([])
 
-        GIRRDelta_Total = Calc_GIRRDelta(GIRR_Data, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
-        GIRRCurvature_Total = Calc_GIRRCurvature(GIRR_Data, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
-        GIRRVega_Total = Calc_GIRRVega(GIRR_Data, VegaSensiName).reset_index()
+        if (len(GIRR_Data) > 0) : 
+            GIRRDelta_Total = Calc_GIRRDelta(GIRR_Data, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
+            GIRRCurvature_Total = Calc_GIRRCurvature(GIRR_Data, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
+            GIRRVega_Total = Calc_GIRRVega(GIRR_Data, VegaSensiName).reset_index()
+        else : 
+            GIRRDelta_Total = GIRRCurvature_Total = GIRRVega_Total = pd.DataFrame([])            
         
-        FXRDelta_Total = Calc_FXRDelta(FXR_Data, HighLiquidCurrency, DeltaSensiName).reset_index()
-        FXRCurvature_Total = Calc_FXRCurvature(FXR_Data, HighLiquidCurrency, DeltaSensiName).reset_index()
-        FXRVega_Total = Calc_FXRVega(FXR_Data, VegaSensiName).reset_index()
+        if (len(FXR_Data) > 0) : 
+            FXRDelta_Total = Calc_FXRDelta(FXR_Data, HighLiquidCurrency, DeltaSensiName).reset_index()
+            FXRCurvature_Total = Calc_FXRCurvature(FXR_Data, HighLiquidCurrency, DeltaSensiName).reset_index()
+            FXRVega_Total = Calc_FXRVega(FXR_Data, VegaSensiName).reset_index()
+        else : 
+            FXRDelta_Total = FXRCurvature_Total = FXRVega_Total = pd.DataFrame([])     
         
-        EQRDelta_Total = Calc_EQRDelta(EQR_Data, DeltaSensiName).reset_index()
-        EQRCurvature_Total = Calc_EQRCurvature(EQR_Data,EQDeltaRWMappingDF, DeltaSensiName).reset_index()
-        EQRVega_Total = Calc_EQRVega(EQR_Data,VegaSensiName).reset_index()
-        
-        COMRDelta_Total = Calc_COMRDelta(COMR_Data, DeltaSensiName).reset_index()
-        COMRCurvature_Total = Calc_COMRCurvature(COMR_Data, DeltaSensiName).reset_index()
-        COMRVega_Total = Calc_COMRVega(COMR_Data, VegaSensiName).reset_index()  
-        
+        if (len(EQR_Data) > 0) : 
+            EQRDelta_Total = Calc_EQRDelta(EQR_Data, DeltaSensiName).reset_index()
+            EQRCurvature_Total = Calc_EQRCurvature(EQR_Data,EQDeltaRWMappingDF, DeltaSensiName).reset_index()
+            EQRVega_Total = Calc_EQRVega(EQR_Data,VegaSensiName).reset_index()
+        else : 
+            EQRDelta_Total = EQRCurvature_Total = EQRVega_Total = pd.DataFrame([])     
+                    
+        if (len(COMR_Data) > 0) : 
+            COMRDelta_Total = Calc_COMRDelta(COMR_Data, DeltaSensiName).reset_index()
+            COMRCurvature_Total = Calc_COMRCurvature(COMR_Data, DeltaSensiName).reset_index()
+            COMRVega_Total = Calc_COMRVega(COMR_Data, VegaSensiName).reset_index()  
+        else : 
+            COMRDelta_Total = COMRCurvature_Total = COMRVega_Total = pd.DataFrame([])  
+                    
         if len(DRC) > 0 :
             DRC_Total = CalcDRC3RiskCharge(DRC).reset_index()
         
@@ -3955,9 +4108,12 @@ def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data
             RRAO_Total = CalcRRAORiskCharge(RRAO).reset_index()
         
     elif GroupbyFlag == 1 : 
-        CSRDelta_Total = CSR_Data.groupby("Depart").apply(Calc_CSRDelta, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
-        CSRCurvature_Total = CSR_Data.groupby("Depart").apply(Calc_CSRCurvature, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
-        CSRVega_Total = CSR_Data.groupby("Depart").apply(Calc_CSRVega, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
+        if (len(CSR_Data) > 0) :          
+            CSRDelta_Total = CSR_Data.groupby("Depart").apply(Calc_CSRDelta, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
+            CSRCurvature_Total = CSR_Data.groupby("Depart").apply(Calc_CSRCurvature, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
+            CSRVega_Total = CSR_Data.groupby("Depart").apply(Calc_CSRVega, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
+        else : 
+            CSRDelta_Total = CSRCurvature_Total = CSRVega_Total = pd.DataFrame([])
         
         if (len(CSR_Sec_NonCTP_Data) > 0) :         
             CSRSecNonCTP_Delta_Total = CSR_Sec_NonCTP_Data.groupby("Depart").apply(Calc_CSRSecuritizedNonCTPDelta, CSR_SecuritizedNonCTPDelta_RW, DeltaSensiName).reset_index()
@@ -3973,22 +4129,34 @@ def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data
         else : 
             CSRCTPDelta_Total = CSRCTPCurvature_Total = CSRCTPVega_Total = pd.DataFrame([])
                     
-        GIRRDelta_Total = GIRR_Data.groupby("Depart").apply(Calc_GIRRDelta, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
-        GIRRCurvature_Total = GIRR_Data.groupby("Depart").apply(Calc_GIRRCurvature, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
-        GIRRVega_Total = GIRR_Data.groupby("Depart").apply(Calc_GIRRVega, VegaSensiName).reset_index()
-        
-        FXRDelta_Total = FXR_Data.groupby("Depart").apply(Calc_FXRDelta, HighLiquidCurrency, DeltaSensiName).reset_index()
-        FXRCurvature_Total = FXR_Data.groupby("Depart").apply(Calc_FXRCurvature, HighLiquidCurrency, DeltaSensiName).reset_index()
-        FXRVega_Total = FXR_Data.groupby("Depart").apply(Calc_FXRVega, VegaSensiName).reset_index()
-        
-        EQRDelta_Total = EQR_Data.groupby("Depart").apply(Calc_EQRDelta, DeltaSensiName).reset_index()
-        EQRCurvature_Total = EQR_Data.groupby("Depart").apply(Calc_EQRCurvature,EQDeltaRWMappingDF, DeltaSensiName).reset_index()
-        EQRVega_Total = EQR_Data.groupby("Depart").apply(Calc_EQRVega,VegaSensiName).reset_index()
-        
-        COMRDelta_Total = COMR_Data.groupby("Depart").apply(Calc_COMRDelta, DeltaSensiName).reset_index()
-        COMRCurvature_Total = COMR_Data.groupby("Depart").apply(Calc_COMRCurvature, DeltaSensiName).reset_index()
-        COMRVega_Total = COMR_Data.groupby("Depart").apply(Calc_COMRVega, VegaSensiName).reset_index()  
+        if (len(GIRR_Data) > 0) : 
+            GIRRDelta_Total = GIRR_Data.groupby("Depart").apply(Calc_GIRRDelta, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
+            GIRRCurvature_Total = GIRR_Data.groupby("Depart").apply(Calc_GIRRCurvature, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
+            GIRRVega_Total = GIRR_Data.groupby("Depart").apply(Calc_GIRRVega, VegaSensiName).reset_index()
+        else : 
+            GIRRDelta_Total = GIRRCurvature_Total = GIRRVega_Total = pd.DataFrame([])   
+                    
+        if (len(FXR_Data) > 0) :                     
+            FXRDelta_Total = FXR_Data.groupby("Depart").apply(Calc_FXRDelta, HighLiquidCurrency, DeltaSensiName).reset_index()
+            FXRCurvature_Total = FXR_Data.groupby("Depart").apply(Calc_FXRCurvature, HighLiquidCurrency, DeltaSensiName).reset_index()
+            FXRVega_Total = FXR_Data.groupby("Depart").apply(Calc_FXRVega, VegaSensiName).reset_index()
+        else : 
+            FXRDelta_Total = FXRCurvature_Total = FXRVega_Total = pd.DataFrame([]) 
 
+        if (len(EQR_Data) > 0) :                    
+            EQRDelta_Total = EQR_Data.groupby("Depart").apply(Calc_EQRDelta, DeltaSensiName).reset_index()
+            EQRCurvature_Total = EQR_Data.groupby("Depart").apply(Calc_EQRCurvature,EQDeltaRWMappingDF, DeltaSensiName).reset_index()
+            EQRVega_Total = EQR_Data.groupby("Depart").apply(Calc_EQRVega,VegaSensiName).reset_index()
+        else : 
+            EQRDelta_Total = EQRCurvature_Total = EQRVega_Total = pd.DataFrame([]) 
+                    
+        if (len(COMR_Data) > 0) :                     
+            COMRDelta_Total = COMR_Data.groupby("Depart").apply(Calc_COMRDelta, DeltaSensiName).reset_index()
+            COMRCurvature_Total = COMR_Data.groupby("Depart").apply(Calc_COMRCurvature, DeltaSensiName).reset_index()
+            COMRVega_Total = COMR_Data.groupby("Depart").apply(Calc_COMRVega, VegaSensiName).reset_index()  
+        else : 
+            COMRDelta_Total = COMRCurvature_Total = COMRVega_Total = pd.DataFrame([]) 
+            
         if len(DRC) > 0 :
             DRC_Total = DRC.groupby("Depart").apply(CalcDRC3RiskCharge).reset_index()
            
@@ -3996,10 +4164,13 @@ def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data
             RRAO_Total = RRAO.groupby("Depart").apply(CalcRRAORiskCharge).reset_index()
             
     else : 
-        CSRDelta_Total = CSR_Data.groupby("Portfolio").apply(Calc_CSRDelta, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
-        CSRCurvature_Total = CSR_Data.groupby("Portfolio").apply(Calc_CSRCurvature, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
-        CSRVega_Total = CSR_Data.groupby("Portfolio").apply(Calc_CSRVega, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
-
+        if (len(CSR_Data) > 0) :            
+            CSRDelta_Total = CSR_Data.groupby("Portfolio").apply(Calc_CSRDelta, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
+            CSRCurvature_Total = CSR_Data.groupby("Portfolio").apply(Calc_CSRCurvature, CSR_DeltaNonSecurCorrDf, DeltaSensiName).reset_index()
+            CSRVega_Total = CSR_Data.groupby("Portfolio").apply(Calc_CSRVega, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
+        else : 
+            CSRDelta_Total = CSRCurvature_Total = CSRVega_Total = pd.DataFrame([])
+            
         if (len(CSR_Sec_NonCTP_Data) > 0) :  
             CSRSecNonCTP_Delta_Total = CSR_Sec_NonCTP_Data.groupby("Portfolio").apply(Calc_CSRSecuritizedNonCTPDelta, CSR_SecuritizedNonCTPDelta_RW, DeltaSensiName).reset_index()
             CSRSecNonCTP_Curvature_Total = CSR_Sec_NonCTP_Data.groupby("Portfolio").apply(Calc_CSRSecuritizedNonCTPCurvature, CSR_SecuritizedNonCTPDelta_RW, DeltaSensiName).reset_index()
@@ -4013,22 +4184,34 @@ def AggregatedFRTB_RiskCharge(CSR_Data, GIRR_Data, FXR_Data, EQR_Data, COMR_Data
             CSRCTPVega_Total = CSR_CTP_Data.groupby("Portfolio").apply(Calc_CSRVega, CSR_DeltaNonSecurCorrDf,  VegaSensiName).reset_index()
         else : 
             CSRCTPDelta_Total = CSRCTPCurvature_Total = CSRCTPVega_Total = pd.DataFrame([])
-                    
-        GIRRDelta_Total = GIRR_Data.groupby("Portfolio").apply(Calc_GIRRDelta, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
-        GIRRCurvature_Total = GIRR_Data.groupby("Portfolio").apply(Calc_GIRRCurvature, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
-        GIRRVega_Total = GIRR_Data.groupby("Portfolio").apply(Calc_GIRRVega, VegaSensiName).reset_index()
-        
-        FXRDelta_Total = FXR_Data.groupby("Portfolio").apply(Calc_FXRDelta, HighLiquidCurrency, DeltaSensiName).reset_index()
-        FXRCurvature_Total = FXR_Data.groupby("Portfolio").apply(Calc_FXRCurvature, HighLiquidCurrency, DeltaSensiName).reset_index()
-        FXRVega_Total = FXR_Data.groupby("Portfolio").apply(Calc_FXRVega, VegaSensiName).reset_index()
-        
-        EQRDelta_Total = EQR_Data.groupby("Portfolio").apply(Calc_EQRDelta, DeltaSensiName).reset_index()
-        EQRCurvature_Total = EQR_Data.groupby("Portfolio").apply(Calc_EQRCurvature,EQDeltaRWMappingDF, DeltaSensiName).reset_index()
-        EQRVega_Total = EQR_Data.groupby("Portfolio").apply(Calc_EQRVega,VegaSensiName).reset_index()
-        
-        COMRDelta_Total = COMR_Data.groupby("Portfolio").apply(Calc_COMRDelta, DeltaSensiName).reset_index()
-        COMRCurvature_Total = COMR_Data.groupby("Portfolio").apply(Calc_COMRCurvature, DeltaSensiName).reset_index()
-        COMRVega_Total = COMR_Data.groupby("Portfolio").apply(Calc_COMRVega, VegaSensiName).reset_index()  
+
+        if (len(GIRR_Data) > 0) :                     
+            GIRRDelta_Total = GIRR_Data.groupby("Portfolio").apply(Calc_GIRRDelta, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
+            GIRRCurvature_Total = GIRR_Data.groupby("Portfolio").apply(Calc_GIRRCurvature, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensiName).reset_index()
+            GIRRVega_Total = GIRR_Data.groupby("Portfolio").apply(Calc_GIRRVega, VegaSensiName).reset_index()
+        else : 
+            GIRRDelta_Total = GIRRCurvature_Total = GIRRVega_Total = pd.DataFrame([])   
+
+        if (len(FXR_Data) > 0) :                     
+            FXRDelta_Total = FXR_Data.groupby("Portfolio").apply(Calc_FXRDelta, HighLiquidCurrency, DeltaSensiName).reset_index()
+            FXRCurvature_Total = FXR_Data.groupby("Portfolio").apply(Calc_FXRCurvature, HighLiquidCurrency, DeltaSensiName).reset_index()
+            FXRVega_Total = FXR_Data.groupby("Portfolio").apply(Calc_FXRVega, VegaSensiName).reset_index()
+        else : 
+            FXRDelta_Total = FXRCurvature_Total = FXRVega_Total = pd.DataFrame([]) 
+
+        if (len(EQR_Data) > 0) :                    
+            EQRDelta_Total = EQR_Data.groupby("Portfolio").apply(Calc_EQRDelta, DeltaSensiName).reset_index()
+            EQRCurvature_Total = EQR_Data.groupby("Portfolio").apply(Calc_EQRCurvature,EQDeltaRWMappingDF, DeltaSensiName).reset_index()
+            EQRVega_Total = EQR_Data.groupby("Portfolio").apply(Calc_EQRVega,VegaSensiName).reset_index()
+        else : 
+            EQRDelta_Total = EQRCurvature_Total = EQRVega_Total = pd.DataFrame([]) 
+
+        if (len(COMR_Data) > 0) :                      
+            COMRDelta_Total = COMR_Data.groupby("Portfolio").apply(Calc_COMRDelta, DeltaSensiName).reset_index()
+            COMRCurvature_Total = COMR_Data.groupby("Portfolio").apply(Calc_COMRCurvature, DeltaSensiName).reset_index()
+            COMRVega_Total = COMR_Data.groupby("Portfolio").apply(Calc_COMRVega, VegaSensiName).reset_index()  
+        else : 
+            COMRDelta_Total = COMRCurvature_Total = COMRVega_Total = pd.DataFrame([]) 
     
         if len(DRC) > 0 :
             DRC_Total = DRC.groupby("Portfolio").apply(CalcDRC3RiskCharge).reset_index()    
@@ -4181,10 +4364,10 @@ def MarketDataFileListPrint(currdir) :
 def UsedMarketDataSetToPricing(MarketDataDir) : 
     Data = MarketDataFileListPrint(MarketDataDir).sort_values(by = "YYYYMMDD")[-50:]
     GroupbyYYYYMMDD = Data.groupby("YYYYMMDD").first().reset_index()
-    PrintDate = "\n 다음 중 MarketData 날짜를 고르세요. \n"
+    PrintDate = "\n 다음 중 MarketData 날짜를 고르세요. (번호선택)\n"
     n = 0
     for x, y in zip(GroupbyYYYYMMDD["Number"], GroupbyYYYYMMDD["YYYYMMDD"]) : 
-        PrintDate += str(n+1) + ". " + str(y) + "\n"
+        PrintDate += str(n+1) + ": " + str(y) + "\n"
         n = n + 1
     DateMarketDataIdx = input(PrintDate + "-> ")
     YYYYMMDD = GroupbyYYYYMMDD["YYYYMMDD"].iloc[int(DateMarketDataIdx) - 1]
@@ -4308,9 +4491,11 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
         Curve = MyMarketDataList[n-1]
     CurveTerm = list(Curve["Term" if "Term" in Curve.columns else "term"])
     CurveRate = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
+    print("\n 채권 액면가를 입력하시오.\n")
+    Nominal = float(input().replace(",",""))
     print("\n 채권 발행일(YYYYMMDD)을 입력하시오.\n")        
     EffectiveDate = int(input())
-    print("\n 채권 만기일(YYYYMMDD)을 입력하시오.(지급일 X)\n")        
+    print("\n 채권 만기일(YYYYMMDD)을 입력하시오.(대금지급일 X)\n")        
     MaturityDate = int(input())
     print("\n 채권 만기일에서 대금결제일까지 영업일수를 입력하시오.\n")        
     MaturityToPayDate = int(input())
@@ -4324,19 +4509,24 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
     DayCountFlag = int(input())
     FixingRate = 0.0
     if FloatFlag in [1,'1', 2,'2'] : 
-        print("\n 최초 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n")        
-        FixingRate = float(input())
+        if int(YYYYMMDD) >= EffectiveDate : 
+            print("\n 최초 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n")        
+            FixingRate = float(input())
     
-    Value, PV01 = Calc_Bond_PV01(10000, 1, FloatFlag, FixingRate, EffectiveDate, 
+    Value, PV01, TempPV01 = Calc_Bond_PV01(Nominal, 1, FloatFlag, FixingRate, EffectiveDate, 
             int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm, CurveRate, 
             AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = [],
             EstZeroCurveRate = [], FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
             LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1)         
     
-    print("##############\n채권가격은 " + str(np.round(Value,6)) + "\n##############\n")
+    print("##############\n채권가격은 " + str(np.round(Value,4)) + "\n##############\n")
+    GIRRRisk = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 4)
+    CSRRisk = np.round(Calc_CSRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 4)
+    print(" 해당 채권거래시 GIRR은 " + str(format(GIRRRisk,",")) + " 만큼 증가하며, \n CSR은" + str(format(CSRRisk,",")) + " 만큼 증가합니다.\n")
+    
     print("##############\n####산출완료#####\n##############\n")
     MainFlag2 = input("종료하시겠습니까? (Y/N)")
-    return MainFlag2
+    return MainFlag2, Value, PV01, TempPV01
 
 def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) : 
     print("\n 세팅된 커브는 다음과 같습니다. \n 평가날짜 : " + YYYYMMDD)
@@ -4351,6 +4541,9 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
     print(curvename)  
     if len(MyMarketDataList) == 1 : 
         Curve = MyMarketDataList[0]
+        CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
+        CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
+        CurveTerm2, CurveRate2 = [], []        
     else : 
         print("\n IRS 스왑을 평가하기 위해 사용할 커브 번호를 입력하세요. \n * 두 커브를 선택할 경우 DiscCurveNum, EstCurveNum 순으로 입력하시오 (예 1, 2 -> 1DiscCurve, 2EstCurve)\n")        
         MyStr = input()
@@ -4373,35 +4566,44 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
             Curve2 = MyMarketDataList[n2-1]
             CurveTerm2 = list(Curve2["Term" if "Term" in Curve2.columns else "term"])
             CurveRate2 = list(Curve2["Rate" if "Rate" in Curve2.columns else "rate"])
-            
+    print("\n IRS 액면가를 입력하시오.\n")
+    Nominal = float(input().replace(",",""))            
     print("\n IRS 발행일(YYYYMMDD)을 입력하시오.\n")        
     EffectiveDate = int(input())
     print("\n IRS 만기일(YYYYMMDD)을 입력하시오.(지급일 X)\n")        
     MaturityDate = int(input())
     print("\n IRS 만기일에서 대금결제일까지 영업일수를 입력하시오.\n")        
     MaturityToPayDate = int(input())
+    print("\n 변동금리 수취여부를 입력하시오.\n 1. 변동금리 수취, 고정금리 지급\n 2. 고정금리 수취, 변동금리 지급.\n")        
+    FixedPayer = input()
+    FixedPayerFlag = 1 if FixedPayer in ['1',1] else 0
+    
     print("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n")        
     CpnRate = float(input())
     print("\n 1년에 이자지급횟수를 입력하시오.\n")        
     AnnCpnOneYear = int(input())
     print("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n")        
     DayCountFlag = int(input())
-    print("\n 최초 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n")        
-    FixingRate = float(input())
+    FixingRate = 0.0
+    if int(YYYYMMDD) >= EffectiveDate : 
+        print("\n 최초 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n")        
+        FixingRate = float(input())
     
-    Value = Calc_IRS(10000, FixingRate, EffectiveDate, 
+    Value, PV01, TempPV01 = Calc_IRS_PV01(Nominal, FixingRate, EffectiveDate, 
               int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm1, CurveRate1, 
               AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = CurveTerm2,
               EstZeroCurveRate = CurveRate2, FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
-              LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1)         
+              LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1, FixedPayerFlag = FixedPayerFlag)         
     
-    print("##############\nIRS 가격은 " + str(np.round(Value,6)) + "\n##############\n")
+    print("##############\nIRS 가격은 " + str(np.round(Value,4)) + "\n##############\n")
+    GIRRRisk = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 4)
+    print(" 해당 IRS 거래시 GIRR은 " + str(format(GIRRRisk,",")) + " 만큼 증가합니다. \n")    
     print("##############\n####산출완료#####\n##############\n")
     MainFlag2 = input("종료하시겠습니까? (Y/N)")
-    return MainFlag2
+    return MainFlag2, Value, PV01, TempPV01
 
 while True : 
-    MainFlag = input("사용하실 기능은? \n 1: Pricer \n 2: FRTB SA Risk Calculation \n 3: CurveGenerator \n-> ")
+    MainFlag = input("사용하실 기능은?(번호입력) \n 1: Pricer \n 2: FRTB SA Risk Calculation \n 3: CurveGenerator \n-> ")
     if len(str(MainFlag)) == 0 : 
         print("\n#########################\n### 프로그램을 종료합니다.###\n#########################")
         break
@@ -4409,7 +4611,7 @@ while True :
         print("\n#########################\n### 프로그램을 종료합니다.###\n#########################")
         break
     elif MainFlag in [2,'2'] :         
-        RAWFORMAT = int(input("자체데이터 RAWData 엑셀 포멧이면 0을 KDB RAW Data 포멧의 경우 1을 입력하시오\n-> "))
+        RAWFORMAT = 0#int(input("자체데이터 RAWData 엑셀 포멧이면 0을 KDB RAW Data 포멧의 경우 1을 입력하시오\n-> "))
         RAWData = MainFunction(currdir)
         if RAWFORMAT == 0 : 
             CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR, DRC, RRAO = PreProcessingMyData(RAWData)
@@ -4438,9 +4640,9 @@ while True :
         print("\nPricer를 선택하시오 : 1. 채권 2. IRS\n")
         n = int(input())
         if n == 1 : 
-            MainFlag2 = PricingBondProgram(YYYYMMDD, Name, Data)
+            MainFlag2, Value, PV01, TempPV01 = PricingBondProgram(YYYYMMDD, Name, Data)
         else : 
-            MainFlag2 = PricingIRSProgram(YYYYMMDD, Name, Data)            
+            MainFlag2, Value, PV01, TempPV01 = PricingIRSProgram(YYYYMMDD, Name, Data)            
         if str(MainFlag2).lower() == 'y' or len(str(MainFlag2)) == 0:
             print("\n#########################\n### 프로그램을 종료합니다.###\n#########################")
             break
@@ -4449,5 +4651,7 @@ while True :
         break
         
 
+
+# %%
 
 # %%
