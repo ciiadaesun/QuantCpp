@@ -2124,7 +2124,7 @@ def Calc_ZeroRate_FromDiscFactor(PriceDate, StartDate, EndDate, MarketQuote, Day
         r = -365.0/(DayCountAtoB(PriceDate, EndDate)) * np.log(DF_0_To_EndDate)
     return r
 
-def ReadCSV(filedir) :
+def ReadCSV(filedir) :    
     try : 
         chunk_list = pd.read_csv(filedir, chunksize = 5000, engine = 'python')
     except UnicodeDecodeError : 
@@ -4717,14 +4717,18 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
     MainFlag2 = input("종료하시겠습니까? (Y/N)")
     return MainFlag2, Value, PV01, TempPV01
 
-def ZeroCurveMaker(MyData, currdir, YYYYMMDD) : 
+def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot) : 
     MyData["Type"] = MyData["Type"].apply(lambda x : str(x).lower())
     Currency = input("\n 스왑 통화를 입력하시오 (ex KRW, USD, 등)\n 만약 통화스왑이라면 KRW, USD 등의 두개 통화 쌍 형태로 입력\n->")
     if len(Currency) == 0 : 
         Currency = "KRW"
     ForeignCurveNeeded = 1 if 'sp' in list(MyData["Type"]) else 0
-    Spot = float(input("\n Spot 환율가격을 입력하시오 \n->")) if ForeignCurveNeeded else 0
-    SwapPointUnit = float(input("\n SwapPointUnit을 입력하시오 \n->")) if ForeignCurveNeeded else 0    
+    
+    if ('krw' in Currency.lower()) and (int(YYYYMMDD) in FXSpot.index) : 
+        Spot = FXSpot.loc[int(YYYYMMDD)]["USD/KRW"]
+    else : 
+        Spot = float(input("\n Spot 환율가격을 입력하시오 \n->")) if ForeignCurveNeeded else 0
+    SwapPointUnit = 100.0 if 'krw' in Currency.lower() else (float(input("\n SwapPointUnit을 입력하시오 \n->")) if ForeignCurveNeeded else 0)    
     AnnCpnOneYear = input("\n 연 이자지급 횟수를 입력하시오. \n->")
     AnnCpnOneYear = 4 if len(AnnCpnOneYear) == 0 else int(AnnCpnOneYear)
     PriceDate = int(YYYYMMDD)
@@ -4740,7 +4744,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD) :
     ZeroTermForeign, ZeroRateForeign, ForeignEstCurveTerm, ForeignEstCurveRate, DomesticEstCurveTerm, DomesticEstCurveRate = [],[], [], [], [], []
     
     if ForeignCurveNeeded > 0: 
-        print("\n CRS 커브생성을 위해서는 Foreign ZeroRate가 필요합니다. 위치를 선택하시오.\n 만약 Domestic Estimation Curve가 추가로 필요하면 Foreign Curve 번호, Domestic Est Curve 번호 순으로 두개의 번호를 입력하시오.")
+        print("\n CRS 커브생성을 위해서는 Foreign ZeroRate가 필요합니다. Foreign Rate의 위치 번호를 선택하시오.\n (만약 Domestic Estimation Curve가 추가로 필요하면 Foreign Curve 번호, Domestic Est Curve 번호 순으로 두개의 번호를 입력하시오.)")
         YYYYMMDD2, Name2, Data2 = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata', str(YYYYMMDD))
         ForeignZero = Data2[0]
         ZeroTermForeign = ForeignEstCurveTerm = list(ForeignZero["Term"])
@@ -4885,6 +4889,20 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD) :
         
     return ResultDF
 
+def PreprocessingFXSpotData(DataDirectory) :     
+    try : 
+        FXSpot = ReadCSV(DataDirectory).dropna(how = 'all').fillna(method = 'ffill').applymap(lambda x : str(x).replace("-","")).astype(np.float64)
+        FXSpot["Date"] = FXSpot["Date"].astype(np.int64)
+        FXSpot = FXSpot.set_index("Date")
+        if FXSpot.index[0] < 19000101 : 
+            MyList = []
+            for i in range(len(FXSpot.index)) : 
+                MyList.append(ExcelDateToYYYYMMDD(FXSpot.index[i]))
+            FXSpot.index = MyList
+    except FileNotFoundError : 
+        FXSpot = pd.DataFrame([])
+    return FXSpot    
+
 while True : 
     MainFlag = input("사용하실 기능은?(번호입력) \n 1: Pricer \n 2: FRTB SA Risk Calculation \n 3: CurveGenerator \n-> ")
     if len(str(MainFlag)) == 0 : 
@@ -4930,7 +4948,8 @@ while True :
             print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
             break
     elif MainFlag in [3,'3'] : 
-        HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)
+        HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
+        FXSpot = PreprocessingFXSpotData(currdir + "\\MarketData\\spot\\FXSpot.csv")        
         YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + "\\MarketData\\inputdata")
         
         if len(Name) > 1 : 
@@ -4944,7 +4963,7 @@ while True :
         else : 
             MyData = Data[0]
 
-        ResultDF = ZeroCurveMaker(MyData, currdir, YYYYMMDD)
+        ResultDF = ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot)
         
                     
 
