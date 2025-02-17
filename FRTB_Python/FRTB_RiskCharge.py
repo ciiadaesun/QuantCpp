@@ -3,7 +3,7 @@
 Created By Daesun Lim (CIIA(R), FRM(R))
 Risk Quant Manager
 My FRTB Module 
-v1.0.1 
+v1.0.3
 """
 import numpy as np
 import pandas as pd
@@ -13,7 +13,7 @@ import warnings
 import os
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
-vers = "1.0.2"
+vers = "1.0.3"
 print("######################################\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Quant Manager\nMy FRTB Module \n"+vers+" \n######################################\n")
 
 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
@@ -1639,6 +1639,46 @@ def Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate) :
             for i in range(len(ZeroRate)) : 
                 ZeroRate[i] = ZeroRate[i]/100
 
+def MapGIRRDeltaGreeks(Greeks, RiskFactor) : 
+    ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
+    for i in range(len(Greeks)) : 
+        if float(Greeks.index[i]) < 0.251 :     
+            ResultSensi.loc[0.25] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 0.251 and float(Greeks.index[i]) < 0.51:
+            ResultSensi.loc[0.5] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 0.51 and float(Greeks.index[i]) < 1.01:
+            ResultSensi.loc[1.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 1.01 and float(Greeks.index[i]) < 2.01:
+            ResultSensi.loc[2.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 2.01 and float(Greeks.index[i]) < 3.01:
+            ResultSensi.loc[3.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 3.01 and float(Greeks.index[i]) < 5.01:
+            ResultSensi.loc[5.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 5.01 and float(Greeks.index[i]) < 10.01:
+            ResultSensi.loc[10.00] += Greeks.iloc[i]                 
+        elif float(Greeks.index[i]) >= 10.01 and float(Greeks.index[i]) < 15.01:
+            ResultSensi.loc[15.00] += Greeks.iloc[i]                 
+        elif float(Greeks.index[i]) >= 15.01 and float(Greeks.index[i]) < 20.01:
+            ResultSensi.loc[20.00] += Greeks.iloc[i]                 
+        else : 
+            ResultSensi.loc[30.00] += Greeks.iloc[i]                 
+    return ResultSensi            
+
+def MapCSRDeltaGreeks(Greeks, RiskFactor) : 
+    ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
+    for i in range(len(Greeks)) : 
+        if float(Greeks.index[i]) < 0.51 :     
+            ResultSensi.loc[0.5] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 0.51 and float(Greeks.index[i]) < 1.01:
+            ResultSensi.loc[1.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 1.01 and float(Greeks.index[i]) < 3.01:
+            ResultSensi.loc[3.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 3.01 and float(Greeks.index[i]) < 5.01:
+            ResultSensi.loc[5.00] += Greeks.iloc[i]
+        else : 
+            ResultSensi.loc[10.00] += Greeks.iloc[i]                 
+    return ResultSensi 
+
 def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
               PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroCurveRate, 
               AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [],
@@ -1859,14 +1899,29 @@ def Calc_Bond_PV01(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, Effective
         df3.columns = ["PV01TermEst","PVEst01"]
         if LoggingFlag > 0 : 
             df = ReadCSV(LoggingDir + "\\LoggingFilesBond.csv")
-            pd.concat([df, df2, df3],axis = 1).to_csv(LoggingDir + "\\LoggingFilesBond.csv", index = False)
+            GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
+            DataGIRR = MapGIRRDeltaGreeks(df2.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
+            DataGIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"] 
+            DataGIRR2 = MapGIRRDeltaGreeks(df3.set_index("PV01TermEst")["PVEst01"], GIRR_DeltaRiskFactor).reset_index()
+            DataGIRR2.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"] 
+            DataCSR = MapCSRDeltaGreeks(df2.set_index("PV01Term")["PV01"], CSR_RiskFactor).reset_index()
+            DataCSR.columns = ["CSR_Tenor","CSR_Delta_Sensi"]       
+            DataCSR2 = MapCSRDeltaGreeks(df3.set_index("PV01TermEst")["PVEst01"], CSR_RiskFactor).reset_index()
+            DataCSR2.columns = ["CSR_Tenor","CSR_Delta_Sensi"]                   
+            pd.concat([df, df2, df3, DataGIRR, DataGIRR2, DataCSR, DataCSR2],axis = 1).to_csv(LoggingDir + "\\LoggingFilesBond.csv", index = False)
         return P, df2, df3
 
     df2 = pd.Series(ResultArray, index = ZeroCurveTerm).reset_index()
     df2.columns = ["PV01Term","PV01"]
     if LoggingFlag > 0 : 
         df = ReadCSV(LoggingDir + "\\LoggingFilesBond.csv")
-        pd.concat([df, df2],axis = 1).to_csv(LoggingDir + "\\LoggingFilesBond.csv", index = False)
+        GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
+        DataGIRR = MapGIRRDeltaGreeks(df2.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
+        DataGIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"] 
+        CSR_RiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)   
+        DataCSR = MapCSRDeltaGreeks(df2.set_index("PV01Term")["PV01"], CSR_RiskFactor).reset_index()
+        DataCSR.columns = ["CSR_Tenor","CSR_Delta_Sensi"]       
+        pd.concat([df, df2, DataGIRR, DataCSR],axis = 1).to_csv(LoggingDir + "\\LoggingFilesBond.csv", index = False)
     return P, df2, df2           
     
 def Calc_IRS(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
@@ -1944,14 +1999,22 @@ def Calc_IRS_PV01(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYY
         df3.columns = ["PV01TermEst","PVEst01"]
         if LoggingFlag > 0 : 
             df = ReadCSV(LoggingDir + "\\LoggingFilesIRS.csv")
-            pd.concat([df, df2, df3],axis = 1).to_csv(LoggingDir + "\\LoggingFilesIRS.csv", index = False)
+            GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
+            DataGIRR = MapGIRRDeltaGreeks(df2.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
+            DataGIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"] 
+            DataGIRR2 = MapGIRRDeltaGreeks(df3.set_index("PV01TermEst")["PVEst01"], GIRR_DeltaRiskFactor).reset_index()
+            DataGIRR2.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"] 
+            pd.concat([df, df2, df3, DataGIRR, DataGIRR2],axis = 1).to_csv(LoggingDir + "\\LoggingFilesIRS.csv", index = False)
         return P, df2, df3
 
     df2 = pd.Series(ResultArray, index = ZeroCurveTerm).reset_index()
     df2.columns = ["PV01Term","PV01"]
     if LoggingFlag > 0 : 
         df = ReadCSV(LoggingDir + "\\LoggingFilesIRS.csv")
-        pd.concat([df, df2],axis = 1).to_csv(LoggingDir + "\\LoggingFilesIRS.csv", index = False)
+        GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
+        DataGIRR = MapGIRRDeltaGreeks(df2.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
+        DataGIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"] 
+        pd.concat([df, df2, DataGIRR],axis = 1).to_csv(LoggingDir + "\\LoggingFilesIRS.csv", index = False)
     return P, df2, df2          
     
 def Calc_CRS(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
@@ -1994,46 +2057,6 @@ def Calc_CRS(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveDateYY
 ########################################### 여기까지 Pricing Module ###########################################
 ########################################### 여기부터 FRTB Module ##############################################  
 ##############################################################################################################
-  
-def MapGIRRDeltaGreeks(Greeks, RiskFactor) : 
-    ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
-    for i in range(len(Greeks)) : 
-        if float(Greeks.index[i]) < 0.251 :     
-            ResultSensi.loc[0.25] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 0.251 and float(Greeks.index[i]) < 0.51:
-            ResultSensi.loc[0.5] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 0.51 and float(Greeks.index[i]) < 1.01:
-            ResultSensi.loc[1.00] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 1.01 and float(Greeks.index[i]) < 2.01:
-            ResultSensi.loc[2.00] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 2.01 and float(Greeks.index[i]) < 3.01:
-            ResultSensi.loc[3.00] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 3.01 and float(Greeks.index[i]) < 5.01:
-            ResultSensi.loc[5.00] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 5.01 and float(Greeks.index[i]) < 10.01:
-            ResultSensi.loc[10.00] += Greeks.iloc[i]                 
-        elif float(Greeks.index[i]) >= 10.01 and float(Greeks.index[i]) < 15.01:
-            ResultSensi.loc[15.00] += Greeks.iloc[i]                 
-        elif float(Greeks.index[i]) >= 15.01 and float(Greeks.index[i]) < 20.01:
-            ResultSensi.loc[20.00] += Greeks.iloc[i]                 
-        else : 
-            ResultSensi.loc[30.00] += Greeks.iloc[i]                 
-    return ResultSensi            
-
-def MapCSRDeltaGreeks(Greeks, RiskFactor) : 
-    ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
-    for i in range(len(Greeks)) : 
-        if float(Greeks.index[i]) < 0.51 :     
-            ResultSensi.loc[0.5] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 0.51 and float(Greeks.index[i]) < 1.01:
-            ResultSensi.loc[1.00] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 1.01 and float(Greeks.index[i]) < 3.01:
-            ResultSensi.loc[3.00] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 3.01 and float(Greeks.index[i]) < 5.01:
-            ResultSensi.loc[5.00] += Greeks.iloc[i]
-        else : 
-            ResultSensi.loc[10.00] += Greeks.iloc[i]                 
-    return ResultSensi 
 
 def Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01 ,col = "PV01Term", bpv = "PV01") : 
     GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
@@ -2161,6 +2184,7 @@ def PreProcessingKDBData(KDBData, dataformat = 'Combined') :
         DataCSR = DataCSR.rename(columns = {"RiskFactor2":"Curve","RiskFactor3":"Tenor","RiskFactor1":"Issuer"})
         DataCSRDelta = DataCSR[DataCSR["Risk_Type"].isin(["Delta","델타","델타(Delta)"])]
         DataCSRNonDelta = DataCSR.loc[DataCSR.index.difference(DataCSRDelta.index)]
+        DataCSRDelta["Delta_Sensi"] = DataCSRDelta["Delta_Sensi"].apply(lambda x : x if ',' not in str(x) else str(x).replace(",",""))
         DataCSRDelta["Delta_Sensi"] = DataCSRDelta["Delta_Sensi"].astype(np.float64) * 10000
         DataCSR = pd.concat([DataCSRDelta, DataCSRNonDelta],axis = 0)
     if len(DataGIRR) > 0 : 
@@ -2169,6 +2193,7 @@ def PreProcessingKDBData(KDBData, dataformat = 'Combined') :
         DataGIRR_NonVega = DataGIRR_NonVega.rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Type"})
         DataGIRRVega = DataGIRRVega.rename(columns = {"RiskFactor3":"Curve","RiskFactor1":"Tenor1","RiskFactor2":"Tenor2"})        
         DataGIRR = pd.concat([DataGIRRVega, DataGIRR_NonVega],axis = 0)        
+        DataGIRR["Delta_Sensi"] = DataGIRR["Delta_Sensi"].apply(lambda x : x if ',' not in str(x) else str(x).replace(",",""))
         DataGIRR["Delta_Sensi"] = DataGIRR["Delta_Sensi"].astype(np.float64) * 10000                
     if len(DataEQR) > 0 : 
         DataEQR["Bucket"] = DataEQR["Bucket"].apply(lambda x : int(x.split("]")[0][-2:]) if (("매핑되지 않음" not in x) and ("매핑 필요" not in x)) else -1)
@@ -4513,6 +4538,8 @@ def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING") :
             MarketDataList[i]["StartDate"] = MarketDataList[i]["StartDate"].apply(lambda x : int(str(x).replace("-","")) if type(x) == str else (ExcelDateToYYYYMMDD(int(x)) if int(x) < 19000101 else int(x)))
         if "Maturity" in MarketDataList[i].columns : 
             MarketDataList[i]["Maturity"] = MarketDataList[i]["Maturity"].apply(lambda x : int(str(x).replace("-","")) if type(x) == str else (ExcelDateToYYYYMMDD(int(x)) if int(x) < 19000101 else int(x)))
+        if "MarketQuote" in MarketDataList[i].columns : 
+            MarketDataList[i]["MarketQuote"] = MarketDataList[i]["MarketQuote"].apply(lambda x : str(x).replace(",","")).astype(np.float64)
             
     return YYYYMMDD, MarketDataName, MarketDataList
 
@@ -4540,6 +4567,7 @@ def MainFunction(currdir) :
     else : 
         PrintStr1 = LoggingUsedFileNames(MyFiles, MyClass = 'GIRR')
         if PrintStr1 == '' : 
+            print("현재 GIRR 파일이 존재하지 않거나 .pia상태입니다.")
             Data1 = pd.DataFrame([])
         else : 
             print(PrintStr1)
@@ -4548,6 +4576,7 @@ def MainFunction(currdir) :
 
         PrintStr2 = LoggingUsedFileNames(MyFiles, MyClass = 'CSR')
         if PrintStr2 == '' : 
+            print("현재 CSR 파일이 존재하지 않거나 .pia상태입니다.")
             Data2 = pd.DataFrame([])
         else : 
             print(PrintStr2)
@@ -4556,6 +4585,7 @@ def MainFunction(currdir) :
 
         PrintStr3 = LoggingUsedFileNames(MyFiles, MyClass = 'FXR')
         if PrintStr3 == '' : 
+            print("현재 FXR 파일이 존재하지 않거나 .pia상태입니다.")
             Data3 = pd.DataFrame([])
         else : 
             print(PrintStr3)
@@ -4564,6 +4594,7 @@ def MainFunction(currdir) :
 
         PrintStr4 = LoggingUsedFileNames(MyFiles, MyClass = 'EQR')
         if PrintStr4 == '' : 
+            print("현재 EQR 파일이 존재하지 않거나 .pia상태입니다.")
             Data4 = pd.DataFrame([])
         else : 
             print(PrintStr4)
@@ -4572,6 +4603,7 @@ def MainFunction(currdir) :
 
         PrintStr5 = LoggingUsedFileNames(MyFiles, MyClass = 'COMR')
         if PrintStr5 == '' : 
+            print("현재 COMR 파일이 존재하지 않거나 .pia상태입니다.")
             Data5 = pd.DataFrame([])
         else : 
             print(PrintStr5)
@@ -4601,27 +4633,28 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
         UsedCurveName = Name[n-1]
     CurveTerm = list(Curve["Term" if "Term" in Curve.columns else "term"])
     CurveRate = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
-    print("\n 채권 액면가를 입력하시오.\n")
-    Nominal = float(input().replace(",",""))
-    print("\n 채권 발행일(YYYYMMDD)을 입력하시오.\n")        
-    EffectiveDate = int(input())
-    print("\n 채권 만기일(YYYYMMDD)을 입력하시오.(대금지급일 X)\n")        
-    MaturityDate = int(input())
-    print("\n 채권 만기일에서 대금결제일까지 영업일수를 입력하시오.\n")        
-    MaturityToPayDate = int(input())
-    print("\n 변동금리채라면 1을 입력하시오.\n")        
-    FloatFlag = int(input())
-    print("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n")        
-    CpnRate = float(input())
-    print("\n 1년에 이자지급횟수를 입력하시오.\n")        
-    AnnCpnOneYear = int(input())
-    print("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n")        
-    DayCountFlag = int(input())
+    Nominal = (input("\n 채권 액면가를 입력하시오.\n->").replace(",",""))
+    Nominal = float(Nominal) if len(str(Nominal)) > 0 else 10000
+    EffectiveDate = (input("\n 채권 발행일(YYYYMMDD)을 입력하시오.\n->"))
+    EffectiveDate = int(EffectiveDate) if len(str(EffectiveDate)) > 0 else 20240627    
+    MaturityDate = (input("\n IRS 만기일(YYYYMMDD)을 입력하시오.(지급일 X)\n->"))
+    MaturityDate = int(MaturityDate) if len(str(MaturityDate)) > 0 else 20340627
+    MaturityToPayDate = (input("\n 채권 만기일에서 대금결제일까지 영업일수를 입력하시오.\n"))
+    MaturityToPayDate = int(MaturityToPayDate) if len(str(MaturityToPayDate)) > 0 else 0
+    FloatFlag = int(input("\n 변동금리채라면 1을 입력하시오.\n->"))
+    CpnRate = float(input("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n->"))
+    if CpnRate > 1.0 : 
+        CpnRate = CpnRate / 100    
+    AnnCpnOneYear = (input("\n 1년에 이자지급횟수를 입력하시오.\n->"))
+    AnnCpnOneYear = int(AnnCpnOneYear) if len(str(AnnCpnOneYear)) > 0 else 4
+    DayCountFlag = int(input("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n->"))
     FixingRate = 0.0
     if FloatFlag in [1,'1', 2,'2'] : 
         if int(YYYYMMDD) >= EffectiveDate : 
             print("\n 최근 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n")        
             FixingRate = float(input())
+            if FixingRate > 1 : 
+                FixingRate = FixingRate / 100
     
     Value, PV01, TempPV01 = Calc_Bond_PV01(Nominal, 1, FloatFlag, FixingRate, EffectiveDate, 
             int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm, CurveRate, 
@@ -4633,7 +4666,7 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
     GIRRRisk = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 2 if Value > 10000 else 4)
     CSRRisk = np.round(Calc_CSRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 2 if Value > 10000 else 4)
     print(" 해당 채권거래시 GIRR은 " + str(format(GIRRRisk,",")) + " 만큼 증가하며, \n CSR은 " + str(format(CSRRisk,",")) + " 만큼 증가합니다.\n")
-    
+    print("\n 더 엄밀한 FRTB 증가분을 알고싶다면, csv파일의 민감도를 FRTB RAW Files에 추가하여 계산하시오.\n")        
     print("##############\n####산출완료#####\n##############\n")
     MainFlag2 = input("종료하시겠습니까? (Y/N)")
     return MainFlag2, Value, PV01, TempPV01
@@ -4682,28 +4715,28 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
             UsedCurveName2 = Name[n2-1]
             CurveTerm2 = list(Curve2["Term" if "Term" in Curve2.columns else "term"])
             CurveRate2 = list(Curve2["Rate" if "Rate" in Curve2.columns else "rate"])
-    print("\n IRS 액면가를 입력하시오.\n")
-    Nominal = float(input().replace(",",""))            
-    print("\n IRS 발행일(YYYYMMDD)을 입력하시오.\n")        
-    EffectiveDate = int(input())
-    print("\n IRS 만기일(YYYYMMDD)을 입력하시오.(지급일 X)\n")        
-    MaturityDate = int(input())
-    print("\n IRS 만기일에서 대금결제일까지 영업일수를 입력하시오.\n")        
-    MaturityToPayDate = int(input())
-    print("\n 변동금리 수취여부를 입력하시오.\n 1. 변동금리 수취, 고정금리 지급\n 2. 고정금리 수취, 변동금리 지급.\n")        
-    FixedPayer = input()
-    FixedPayerFlag = 1 if FixedPayer in ['1',1] else 0
-    
-    print("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n")        
-    CpnRate = float(input())
-    print("\n 1년에 이자지급횟수를 입력하시오.\n")        
-    AnnCpnOneYear = int(input())
-    print("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n")        
-    DayCountFlag = int(input())
+    Nominal = (input("\n IRS 액면가를 입력하시오.\n->").replace(",",""))            
+    Nominal = float(Nominal) if len(str(Nominal)) > 0 else 10000
+    EffectiveDate = (input("\n IRS 발행일(YYYYMMDD)을 입력하시오.\n->"))
+    EffectiveDate = int(EffectiveDate) if len(str(EffectiveDate)) > 0 else 20240627
+    MaturityDate = (input("\n IRS 만기일(YYYYMMDD)을 입력하시오.(지급일 X)\n->"))
+    MaturityDate = int(MaturityDate) if len(str(MaturityDate)) > 0 else 20340627
+    MaturityToPayDate = (input("\n IRS 만기일에서 대금결제일까지 영업일수를 입력하시오.\n->"))
+    MaturityToPayDate = int(MaturityToPayDate) if len(str(MaturityToPayDate)) > 0 else 0
+    FixedPayer = input("\n 변동금리 수취여부를 입력하시오.\n 1. 변동금리 수취, 고정금리 지급\n 2. 고정금리 수취, 변동금리 지급.\n->")
+    FixedPayerFlag = 1 if FixedPayer in ['1',1] else 0    
+    CpnRate = float(input("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n->"))
+    if CpnRate > 1.0 : 
+        CpnRate = CpnRate / 100
+    AnnCpnOneYear = (input("\n 1년에 이자지급횟수를 입력하시오.\n->"))
+    AnnCpnOneYear = int(AnnCpnOneYear) if len(str(AnnCpnOneYear)) > 0 else 4
+    DayCountFlag = int(input("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n->"))
     FixingRate = 0.0
     if int(YYYYMMDD) >= EffectiveDate : 
         print("\n 최초 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n")        
         FixingRate = float(input())
+        if FixingRate > 1.0 : 
+            FixingRate = FixingRate/100
     
     Value, PV01, TempPV01 = Calc_IRS_PV01(Nominal, FixingRate, EffectiveDate, 
               int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm1, CurveRate1, 
@@ -4713,7 +4746,8 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
     
     print("##############\nIRS 가격은 " + str(np.round(Value,4)) + "\n##############\n")
     GIRRRisk = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 4 if Value > 10000 else 2)
-    print(" 해당 IRS 거래시 GIRR은 " + str(format(GIRRRisk,",")) + " 만큼 증가합니다. \n")    
+    print(" 해당 IRS 거래시 GIRR은 " + str(format(GIRRRisk,",")) + " 만큼 증가합니다. \n")
+    print("\n 더 엄밀한 FRTB 증가분을 알고싶다면, csv파일의 민감도를 FRTB RAW Files에 추가하여 계산하시오.\n")    
     print("#################\n####산출완료#####\n#################\n")
     MainFlag2 = input("종료하시겠습니까? (Y/N)")
     return MainFlag2, Value, PV01, TempPV01
@@ -4730,14 +4764,19 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot) :
     else : 
         Spot = float(input("\n Spot 환율가격을 입력하시오 \n->")) if ForeignCurveNeeded else 0
     SwapPointUnit = 100.0 if 'krw' in Currency.lower() else (float(input("\n SwapPointUnit을 입력하시오 \n->")) if ForeignCurveNeeded else 0)    
-    AnnCpnOneYear = input("\n 연 이자지급 횟수를 입력하시오. \n->")
-    AnnCpnOneYear = 4 if len(AnnCpnOneYear) == 0 else int(AnnCpnOneYear)
+    if ("krw" in Currency.lower() and ForeignCurveNeeded == 0 and ',' not in Currency) : 
+        AnnCpnOneYear = 4
+    else : 
+        AnnCpnOneYear = input("\n 연 이자지급 횟수를 입력하시오. \n->")
+        AnnCpnOneYear = 4 if len(AnnCpnOneYear) == 0 else int(AnnCpnOneYear)
     PriceDate = int(YYYYMMDD)
+    SecondCurrency = ""
     if "," not in Currency : 
         HolidayDomestic = sorted(list(HolidayDate[Currency].unique()))
         HolidayForeign, HolidayPay = HolidayDomestic, HolidayDomestic
     else : 
-        Splited = Currency.replace(" ","").split(",")            
+        Splited = Currency.replace(" ","").split(",")  
+        SecondCurrency = Splited[1]          
         HolidayDomestic = sorted(list(HolidayDate[Splited[0]].unique()))
         HolidayForeign = sorted(list(HolidayDate[Splited[1]].unique()))
         HolidayPay = list(pd.Index(HolidayDomestic).union(HolidayForeign))
@@ -4745,7 +4784,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot) :
     ZeroTermForeign, ZeroRateForeign, ForeignEstCurveTerm, ForeignEstCurveRate, DomesticEstCurveTerm, DomesticEstCurveRate = [],[], [], [], [], []
     
     if ForeignCurveNeeded > 0: 
-        print("\n CRS 커브생성을 위해서는 Foreign ZeroRate가 필요합니다. Foreign Rate의 위치 번호를 선택하시오.\n (만약 Domestic Estimation Curve가 추가로 필요하면 Foreign Curve 번호, Domestic Est Curve 번호 순으로 두개의 번호를 입력하시오.)")
+        print("\n CRS 커브생성을 위해서는 Foreign ZeroRate가 필요합니다.(" + SecondCurrency+ " ZeroCurve)\nForeign ZeroRate의 위치 번호를 선택하시오.\n (만약 베이시스스왑 등의 호가를 사용하면 Domestic Estimation Curve가 추가로 필요하므로 Foreign Curve 번호, Domestic Est Curve 번호 순으로 두개의 번호를 입력하시오.)")
         YYYYMMDD2, Name2, Data2 = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata', str(YYYYMMDD))
         ForeignZero = Data2[0]
         ZeroTermForeign = ForeignEstCurveTerm = list(ForeignZero["Term"])
@@ -4757,12 +4796,18 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot) :
             DomesticEstCurveTerm, DomesticEstCurveRate = list(DomesticEst["Term"]), list(DomesticEst["Rate"])
             print("\nDomestic Estimation ZeroRate는 다음 위치의 Rate를 사용 \n ->" + Name2[1])
             print("\n추가 커브가 2개이므로 Basis Swap 커브제너레이터입니다.\n")
-    DayCountFlag = (input("\n 국내금리의 Convention : \n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n ->"))        
-    DayCountFlag = int(DayCountFlag) if len(DayCountFlag) == 1 else 0
+    if Currency == "KRW" : 
+        DayCountFlag = 0
+    else : 
+        DayCountFlag = (input("\n 국내금리의 Convention : \n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n ->"))        
+        DayCountFlag = int(DayCountFlag) if len(DayCountFlag) == 1 else 0
     DayCountFlagForeign = DayCountFlag
     if len(ForeignEstCurveTerm) > 0 : 
-        DayCountFlagForeign = (input("\n 국제금리의 Convention : \n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n ->"))        
-        DayCountFlagForeign = int(DayCountFlagForeign) if len(DayCountFlagForeign) == 1 else 0
+        if SecondCurrency == "USD" : 
+            DayCountFlagForeign = 1
+        else :             
+            DayCountFlagForeign = (input("\n 국제금리의 Convention : \n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n ->"))        
+            DayCountFlagForeign = int(DayCountFlagForeign) if len(DayCountFlagForeign) == 1 else 0
         
     NBDList, ZeroTerm, ZeroRate, ScheduleStart, ScheduleEnd, SchedulePay, MktQuote = [], [], [], [], [], [], []
     if len(MyData[MyData["Type"].isin(['sp','Sp'])]) == 0 : 
@@ -4892,7 +4937,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot) :
 
 def PreprocessingFXSpotData(DataDirectory) :     
     try : 
-        FXSpot = ReadCSV(DataDirectory).dropna(how = 'all').fillna(method = 'ffill').applymap(lambda x : str(x).replace("-","")).astype(np.float64)
+        FXSpot = ReadCSV(DataDirectory).dropna(how = 'all').fillna(method = 'ffill').applymap(lambda x : str(x).replace(",","").replace("-","")).astype(np.float64)
         FXSpot["Date"] = FXSpot["Date"].astype(np.int64)
         FXSpot = FXSpot.set_index("Date")
         if FXSpot.index[0] < 19000101 : 
