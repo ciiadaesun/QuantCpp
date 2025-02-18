@@ -3,7 +3,7 @@
 Created By Daesun Lim (CIIA(R), FRM(R))
 Risk Quant Manager
 My FRTB Module 
-v1.0.3
+v1.0.4
 """
 import numpy as np
 import pandas as pd
@@ -13,7 +13,7 @@ import warnings
 import os
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
-vers = "1.0.3"
+vers = "1.0.4"
 print("######################################\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Quant Manager\nMy FRTB Module \n"+vers+" \n######################################\n")
 
 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
@@ -886,6 +886,7 @@ def Nth_Date(YYYY, MM, Nth, Date) :
                     return nthdate
                 elif (YYYYMM < nthdateYYYYMM) : 
                     return ExcelDateToYYYYMMDD(TempDate - 7)
+    return nthdate                
             
 def Mapping_KoreaHoliday16(YYYY) :
     '''
@@ -1496,16 +1497,16 @@ def Calc_Forward_Rate_ForSOFR(TermArray, RateArray, T1, T2, DeltaT):
     EXP_APPROX = 2.718281828459045
     # Linear Interpolation
     if TermArray[0] < T1 < TermArray[LengthArray - 1]:
-        DFT1 = EXP_APPROX ** (-Linterp(TermArray, RateArray, T1) * T1)
-        DFT2 = EXP_APPROX ** (-Linterp(TermArray, RateArray, T2) * T2)
+        DFT1 = np.exp(-Linterp(TermArray, RateArray, T1) * T1)
+        DFT2 = np.exp(-Linterp(TermArray, RateArray, T2) * T2)
         FRate = (1.0 / DeltaT) * (DFT1 / DFT2 - 1.0)
     elif T1 <= TermArray[0]:
-        DFT1 = EXP_APPROX ** (-RateArray[0] * T1)
-        DFT2 = EXP_APPROX ** (-Linterp(TermArray, RateArray, T2) * T2)
+        DFT1 = np.exp(-RateArray[0] * T1)
+        DFT2 = np.exp(-Linterp(TermArray, RateArray, T2) * T2)
         FRate = (1.0 / DeltaT) * (DFT1 / DFT2 - 1.0)
     else:
-        DFT1 = EXP_APPROX ** (-RateArray[LengthArray - 1] * T1)
-        DFT2 = EXP_APPROX ** (-RateArray[LengthArray - 1] * T2)
+        DFT1 = np.exp(-RateArray[LengthArray - 1] * T1)
+        DFT2 = np.exp(-RateArray[LengthArray - 1] * T2)
         FRate = (1.0 / DeltaT) * (DFT1 / DFT2 - 1.0)    
     return FRate
 
@@ -1679,12 +1680,84 @@ def MapCSRDeltaGreeks(Greeks, RiskFactor) :
             ResultSensi.loc[10.00] += Greeks.iloc[i]                 
     return ResultSensi 
 
+def Calc_Discount_Factor(Term, Rate, T) : 
+    r = Linterp(Term, Rate, T)
+    return np.exp(-r * T)
+
+def FSR(PricingDate, SwapStartDate, SwapMaturity, NCPN_Ann, DayCountFlag,
+        Holiday, Term, Rate, TermDisc, RateDisc,) :
+    if PricingDate < 19000101 : 
+        PricingDate = ExcelDateToYYYYMMDD(PricingDate)
+    if SwapStartDate < 19000101 : 
+        SwapStartDate = ExcelDateToYYYYMMDD(SwapStartDate)
+    if SwapMaturity < 19000101 : 
+        SwapMaturity = ExcelDateToYYYYMMDD(SwapMaturity)
+    if NCPN_Ann == 0 : 
+        T1 = DayCountAtoB(PricingDate, SwapStartDate)/365
+        T2 = DayCountAtoB(PricingDate, SwapMaturity)/365
+        DeltaT = DayCountFractionAtoB(SwapStartDate, SwapMaturity, DayCountFlag)
+        return Calc_Forward_Rate_ForSOFR(Term, Rate, T1, T2, DeltaT)
+    NHoliday = len(NHoliday)
+    NTerm = len(Term)
+    NTermDisc = len(TermDisc)
+    FixingDate, CpnDate, PayDate, NBD = MappingCouponDates(1,SwapStartDate,SwapMaturity, 0, NCPN_Ann,1,Holiday,Holiday,1)
+    NCpnDate = len(CpnDate)
+    t = DayCountAtoB(PricingDate, SwapStartDate) / 365.0
+    P0T = [0] * (NCpnDate + 1)
+    P0T[0] = Calc_Discount_Factor(Term, Rate, NTerm, t)
+    
+    for i in range(1, NCpnDate + 1):
+        t = DayCountAtoB(PricingDate, CpnDate[i - 1]) / 365.0
+        P0T[i] = Calc_Discount_Factor(Term, Rate, NTerm, t)
+    
+    a = P0T[0] - P0T[NCpnDate]
+    b = 0.0
+    
+    for i in range(NCpnDate):
+        t = DayCountAtoB(PricingDate, CpnDate[i]) / 365.0
+        
+        if i == 0:
+            dt = DayCountFractionAtoB(SwapStartDate, CpnDate[i], DayCountFlag)
+        else:
+            dt = DayCountFractionAtoB(CpnDate[i - 1], CpnDate[i], DayCountFlag)
+        
+        b += dt * Calc_Discount_Factor(TermDisc, RateDisc, NTermDisc, t)
+    
+    Swap_Rate = a / b
+    return Swap_Rate
+
+def Calc_CMS_Maturity(StartingDate, RefSwap_Maturity_T_Year = 0.25) : 
+    MatDate = EDate_YYYYMMDD(StartingDate, int(RefSwap_Maturity_T_Year * 12 + 1e-9))
+    return MatDate
+
+def GPrimePrime_Over_GPrime(CpnRate, YTM, PriceDate, SwapMaturityT, AnnCpnOneYear):
+    SwapEndDate = Calc_CMS_Maturity(PriceDate, SwapMaturityT)
+    CpnDates, FirstCpnDate = malloc_cpn_date_holiday(PriceDate, SwapEndDate, AnnCpnOneYear)
+    Gp = 0.0
+    Gpp = 0.0
+    
+    for i in range(len(CpnDates)):
+        T = DayCountFractionAtoB(PriceDate, CpnDates[i], 3)
+        if i == 0:
+            Deltat = DayCountFractionAtoB(PriceDate, CpnDates[i], 3)
+        else:
+            Deltat = DayCountFractionAtoB(CpnDates[i - 1], CpnDates[i], 3)
+        
+        Gp -= CpnRate * Deltat * T * (1.0 + YTM)**(-T)
+        Gpp += CpnRate * Deltat * T * T * (1.0 + YTM)**(-T)
+        
+        if i == len(CpnDates) - 1:
+            Gp -= T * (1.0 + YTM)**(-T)
+            Gpp += T * T * (1.0 + YTM)**(-T)
+    
+    return (Gpp / 100.0) / Gp
+
 def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
               PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroCurveRate, 
               AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [],
               EstZeroCurveRate = [], FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
               LoggingFlag = 0, LoggingDir = '', ModifiedFollow = 1, OverNightRateDateHistory = [], OverNightRateHistory = [], 
-              LookBackDays = 0, ObservShift = False, DiscCurveName = "", EstCurveName = "") :
+              LookBackDays = 0, ObservShift = False, DiscCurveName = "", EstCurveName = "", CMSFlag = 0, RefSwapMaturity_T = 0.25, RefSwapNCPNAnn = 4, TermVol = [], Vol = []) :
     
     LoggingStart = []
     LoggingEnd = []
@@ -1764,10 +1837,17 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
                     CompValue, f = SOFR_ForwardRate_Compound(PriceDateYYYYMMDD,    ZeroCurveTerm,    ZeroCurveRate,     Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD,    Generated_CpnDate[i],
                                                             0,    LookBackDays,    ObservShift,    0,    BusinessDate,    NBDCount,
                                                             OverNightRateDateHistory,    OverNightRateHistory,    365 if DayCountFlag == 0 else 360,    1)
+                elif CMSFlag == 1 : 
+                    SwapMaturity = Calc_CMS_Maturity(Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, RefSwap_Maturity_T_Year = RefSwapMaturity_T)
+                    f = FSR(PriceDateYYYYMMDD, Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, SwapMaturity, RefSwapNCPNAnn,DayCountFlag, FixingHolidayYYYYMMDD, ZeroCurveTerm, ZeroCurveRate, ZeroCurveTerm, ZeroCurveRate)
+                    v = Linterp(TermVol, Vol, tstart)
+                    GppOvGp = GPrimePrime_Over_GPrime(f, f, Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, RefSwapMaturity_T, RefSwapNCPNAnn)
+                    ConvAdjAmt = GppOvGp * v * v * 100. * tstart * 0.5
+                    f = f - ConvAdjAmt;                                        
                 else : 
                     r1 = Linterp(ZeroCurveTerm, ZeroCurveRate, tstart)
                     r2 = Linterp(ZeroCurveTerm, ZeroCurveRate, tend)
-                    f = 1.0 / deltat * (np.exp(-r1 * tstart)/np.exp(-r2 * tend) - 1.0)                    
+                    f = 1.0 / deltat * (np.exp(-r1 * tstart)/np.exp(-r2 * tend) - 1.0)
             else : 
                 if FloatFlag == 2 : 
                     Start = EDate_YYYYMMDD(Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, -1)
@@ -1777,11 +1857,17 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
                     CompValue, f = SOFR_ForwardRate_Compound(PriceDateYYYYMMDD,    EstZeroCurveTerm,    EstZeroCurveTerm,     Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD,    Generated_CpnDate[i],
                                                             0,    LookBackDays,    ObservShift,    0,    BusinessDate,    NBDCount,
                                                             OverNightRateDateHistory,    OverNightRateHistory,    365 if DayCountFlag == 0 else 360,    1)
+                elif CMSFlag == 1 : 
+                    SwapMaturity = Calc_CMS_Maturity(Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, RefSwap_Maturity_T_Year = RefSwapMaturity_T)
+                    f = FSR(PriceDateYYYYMMDD, Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, SwapMaturity, RefSwapNCPNAnn,DayCountFlag, FixingHolidayYYYYMMDD, EstZeroCurveTerm, EstZeroCurveRate, ZeroCurveTerm, ZeroCurveRate)
+                    v = Linterp(TermVol, Vol, tstart)
+                    GppOvGp = GPrimePrime_Over_GPrime(f, f, Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, RefSwapMaturity_T, RefSwapNCPNAnn)
+                    ConvAdjAmt = GppOvGp * v * v * 100. * tstart * 0.5
+                    f = f - ConvAdjAmt;                                                            
                 else : 
                     r1 = Linterp(EstZeroCurveTerm, EstZeroCurveRate, tstart)
                     r2 = Linterp(EstZeroCurveTerm, EstZeroCurveRate, tend)
-                    f = 1.0 / deltat * (np.exp(-r1 * tstart)/np.exp(-r2 * tend) - 1.0)
-                    
+                    f = 1.0 / deltat * (np.exp(-r1 * tstart)/np.exp(-r2 * tend) - 1.0)                    
             
         r = Linterp(ZeroCurveTerm, ZeroCurveRate, tpay)
         if tpay > 0 : 
@@ -1811,10 +1897,16 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
             LoggingEnd.append(Generated_CpnDate[i])
             LoggingPayDate.append(YYYYMMDDofNextDate)
             LoggingFraction.append(deltat)
-            LoggingForwardRate.append(f)
-            LoggingCpnFix.append(CpnRate)
-            LoggingCpnRate.append(cpn)
-            LoggingDF.append(np.exp(-r * tpay))
+            if tpay > 0 : 
+                LoggingForwardRate.append(f if FloatFlag > 0 else 0)
+                LoggingCpnFix.append(CpnRate)
+                LoggingCpnRate.append(cpn)
+                LoggingDF.append(np.exp(-r * tpay))
+            else : 
+                LoggingForwardRate.append(0)
+                LoggingCpnFix.append(0)
+                LoggingCpnRate.append(0)
+                LoggingDF.append(1.0)                
                     
     if NominalFlag == 1 : 
         if NominalDateIsNominalPayDate == True : 
@@ -2090,9 +2182,9 @@ def Calc_CSRDeltaNotCorrelated_FromGreeks(PV01 ,col = "PV01Term", bpv = "PV01") 
     Data["Risk_Type"] = "Delta"
     Data["Curve"] = "Bond"
     Data["Issuer"] = "TempIssuer"
-    Data["Bucket"] = "KRW"
-    B = input("\n 채권 버킷을 입력하시오(숫자)\n")
-    if len(str(B)) == 0 : 
+    Data["Bucket"] = "KRW"    
+    B = input("\n 채권 버킷을 입력하시오(숫자)\n버킷1:정부,중앙은행\n버킷2:지방정부,공공행정\n버킷3:금융\n버킷4:원자재\n버킷5:소비재\n버킷6:기술통신\n")
+    if len(str(B)) == 0 or B == '0': 
         B = 1
     else : 
         B = int(B)
@@ -4502,6 +4594,7 @@ def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING") :
     YYYYMMDD = GroupbyYYYYMMDD["YYYYMMDD"].iloc[int(DateMarketDataIdx) - 1]
     TargetFiles = Data[Data["YYYYMMDD"].astype(str) == YYYYMMDD].groupby("Directory").first().reset_index()
     PrintMarketData = "\n 다음 중 MarketData를 고르세요.(ex : 1, ex2: 1, 2, 3 와 같은 여러개 선택)\n"
+    TargetList = []
     for idxx, x in enumerate(TargetFiles["Directory"]) : 
         PrintMarketData += ' ' + str(idxx+1) +". "+ str(x) + "\n"
     DataMarketData = input(PrintMarketData + '->')
@@ -4513,13 +4606,15 @@ def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING") :
         MarketDataName.append(TargetFiles["Directory"].iloc[int(DataMarketData) - 1])
     else : 
         NumberList = DataMarketData.replace(" ","").split(",")
-        TargetFiles2 = TargetFiles[TargetFiles["Number"].astype(str).isin(NumberList)]
+        for n in NumberList : 
+            TargetList.append(TargetFiles["Number"].iloc[int(n)-1])
+        TargetFiles2 = TargetFiles[TargetFiles["Number"].astype(np.int64).isin(TargetList)]
         for idx in range(len(TargetFiles2)) : 
             MarketDataList.append(ReadCSV(TargetFiles2["Directory"].iloc[idx]))
             MarketDataName.append(TargetFiles2["Directory"].iloc[idx])
     
     for i in range(len(MarketDataList)) : 
-        MarketDataList[i] = MarketDataList[i]#.applymap(lambda x : str(x).replace("-",""))
+        MarketDataList[i] = MarketDataList[i].dropna(how = 'all')#.applymap(lambda x : str(x).replace("-",""))
         if "Rate" in MarketDataList[i].columns and "Term" in MarketDataList[i].columns : 
             Term = list(MarketDataList[i]["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64))
             Rate = list(MarketDataList[i]["Rate"].astype(np.float64))
@@ -4631,6 +4726,13 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
         n = int(input())
         Curve = MyMarketDataList[n-1]
         UsedCurveName = Name[n-1]
+    Curr = UsedCurveName.split("\\")[-1].lower()
+    HolidaysForSwap = []
+    if 'krw' in Curr : 
+        HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+    elif "usd" in Curr : 
+        HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)            
+        
     CurveTerm = list(Curve["Term" if "Term" in Curve.columns else "term"])
     CurveRate = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
     Nominal = (input("\n 채권 액면가를 입력하시오.\n->").replace(",",""))
@@ -4659,13 +4761,13 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
     Value, PV01, TempPV01 = Calc_Bond_PV01(Nominal, 1, FloatFlag, FixingRate, EffectiveDate, 
             int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm, CurveRate, 
             AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = [],
-            EstZeroCurveRate = [], FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
+            EstZeroCurveRate = [], FixingHolidayList = HolidaysForSwap, AdditionalPayHolidayList  = HolidaysForSwap, NominalDateIsNominalPayDate = False,
             LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1, DiscCurveName = UsedCurveName)         
     
     print("##############\n채권가격은 " + str(np.round(Value,4)) + "\n##############\n")
     GIRRRisk = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 2 if Value > 10000 else 4)
     CSRRisk = np.round(Calc_CSRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 2 if Value > 10000 else 4)
-    print(" 해당 채권거래시 GIRR은 " + str(format(GIRRRisk,",")) + " 만큼 증가하며, \n CSR은 " + str(format(CSRRisk,",")) + " 만큼 증가합니다.\n")
+    print(" 해당 채권거래시 CSR은 " + str(format(CSRRisk,",")) + " 만큼 증가합니다.\n")
     print("\n 더 엄밀한 FRTB 증가분을 알고싶다면, csv파일의 민감도를 FRTB RAW Files에 추가하여 계산하시오.\n")        
     print("##############\n####산출완료#####\n##############\n")
     MainFlag2 = input("종료하시겠습니까? (Y/N)")
@@ -4682,9 +4784,16 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
             curvename += '\n Term = ' + str(Term).split(']')[0] + ', ...]'
             curvename += '\n Rate = ' + str(Rate).split(']')[0] + ', ...]'
     print(curvename)  
+    HolidaysForSwap = []
+    Curr, UsedCurveName1 = "", ""
     if len(MyMarketDataList) == 1 : 
         Curve = MyMarketDataList[0]
         UsedCurveName1 = Name[0]
+        Curr = Name[0].split("\\")[-1].lower()
+        if 'krw' in Curr : 
+            HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+        elif "usd" in Curr : 
+            HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
         CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
         CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
         CurveTerm2, CurveRate2 = [], []        
@@ -4699,6 +4808,11 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
             n = int(MyStr)
             Curve = MyMarketDataList[n-1]
             UsedCurveName1 = Name[n-1]
+            Curr = UsedCurveName1.split("\\")[-1].lower()
+            if 'krw' in Curr : 
+                HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+            elif "usd" in Curr : 
+                HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
             UsedCurveName2 = ""
             CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
             CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
@@ -4707,12 +4821,17 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
             Splited = MyStr.replace(" ","").split(',')
             n = Splited[0]
             n2 = Splited[1]
-            Curve = MyMarketDataList[n-1]
-            UsedCurveName1 = Name[n-1]
+            Curve = MyMarketDataList[int(n)-1]
+            UsedCurveName1 = Name[int(n)-1]
+            Curr = UsedCurveName1.split("\\")[-1].lower()
+            if 'krw' in Curr : 
+                HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+            elif "usd" in Curr : 
+                HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)            
             CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
             CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
-            Curve2 = MyMarketDataList[n2-1]
-            UsedCurveName2 = Name[n2-1]
+            Curve2 = MyMarketDataList[int(n2)-1]
+            UsedCurveName2 = Name[int(n2)-1]
             CurveTerm2 = list(Curve2["Term" if "Term" in Curve2.columns else "term"])
             CurveRate2 = list(Curve2["Rate" if "Rate" in Curve2.columns else "rate"])
     Nominal = (input("\n IRS 액면가를 입력하시오.\n->").replace(",",""))            
@@ -4730,7 +4849,12 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
         CpnRate = CpnRate / 100
     AnnCpnOneYear = (input("\n 1년에 이자지급횟수를 입력하시오.\n->"))
     AnnCpnOneYear = int(AnnCpnOneYear) if len(str(AnnCpnOneYear)) > 0 else 4
-    DayCountFlag = int(input("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n->"))
+    if "krw" in Curr.lower() : 
+        DayCountFlag = 0
+    elif "usd" in Curr.lower() : 
+        DayCountFlag = 1
+    else : 
+        DayCountFlag = int(input("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n->"))
     FixingRate = 0.0
     if int(YYYYMMDD) >= EffectiveDate : 
         print("\n 최초 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n")        
@@ -4741,7 +4865,7 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
     Value, PV01, TempPV01 = Calc_IRS_PV01(Nominal, FixingRate, EffectiveDate, 
               int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm1, CurveRate1, 
               AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = CurveTerm2,
-              EstZeroCurveRate = CurveRate2, FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
+              EstZeroCurveRate = CurveRate2, FixingHolidayList = HolidaysForSwap, AdditionalPayHolidayList  = HolidaysForSwap, NominalDateIsNominalPayDate = False,
               LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1, FixedPayerFlag = FixedPayerFlag, DiscCurveNameLeg1 = UsedCurveName1, EstCurveNameLeg1 = UsedCurveName2, DiscCurveNameLeg2 = UsedCurveName1, EstCurveNameLeg2 = UsedCurveName2)         
     
     print("##############\nIRS 가격은 " + str(np.round(Value,4)) + "\n##############\n")
@@ -4752,7 +4876,7 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
     MainFlag2 = input("종료하시겠습니까? (Y/N)")
     return MainFlag2, Value, PV01, TempPV01
 
-def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot) : 
+def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "") : 
     MyData["Type"] = MyData["Type"].apply(lambda x : str(x).lower())
     Currency = input("\n 스왑 통화를 입력하시오 (ex KRW, USD, 등)\n 만약 통화스왑이라면 KRW, USD 등의 두개 통화 쌍 형태로 입력\n->")
     if len(Currency) == 0 : 
@@ -4764,7 +4888,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot) :
     else : 
         Spot = float(input("\n Spot 환율가격을 입력하시오 \n->")) if ForeignCurveNeeded else 0
     SwapPointUnit = 100.0 if 'krw' in Currency.lower() else (float(input("\n SwapPointUnit을 입력하시오 \n->")) if ForeignCurveNeeded else 0)    
-    if ("krw" in Currency.lower() and ForeignCurveNeeded == 0 and ',' not in Currency) : 
+    if ("krw" in Currency.lower() and ForeignCurveNeeded == 0 and ',' not in Currency and ("std" in CurveName.lower() or "irs" in CurveName.lower())) : 
         AnnCpnOneYear = 4
     else : 
         AnnCpnOneYear = input("\n 연 이자지급 횟수를 입력하시오. \n->")
@@ -4814,7 +4938,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot) :
         tstartdate = 0
         dffo = 1
     else : 
-        SwapStartDate = MyData[MyData["Type"].isin(["sp","Sp"])]["StartDate"].iloc[0]
+        SwapStartDate = MyData[MyData["Type"].isin(["sw","Sw","Bs","bs"])]["StartDate"].iloc[0]
         tstartdate = DayCountAtoB(int(PriceDate), SwapStartDate)/365
         rfo = Linterp(ZeroTermForeign, ZeroRateForeign, tstartdate)
         dffo = np.exp(-rfo * tstartdate)
@@ -4910,10 +5034,10 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot) :
     ResultDF = pd.DataFrame(ZeroRate, ZeroTerm).reset_index()
     ResultDF.columns = ["Term","Rate"]
     ResultDF["PriceDate"] = [PriceDate] * len(ResultDF)
-    #ResultDF["NBD"] = NBDList
-    #ResultDF["StartDate"] = ScheduleStart     
-    #ResultDF["EndDate"] = ScheduleEnd 
-    #ResultDF["PayDate"] = SchedulePay
+    ResultDF["NBD"] = NBDList
+    ResultDF["StartDate"] = ScheduleStart     
+    ResultDF["EndDate"] = ScheduleEnd 
+    ResultDF["PayDate"] = SchedulePay
     CurrencyName = Currency if ForeignCurveNeeded == 0 else str(Currency).replace(" ","").split(",")[0]
     if YYYYMMDD not in os.listdir(currdir + "\\MarketData\\outputdata") : 
         os.system('mkdir ' + currdir + '\\MarketData\\outputdata\\' + str(YYYYMMDD))
@@ -4997,7 +5121,7 @@ while True :
         HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
         FXSpot = PreprocessingFXSpotData(currdir + "\\MarketData\\spot\\FXSpot.csv")        
         YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + "\\MarketData\\inputdata")
-        
+        ZeroCurveName = ""        
         if len(Name) > 1 : 
             print("\n 다음 중 원하는 커브생성을 원하는 인풋데이터를 선택하시오.(번호선택) \n")
             n = 0
@@ -5006,10 +5130,12 @@ while True :
                 n = n + 1
             num = int(input()) - 1
             MyData = Data[num]
+            ZeroCurveName = Name[num]
         else : 
             MyData = Data[0]
+            ZeroCurveName = Name[0]
 
-        ResultDF = ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot)
+        ResultDF = ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, ZeroCurveName)
         
                     
 
