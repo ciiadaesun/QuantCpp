@@ -1,0 +1,3 @@
+Nominal,FixingRate,EffectiveDate,EndDate,NBDFromEndDateToPayDate,CpnRate,AnnCpnOneYear,DayCountFlag,ModifiedFollowing,DiscCurveNameLeg1,EstCurveNameLeg1,DiscCurveNameLeg2,EstCurveNameLeg2,Currency,Holiday,MTM
+10000000000.0,0.0366,20210627,20310627,2,0.0295,4,0,1,KRW CRS ZeroCurve.csv,,KRW CRS ZeroCurve.csv,,KRW,KRW,-638202792.818331
+100000000.0,0.0388,20200627,20400627,2,0.045,1,1,1,USD IRS.csv,,USD IRS.csv,,USD,USD,9308342.135064632

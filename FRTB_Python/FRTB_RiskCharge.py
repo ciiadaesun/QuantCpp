@@ -3,7 +3,7 @@
 Created By Daesun Lim (CIIA(R), FRM(R))
 Risk Quant Manager
 My FRTB Module 
-v1.0.4
+v1.0.5
 """
 import numpy as np
 import pandas as pd
@@ -685,6 +685,9 @@ def DayPlus(cdate: int, ndays: int) -> int:
             if month > 12:
                 month = 1
                 year += 1
+    
+    if ndays < 0 : 
+        return ExcelDateToYYYYMMDD(YYYYMMDDToExcelDate(cdate) + ndays)
     
     return year * 10000 + month * 100 + day
 
@@ -4578,7 +4581,7 @@ def MarketDataFileListPrint(currdir) :
 def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING") : 
     Data = MarketDataFileListPrint(MarketDataDir).sort_values(by = "YYYYMMDD")[-50:]
     GroupbyYYYYMMDD = Data.groupby("YYYYMMDD").first().reset_index()
-    PrintDate = "\n 다음 중 MarketData 날짜를 고르세요. (번호선택)\n"
+    PrintDate = "\n 다음 중 사용하실 MarketData 날짜를 고르세요. (번호선택)\n"
     FixedDateInFlag = 0
     n = 0
     for x, y in zip(GroupbyYYYYMMDD["Number"], GroupbyYYYYMMDD["YYYYMMDD"]) : 
@@ -4593,7 +4596,7 @@ def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING") :
         DateMarketDataIdx = FixedDateInFlag + 1
     YYYYMMDD = GroupbyYYYYMMDD["YYYYMMDD"].iloc[int(DateMarketDataIdx) - 1]
     TargetFiles = Data[Data["YYYYMMDD"].astype(str) == YYYYMMDD].groupby("Directory").first().reset_index()
-    PrintMarketData = "\n 다음 중 MarketData를 고르세요.(ex : 1, ex2: 1, 2, 3 와 같은 여러개 선택)\n"
+    PrintMarketData = "\n 다음 중 사용하실 MarketData를 고르세요.(ex : 1, ex2: 1, 2, 3 와 같은 여러개 선택)\n"
     TargetList = []
     for idxx, x in enumerate(TargetFiles["Directory"]) : 
         PrintMarketData += ' ' + str(idxx+1) +". "+ str(x) + "\n"
@@ -4652,8 +4655,16 @@ def LoggingUsedFileNames(MyFiles, MyClass = 'FRTB') :
     
 def MainFunction(currdir) : 
     MyFiles = FileListPrint(currdir)
-    print("\n 전체 리스크 클래스가 포함된 RAW 파일의 경우 숫자 0을 입력하시오.(ex 파일명 : FRTB_RAW.csv)\n 리스크 클래스별 RAW 파일로 각각 입력할경우 숫자 1을 입력하시오.(ex 파일명 : GIRR_RAW.csv, CSR_RAW.csv,...)\n")
-    mynum = int(input("입력 -> "))
+    IndividualFlag = 0
+    for i in range(len(MyFiles["Directory"])) : 
+        if ("csr_" in str(MyFiles["Directory"].iloc[i]).lower() or "girr_" in str(MyFiles["Directory"].iloc[i]).lower()) : 
+            IndividualFlag = 1
+            break
+    if IndividualFlag > 0 : 
+        mynum = 1
+    else :
+        print("\n 전체 리스크 클래스가 포함된 RAW 파일의 경우 숫자 0을 입력하시오.(ex 파일명 : FRTB_RAW.csv)\n 리스크 클래스별 RAW 파일로 각각 입력할경우 숫자 1을 입력하시오.(ex 파일명 : GIRR_RAW.csv, CSR_RAW.csv,...)\n")
+        mynum = int(input("입력 -> "))
     if mynum == 0 : 
         PrintStr = LoggingUsedFileNames(MyFiles, MyClass = 'FRTB')
         print(PrintStr)
@@ -4760,7 +4771,7 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
     
     Value, PV01, TempPV01 = Calc_Bond_PV01(Nominal, 1, FloatFlag, FixingRate, EffectiveDate, 
             int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm, CurveRate, 
-            AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = [],
+            AnnCpnOneYear, DayCountFlag, KoreanHoliday = False, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = [],
             EstZeroCurveRate = [], FixingHolidayList = HolidaysForSwap, AdditionalPayHolidayList  = HolidaysForSwap, NominalDateIsNominalPayDate = False,
             LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1, DiscCurveName = UsedCurveName)         
     
@@ -4770,7 +4781,23 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
     print(" 해당 채권거래시 CSR은 " + str(format(CSRRisk,",")) + " 만큼 증가합니다.\n")
     print("\n 더 엄밀한 FRTB 증가분을 알고싶다면, csv파일의 민감도를 FRTB RAW Files에 추가하여 계산하시오.\n")        
     print("##############\n####산출완료#####\n##############\n")
-    MainFlag2 = input("종료하시겠습니까? (Y/N)")
+    
+    BookFlag = input("\n 해당 채권을 Booking하시겠습니까? (Y/N)\n-> ")
+    if BookFlag in ["y","Y","1"] : 
+        df_pre = ReadCSV(currdir + "\\Book\\Bond\\Bond.csv")
+        MyCol = ["Nominal","FloatFlag","FixingRate","EffectiveDate","EndDate",
+                 "NBDFromEndDateToPayDate","CpnRate","AnnCpnOneYear","DayCountFlag","ModifiedFollowing",
+                 "DiscCurveName","EstCurveName","Currency","Holiday","MTM"]
+        Contents = [Nominal, FloatFlag, FixingRate, EffectiveDate, MaturityDate, 
+                    MaturityToPayDate, CpnRate, AnnCpnOneYear, DayCountFlag, 1, 
+                    UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-2], UsedCurveName.split("\\")[-2], Value ]
+        data2 = pd.DataFrame([Contents], columns = MyCol)
+        df = pd.concat([df_pre, data2],axis = 0)
+        df.index = np.arange(len(df))
+        df.to_csv(currdir + "\\Book\\Bond\\Bond.csv", index = False, encoding = "cp949")
+        print("\n##############\n###Booking완료####\n##############\n")     
+    
+    MainFlag2 = input("\n종료하시겠습니까? (Y/N)\n->")
     return MainFlag2, Value, PV01, TempPV01
 
 def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) : 
@@ -4845,10 +4872,22 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
     FixedPayer = input("\n 변동금리 수취여부를 입력하시오.\n 1. 변동금리 수취, 고정금리 지급\n 2. 고정금리 수취, 변동금리 지급.\n->")
     FixedPayerFlag = 1 if FixedPayer in ['1',1] else 0    
     CpnRate = float(input("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n->"))
+    print(UsedCurveName1, Curr)
     if CpnRate > 1.0 : 
         CpnRate = CpnRate / 100
-    AnnCpnOneYear = (input("\n 1년에 이자지급횟수를 입력하시오.\n->"))
-    AnnCpnOneYear = int(AnnCpnOneYear) if len(str(AnnCpnOneYear)) > 0 else 4
+    if ("std" in UsedCurveName1.lower() or "irs" in UsedCurveName1.lower()) :
+        if 'krw' in Curr :
+            AnnCpnOneYear = 4
+        elif 'usd' in Curr :
+            AnnCpnOneYear = 1
+        else : 
+            AnnCpnOneYear = (input("\n 1년에 이자지급횟수를 입력하시오.\n->"))
+            AnnCpnOneYear = int(AnnCpnOneYear) if len(str(AnnCpnOneYear)) > 0 else 4
+    elif ("fx" in UsedCurveName1.lower() or "crs" in UsedCurveName1.lower()) and "krw" in Curr : 
+        AnnCpnOneYear = 4
+    else : 
+        AnnCpnOneYear = (input("\n 1년에 이자지급횟수를 입력하시오.\n->"))
+        AnnCpnOneYear = int(AnnCpnOneYear) if len(str(AnnCpnOneYear)) > 0 else 4
     if "krw" in Curr.lower() : 
         DayCountFlag = 0
     elif "usd" in Curr.lower() : 
@@ -4864,7 +4903,7 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
     
     Value, PV01, TempPV01 = Calc_IRS_PV01(Nominal, FixingRate, EffectiveDate, 
               int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm1, CurveRate1, 
-              AnnCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = CurveTerm2,
+              AnnCpnOneYear, DayCountFlag, KoreanHoliday = False, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = CurveTerm2,
               EstZeroCurveRate = CurveRate2, FixingHolidayList = HolidaysForSwap, AdditionalPayHolidayList  = HolidaysForSwap, NominalDateIsNominalPayDate = False,
               LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1, FixedPayerFlag = FixedPayerFlag, DiscCurveNameLeg1 = UsedCurveName1, EstCurveNameLeg1 = UsedCurveName2, DiscCurveNameLeg2 = UsedCurveName1, EstCurveNameLeg2 = UsedCurveName2)         
     
@@ -4873,6 +4912,24 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
     print(" 해당 IRS 거래시 GIRR은 " + str(format(GIRRRisk,",")) + " 만큼 증가합니다. \n")
     print("\n 더 엄밀한 FRTB 증가분을 알고싶다면, csv파일의 민감도를 FRTB RAW Files에 추가하여 계산하시오.\n")    
     print("#################\n####산출완료#####\n#################\n")
+
+    BookFlag = input("\n 해당 채권을 Booking하시겠습니까? (Y/N)\n-> ")
+    if BookFlag in ["y","Y","1"] : 
+        df_pre = ReadCSV(currdir + "\\Book\\IRS\\IRS.csv")
+        MyCol = ["Nominal","FixingRate","EffectiveDate","EndDate",
+                 "NBDFromEndDateToPayDate","CpnRate","AnnCpnOneYear","DayCountFlag","ModifiedFollowing",
+                 "DiscCurveNameLeg1","EstCurveNameLeg1","DiscCurveNameLeg2","EstCurveNameLeg2",
+                 "Currency","Holiday","MTM"]
+        Contents = [Nominal, FixingRate, EffectiveDate, MaturityDate, 
+                    MaturityToPayDate, CpnRate, AnnCpnOneYear, DayCountFlag, 1, 
+                    UsedCurveName1.split("\\")[-1], UsedCurveName2.split("\\")[-1], UsedCurveName1.split("\\")[-1], UsedCurveName2.split("\\")[-1],
+                    UsedCurveName1.split("\\")[-2], UsedCurveName1.split("\\")[-2], Value ]
+        data2 = pd.DataFrame([Contents], columns = MyCol)
+        df = pd.concat([df_pre, data2],axis = 0)
+        df.index = np.arange(len(df))
+        df.to_csv(currdir + "\\Book\\IRS\\IRS.csv", index = False, encoding = "cp949")
+        print("\n##############\n###Booking완료####\n##############\n")         
+    
     MainFlag2 = input("종료하시겠습니까? (Y/N)")
     return MainFlag2, Value, PV01, TempPV01
 
@@ -4922,13 +4979,15 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
             print("\n추가 커브가 2개이므로 Basis Swap 커브제너레이터입니다.\n")
     if Currency == "KRW" : 
         DayCountFlag = 0
+    elif Currency == "USD" :
+        DayCountFlag = 1
     else : 
-        DayCountFlag = (input("\n 국내금리의 Convention : \n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n ->"))        
+        DayCountFlag = (input("\n 금리의 Convention : \n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n ->"))        
         DayCountFlag = int(DayCountFlag) if len(DayCountFlag) == 1 else 0
     DayCountFlagForeign = DayCountFlag
     if len(ForeignEstCurveTerm) > 0 : 
         if SecondCurrency == "USD" : 
-            DayCountFlagForeign = 1
+            DayCountFlagForeign = 1        
         else :             
             DayCountFlagForeign = (input("\n 국제금리의 Convention : \n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n ->"))        
             DayCountFlagForeign = int(DayCountFlagForeign) if len(DayCountFlagForeign) == 1 else 0
@@ -5074,7 +5133,7 @@ def PreprocessingFXSpotData(DataDirectory) :
     return FXSpot    
 
 while True : 
-    MainFlag = input("사용하실 기능은?(번호입력) \n 1: Pricer \n 2: FRTB SA Risk Calculation \n 3: CurveGenerator \n-> ")
+    MainFlag = input("사용하실 기능은?(번호입력) \n 1: Pricing 및 FRTB CSR, GIRR 시뮬레이션 \n 2: FRTB SA Risk Calculation \n 3: CurveGenerator \n-> ")
     if len(str(MainFlag)) == 0 : 
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break
