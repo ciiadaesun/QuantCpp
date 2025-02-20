@@ -2205,7 +2205,7 @@ def Calc_CSRDeltaNotCorrelated_FromGreeks(PV01 ,col = "PV01Term", bpv = "PV01") 
                                             [0.450,0.450,0.450,0.450,0.450,0.450,0.450,0.450,0.000,0.750,1.000 ]])
     
     Risk = Calc_CSRDelta(Data, CSR_DeltaNonSecuritizedBucketCorr, "Delta_Sensi").iloc[0]["KB_M"]
-    return Risk
+    return Risk, str(B)
 
 def MapProductType(ProductType, DomesticEstCurveRate = [], USDEstCurveRate = []) : 
     x = str(ProductType).lower()
@@ -2328,12 +2328,15 @@ def PreProcessingKDBData(KDBData, dataformat = 'Combined') :
 def PreProcessingMyData(RAWData) : 
     CSR = RAWData[RAWData["Risk_Class"].isin(["CSR","csr","신용스프레드","신용스프레드(CSR)"]) ]
     CSR_Delta = CSR[CSR["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Issuer"})
+    CSR_Delta["Delta_Sensi" if "Delta_Sensi" in CSR_Delta.columns else "Delta"] = CSR_Delta["Delta_Sensi" if "Delta_Sensi" in CSR_Delta.columns else "Delta"] * 10000
+
     CSR_Curvature = CSR[CSR["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Issuer"})
     CSR_Vega = CSR[CSR["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Issuer"})
     Result_CSR = pd.concat([CSR_Delta, CSR_Curvature, CSR_Vega],axis = 0)
     
     CSR_SecuritizedNonCTP = RAWData[RAWData["Risk_Class"].isin(["CSR Securitized Non CTP","유동화(CTP 제외)", "CSR 유동화(CTP 제외)", "신용스프레드 유동화(CTP 제외)"]) ]
     CSR_SecuritizedNonCTPDelta = CSR_SecuritizedNonCTP[CSR_SecuritizedNonCTP["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Tranche"})
+    CSR_SecuritizedNonCTPDelta["Delta_Sensi" if "Delta_Sensi" in CSR_SecuritizedNonCTPDelta.columns else "Delta"] = CSR_SecuritizedNonCTPDelta["Delta_Sensi" if "Delta_Sensi" in CSR_SecuritizedNonCTPDelta.columns else "Delta"] * 10000
     CSR_SecuritizedNonCTPCurvature = CSR_SecuritizedNonCTP[CSR_SecuritizedNonCTP["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Tranche"})
     CSR_SecuritizedNonCTPVega = CSR_SecuritizedNonCTP[CSR_SecuritizedNonCTP["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Tranche"})
     Result_CSR_SecuritizedNonCTP = pd.concat([CSR_SecuritizedNonCTPDelta, CSR_SecuritizedNonCTPCurvature, CSR_SecuritizedNonCTPVega],axis = 0)
@@ -2346,6 +2349,7 @@ def PreProcessingMyData(RAWData) :
 
     GIRR = RAWData[RAWData["Risk_Class"].isin(["GIRR","일반금리","일반금리(GIRR)"])]
     GIRR_Delta = GIRR[GIRR["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Type"})
+    GIRR_Delta["Delta_Sensi" if "Delta_Sensi" in GIRR_Delta.columns else "Delta"] = GIRR_Delta["Delta_Sensi" if "Delta_Sensi" in GIRR_Delta.columns else "Delta"] * 10000
     GIRR_Curvature = GIRR[GIRR["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Type"})
     GIRR_Vega = GIRR[GIRR["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor1","RiskFactor3":"Tenor2"})
     Result_GIRR = pd.concat([GIRR_Delta, GIRR_Curvature, GIRR_Vega],axis = 0)
@@ -4777,21 +4781,32 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
     
     print("##############\n채권가격은 " + str(np.round(Value,4)) + "\n##############\n")
     GIRRRisk = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 2 if Value > 10000 else 4)
-    CSRRisk = np.round(Calc_CSRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 2 if Value > 10000 else 4)
+    CSRRisk, BKT = Calc_CSRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01")
+    CSRRisk = np.round(CSRRisk, 2 if Value > 10000 else 4)
     print(" 해당 채권거래시 CSR은 " + str(format(CSRRisk,",")) + " 만큼 증가합니다.\n")
     print("\n 더 엄밀한 FRTB 증가분을 알고싶다면, csv파일의 민감도를 FRTB RAW Files에 추가하여 계산하시오.\n")        
     print("##############\n####산출완료#####\n##############\n")
     
     BookFlag = input("\n 해당 채권을 Booking하시겠습니까? (Y/N)\n-> ")
     if BookFlag in ["y","Y","1"] : 
+        GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
+        Data_GIRR = MapGIRRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
+        Data_GIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
+        GIRR = pd.DataFrame([list(Data_GIRR["GIRR_Delta_Sensi"])], columns = list(Data_GIRR["GIRR_Tenor"].apply(lambda x : "GIRR_" + str(x))))
+        CSR_RiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
+        Data_CSR = MapCSRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], CSR_RiskFactor).reset_index()
+        Data_CSR.columns = ["CSR_Tenor","CSR_Delta_Sensi"]
+        CSR = pd.DataFrame([list(Data_CSR["CSR_Delta_Sensi"])], columns = list(Data_CSR["CSR_Tenor"].apply(lambda x : "CSR_" + str(x))))
+        
         df_pre = ReadCSV(currdir + "\\Book\\Bond\\Bond.csv")
         MyCol = ["Nominal","FloatFlag","FixingRate","EffectiveDate","EndDate",
                  "NBDFromEndDateToPayDate","CpnRate","AnnCpnOneYear","DayCountFlag","ModifiedFollowing",
-                 "DiscCurveName","EstCurveName","Currency","Holiday","MTM"]
+                 "DiscCurveName","EstCurveName","Currency","Holiday","MTM","PriceDate","Bucket"]
         Contents = [Nominal, FloatFlag, FixingRate, EffectiveDate, MaturityDate, 
                     MaturityToPayDate, CpnRate, AnnCpnOneYear, DayCountFlag, 1, 
-                    UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-2], UsedCurveName.split("\\")[-2], Value ]
+                    UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-2], UsedCurveName.split("\\")[-2], Value, YYYYMMDD, str(BKT)]
         data2 = pd.DataFrame([Contents], columns = MyCol)
+        data2 = pd.concat([data2, GIRR, CSR],axis = 1)
         df = pd.concat([df_pre, data2],axis = 0)
         df.index = np.arange(len(df))
         df.to_csv(currdir + "\\Book\\Bond\\Bond.csv", index = False, encoding = "cp949")
@@ -4872,7 +4887,7 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
     FixedPayer = input("\n 변동금리 수취여부를 입력하시오.\n 1. 변동금리 수취, 고정금리 지급\n 2. 고정금리 수취, 변동금리 지급.\n->")
     FixedPayerFlag = 1 if FixedPayer in ['1',1] else 0    
     CpnRate = float(input("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n->"))
-    print(UsedCurveName1, Curr)
+    
     if CpnRate > 1.0 : 
         CpnRate = CpnRate / 100
     if ("std" in UsedCurveName1.lower() or "irs" in UsedCurveName1.lower()) :
@@ -4913,18 +4928,24 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList) :
     print("\n 더 엄밀한 FRTB 증가분을 알고싶다면, csv파일의 민감도를 FRTB RAW Files에 추가하여 계산하시오.\n")    
     print("#################\n####산출완료#####\n#################\n")
 
-    BookFlag = input("\n 해당 채권을 Booking하시겠습니까? (Y/N)\n-> ")
+    BookFlag = input("\n 해당 IRS을 Booking하시겠습니까? (Y/N)\n-> ")
     if BookFlag in ["y","Y","1"] : 
+        GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
+        Data_GIRR = MapGIRRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
+        Data_GIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
+        GIRR = pd.DataFrame([list(Data_GIRR["GIRR_Delta_Sensi"])], columns = list(Data_GIRR["GIRR_Tenor"].apply(lambda x : "GIRR_" + str(x))))
+        
         df_pre = ReadCSV(currdir + "\\Book\\IRS\\IRS.csv")
         MyCol = ["Nominal","FixingRate","EffectiveDate","EndDate",
                  "NBDFromEndDateToPayDate","CpnRate","AnnCpnOneYear","DayCountFlag","ModifiedFollowing",
                  "DiscCurveNameLeg1","EstCurveNameLeg1","DiscCurveNameLeg2","EstCurveNameLeg2",
-                 "Currency","Holiday","MTM"]
+                 "Currency","Holiday","MTM","PriceDate"]
         Contents = [Nominal, FixingRate, EffectiveDate, MaturityDate, 
                     MaturityToPayDate, CpnRate, AnnCpnOneYear, DayCountFlag, 1, 
                     UsedCurveName1.split("\\")[-1], UsedCurveName2.split("\\")[-1], UsedCurveName1.split("\\")[-1], UsedCurveName2.split("\\")[-1],
-                    UsedCurveName1.split("\\")[-2], UsedCurveName1.split("\\")[-2], Value ]
+                    UsedCurveName1.split("\\")[-2], UsedCurveName1.split("\\")[-2], Value , YYYYMMDD]
         data2 = pd.DataFrame([Contents], columns = MyCol)
+        data2 = pd.concat([data2, GIRR],axis = 1)
         df = pd.concat([df_pre, data2],axis = 0)
         df.index = np.arange(len(df))
         df.to_csv(currdir + "\\Book\\IRS\\IRS.csv", index = False, encoding = "cp949")
@@ -4947,6 +4968,8 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
     SwapPointUnit = 100.0 if 'krw' in Currency.lower() else (float(input("\n SwapPointUnit을 입력하시오 \n->")) if ForeignCurveNeeded else 0)    
     if ("krw" in Currency.lower() and ForeignCurveNeeded == 0 and ',' not in Currency and ("std" in CurveName.lower() or "irs" in CurveName.lower())) : 
         AnnCpnOneYear = 4
+    elif ("usd" in Currency.lower() and ForeignCurveNeeded == 0 and ',' not in Currency and ("std" in CurveName.lower() or "irs" in CurveName.lower())) : 
+        AnnCpnOneYear = 1
     else : 
         AnnCpnOneYear = input("\n 연 이자지급 횟수를 입력하시오. \n->")
         AnnCpnOneYear = 4 if len(AnnCpnOneYear) == 0 else int(AnnCpnOneYear)
@@ -5132,6 +5155,177 @@ def PreprocessingFXSpotData(DataDirectory) :
         FXSpot = pd.DataFrame([])
     return FXSpot    
 
+def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) : 
+    ResultAddData = pd.DataFrame([])
+    try : 
+        Bond = ReadCSV(currdir + '\\Book\\Bond\\Bond.csv')
+        IRS = ReadCSV(currdir + '\\Book\\IRS\\IRS.csv')
+        if RAWFORMAT == 1 : 
+            PriceDate = RAWData["기준일자"].iloc[0]
+            if len(Bond) + len(IRS) > 0 : 
+                AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
+                if AddBookedPosition == 'y' :
+                    Depart = input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
+                    for i in range(len(Bond)) : 
+                        cvname = Bond["DiscCurveName"].iloc[i].replace(".csv","")
+                        girrcol = [s for s in Bond.columns if "girr_" in s.lower()]
+                        girrtenor = [float(s.replace("GIRR_","")) for s in girrcol]
+                        csrcol = [s for s in Bond.columns if "csr_" in s.lower()]
+                        csrtenor = [float(s.replace("CSR_","")) for s in csrcol]
+                        if "ZeroCurve" in cvname : 
+                            cvname = cvname.replace("ZeroCurve","")
+                        elif "Zero" in cvname : 
+                            cvname = cvname.replace("Zero","")
+                        
+                        if "IRS" in cvname : 
+                            cvname = cvname.replace("IRS",":Std")
+                        elif "CRS" in cvname : 
+                            cvname = cvname.replace("CRS","FX")
+                        
+                        TempData = pd.DataFrame(Bond[girrcol].iloc[i].values, columns = ["델타민감도"])
+                        TempData["기준일자"] = PriceDate
+                        TempData["계정구분코드"] = 10
+                        TempData["계정명"] = "은행"
+                        TempData["부점코드"] = 12345
+                        TempData["부점명"] = Depart
+                        TempData["팀코드"] = 12345
+                        TempData["팀명"] = "TempTeam"
+                        TempData["데스크코드"] = 12345
+                        TempData["데스크명"] = "TempDesk"
+                        TempData["포트폴리오"] = "TempPort"
+                        TempData["리스크군"] = "일반금리(GIRR)"
+                        TempData["민감도유형"] = "델타"
+                        TempData["포지션 ID"] = 12345
+                        TempData["뮤렉스 ID"] = 12345
+                        TempData["버킷"] = Bond["Currency"].iloc[i]
+                        TempData["리스크요소 1"] = cvname
+                        TempData["리스크요소 2"] = girrtenor
+                        TempData["리스크요소 3"] = "RATE"
+                        TempData["베가민감도"] = 0
+                        TempData["상향커버쳐"] = 0
+                        TempData["하향커버쳐"] = 0
+
+                        TempData2 = pd.DataFrame(Bond[csrcol].iloc[i].values, columns = ["델타민감도"])
+                        TempData2["기준일자"] = PriceDate
+                        TempData2["계정구분코드"] = 10
+                        TempData2["계정명"] = "은행"
+                        TempData2["부점코드"] = 12345
+                        TempData2["부점명"] = Depart
+                        TempData2["팀코드"] = 12345
+                        TempData2["팀명"] = "TempTeam"
+                        TempData2["데스크코드"] = 12345
+                        TempData2["데스크명"] = "TempDesk"
+                        TempData2["포트폴리오"] = "TempPort"
+                        TempData2["리스크군"] = "신용스프레드(CSR)"
+                        TempData2["민감도유형"] = "델타"
+                        TempData2["포지션 ID"] = 12345
+                        TempData2["뮤렉스 ID"] = 12345
+                        TempData2["버킷"] = Bond["Bucket"].iloc[i]
+                        TempData2["리스크요소 1"] = "TempIssuer" + str(Bond["Bucket"].iloc[i])
+                        TempData2["리스크요소 2"] = cvname
+                        TempData2["리스크요소 3"] = csrtenor
+                        TempData2["베가민감도"] = 0
+                        TempData2["상향커버쳐"] = 0
+                        TempData2["하향커버쳐"] = 0                        
+                        ResultAddData = pd.concat([ResultAddData, TempData, TempData2],axis = 0)
+
+                    for i in range(len(IRS)) : 
+                        cvname = IRS["DiscCurveNameLeg1"].iloc[i].replace(".csv","")
+                        girrcol = [s for s in IRS.columns if "girr_" in s.lower()]
+                        girrtenor = [float(s.replace("GIRR_","")) for s in girrcol]
+                        if "ZeroCurve" in cvname : 
+                            cvname = cvname.replace("ZeroCurve","")
+                        elif "Zero" in cvname : 
+                            cvname = cvname.replace("Zero","")
+                        
+                        if "IRS" in cvname : 
+                            cvname = cvname.replace("IRS",":Std")
+                        elif "CRS" in cvname : 
+                            cvname = cvname.replace("CRS","FX")
+                        
+                        TempData = pd.DataFrame(IRS[girrcol].iloc[i].values, columns = ["델타민감도"])
+                        TempData["기준일자"] = PriceDate
+                        TempData["계정구분코드"] = 10
+                        TempData["계정명"] = "은행"
+                        TempData["부점코드"] = 12345
+                        TempData["부점명"] = Depart
+                        TempData["팀코드"] = 12345
+                        TempData["팀명"] = "TempTeam"
+                        TempData["데스크코드"] = 12345
+                        TempData["데스크명"] = "TempDesk"
+                        TempData["포트폴리오"] = "TempPort"
+                        TempData["리스크군"] = "일반금리(GIRR)"
+                        TempData["민감도유형"] = "델타"
+                        TempData["포지션 ID"] = 12345
+                        TempData["뮤렉스 ID"] = 12345
+                        TempData["버킷"] = IRS["Currency"].iloc[i]
+                        TempData["리스크요소 1"] = cvname
+                        TempData["리스크요소 2"] = girrtenor
+                        TempData["리스크요소 3"] = "RATE"
+                        TempData["베가민감도"] = 0
+                        TempData["상향커버쳐"] = 0
+                        TempData["하향커버쳐"] = 0                   
+                        ResultAddData = pd.concat([ResultAddData, TempData],axis = 0)
+        else : 
+            if len(Bond) + len(IRS) > 0 : 
+                AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
+                if AddBookedPosition == 'y' :
+                    Depart = input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
+                    for i in range(len(Bond)) : 
+                        cvname = Bond["DiscCurveName"].iloc[i].replace(".csv","")
+                        girrcol = [s for s in Bond.columns if "girr_" in s.lower()]
+                        girrtenor = [float(s.replace("GIRR_","")) for s in girrcol]
+                        csrcol = [s for s in Bond.columns if "csr_" in s.lower()]
+                        csrtenor = [float(s.replace("CSR_","")) for s in csrcol]
+                        TempData = pd.DataFrame(Bond[girrcol].iloc[i].values, columns = ["Delta_Sensi"])
+                        TempData["Depart"] = Depart
+                        TempData["Risk_Class"] = "GIRR"
+                        TempData["Risk_Type"] = "Delta"
+                        TempData["Portfolio"] = "TempPort"
+                        TempData["Bucket"] = Bond["Currency"].iloc[i]
+                        TempData["RiskFactor1"] = cvname
+                        TempData["RiskFactor2"] = girrtenor
+                        TempData["RiskFactor3"] = "Rate"
+                        TempData["Vega_Sensi"] = 0
+                        TempData["CVR_Plus"] = 0
+                        TempData["CVR_Minus"] = 0                        
+
+                        TempData2 = pd.DataFrame(Bond[csrcol].iloc[i].values, columns = ["Delta_Sensi"])
+                        TempData2["Depart"] = Depart
+                        TempData2["Risk_Class"] = "CSR"
+                        TempData2["Risk_Type"] = "Delta"
+                        TempData2["Portfolio"] = "TempPort"
+                        TempData2["Bucket"] = str(Bond["Bucket"].iloc[i])
+                        TempData2["RiskFactor1"] = cvname
+                        TempData2["RiskFactor2"] = csrtenor
+                        TempData2["RiskFactor3"] = "TempIssuer" + str(Bond["Bucket"].iloc[i])
+                        TempData2["Vega_Sensi"] = 0
+                        TempData2["CVR_Plus"] = 0
+                        TempData2["CVR_Minus"] = 0   
+                        ResultAddData = pd.concat([ResultAddData, TempData, TempData2],axis = 0)
+                                             
+                    for i in range(len(IRS)) : 
+                        cvname = IRS["DiscCurveNameLeg1"].iloc[i].replace(".csv","")
+                        girrcol = [s for s in IRS.columns if "girr_" in s.lower()]
+                        girrtenor = [float(s.replace("GIRR_","")) for s in girrcol]
+                        TempData = pd.DataFrame(IRS[girrcol].iloc[i].values, columns = ["Delta_Sensi"])
+                        TempData["Depart"] = Depart
+                        TempData["Risk_Class"] = "GIRR"
+                        TempData["Risk_Type"] = "Delta"
+                        TempData["Portfolio"] = "TempPort"
+                        TempData["Bucket"] = IRS["Currency"].iloc[i]
+                        TempData["RiskFactor1"] = cvname
+                        TempData["RiskFactor2"] = girrtenor
+                        TempData["RiskFactor3"] = "Rate"
+                        TempData["Vega_Sensi"] = 0
+                        TempData["CVR_Plus"] = 0
+                        TempData["CVR_Minus"] = 0                        
+                        ResultAddData = pd.concat([ResultAddData, TempData],axis = 0)
+            
+    except FileNotFoundError : 
+        None
+    return ResultAddData
+
 while True : 
     MainFlag = input("사용하실 기능은?(번호입력) \n 1: Pricing 및 FRTB CSR, GIRR 시뮬레이션 \n 2: FRTB SA Risk Calculation \n 3: CurveGenerator \n-> ")
     if len(str(MainFlag)) == 0 : 
@@ -5143,6 +5337,9 @@ while True :
     elif MainFlag in [2,'2'] :         
         RAWFORMAT = 0#int(input("자체데이터 RAWData 엑셀 포멧이면 0을 KDB RAW Data 포멧의 경우 1을 입력하시오\n-> "))
         RAWData = MainFunction(currdir)
+        AddedData = AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT)
+        if len(AddedData) > 0 : 
+            RAWData = pd.concat([RAWData, AddedData],axis = 0)
         if RAWFORMAT == 0 : 
             CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR, DRC, RRAO = PreProcessingMyData(RAWData)
         else : 
@@ -5201,5 +5398,7 @@ while True :
         
 
 
+
+# %%
 
 # %%
