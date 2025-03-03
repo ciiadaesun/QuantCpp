@@ -1714,6 +1714,17 @@ def istermtype(termlist) :
     else : 
         return "Term"
 
+def Preprocessing_Term(Term, PriceDate) : 
+    if len(Term) > 0 : 
+        istermtype_ZeroTerm = istermtype(Term)
+        if istermtype_ZeroTerm == "YYYYMMDD" : 
+            for i in range(len(Term)) : 
+                Term[i] = (DayCountAtoB(PriceDate, Term[i])/365)
+        elif istermtype_ZeroTerm == "ExcelDate" :
+            ExcelPriceDate = YYYYMMDDToExcelDate(PriceDate) if int(PriceDate) >= 19000101 else PriceDate
+            for i in range(len(Term)) : 
+                Term[i] = ((Term[i] - ExcelPriceDate)/365)
+
 def Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate) : 
     if len(ZeroTerm) > 0 : 
         istermtype_ZeroTerm = istermtype(ZeroTerm)
@@ -1728,6 +1739,26 @@ def Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate) :
         if np.abs(np.array(ZeroRate)).mean() > 0.6 : 
             for i in range(len(ZeroRate)) : 
                 ZeroRate[i] = ZeroRate[i]/100
+
+def Preprocessing_EQVol(ParityArray, TermArray, Vols2D, PriceDate, StockPrice) : 
+    if len(TermArray) > 0 : 
+        istermtype_ZeroTerm = istermtype(TermArray)
+        if istermtype_ZeroTerm == "YYYYMMDD" : 
+            for i in range(len(TermArray)) : 
+                TermArray[i] = (DayCountAtoB(PriceDate, TermArray[i])/365)
+        elif istermtype_ZeroTerm == "ExcelDate" :
+            ExcelPriceDate = YYYYMMDDToExcelDate(PriceDate) if int(PriceDate) >= 19000101 else PriceDate
+            for i in range(len(TermArray)) : 
+                TermArray[i] = ((TermArray[i] - ExcelPriceDate)/365)
+        
+    if np.array(Vols2D).max() > 2.0 :
+        for i in range(Vols2D.shape[0]) : 
+            for j in range(Vols2D.shape[1]) : 
+                Vols2D[i][j] /= 100
+                
+    if np.array(ParityArray).max() > 5.0 : 
+        for i in range(len(ParityArray)) : 
+            ParityArray[i] = ParityArray[i]/StockPrice
 
 def MapGIRRDeltaGreeks(Greeks, RiskFactor) : 
     ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
@@ -1957,8 +1988,8 @@ def BS_Option(PriceDate, MaturityDate, S0, X, TermDisc,
             Rho = -X * TimeToMaturity * np.exp(-r_disc * TimeToMaturity) * CDF_N(d2)
     
     if LoggingFlag > 0 : 
-        LogData = pd.Dataframe([[TimeToMaturity, S0, X, ForwardPrice, v, d1, d2, Price, Delta, Gamma, Vega, Theta, Rho]], 
-                               columns = ["TimeToMaturity", "S0", "X", "ForwardPrice", "Volatility", "d1", "d2", "Price", "Delta", "Gamma", "Vega", "Theta", "Rho"])
+        LogData = pd.DataFrame([[TimeToMaturity, S0, X, r_disc, r_est,ForwardPrice, v, d1, d2, Price, Delta, Gamma, Vega, Theta, Rho]], 
+                               columns = ["TimeToMaturity", "S0", "X", "r_disc","r_est","ForwardPrice", "Volatility", "d1", "d2", "Price", "Delta", "Gamma", "Vega", "Theta", "Rho"])
         LogData.to_csv(LoggingDir + "\\LoggingFilesOption.csv",encoding = "cp949", index = False)
     return Price, Delta, Gamma, Vega, Theta, Rho
 
@@ -2475,13 +2506,14 @@ def Calc_IRS_PV01(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYY
 
     df2 = pd.Series(ResultArray, index = ZeroCurveTerm).reset_index()
     df2.columns = ["PV01Term","PV01"]
+    df3 = pd.DataFrame([], columns = ["PV01TermEst","PVEst01"], index = [0.0]).fillna(0)
     if LoggingFlag > 0 : 
         df = ReadCSV(LoggingDir + "\\LoggingFilesIRS.csv")
         GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
         DataGIRR = MapGIRRDeltaGreeks(df2.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
         DataGIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"] 
         pd.concat([df, df2, DataGIRR],axis = 1).to_csv(LoggingDir + "\\LoggingFilesIRS.csv", index = False, encoding = "cp949")
-    return P, df2, df2          
+    return P, df2, df3          
     
 def Calc_CRS(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
              CpnRate, ZeroCurveTermDomestic, ZeroCurveRateDomestic, NumCpnOneYear, DayCountFlagDomestic, 
@@ -2705,25 +2737,6 @@ def Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01 ,col = "PV01Term", bpv = "PV01")
     Data["Bucket"] = "KRW"
     Risk = Calc_GIRRDelta(Data, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, "Delta_Sensi").iloc[0]["KB_M"]
     return Risk
-
-def MultiCurveGreekToGIRRDelta(PV01List, colList, bpvnamelist, curvetypelist, swapflaglist, bucketlist) : 
-    ResultData = pd.DataFrame([])
-    for i in range(len(PV01List)) : 
-        Data = GreekToGIRRRawData(PV01List[i], colList[i], bpvnamelist[i], curvetypelist[i], swapflaglist[i], bucketlist[i])
-        ResultData = pd.concat([ResultData, Data],axis = 0)
-    GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
-    GIRR_DeltaRfCorr = np.array([[1.000,0.970,0.914,0.811,0.719,0.566,0.400,0.400,0.400,0.400 ],
-                                [0.970,1.000,0.970,0.914,0.861,0.763,0.566,0.419,0.400,0.400 ],
-                                [0.914,0.970,1.000,0.970,0.942,0.887,0.763,0.657,0.566,0.419 ],
-                                [0.811,0.914,0.970,1.000,0.985,0.956,0.887,0.823,0.763,0.657 ],
-                                [0.719,0.861,0.942,0.985,1.000,0.980,0.932,0.887,0.844,0.763 ],
-                                [0.566,0.763,0.887,0.956,0.980,1.000,0.970,0.942,0.914,0.861 ],
-                                [0.400,0.566,0.763,0.887,0.932,0.970,1.000,0.985,0.970,0.942 ],
-                                [0.400,0.419,0.657,0.823,0.887,0.942,0.985,1.000,0.990,0.970 ],
-                                [0.400,0.400,0.566,0.763,0.844,0.914,0.970,0.990,1.000,0.985 ],
-                                [0.400,0.400,0.419,0.657,0.763,0.861,0.942,0.970,0.985,1.000 ]])    
-    Risk = Calc_GIRRDelta(ResultData, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, "Delta_Sensi").iloc[0]["KB_M"]
-    return Risk    
 
 def Calc_CSRDeltaNotCorrelated_FromGreeks(PV01 ,col = "PV01Term", bpv = "PV01") : 
     CSR_RiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)   
@@ -5166,7 +5179,7 @@ def MarketDataFileListPrint(currdir, namein = "", namenotin = "") :
     Result = pd.DataFrame([YYYYMMDD, filenum, folder, filenames, filenamesprint], index = ["YYYYMMDD","Number","Folder","Directory","DirectoryPrint"]).T
     return Result
 
-def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING", namein = "", namenotin = "") : 
+def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING", namein = "", namenotin = "", Comments = "") : 
     Data = MarketDataFileListPrint(MarketDataDir, namein ,namenotin ).sort_values(by = "YYYYMMDD")[-50:]
     GroupbyYYYYMMDD = Data.groupby("YYYYMMDD").first().reset_index()
     PrintDate = "\n 다음 중 사용하실 MarketData 날짜를 고르세요. (번호선택)\n"
@@ -5184,7 +5197,10 @@ def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING", namein =
         DateMarketDataIdx = FixedDateInFlag + 1
     YYYYMMDD = GroupbyYYYYMMDD["YYYYMMDD"].iloc[int(DateMarketDataIdx) - 1]
     TargetFiles = Data[Data["YYYYMMDD"].astype(str) == YYYYMMDD].groupby("Directory").first().reset_index()
-    PrintMarketData = "\n 다음 중 사용하실 MarketData를 고르세요.(ex : 1, ex2: 1, 2, 3 와 같은 여러개 선택)\n"
+    if len(Comments) == 0 : 
+        PrintMarketData = "\n 다음 중 사용하실 MarketData를 고르세요.(example : 1 || example2 : 1, 2, 3 와 같은 여러개 선택)\n"
+    else : 
+        PrintMarketData = "\n" + Comments + "\n"
     TargetList = []
     for idxx, x in enumerate(TargetFiles["Directory"]) : 
         PrintMarketData += ' ' + str(idxx+1) +". "+ str(x) + "\n"
@@ -5210,14 +5226,14 @@ def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING", namein =
             Term = list(MarketDataList[i]["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64))
             Rate = list(MarketDataList[i]["Rate"].astype(np.float64))
             PriceDate = int(str(MarketDataList[i]["PriceDate"].iloc[0]).replace("-",""))
-            Preprocessing_ZeroTermAndRate(Term, Rate, int(PriceDate))
+            Preprocessing_Term(Term, int(PriceDate))
             MarketDataList[i]["Term"] = Term
             MarketDataList[i]["Rate"] = Rate
         elif "rate" in MarketDataList[i].columns and "term" in MarketDataList[i].columns : 
             Term = list(MarketDataList[i]["term"].apply(lambda x : str(x).replace("-","")).astype(np.float64))
             Rate = list(MarketDataList[i]["rate"].astype(np.float64))
             PriceDate = int(str(MarketDataList[i]["PriceDate"].iloc[0]).replace("-",""))
-            Preprocessing_ZeroTermAndRate(Term, Rate, int(PriceDate))
+            Preprocessing_Term(Term, int(PriceDate))
             MarketDataList[i]["term"] = Term
             MarketDataList[i]["rate"] = Rate
         if "StartDate" in MarketDataList[i].columns : 
@@ -5338,16 +5354,110 @@ def CalcFXRateToKRW(FXData, Currency = "USD", BaseDate = "20250627") :
     else : 
         return NewSeries.loc[Currency + "/EUR"] * NewSeries.loc["EUR/KRW"]        
 
-def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) : 
-    print("\n##########################################################################################\n 세팅된 커브는 다음과 같습니다. \n 평가날짜 : " + YYYYMMDD)
+def PrintingMarketDataInformation(YYYYMMDD, NameList, MyMarketDataList) : 
+    print("\n##########################################################################################\n\n     세팅된 커브는 다음과 같습니다. \n     평가날짜 : " + YYYYMMDD)
     curvename = ''
+    for i in range(len(NameList)) : 
+        if "Rate" in MyMarketDataList[i].columns or 'rate' in MyMarketDataList[i].columns : 
+            curvename += '\n\n     ' + str(i+1) + '. ' + NameList[i].split('\\')[-1] + '\n'
+            Term = list(MyMarketDataList[i]["Term" if "Term" in MyMarketDataList[i].columns else "term"].round(5))[:10]
+            PrintTerm = [DayPlus(int(YYYYMMDD), int(t * 365 + 1e-9)) for t in Term]
+            Rate = list(MyMarketDataList[i]["Rate" if "Rate" in MyMarketDataList[i].columns else "rate"].round(5))[:10]
+            curvename += '\n     Term = ' + str(PrintTerm).split(']')[0] + ', ...]'
+            curvename += '\n     Rate = ' + str(Rate).split(']')[0] + ', ...]'
+        elif "Moneyness/Tenor" in MyMarketDataList[i].columns :             
+            curvename += '\n\n     ' + str(i+1) + '. ' + NameList[i].split('\\')[-1] + '\n'
+            Term = ["parity/tenor"] + [np.round(float(i), 3) for i in MyMarketDataList[i].columns[1:]]
+            curvename += '\n '+str(Term)+'\n'
+            curvename += '           '+str(np.round(MyMarketDataList[i].values, 3)).replace("\n","\n           ")                              
+            
+    PrintingContents = curvename
+    return PrintingContents    
+
+def PricingEquityOptionProgram() : 
+    YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata', 
+                                                                  namenotin = "crs",
+                                                                  Comments = "옵션 Pricing을 위한 Zero 커브 번호 및 Volatility 번호를 입력하시오.(Vol, ZeroCurve Data 2개 선택)\n ex : 1, 2") 
+    curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
+    print(curvename)    
+    MyMarketDataList_ExceptVol = []
+    NameList_ExceptVol = []
+    N_EQVol = -1
     for i in range(len(Name)) : 
-        if "Rate" in Data[i].columns or 'rate' in Data[i].columns : 
-            curvename += '\n\n' + str(i+1) + '. ' + Name[i].split('\\')[-1] + '\n'
-            Term = list(Data[i]["Term" if "Term" in Data[i].columns else "term"].round(5))[:10]
-            Rate = list(Data[i]["Rate" if "Rate" in Data[i].columns else "rate"].round(5))[:10]
-            curvename += '\n Term = ' + str(Term).split(']')[0] + ', ...]'
-            curvename += '\n Rate = ' + str(Rate).split(']')[0] + ', ...]'
+        if ("eq" in Name[i].lower() or "vol" in Name[i].lower()) and N_EQVol == -1: 
+            N_EQVol = i
+        else : 
+            MyMarketDataList_ExceptVol.append(MyMarketDataList[i])
+            NameList_ExceptVol.append(Name[i])
+
+    VolData = MyMarketDataList[N_EQVol].set_index(MyMarketDataList[N_EQVol].columns[0])
+    TermVol = np.array(VolData.columns, dtype = np.float64)
+    ParityVol = np.array(VolData.index, dtype = np.float64)
+    Vols2D = VolData.values.astype(np.float64)
+    if len(NameList_ExceptVol) == 1 : 
+        DiscTerm = MyMarketDataList_ExceptVol[0]["Term"]
+        DiscRate = MyMarketDataList_ExceptVol[0]["Rate"]
+        EstTerm = []
+        EstRate = []
+    else : 
+        mystr = ""
+        mystr += "  기초자산의 할인커브는 " + NameList_ExceptVol[0].split('\\')[-1] + ","
+        mystr += "\n  레퍼런스커브는 " + NameList_ExceptVol[1].split('\\')[-1] + '\n 와 같이 세팅합니다. 맞습니까?(Y/N)\n->'
+        myinput = input(mystr)
+        if len(myinput) == 0 or myinput.lower() == 'y' : 
+            DiscTerm = MyMarketDataList_ExceptVol[0]["Term"]
+            DiscRate = MyMarketDataList_ExceptVol[0]["Rate"]
+            EstTerm = MyMarketDataList_ExceptVol[1]["Term"]
+            EstRate = MyMarketDataList_ExceptVol[1]["Rate"]            
+        else :        
+            DiscTerm = MyMarketDataList_ExceptVol[1]["Term"]
+            DiscRate = MyMarketDataList_ExceptVol[1]["Rate"]
+            EstTerm = MyMarketDataList_ExceptVol[0]["Term"]
+            EstRate = MyMarketDataList_ExceptVol[0]["Rate"]            
+             
+    Preprocessing_ZeroTermAndRate(DiscTerm, DiscRate, int(YYYYMMDD))
+    Preprocessing_ZeroTermAndRate(EstTerm, EstRate, int(YYYYMMDD))
+    S = float(input("\n기초자산가격을 입력하시오.\n->"))
+    X = float(input("\n옵션 행사가격을 입력하시오.\n->"))
+    Maturity = input("\n옵션 만기(YYYYMMDD형태) 입력하시오.\n->")    
+    ForwardPriceStr = input("\n기초자산 Forward 가격을 입력하시오.(해당 변수를 사용하지 않으려면 Enter를 누르시오)\n->")
+    ForwardPrice = 0 if len(ForwardPriceStr) == 0 else float(ForwardPriceStr)
+    DivTerm = [0]
+    if ForwardPrice > 0 : 
+        DivRate = [0]
+    else : 
+        DivRateStr = input("\n배당수익률을 입력하시오\n->")
+        DivRate = [float(DivRateStr)] if len(DivRateStr) > 0 else [0]
+        if DivRate[0] > 1.0 : 
+            DivRate[0] /= 100
+    QuantoCorrStr = input("\nQuanto Correlation을 입력하시오.(해당 변수를 사용하지 않으려면 Enter를 누르시오)\n->")
+    QuantoCorr = 0 if len(QuantoCorrStr) == 0 else float(QuantoCorrStr)
+    FX_Vol = 0
+    if QuantoCorr != 0 : 
+        FX_Vol = float(input("\nFX Vol을 입력하시오.\n->"))
+        if FX_Vol > 1.0 : 
+            FX_Vol /= 100
+    
+    c_str = input("\n Call옵션이면 enter 또는 c를 입력하시오\n->")
+    if len(c_str) == 0 or c_str in ['c','C'] : 
+        TypeFlag = 'c'
+    else :
+        TypeFlag = 'p'
+    
+    Price, Delta, Gamma, Vega, Theta, Rho = BS_Option(int(YYYYMMDD), int(Maturity), S, X, DiscTerm, 
+              DiscRate, DivTerm, DivRate, Vols2D, QuantoCorr = QuantoCorr, 
+              FXVolTerm = [0], FXVol = [FX_Vol], DivFlag = 0, EstTerm = EstTerm, EstRate = EstRate, 
+              ForwardPrice = ForwardPrice, LoggingFlag = 1, LoggingDir = currdir, VolTerm = TermVol, VolParity = ParityVol,TypeFlag = TypeFlag)
+    print("##############\n옵션가격은 " + str(np.round(Price,4)) + "\n##############\n")
+    MainFlag2 = input("\n종료하시겠습니까? (Y/N)\n->")
+
+    return MainFlag2, Price, Delta, Gamma
+
+def PricingBondProgram() : 
+    YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata', 
+                                                                  namenotin = "swaption",
+                                                                  Comments = "채권 Pricing을 위한 커브 번호를 입력하시오.") 
+    curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
     print(curvename)    
     if len(MyMarketDataList) == 1 : 
         Curve = MyMarketDataList[0]
@@ -5357,7 +5467,7 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
         MainFlag2 = input("\n종료하시겠습니까? (Y/N)\n->")
         return MainFlag2, "","",""
     else : 
-        print("\n 채권을 평가하기 위해 사용할 커브 번호를 입력하세요.\n")        
+        print("\n     채권을 평가하기 위해 사용할 커브 번호를 입력하세요.\n")        
         n = int(input())
         Curve = MyMarketDataList[n-1]
         UsedCurveName = Name[n-1]
@@ -5374,7 +5484,7 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
     Nominal = float(Nominal) if len(str(Nominal)) > 0 else 10000
     EffectiveDate = (input("\n 채권 발행일(YYYYMMDD)을 입력하시오.\n->"))
     EffectiveDate = int(EffectiveDate) if len(str(EffectiveDate)) > 0 else 20240627    
-    MaturityDate = (input("\n IRS 만기일(YYYYMMDD)을 입력하시오.(지급일 X)\n->"))
+    MaturityDate = (input("\n 채권 만기일(YYYYMMDD)을 입력하시오.(만기일O, 지급일 X)\n->"))
     MaturityDate = int(MaturityDate) if len(str(MaturityDate)) > 0 else 20340627
     MaturityToPayDate = (input("\n 채권 만기일에서 대금결제일까지 영업일수를 입력하시오.\n"))
     MaturityToPayDate = int(MaturityToPayDate) if len(str(MaturityToPayDate)) > 0 else 0
@@ -5407,7 +5517,7 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
     print("\n 더 엄밀한 FRTB 증가분을 알고싶다면, csv파일의 민감도를 FRTB RAW Files에 추가하여 계산하시오.\n")        
     print("##############\n####산출완료#####\n##############\n")
     
-    BookFlag = input("\n 해당 채권을 Booking하시겠습니까? (Y/N)\n-> ")
+    BookFlag = input("\n 해당 채권을 Book\Bond\Bond.csv에 Booking하시겠습니까? (Y/N)\n-> ")
     if BookFlag in ["y","Y","1"] : 
         GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
         Data_GIRR = MapGIRRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
@@ -5435,16 +5545,11 @@ def PricingBondProgram(YYYYMMDD, Name, MyMarketDataList) :
     MainFlag2 = input("\n종료하시겠습니까? (Y/N)\n->")
     return MainFlag2, Value, PV01, TempPV01
 
-def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList, HolidayData = pd.DataFrame([])) : 
-    print("\n##########################################################################################\n 세팅된 커브는 다음과 같습니다. \n 평가날짜 : " + YYYYMMDD)
-    curvename = ''
-    for i in range(len(Name)) : 
-        if "Rate" in Data[i].columns or 'rate' in Data[i].columns : 
-            curvename += '\n\n' + str(i+1) + '. ' + Name[i].split('\\')[-1] + '\n'
-            Term = list(Data[i]["Term" if "Term" in Data[i].columns else "term"].round(5))[:10]
-            Rate = list(Data[i]["Rate" if "Rate" in Data[i].columns else "rate"].round(5))[:10]
-            curvename += '\n Term = ' + str(Term).split(']')[0] + ', ...]'
-            curvename += '\n Rate = ' + str(Rate).split(']')[0] + ', ...]'
+def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) ) : 
+    YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
+                                                                  namenotin = "swaption",
+                                                                  Comments = "IRS Pricing을 위한 커브 번호를 입력하시오.\n(Estimation Curve와 Discount Curve가 다른 경우 1, 2 등 두개 입력)")     
+    curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
     print(curvename)  
     HolidaysForSwap = []
     Curr, UsedCurveName1 = "", ""
@@ -5461,7 +5566,7 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList, HolidayData = pd.DataFra
         CurveTerm2, CurveRate2 = [], []        
         UsedCurveName2 = ""
     else : 
-        print("\n\n IRS 스왑을 평가하기 위해 사용할 커브 번호를 입력하세요. \n * 두 커브를 선택할 경우 DiscCurveNum, EstCurveNum 순으로 입력하시오 \n (예 1, 2 -> 1DiscCurve, 2EstCurve)\n")        
+        print("\n\n     위의 커브 중 IRS 스왑을 평가하기 위해 사용할 커브 번호를 입력하세요. \n\n     * 두 커브를 선택할 경우 DiscCurveNum, EstCurveNum 순으로 입력하시오 \n     (예 1, 2 -> 1DiscCurve, 2EstCurve)\n")        
         MyStr = input()
         if len(str(MyStr)) == 0 : 
             print("\n 오입력으로 프로그램 종료합니다.")
@@ -5508,9 +5613,9 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList, HolidayData = pd.DataFra
     Nominal = float(Nominal) if len(str(Nominal)) > 0 else 10000
     EffectiveDate = (input("\n IRS 발행일(YYYYMMDD)을 입력하시오.\n->"))
     EffectiveDate = int(EffectiveDate) if len(str(EffectiveDate)) > 0 else 20240627
-    MaturityDate = (input("\n IRS 만기일(YYYYMMDD)을 입력하시오.(지급일 X)\n->"))
+    MaturityDate = (input("\n IRS 만기일(YYYYMMDD)을 입력하시오.(만기일O, 지급일 X)\n->"))
     MaturityDate = int(MaturityDate) if len(str(MaturityDate)) > 0 else 20340627
-    MaturityToPayDate = (input("\n IRS 만기일에서 대금결제일까지 영업일수를 입력하시오.\n->"))
+    MaturityToPayDate = (input("\n IRS 만기일에서 대금결제일까지 영업일수를 입력하시오.(ex 2일이면 2입력)\n->"))
     MaturityToPayDate = int(MaturityToPayDate) if len(str(MaturityToPayDate)) > 0 else 0
     FixedPayer = input("\n 변동금리 수취여부를 입력하시오.\n 1. 변동금리 수취, 고정금리 지급\n 2. 고정금리 수취, 변동금리 지급.\n->")
     FixedPayerFlag = 1 if FixedPayer in ['1',1] else 0    
@@ -5549,12 +5654,14 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList, HolidayData = pd.DataFra
               LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1, FixedPayerFlag = FixedPayerFlag, DiscCurveNameLeg1 = UsedCurveName1, EstCurveNameLeg1 = UsedCurveName2, DiscCurveNameLeg2 = UsedCurveName1, EstCurveNameLeg2 = UsedCurveName2)         
     
     print("##############\nIRS 가격은 " + str(np.round(Value,4)) + "\n##############\n")
-    GIRRRisk = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 4 if Value > 10000 else 2)
+    GIRRRisk1 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 4 if Value > 10000 else 2)
+    GIRRRisk2 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(TempPV01, "PV01TermEst","PVEst01"), 4 if Value > 10000 else 2)
+    GIRRRisk = GIRRRisk1 + GIRRRisk2
     print(" 해당 IRS 거래시 GIRR은 " + str(format(GIRRRisk,",")) + "(통화 = " + Curr.upper() +") 만큼 증가합니다. \n")
     print("\n 더 엄밀한 FRTB 증가분을 알고싶다면, csv파일의 민감도를 FRTB RAW Files에 추가하여 계산하시오.\n")    
     print("#################\n####산출완료#####\n#################\n")
 
-    BookFlag = input("\n 해당 IRS을 Booking하시겠습니까? (Y/N)\n-> ")
+    BookFlag = input("\n 해당 IRS을 Book\IRS\IRS.csv에 Booking하시겠습니까? (Y/N)\n-> ")
     if BookFlag in ["y","Y","1"] : 
         GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
         Data_GIRR = MapGIRRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
@@ -5580,25 +5687,19 @@ def PricingIRSProgram(YYYYMMDD, Name, MyMarketDataList, HolidayData = pd.DataFra
     MainFlag2 = input("종료하시겠습니까? (Y/N)\n->")
     return MainFlag2, Value, PV01, TempPV01
 
-def PricingCRSProgram(YYYYMMDD, Name, MyMarketDataList, HolidayData = pd.DataFrame([])) : 
+def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([])) : 
+    print("\n Currency Swap을 평가하기 위해서는 최소 두가지 커브를 선택해야 합니다.\n")
+    YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata') 
     if len(Name) == 1 : 
         print("\n Currency Swap을 평가하기 위해서는 최소 두가지 커브가 필요하므로 종료합니다.\n")
-        return ""
+        return "", 0, pd.DataFrame([]), pd.DataFrame([]), pd.DataFrame([]), pd.DataFrame([])
     
-    print("\n##########################################################################################\n 세팅된 커브는 다음과 같습니다. \n 평가날짜 : " + YYYYMMDD)
-    curvename = ''
-    for i in range(len(Name)) : 
-        if "Rate" in Data[i].columns or 'rate' in Data[i].columns : 
-            curvename += '\n\n' + str(i+1) + '. ' + Name[i].split('\\')[-1] + '\n'
-            Term = list(Data[i]["Term" if "Term" in Data[i].columns else "term"].round(5))[:10]
-            Rate = list(Data[i]["Rate" if "Rate" in Data[i].columns else "rate"].round(5))[:10]
-            curvename += '\n Term = ' + str(Term).split(']')[0] + ', ...]'
-            curvename += '\n Rate = ' + str(Rate).split(']')[0] + ', ...]'
+    curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
     print(curvename)  
 
     Curr, Curr2, UsedCurveName1, UsedCurveName2, UsedCurveName3, UsedCurveName4 = "", "" ,"" ,"" ,"" ,""
-    print("\n\n Currency Rate Swap을 평가하기 위해 사용할 두개의 커브 번호를 입력하세요. \n  * 두 커브를 입력할 경우 Domestic Curve 번호, Foreign Curve(USD 등) 번호 순으로 입력하시오 \n (예 1, 2 -> 1: Domestic, 2: Foreign)\n\n  만약 Float Float Basis 스왑이라면 커브를 4개 입력하시오 \n (예 1, 2, 3, 4 -> 1: Domestic Disc, 2: Foreign Disc, 3: Domestic Est, 4: Foreign Est)\n")        
-    MyStr = input("-> ")
+    print("\n\n     위 커브번호 중 Currency Rate Swap을 평가하기 위해 사용할 두개의 커브 번호를 입력하세요. \n\n        * 두 커브를 입력할 경우 Domestic Curve 번호, Foreign Curve(USD 등) 번호 순으로 입력하시오 \n       (예 1, 2 -> 1: Domestic, 2: Foreign)\n\n        만약 Float Float Basis 스왑이라면 커브를 4개 입력하시오 \n       (예 1, 2, 3, 4 -> 1: Domestic Disc, 2: Foreign Disc, 3: Domestic Est, 4: Foreign Est)\n")        
+    MyStr = input("     -> ")
     Splited = MyStr.replace(" ","").split(',')
     n = Splited[0]
     n2 = Splited[1]
@@ -5691,9 +5792,20 @@ def PricingCRSProgram(YYYYMMDD, Name, MyMarketDataList, HolidayData = pd.DataFra
                 FixingRate2 = FixingRate2/100
         else : 
             FixingRate2 = 0
-
-    ValuationDomesticFX = float(input("\n Leg1 Nominal에 대한 환율을 입력하시오 입력하시오. \n->"))
-    ValuationForeignFX = float(input("\n Leg2 Nominal에 대한 환율을 입력하시오 입력하시오. \n->"))
+            
+    if 'krw' == Curr.lower() :
+        ValuationDomesticFX = 1
+    elif 'usd' == Curr.lower() and int(YYYYMMDD) in SpotData.index and int(YYYYMMDD) > EffectiveDate:
+        ValuationDomesticFX = SpotData['USD/KRW'].loc[int(YYYYMMDD)]
+    else : 
+        ValuationDomesticFX = float(input("\n Leg1 Nominal에 대한 Pricing 환율을 입력하시오 입력하시오. \n->")) 
+        
+    if 'krw' == Curr2.lower() : 
+        ValuationForeignFX = 1
+    elif 'usd' == Curr2.lower() and int(YYYYMMDD) in SpotData.index and int(YYYYMMDD) > EffectiveDate:
+        ValuationForeignFX = SpotData['USD/KRW'].loc[int(YYYYMMDD)]
+    else : 
+        ValuationForeignFX = float(input("\n Leg2 Nominal에 대한 Pricing 환율을 입력하시오 입력하시오. \n->"))
     
     Value, PV01DomesticDisc, PV01ForeignDisc, PV01DomesticEst, PV01ForeignEst = CalC_CRS_PV01(Nominal1, Nominal2, FixingRate, EffectiveDate, int(YYYYMMDD), MaturityDate, 
              CpnRate, ZeroCurveTermDomestic, ZeroCurveRateDomestic, NumCpnOneYear, DayCountFlagDomestic, 
@@ -5726,7 +5838,12 @@ def PricingCRSProgram(YYYYMMDD, Name, MyMarketDataList, HolidayData = pd.DataFra
 
 def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "") : 
     MyData["Type"] = MyData["Type"].apply(lambda x : str(x).lower())
-    Currency = input("\n 스왑 통화를 입력하시오 (ex KRW, USD, 등)\n 만약 통화스왑이라면 KRW, USD 등의 두개 통화 쌍 형태로 입력\n->")
+    if "krw" in CurveName.lower() and ("std" in CurveName.lower() or "irs" in CurveName.lower()) : 
+        Currency = "KRW"
+    elif "usd" in CurveName.lower() and ("std" in CurveName.lower() or "irs" in CurveName.lower()) :
+        Currency = "USD"
+    else :
+        Currency = input("\n 스왑 통화를 입력하시오 (ex KRW, USD, 등)\n 만약 통화스왑이라면 KRW, USD 등의 두개 통화 쌍 형태로 입력\n->")
     if len(Currency) == 0 : 
         Currency = "KRW"
     ForeignCurveNeeded = 1 if 'sp' in list(MyData["Type"]) else 0
@@ -5765,11 +5882,13 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
         ForeignZero = Data2[0]
         ZeroTermForeign = ForeignEstCurveTerm = list(ForeignZero["Term"])
         ZeroRateForeign = ForeignEstCurveRate = list(ForeignZero["Rate"])
-
+        Preprocessing_ZeroTermAndRate(ZeroTermForeign, ZeroRateForeign, int(YYYYMMDD))
+        
         print("\nForeign ZeroRate는 다음 위치의 ZeroRate를 사용 \n ->" + Name2[0])
         if len(Name2) > 1 : 
             DomesticEst = Data2[1]
             DomesticEstCurveTerm, DomesticEstCurveRate = list(DomesticEst["Term"]), list(DomesticEst["Rate"])
+            Preprocessing_ZeroTermAndRate(DomesticEstCurveTerm, DomesticEstCurveRate, int(YYYYMMDD))
             print("\nDomestic Estimation ZeroRate는 다음 위치의 Rate를 사용 \n ->" + Name2[1])
             print("\n추가 커브가 2개이므로 Basis Swap 커브제너레이터입니다.\n")
     if Currency == "KRW" : 
@@ -5887,7 +6006,9 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
             ZeroRate.append(TargetRate)
         else : 
             raise ValueError("Check the Product Type")
-    
+    for i in range(len(ZeroRate)) : 
+        ZeroRate[i] *= 100
+        
     ResultDF = pd.DataFrame(ZeroRate, ZeroTerm).reset_index()
     ResultDF.columns = ["Term","Rate"]
     ResultDF["PriceDate"] = [PriceDate] * len(ResultDF)
@@ -5900,7 +6021,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
         os.system('mkdir ' + currdir + '\\MarketData\\outputdata\\' + str(YYYYMMDD))
         os.system('mkdir ' + currdir + '\\MarketData\\outputdata\\' + str(YYYYMMDD) + "\\" + CurrencyName)    
             
-    cvname = input("\n 커브명을 입력하시오 (ex : KRW IRS 등) \n ->")
+    cvname = input("\n 커브명을 입력하시오 (ex : KRW IRS, KRW CRS 등) \n ->")
     targetdir = currdir + "\\MarketData\\outputdata\\" + str(YYYYMMDD) + "\\" + str(CurrencyName)
     try : 
         if cvname + ".csv" not in os.listdir(targetdir) : 
@@ -5950,7 +6071,7 @@ def PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayFile) :
     Holidays = list(HolidayFile[Currency].dropna().unique())
     NCPN_Ann = 4 if 'KRW' in CurrencyName else int(input("연 쿠폰지급수는?\n->"))
     DayCountFlag = 0 if "KRW" in CurrencyName else int(input("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n->"))
-    VolFlag = input("Black Vol이면 0을, Normal Vol이면 1을 입력하시오. \n")
+    VolFlag = input("Black Vol이면 0을, Normal Vol이면 1을 입력하시오. \n->")
     if len(VolFlag) == 0 or VolFlag in [1,'1'] : 
         VolFlag = 1
     else : 
@@ -6229,20 +6350,25 @@ while True :
             break
     elif MainFlag in [1,'1'] :                     
         HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
-        YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata') 
+        try : 
+            FXSpot = PreprocessingFXSpotData(currdir + "\\MarketData\\spot\\FXSpot.csv")        
+        except FileNotFoundError : 
+            FXSpot = pd.DataFrame([])
         MainFlag2 = ""
-        n = (input("\nPricer를 선택하시오 : 1. 채권, 2. IRS, 3. IRS(Complex), 4. CMS Swap, 5. Currency Swap\n->"))
+        n = (input("\nPricer를 선택하시오 : 1. 채권, 2. IRS, 3. IRS(Complex), 4. CMS Swap, 5. Currency Swap\n                     6. Equity Option \n->"))
         if int(n) == 1 or n == "채권" or str(n).lower() == "bond": 
-            MainFlag2, Value, PV01, TempPV01 = PricingBondProgram(YYYYMMDD, Name, Data)
+            MainFlag2, Value, PV01, TempPV01 = PricingBondProgram()
         elif int(n) == 2 or n == "IRS" or str(n).lower() == "irs" : 
-            MainFlag2, Value, PV01, TempPV01 = PricingIRSProgram(YYYYMMDD, Name, Data)            
+            MainFlag2, Value, PV01, TempPV01 = PricingIRSProgram(HolidayDate, FXSpot)            
         elif int(n) == 3 : 
             print("미완성")
         elif int(n) == 4 or n == "CMS" or str(n).lower() == "cms" : 
             print("미완성")
-            MainFlag2, Value, PV01, TempPV01 = PricingIRSProgram(YYYYMMDD, Name, Data)            
         elif int(n) == 5 or n == "CRS" or str(n).lower() == "crs" : 
-            MainFlag2, Value, PV01, TempPV01, TempPV01Est, TempPV01Est2 = PricingCRSProgram(YYYYMMDD, Name, Data, HolidayDate)
+            MainFlag2, Value, PV01, TempPV01, TempPV01Est, TempPV01Est2 = PricingCRSProgram(HolidayDate, FXSpot)
+        elif int(n) == 6 or n == "옵션" or str(n).lower() == "option" :
+            MainFlag2, Value, PV01, TempPV01 = PricingEquityOptionProgram()
+            
         if str(MainFlag2).lower() == 'y' or len(str(MainFlag2)) == 0:
             print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
             break
