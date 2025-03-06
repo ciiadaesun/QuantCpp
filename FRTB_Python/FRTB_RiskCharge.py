@@ -1703,7 +1703,7 @@ def SOFR_ForwardRate_Compound(
         PI_0 = (1.0 + AverageRate / denominator) ** nday
     
     AnnualizedOISRate = (PI_0 - 1.0) / T
-    return PI_0 - 1.0, AnnualizedOISRate
+    return PI_0 - 1.0, AnnualizedOISRate, EstStartIdx, EstEndIdx
 
 def istermtype(termlist) : 
     term = np.array(termlist, dtype = np.float64)
@@ -1926,7 +1926,7 @@ def BS_Option(PriceDate, MaturityDate, S0, X, TermDisc,
     Preprocessing_ZeroTermAndRate(TermDisc, RateDisc, PriceDate)
     Preprocessing_ZeroTermAndRate(EstTerm, EstRate, PriceDate)
     TimeToMaturity = DayCountAtoB(PriceDate, MaturityDate)/365
-    StockLevel = S0/X if np.array(VolParity).max() < 3.0 else S0
+    StockLevel = X/S0 if np.array(VolParity).max() < 3.0 else S0
     v = 0.001
     try : 
         v = Linterp2D(VolTerm, VolParity, Volatility, TimeToMaturity, StockLevel)
@@ -2119,6 +2119,8 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
     
     LoggingStart = []
     LoggingEnd = []
+    LoggingEstStart = []
+    LoggingEstEnd = []
     LoggingPayDate = []
     LoggingFraction = []
     LoggingForwardRate = []
@@ -2132,7 +2134,7 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
     if DayCountFlag >= 6 : 
         BondFlag = 1
         DayCountFlag = DayCountFlag - 5
-        
+
     ModifiedFollow = 1
     PriceDateYYYY, MaturityYYYY = int(PriceDateYYYYMMDD // 10000), int(MaturityYYYYMMDD // 10000)
     if len(AdditionalPayHolidayList) == 0 : 
@@ -2191,7 +2193,8 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
             deltat = DayCountFractionAtoB(EffectiveDateYYYYMMDD, Generated_CpnDate[i], DayCountFlag, HolidayYYYYMMDD)
             
         LastFixingDate = EffectiveDateYYYYMMDD if i == 0 else Generated_CpnDate[i-1]
-        
+        EstStartDate = LastFixingDate
+        EstEndDate = Generated_CpnDate[i]
         f = 0
         ConvAdjAmt = 0
         if LastFixingDate < PriceDateYYYYMMDD : 
@@ -2203,9 +2206,12 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
                     End = Generated_CpnDate[i]
                     BusinessDate = BDate[(BDate >= Start) & (BDate <= End)]
                     NBDCount = DayCountBDate[(BDate >= Start) & (BDate <= End)]
-                    CompValue, f = SOFR_ForwardRate_Compound(PriceDateYYYYMMDD,    ZeroCurveTerm,    ZeroCurveRate,     Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD,    Generated_CpnDate[i],
+                    
+                    CompValue, f, EstStartIdx, EstEndIdx = SOFR_ForwardRate_Compound(PriceDateYYYYMMDD,    ZeroCurveTerm,    ZeroCurveRate,     Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD,    Generated_CpnDate[i],
                                                             0,    LookBackDays,    ObservShift,    0,    BusinessDate,    NBDCount,
                                                             OverNightRateDateHistory,    OverNightRateHistory,    365 if DayCountFlag == 0 else 360,    1)
+                    EstStartDate = BusinessDate[max(0, EstStartIdx - LookBackDays)]
+                    EstEndDate = BusinessDate[max(0, EstEndIdx - LookBackDays)]                    
                 elif CMSFlag == 1 : 
                     SwapMaturity = Calc_CMS_Maturity(Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, RefSwap_Maturity_T_Year = RefSwapMaturity_T)
                     f = FSR(PriceDateYYYYMMDD, Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, SwapMaturity, RefSwapNCPNAnn,DayCountFlag, FixingHolidayYYYYMMDD, ZeroCurveTerm, ZeroCurveRate, ZeroCurveTerm, ZeroCurveRate)
@@ -2223,9 +2229,11 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
                     End = Generated_CpnDate[i]
                     BusinessDate = BDate[(BDate >= Start) & (BDate <= End)]
                     NBDCount = DayCountBDate[(BDate >= Start) & (BDate <= End)]
-                    CompValue, f = SOFR_ForwardRate_Compound(PriceDateYYYYMMDD,    EstZeroCurveTerm,    EstZeroCurveTerm,     Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD,    Generated_CpnDate[i],
+                    CompValue, f, EstStartIdx, EstEndIdx = SOFR_ForwardRate_Compound(PriceDateYYYYMMDD,    EstZeroCurveTerm,    EstZeroCurveTerm,     Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD,    Generated_CpnDate[i],
                                                             0,    LookBackDays,    ObservShift,    0,    BusinessDate,    NBDCount,
                                                             OverNightRateDateHistory,    OverNightRateHistory,    365 if DayCountFlag == 0 else 360,    1)
+                    EstStartDate = BusinessDate[max(0, EstStartIdx - LookBackDays)]
+                    EstEndDate = BusinessDate[max(0, EstEndIdx - LookBackDays)]                        
                 elif CMSFlag == 1 : 
                     SwapMaturity = Calc_CMS_Maturity(Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, RefSwap_Maturity_T_Year = RefSwapMaturity_T)
                     f = FSR(PriceDateYYYYMMDD, Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD, SwapMaturity, RefSwapNCPNAnn,DayCountFlag, FixingHolidayYYYYMMDD, EstZeroCurveTerm, EstZeroCurveRate, ZeroCurveTerm, ZeroCurveRate)
@@ -2293,6 +2301,8 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
         if LoggingFlag > 0 : 
             LoggingStart.append(Generated_CpnDate[i-1] if i > 0 else EffectiveDateYYYYMMDD)
             LoggingEnd.append(Generated_CpnDate[i])
+            LoggingEstStart.append(EstStartDate)
+            LoggingEstEnd.append(EstEndDate)
             LoggingPayDate.append(YYYYMMDDofNextDate)
             LoggingFraction.append(deltat)
             LoggingAdj.append(ConvAdjAmt)
@@ -2318,6 +2328,8 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
             LoggingAdj.append(0)
             LoggingStart.append(EffectiveDateYYYYMMDD)
             LoggingEnd.append(Generated_CpnDate[-1])
+            LoggingEstStart.append(EffectiveDateYYYYMMDD)
+            LoggingEstEnd.append(Generated_CpnDate[-1])            
             LoggingPayDate.append(YYYYMMDDofNextDate if NominalDateIsNominalPayDate == False else Generated_CpnDate[-1])
             LoggingFraction.append(tpay)
             LoggingForwardRate.append(r)
@@ -2327,7 +2339,7 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
             LoggingDF.append(np.exp(-r * tpay))             
     
     if LoggingFlag == 1 : 
-        LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingAdj, LoggingCpnFix, LoggingCpnRate, LoggingRawCpn, LoggingDF], index = ["Start","End","Pay","Frac","ForwardRate","ConAdj","CpnFixed","Cpn","RawCpn","DF"]).T               
+        LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingEstStart,LoggingEstEnd,LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingAdj, LoggingCpnFix, LoggingCpnRate, LoggingRawCpn, LoggingDF], index = ["Start","End","EstStart","EstEnd","Pay","Frac","ForwardRate","ConAdj","CpnFixed","Cpn","RawCpn","DF"]).T               
         if (len(DiscCurveName) > 0) : 
             LoggingDF["DiscCurve"] = DiscCurveName
             LoggingDF["EstCurve"] = DiscCurveName if len(EstZeroCurveTerm) == 0 else EstCurveName
@@ -2338,7 +2350,7 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
         df = ReadCSV(LoggingDir + "\\LoggingFilesBond.csv")
         ColList = ["Leg1_" + str(s) for s in df.columns]
         df.columns = ColList
-        LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingAdj, LoggingCpnFix, LoggingCpnRate, LoggingRawCpn, LoggingDF], index = ["Start","End","Pay","Frac","ForwardRate","ConAdj","CpnFixed","Cpn","RawCpn","DF"]).T               
+        LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingEstStart, LoggingEstEnd, LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingAdj, LoggingCpnFix, LoggingCpnRate, LoggingRawCpn, LoggingDF], index = ["Start","End","EstStart","EstEnd","Pay","Frac","ForwardRate","ConAdj","CpnFixed","Cpn","RawCpn","DF"]).T               
         if (len(DiscCurveName) > 0) : 
             LoggingDF["DiscCurve"] = DiscCurveName
             LoggingDF["EstCurve"] = DiscCurveName if len(EstZeroCurveTerm) == 0 else EstCurveName
@@ -2426,7 +2438,8 @@ def Calc_IRS(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMD
              KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [], EstZeroCurveRate = [], FixingHolidayList = [], 
              AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False, LoggingFlag = 0, LoggingDir = '', 
              ModifiedFollow = 1, OverNightRateDateHistory = [], OverNightRateHistory = [], LookBackDays = 0, ObservShift = False, 
-             FixedPayerFlag = 0, DiscCurveNameLeg1 = "", EstCurveNameLeg1 = "", DiscCurveNameLeg2 = "", EstCurveNameLeg2 = "") :
+             FixedPayerFlag = 0, DiscCurveNameLeg1 = "", EstCurveNameLeg1 = "", DiscCurveNameLeg2 = "", EstCurveNameLeg2 = "", 
+             CMSFlag = 0, RefSwapMaturity_T = 0.25, RefSwapNCPNAnn = 4, TermVol = [], Vol = [] ) :
     
     LoggingFlag1, LoggingFlag2 = 0,0
     if LoggingFlag > 0 : 
@@ -2443,11 +2456,13 @@ def Calc_IRS(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMD
     if len(EstZeroCurveTerm) > 0 and len(EstZeroCurveRate) > 0 : 
         Preprocessing_ZeroTermAndRate(EstZeroCurveTerm, EstZeroCurveRate, PriceDateYYYYMMDD)
 
-    FloatLeg = Calc_Bond(Nominal, 0, 1, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
+    FloatLeg = Calc_Bond(Nominal, 0, 1 if LookBackDays== 0 else 2, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
             PriceDateYYYYMMDD, MaturityYYYYMMDD, 0.0, ZeroCurveTerm, ZeroCurveRate, 
             NumCpnOneYear, DayCountFlag, KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm = EstZeroCurveTerm,
             EstZeroCurveRate = EstZeroCurveRate, FixingHolidayList = FixingHolidayList, AdditionalPayHolidayList  = AdditionalPayHolidayList, NominalDateIsNominalPayDate = NominalDateIsNominalPayDate,
-            LoggingFlag = LoggingFlag2, LoggingDir = LoggingDir, ModifiedFollow = ModifiedFollow, OverNightRateDateHistory = OverNightRateDateHistory, OverNightRateHistory = OverNightRateHistory, LookBackDays = LookBackDays, ObservShift = ObservShift, DiscCurveName= DiscCurveNameLeg2, EstCurveName = EstCurveNameLeg2)
+            LoggingFlag = LoggingFlag2, LoggingDir = LoggingDir, ModifiedFollow = ModifiedFollow, OverNightRateDateHistory = OverNightRateDateHistory, OverNightRateHistory = OverNightRateHistory, LookBackDays = LookBackDays, ObservShift = ObservShift, DiscCurveName= DiscCurveNameLeg2, EstCurveName = EstCurveNameLeg2,
+            CMSFlag = CMSFlag, RefSwapMaturity_T = RefSwapMaturity_T, RefSwapNCPNAnn = RefSwapNCPNAnn, TermVol = TermVol, Vol = Vol)
+    
     return FixedLeg - FloatLeg if FixedPayerFlag == 0 else FloatLeg - FixedLeg    
     
 def Calc_IRS_PV01(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
@@ -2455,14 +2470,16 @@ def Calc_IRS_PV01(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYY
              KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [], EstZeroCurveRate = [], FixingHolidayList = [], 
              AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False, LoggingFlag = 0, LoggingDir = '', 
              ModifiedFollow = 1, OverNightRateDateHistory = [], OverNightRateHistory = [], LookBackDays = 0, ObservShift = False, 
-             FixedPayerFlag = 0, DiscCurveNameLeg1 = "", EstCurveNameLeg1 = "", DiscCurveNameLeg2 = "", EstCurveNameLeg2 = "") : 
+             FixedPayerFlag = 0, DiscCurveNameLeg1 = "", EstCurveNameLeg1 = "", DiscCurveNameLeg2 = "", EstCurveNameLeg2 = "",
+             CMSFlag = 0, RefSwapMaturity_T = 0.25, RefSwapNCPNAnn = 4, TermVol = [], Vol = []) : 
     
     P = Calc_IRS(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
              CpnRate, ZeroCurveTerm, ZeroCurveRate, NumCpnOneYear, DayCountFlag, 
              KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm , EstZeroCurveRate , FixingHolidayList , 
              AdditionalPayHolidayList , NominalDateIsNominalPayDate , LoggingFlag , LoggingDir , 
              ModifiedFollow , OverNightRateDateHistory , OverNightRateHistory , LookBackDays , ObservShift, 
-             FixedPayerFlag, DiscCurveNameLeg1 = DiscCurveNameLeg1, EstCurveNameLeg1 = EstCurveNameLeg1, DiscCurveNameLeg2 = DiscCurveNameLeg2, EstCurveNameLeg2 = EstCurveNameLeg2)
+             FixedPayerFlag, DiscCurveNameLeg1 = DiscCurveNameLeg1, EstCurveNameLeg1 = EstCurveNameLeg1, DiscCurveNameLeg2 = DiscCurveNameLeg2, EstCurveNameLeg2 = EstCurveNameLeg2,
+             CMSFlag = CMSFlag, RefSwapMaturity_T = RefSwapMaturity_T, RefSwapNCPNAnn = RefSwapNCPNAnn, TermVol = TermVol, Vol = Vol)
 
     ResultArray = np.zeros(len(ZeroCurveRate))
     for i in range(len(ZeroCurveTerm)) : 
@@ -2473,7 +2490,8 @@ def Calc_IRS_PV01(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYY
              KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm , EstZeroCurveRate , FixingHolidayList , 
              AdditionalPayHolidayList , NominalDateIsNominalPayDate , LoggingFlag , LoggingDir , 
              ModifiedFollow , OverNightRateDateHistory , OverNightRateHistory , LookBackDays , ObservShift, 
-             FixedPayerFlag)
+             FixedPayerFlag, DiscCurveNameLeg1 = DiscCurveNameLeg1, EstCurveNameLeg1 = EstCurveNameLeg1, DiscCurveNameLeg2 = DiscCurveNameLeg2, EstCurveNameLeg2 = EstCurveNameLeg2,
+             CMSFlag = CMSFlag, RefSwapMaturity_T = RefSwapMaturity_T, RefSwapNCPNAnn = RefSwapNCPNAnn, TermVol = TermVol, Vol = Vol)
 
         ResultArray[i] = Pu - P
         
@@ -2487,7 +2505,8 @@ def Calc_IRS_PV01(Nominal, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYY
              KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm , ZeroUp , FixingHolidayList , 
              AdditionalPayHolidayList , NominalDateIsNominalPayDate , LoggingFlag , LoggingDir , 
              ModifiedFollow , OverNightRateDateHistory , OverNightRateHistory , LookBackDays , ObservShift, 
-             FixedPayerFlag)
+             FixedPayerFlag, DiscCurveNameLeg1 = DiscCurveNameLeg1, EstCurveNameLeg1 = EstCurveNameLeg1, DiscCurveNameLeg2 = DiscCurveNameLeg2, EstCurveNameLeg2 = EstCurveNameLeg2,
+             CMSFlag = CMSFlag, RefSwapMaturity_T = RefSwapMaturity_T, RefSwapNCPNAnn = RefSwapNCPNAnn, TermVol = TermVol, Vol = Vol)
             ResultArray2[i] = Pu - P
 
         df2 = pd.Series(ResultArray, index = ZeroCurveTerm).reset_index()
@@ -5369,7 +5388,22 @@ def PrintingMarketDataInformation(YYYYMMDD, NameList, MyMarketDataList) :
             curvename += '\n\n     ' + str(i+1) + '. ' + NameList[i].split('\\')[-1] + '\n'
             Term = ["parity/tenor"] + [np.round(float(i), 3) for i in MyMarketDataList[i].columns[1:]]
             curvename += '\n '+str(Term)+'\n'
-            curvename += '           '+str(np.round(MyMarketDataList[i].values, 3)).replace("\n","\n           ")                              
+            curvename += '           '+str(np.round(MyMarketDataList[i].values, 3)).replace("\n","\n           ") 
+        elif "SwapMat/OptMat" in MyMarketDataList[i].columns :
+            curvename += '\n\n     ' + str(i+1) + '. ' + NameList[i].split('\\')[-1] + '\n'
+            myind = MyMarketDataList[i].values[:,0]
+            values = (MyMarketDataList[i].values[:,1:] * 100000).astype(np.int64)/1000
+            Term = ["SwapMat/OptMat"] + [int(i) for i in MyMarketDataList[i].columns[1:]]
+            curvename += '\n '+str(Term).replace(',',',  ') +'\n'
+            for j in range(len(values)) : 
+                curvename += '            [' + str(myind[j]) + ' | '
+                curvename += str(values[j]).replace("  "," ").replace("\n","\n  ").replace('[','')  + '\n'
+        elif "스왑만기/옵션만기" in MyMarketDataList[i].columns :
+            curvename += '\n\n     ' + str(i+1) + '. ' + NameList[i].split('\\')[-1] + '\n'
+            values = np.concatenate([MyMarketDataList[i].values[:,0:1],(MyMarketDataList[i].values[:,1:] *100).round(2)],axis=1)
+            Term = ["스왑만기/옵션만기"] + [np.round(float(i), 4) for i in MyMarketDataList[i].columns[1:]]
+            curvename += '\n '+str(Term)+'\n'
+            curvename += '           '+str(values).replace("\n","\n           ") 
             
     PrintingContents = curvename
     return PrintingContents    
@@ -5545,7 +5579,7 @@ def PricingBondProgram() :
     MainFlag2 = input("\n종료하시겠습니까? (Y/N)\n->")
     return MainFlag2, Value, PV01, TempPV01
 
-def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) ) : 
+def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) , ComplexIRSFlag = 0, CMSUseFlag = 0) : 
     YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
                                                                   namenotin = "swaption",
                                                                   Comments = "IRS Pricing을 위한 커브 번호를 입력하시오.\n(Estimation Curve와 Discount Curve가 다른 경우 1, 2 등 두개 입력)")     
@@ -5570,7 +5604,7 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
         MyStr = input()
         if len(str(MyStr)) == 0 : 
             print("\n 오입력으로 프로그램 종료합니다.")
-            return "" 
+            return "y",np.nan,np.nan,np.nan
         elif len(str(MyStr)) == 1: 
             n = int(MyStr)
             Curve = MyMarketDataList[n-1]
@@ -5603,7 +5637,7 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
             CurveRate2 = list(Curve2["Rate" if "Rate" in Curve2.columns else "rate"])
         else : 
             print("\n 오입력으로 프로그램 종료합니다.")
-            return "" 
+            return "y",np.nan,np.nan,np.nan
         
     if len(HolidayData) > 0 : 
         if Curr.upper() in HolidayData.columns : 
@@ -5646,12 +5680,55 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
         FixingRate = float(input())
         if FixingRate > 1.0 : 
             FixingRate = FixingRate/100
-    
+
+    LookBackDays, ObservShift = 0, False
+    if ComplexIRSFlag > 0 : 
+        LookBackDaysStr = input("\nLook Back Days를 입력하시오.\n->")
+        LookBackDays = 0 if len(LookBackDaysStr) == 0 else int(LookBackDaysStr) 
+        ObservShiftStr = input("\nObservation Shift를 하시겠습니까?(Y/N).\n->")
+        ObservShift = False if len(ObservShiftStr) == 0 else ObservShiftStr in ["Y",'y']
+
+    VolArray, TermVol = [], []
+    CMSFlag, RefSwapMaturity_T, RefSwapNCPNAnn = 0, 0.25, 4
+    if CMSUseFlag > 0 : 
+        CMSFlag = 1
+        RefSwapMaturity_T_Str = input("\nCMS 기초금리의 스왑만기를 입력하시오.(1Y : 1, 2Y: 2, ... 5Y: 5)\n->")
+        RefSwapMaturity_T = 5 if len(RefSwapMaturity_T_Str) == 0 else float(RefSwapMaturity_T_Str)
+        #RefSwapNCPNAnn_Str = input("\nCMS 기초금리의 쿠폰의 연 지급횟수 입력하시오.(연 4회지급이면 4 입력)\n->")
+        #RefSwapNCPNAnn = 4 if len(RefSwapNCPNAnn_Str) == 0 else int(RefSwapNCPNAnn_Str)            
+        RefSwapNCPNAnn = NumCpnOneYear
+        YYYYMMDD2, Name2, MyMarketDataList2 = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
+                                                                        namein = "tion",
+                                                                        Comments = "Convexity Adjustment를 위한 Swaption Vol Curve를 선택하시오\n->")     
+
+        OptionData = pd.DataFrame([])
+        for i in range(len(Name2)) :
+            if "SwapMat/OptMat" in MyMarketDataList2[i].columns or "스왑만기/옵션만기" in MyMarketDataList2[i].columns :
+                OptData = MyMarketDataList2[i].set_index(MyMarketDataList2[i].columns[0])
+                MyInd = OptData.index.astype(np.float64)/12
+                MyCol = OptData.columns.astype(np.float64)/12
+                OptionData = pd.DataFrame(OptData.values, columns = MyCol, index = MyInd)
+                break
+        if i == len(Name) : 
+            print("\nSwaption Vol Market Data가 없습니다 종료합니다.\n")
+            return  "y",np.nan,np.nan,np.nan
+        
+        t = DayCountAtoB(int(YYYYMMDD), MaturityDate)/365
+
+        x = np.array(OptionData.index)
+        TermVol = list(OptionData.columns)
+        for i in range(len(OptionData.columns)) : 
+            y = OptionData.values[:,i]
+            v = Linterp(x, y, t)
+            VolArray.append(v)
+
     Value, PV01, TempPV01 = Calc_IRS_PV01(Nominal, FixingRate, EffectiveDate, 
               int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm1, CurveRate1, 
               NumCpnOneYear, DayCountFlag, KoreanHoliday = False, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = CurveTerm2,
               EstZeroCurveRate = CurveRate2, FixingHolidayList = HolidaysForSwap, AdditionalPayHolidayList  = HolidaysForSwap, NominalDateIsNominalPayDate = False,
-              LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1, FixedPayerFlag = FixedPayerFlag, DiscCurveNameLeg1 = UsedCurveName1, EstCurveNameLeg1 = UsedCurveName2, DiscCurveNameLeg2 = UsedCurveName1, EstCurveNameLeg2 = UsedCurveName2)         
+              LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1, FixedPayerFlag = FixedPayerFlag, 
+              DiscCurveNameLeg1 = UsedCurveName1, EstCurveNameLeg1 = UsedCurveName2, DiscCurveNameLeg2 = UsedCurveName1, EstCurveNameLeg2 = UsedCurveName2, LookBackDays = LookBackDays,
+              ObservShift = ObservShift, CMSFlag = CMSFlag, RefSwapMaturity_T = RefSwapMaturity_T, RefSwapNCPNAnn = RefSwapNCPNAnn, TermVol = TermVol, Vol = VolArray)         
     
     print("##############\nIRS 가격은 " + str(np.round(Value,4)) + "\n##############\n")
     GIRRRisk1 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 4 if Value > 10000 else 2)
@@ -5914,7 +5991,11 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
         tstartdate = 0
         dffo = 1
     else : 
-        SwapStartDate = MyData[MyData["Type"].isin(["sw","Sw","Bs","bs"])]["StartDate"].iloc[0]
+        try : 
+            SwapStartDate = MyData[MyData["Type"].isin(["sw","Sw","Bs","bs"])]["StartDate"].iloc[0]
+        except IndexError : 
+            SwapStartDate = MyData[MyData["Type"].isin(["sp","Sp"])]["StartDate"].iloc[0]
+            
         tstartdate = DayCountAtoB(int(PriceDate), SwapStartDate)/365
         rfo = Linterp(ZeroTermForeign, ZeroRateForeign, tstartdate)
         dffo = np.exp(-rfo * tstartdate)
@@ -6194,7 +6275,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData2["민감도유형"] = "델타"
                         TempData2["포지션 ID"] = 12345
                         TempData2["뮤렉스 ID"] = 12345
-                        TempData2["버킷"] = "[" + str(Bond["Bucket"].iloc[i]) + "]"
+                        TempData2["버킷"] = "[" + ('0' + str(Bond["Bucket"].iloc[i]))[-2:] + "]"
                         TempData2["리스크요소 1"] = "TempIssuer" + str(Bond["Bucket"].iloc[i])
                         TempData2["리스크요소 2"] = cvname
                         TempData2["리스크요소 3"] = csrtenor
@@ -6355,15 +6436,15 @@ while True :
         except FileNotFoundError : 
             FXSpot = pd.DataFrame([])
         MainFlag2 = ""
-        n = (input("\nPricer를 선택하시오 : 1. 채권, 2. IRS, 3. IRS(Complex), 4. CMS Swap, 5. Currency Swap\n                     6. Equity Option \n->"))
+        n = (input("\nPricer를 선택하시오 : 1. 채권, 2. IRS, 3. IRS(Complex), 4. CMS Swap, 5. Currency Swap\n                       6. Equity Option \n->"))
         if int(n) == 1 or n == "채권" or str(n).lower() == "bond": 
             MainFlag2, Value, PV01, TempPV01 = PricingBondProgram()
         elif int(n) == 2 or n == "IRS" or str(n).lower() == "irs" : 
             MainFlag2, Value, PV01, TempPV01 = PricingIRSProgram(HolidayDate, FXSpot)            
         elif int(n) == 3 : 
-            print("미완성")
+            MainFlag2, Value, PV01, TempPV01 = PricingIRSProgram(HolidayDate, FXSpot, ComplexIRSFlag= 1)            
         elif int(n) == 4 or n == "CMS" or str(n).lower() == "cms" : 
-            print("미완성")
+            MainFlag2, Value, PV01, TempPV01 = PricingIRSProgram(HolidayDate, FXSpot, CMSUseFlag=1)            
         elif int(n) == 5 or n == "CRS" or str(n).lower() == "crs" : 
             MainFlag2, Value, PV01, TempPV01, TempPV01Est, TempPV01Est2 = PricingCRSProgram(HolidayDate, FXSpot)
         elif int(n) == 6 or n == "옵션" or str(n).lower() == "option" :
