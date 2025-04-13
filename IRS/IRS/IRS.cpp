@@ -1659,7 +1659,7 @@ void Floating_PartialValue(
     else FX = FXCurve.Interpolated_Rate(Pay_T);
     double Ref_T0 = ((double)DayCountAtoB(PricingDate, YYYYMMDDForwardStart)) / 365.0;
     double Ref_T1 = ((double)DayCountAtoB(PricingDate, YYYYMMDDForwardEnd)) / 365.0;
-    dt_Forward = ((double)DayCountAtoB(YYYYMMDDForwardStart, YYYYMMDDForwardEnd)) / 365.0;
+    dt_Forward = DayCountFractionAtoB(YYYYMMDDForwardStart, YYYYMMDDForwardEnd, DayCountFlag);
     dt_CPN = DayCountFractionAtoB(YYYYMMDDStart, YYYYMMDDEnd, DayCountFlag);
 
     if (FixedRateFlag == 0)

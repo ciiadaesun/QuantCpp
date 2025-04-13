@@ -48,19 +48,14 @@ C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\HW_Calibration.
 C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\HW_Calibration.h(5541,12): warning C4101: 'fm' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(144,9): warning C4101: 'u_i_j' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(180,9): warning C4101: 'A' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(389,15): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(432,14): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(428,9): warning C4101: 'Bst' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(430,12): warning C4101: 'ds' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(430,9): warning C4101: 's' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(427,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(428,14): warning C4101: 'BsT' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(472,9): warning C4101: 'A' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(538,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(868,18): warning C4101: 'last_ry' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(1032,58): warning C4101: 'alpha_t' :참조되지 않은 지역 변수입니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(868,9): warning C4101: 'last_rx' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(392,15): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(442,15): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(482,9): warning C4101: 'A' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(548,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(878,18): warning C4101: 'last_ry' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(1042,58): warning C4101: 'alpha_t' :참조되지 않은 지역 변수입니다.
+C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(878,9): warning C4101: 'last_rx' :참조되지 않은 지역 변수입니다.
 C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\HW_Calibration.h(4985): warning C4715: 'HWCapHWSwaption_2FCalibration': 모든 제어 경로에서 값을 반환하지는 않습니다.
-C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(1836): warning C4715: 'IRStructuedSwapFDM': 모든 제어 경로에서 값을 반환하지는 않습니다.
+C:\Users\ciiad\github5\TwoCurveCallableSwap\TwoCurveCallableSwap\TwoCurveCallableSwap.cpp(1846): warning C4715: 'IRStructuedSwapFDM': 모든 제어 경로에서 값을 반환하지는 않습니다.
      C:\Users\ciiad\github5\TwoCurveCallableSwap\Debug\TwoCurveCallableSwap.lib 라이브러리 및 C:\Users\ciiad\github5\TwoCurveCallableSwap\Debug\TwoCurveCallableSwap.exp 개체를 생성하고 있습니다.
   TwoCurveCallableSwap.vcxproj -> C:\Users\ciiad\github5\TwoCurveCallableSwap\Debug\TwoCurveCallableSwap.dll
