@@ -7959,7 +7959,7 @@ else :
     Leg1Payoff = NPV_Leg1_Simul
     Leg1DiscountFactor = Leg1SimulDF
 Leg1DiscountCashFlow = Leg1Payoff * Leg1DiscountFactor   
-
+Leg1SimulatedRefRate.mean(1)
 Leg2SimulatedRefRate, Leg2SimulatedRefRate2, Leg2SimulatedDF_FixToPay, Leg2DF_to_Fixing, Leg2RefRateForwardMsr, Leg2RefRateForwardMsr2, Leg2DF_ForwardMsr, Xt_Leg2, Leg2Xt_Opt, Leg2Optdf_tfix, Leg2OptHWDF_tfix_tpay = Calc_RefRateOnFixingDate_And_ForwardDisc_FixingToPay(PriceDate, Leg2ForwardStart, Leg2ForwardEnd, Leg2PayDate, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate, SimulationDateList, OptionFixDate, OptionPayDate, Leg2SwapRate, SimulatedXt, Leg2SwapRateForwardMeasure, Leg2ConvAdj)
 Leg2Result = Calc_Payoff_Sim_and_NotSim(PriceDate, SwapEffectiveDate, Leg2SimulatedRefRate, Nominal, Leg2_Phase2StartDate, Leg2ForwardStart, Leg2ForwardEnd, Leg2PayDate, Leg2_DayCount,Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapRate_Multiple_Phase2, Leg2_FixedCpnRate_Phase1, Leg2_FixedCpnRate_Phase2, FixingHistoryDate, FixingHistoryRate, Leg2ZeroCouponFlag, Leg2CompoundCouponFlag, Leg2RefRateForwardMsr)
 Leg2SimulDF = Leg2DF_to_Fixing.reshape(-1,1) * Leg2SimulatedDF_FixToPay
@@ -8042,7 +8042,12 @@ else :
     OptionExerciseDate = np.zeros(NSimul) 
     Leg1ValueOpttime = np.zeros((len(OptionFixDate), NSimul))
     Leg2ValueOpttime = np.zeros((len(OptionFixDate), NSimul))    
-    
+    ValueOpttime = np.zeros((len(OptionFixDate), NSimul))
+    OptionExerciseValueLeg1 = np.zeros((len(OptionFixDate), NSimul))
+    OptionExerciseValueLeg2 = np.zeros((len(OptionFixDate), NSimul))
+    OptionExerciseValue = np.zeros((len(OptionFixDate), NSimul))
+    OptionExerciseOX = np.zeros((len(OptionFixDate), NSimul))
+    BetaArray = np.zeros((len(OptionFixDate), 3))
     for i in range(len(OptionFixDate)) : 
         #i = 0
         #i = 1
@@ -8062,10 +8067,11 @@ else :
         x_Leg1 = Leg1Xt_Opt[i].reshape(1,-1)
         HWDF_tfix_tpay_Leg1 = HullWhite1F_DiscFactor_t_T(B_t_T_FixedToPay_Leg1, x_Leg1, A_t_T_FixedToPay_Leg1)
         if Leg1ZeroCouponFlag == True : 
-            Leg1ValueOnOptDate = Leg1Payoff[PayDate < Leg1PayoffDate][-1] * HWDF_tfix_tpay_Leg1[-1]
+            Leg1ValueOnOptDate = Leg1Payoff[PayDate < Leg1PayoffDate][-1] * Leg1DiscountFactor[-1]/dfoptfix[i]#HWDF_tfix_tpay_Leg1[-1]
         else : 
-            Leg1ValueOnOptDate = (Leg1Payoff[PayDate < Leg1PayoffDate] * HWDF_tfix_tpay_Leg1).sum(0)        
-
+            #Leg1ValueOnOptDate = (Leg1Payoff[PayDate < Leg1PayoffDate] * HWDF_tfix_tpay_Leg1).sum(0)        
+            Leg1ValueOnOptDate = (Leg1Payoff[PayDate < Leg1PayoffDate] * Leg1DiscountFactor[PayDate < Leg1PayoffDate]/dfoptfix[i]).sum(0)        
+        Leg1DiscountFactor[-1]/dfoptfix[i]
         T_Maturity_Leg2 = tpay_Leg2[tpay_Leg2 > t1pay]
         r_Leg2 = np.interp(T_Maturity_Leg2, ZeroTerm, ZeroRate)
         df_t1_to_pay_Leg2 = np.exp(-r_Leg2 * T_Maturity_Leg2)/dfoptfix[i]               
@@ -8076,7 +8082,8 @@ else :
         if Leg2ZeroCouponFlag == True : 
             Leg2ValueOnOptDate = Leg1Payoff[PayDate < Leg2PayoffDate][-1] * HWDF_tfix_tpay_Leg2[-1]
         else : 
-            Leg2ValueOnOptDate = (Leg2Payoff[PayDate < Leg2PayoffDate] * HWDF_tfix_tpay_Leg2).sum(0)        
+            #Leg2ValueOnOptDate = (Leg2Payoff[PayDate < Leg2PayoffDate] * HWDF_tfix_tpay_Leg2).sum(0)        
+            Leg2ValueOnOptDate = (Leg2Payoff[PayDate < Leg2PayoffDate] * Leg2DiscountFactor[PayDate < Leg2PayoffDate]/dfoptfix[i]).sum(0)        
 
         Leg1ValueOpttime[i] = Leg1ValueOnOptDate
         Leg2ValueOpttime[i] = Leg2ValueOnOptDate
@@ -8089,29 +8096,65 @@ else :
         if Leg1ZeroCouponFlag == True : 
             ExerciseCpnLeg1 = Leg1Payoff[PayDate >= Leg1PayoffDate][-1] - Leg1PayoffAccum[PayDate >= Leg1PayoffDate][-1]
             AccumCpnLeg1 = Leg1Payoff[PayDate >= Leg1PayoffDate][-1]
-            ExerciseValueLeg1 = AccumCpnLeg1 * HWDF_tfix_tpay_Leg1[-1] + ExerciseCpnLeg1 * HWDF_tfix_toptpay
+#            ExerciseValueLeg1 = AccumCpnLeg1 * HWDF_tfix_tpay_Leg1[-1] + ExerciseCpnLeg1 * HWDF_tfix_toptpay
+            ExerciseValueLeg1 = AccumCpnLeg1 * Leg1DiscountFactor[-1]/dfoptfix[i] + ExerciseCpnLeg1 * HWDF_tfix_toptpay
         else : 
             ExerciseValueLeg1 = Leg1Payoff[PayDate >= Leg1PayoffDate][-1] * HWDF_tfix_toptpay
 
         if Leg2ZeroCouponFlag == True : 
             ExerciseCpnLeg2 = Leg2Payoff[PayDate >= Leg2PayoffDate][-1] - Leg2PayoffAccum[PayDate >= Leg2PayoffDate][-1]
             AccumCpnLeg2 = Leg2Payoff[PayDate >= Leg2PayoffDate][-1]
-            ExerciseValueLeg2 = AccumCpnLeg2 * HWDF_tfix_tpay_Leg2[-1] + ExerciseCpnLeg2 * HWDF_tfix_toptpay
+#            ExerciseValueLeg2 = AccumCpnLeg2 * HWDF_tfix_tpay_Leg2[-1] + ExerciseCpnLeg2 * HWDF_tfix_toptpay
+            ExerciseValueLeg2 = AccumCpnLeg2 * Leg2DiscountFactor[-1]/dfoptfix[i] + ExerciseCpnLeg2 * HWDF_tfix_toptpay
         else : 
             ExerciseValueLeg2 = Leg2Payoff[PayDate >= Leg2PayoffDate][-1] * HWDF_tfix_toptpay
                 
+        OptionExerciseValueLeg1[i] = ExerciseValueLeg1
+        OptionExerciseValueLeg2[i] = ExerciseValueLeg2
+                
         ValueOnOptDate = Leg1ValueOnOptDate - Leg2ValueOnOptDate
         ExerciseValue = ExerciseValueLeg1 - ExerciseValueLeg2
+        ValueOpttime[i] = ValueOnOptDate
+        OptionExerciseValue[i] = ExerciseValue
+        
         OptionValue = (ValueOnOptDate < ExerciseValue) * (ExerciseValue - ValueOnOptDate) if OptionHolder == 0 else (ValueOnOptDate > ExerciseValue) * (ExerciseValue-ValueOnOptDate)
         X_t = Leg1Xt_Opt[i]
         x = np.c_[np.ones(NSimul), X_t, X_t*X_t]
         beta = np.linalg.inv(x.T.dot(x)).dot(x.T.dot(OptionValue))
+        BetaArray[i] = beta
         EstOptValue = np.maximum(x.dot(beta), 0) if OptionHolder == 0 else np.minimum(x.dot(beta), 0)            
 
         OptionPath[i] = dfoptfix[i] * (OptionValue > EstOptValue) * OptionValue if OptionHolder == 0 else dfoptfix[i] * (OptionValue < EstOptValue)* -OptionValue
+        
         OptionExerciseFlag = np.maximum(OptionPath[i] != 0, OptionExerciseFlag)
         #OptionExerciseDate += (OptionExerciseDate == 0) * (PVOptionValue>0) * OptionPayDate[i]
+    '''    
+    OptionPath.max(0).mean()
+    OptionValueMatrix = (ValueOpttime < OptionExerciseValue) * (OptionExerciseValue - ValueOpttime) if OptionHolder == 0 else (ValueOpttime > OptionExerciseValue) * (OptionExerciseValue - ValueOpttime)
+    for i in range(len(OptionFixDate)-1,-1,-1) :
+        #i = len(OptionFixDate)-1
+        #i = len(OptionFixDate)-2
+        if i == len(OptionFixDate)-1 : 
+            ValueOnOptDate = ValueOpttime[i]
+        else : 
+            ValueOnOptDate = (OptionExerciseOX[i+1] > 0) * OptionExerciseValue[i+1] * dfoptfix[i+1]/dfoptfix[i] + (OptionExerciseOX[i+1] <= 0) * ValueOpttime[i]
+        ExerciseValue = OptionExerciseValue[i]
 
+        OptionValue = (ValueOnOptDate < ExerciseValue) * (ExerciseValue - ValueOnOptDate) if OptionHolder == 0 else (ValueOnOptDate > ExerciseValue) * (ExerciseValue-ValueOnOptDate)
+        X_t = Leg1Xt_Opt[i]
+        x = np.c_[np.ones(NSimul), X_t, X_t*X_t]
+        beta = np.linalg.inv(x.T.dot(x)).dot(x.T.dot(OptionValue))
+        EstOptValue = np.maximum(x.dot(beta), 0) if OptionHolder == 0 else np.minimum(x.dot(beta), 0) 
+        OptionExerciseOX[i] = OptionValue > EstOptValue if OptionHolder == 0 else OptionValue < EstOptValue 
+        OptionPath[i] = dfoptfix[i] * OptionExerciseOX[i] * OptionValue         
+
+    NPVOptionExercise = OptionExerciseValue * dfoptfix.reshape(-1,1)
+    NPVOptionNotExercise = ValueOpttime * dfoptfix.reshape(-1,1)
+    
+    EstOptValueArray = BetaArray[:,0:1] + BetaArray[:,1:2] * Leg1Xt_Opt + BetaArray[:,1:2] * Leg1Xt_Opt * Leg1Xt_Opt
+    EstOptValueArray = np.maximum(0, EstOptValueArray) if OptionHolder == 0 else np.minimum(0, EstOptValueArray)
+    OptionPath = (OptionValueMatrix > EstOptValueArray) * OptionValueMatrix if OptionHolder == 0 else (OptionValueMatrix < EstOptValueArray) * OptionValueMatrix
+    '''    
     TempOptionV = (OptionPath * ((OptionPath !=0).cumsum(0).cumsum(0) == 1)).sum(0)
     TempOptionV.mean()
     
