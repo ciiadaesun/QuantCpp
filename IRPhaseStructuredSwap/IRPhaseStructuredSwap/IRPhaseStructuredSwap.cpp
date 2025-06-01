@@ -334,7 +334,7 @@ double HullWhiteQVTerm(
         V_1 = V_t_T(kappa, kappa, t, T, vol, vol);
         V_2 = V_t_T(kappa, kappa, 0, T, vol, vol);
         V_3 = V_t_T(kappa, kappa, 0, t, vol, vol);
-        RHS = 0.5 * (V_1 - V_2 + V_3);
+        RHS = 0.5 * (V_1);
     }
     else
     {
@@ -383,14 +383,14 @@ double HullWhite2F_CrossTerm(
         V_1 = V_t_T(kappa, kappa2, t, T, vol, vol2);
         V_2 = V_t_T(kappa, kappa2, 0, T, vol, vol2);
         V_3 = V_t_T(kappa, kappa2, 0, t, vol, vol2);
-        RHS = 2.0 * rho * 0.5 * (V_1 - V_2 + V_3);
+        RHS = 2.0 * rho * 0.5 * (V_1);
     }
     else
     {
         V_1 = V_t_T(kappa, kappa2, t, T, HWVolTerm, HWVol, NHWVol, HWVolTerm2, HWVol2, NHWVol);
         V_2 = V_t_T(kappa, kappa2, 0, T, HWVolTerm, HWVol, NHWVol, HWVolTerm2, HWVol2, NHWVol);
         V_3 = V_t_T(kappa, kappa2, 0, t, HWVolTerm, HWVol, NHWVol, HWVolTerm2, HWVol2, NHWVol);
-        RHS = 2.0 * rho * 0.5 * (V_1 - V_2 + V_3);
+        RHS = 2.0 * rho * 0.5 * (V_1);
     }
     return RHS;
 }

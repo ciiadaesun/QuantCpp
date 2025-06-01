@@ -323,7 +323,7 @@ double HullWhiteQVTerm(
 		V_1 = V_t_T(kappa, kappa, t, T, vol, vol);
 		V_2 = V_t_T(kappa, kappa, 0, T, vol, vol);
 		V_3 = V_t_T(kappa, kappa, 0, t, vol, vol);
-		RHS = 0.5 * (V_1 - V_2 + V_3);
+		RHS = 0.5 * (V_1);
 	}
 	else
 	{
@@ -344,6 +344,7 @@ double HullWhiteQVTerm(
 		//	RHS += 0.5 * vol * vol * (Bst * Bst - BsT * BsT) * du;
 		//	u = u + du;
 		//}
+		RHS = 0.5 * (V_1);
 	}
 	return RHS;
 }
@@ -373,14 +374,14 @@ double HullWhite2F_CrossTerm(
 		V_1 = V_t_T(kappa, kappa2, t, T, vol, vol2);
 		V_2 = V_t_T(kappa, kappa2, 0, T, vol, vol2);
 		V_3 = V_t_T(kappa, kappa2, 0, t, vol, vol2);
-		RHS = 2.0 * rho * 0.5 * (V_1 - V_2 + V_3);
+		RHS = 2.0 * rho * 0.5 * (V_1);
 	}
 	else
 	{
 		V_1 = V_t_T(kappa, kappa2, t, T, HWVolTerm, HWVol, NHWVol, HWVolTerm2, HWVol2, NHWVol);
 		V_2 = V_t_T(kappa, kappa2, 0, T, HWVolTerm, HWVol, NHWVol, HWVolTerm2, HWVol2, NHWVol);
 		V_3 = V_t_T(kappa, kappa2, 0, t, HWVolTerm, HWVol, NHWVol, HWVolTerm2, HWVol2, NHWVol);
-		RHS = 2.0 * rho * 0.5 * (V_1 - V_2 + V_3);
+		RHS = 2.0 * rho * 0.5 * (V_1);
 	}
 	return RHS;
 }
@@ -2978,6 +2979,12 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 						}
 					}
 
+					if (TextFlag == 1)
+					{
+						DumppingTextData(CalcFunctionName, SaveFileName, "Today", Today);
+						DumppingTextDataArray(CalcFunctionName, SaveFileName, "FDMValue_1F_OptDate_Before", NGreed, FDMValue_1F);
+					}
+
 					for (idx1 = 0; idx1 < NGreed; idx1++)
 					{
 						if (OptionExerciseFlag_1F[idx1] == 1) FDMValue_1F[idx1] = AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_1F[idx1] - AccZeroCpnPay);
@@ -2988,6 +2995,10 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					//	if (OptionType == 0) FDMValue_1F[idx1] = max((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
 					//	else FDMValue_1F[idx1] = min((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
 					//}
+					if (TextFlag == 1)
+					{
+						DumppingTextDataArray(CalcFunctionName, SaveFileName, "FDMValue_1F_OptDate", NGreed, FDMValue_1F);
+					}
 				}
 
 				if (Today == min(OptionDate[nextoptidx], OptionPayDate[nextoptidx]))
