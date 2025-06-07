@@ -3,17 +3,19 @@
 Created By Daesun Lim (CIIA(R), FRM(R))
 Risk Quant Manager
 My FRTB Module 
-v1.0.68
+v1.1.1
 """
 import numpy as np
 import pandas as pd
+import tkinter as tk
 # JIT은 쓰지말자
 #from numba import jit
 import warnings
 import os
+from scipy.sparse import diags
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
-vers = "1.0.8"
+vers = "1.1.1"
 print("######################################\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Quant Manager\nMy FRTB Module \n"+vers+" \n######################################\n")
 GlobalFlag = 0
 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
@@ -277,7 +279,8 @@ Info_array_raw = [
     1, 2, 1, 1, 2, 1,   1, 2, 2, 1, 2, 2]
 
 KoreaTempHolidayList = [20020701, 20150814, 20171002, 20200817, 20220309,
-                        20220601, 20231002, 20240410, 20241001, 20250127]
+                        20220601, 20231002, 20240410, 20241001, 20250127,
+                        20250603]
 
 def CalcKoreaTempHolidayList(YYYY, KoreaTempHolidayList) : 
     n = 0
@@ -1289,7 +1292,7 @@ def NextNthBusinessDate(YYYYMMDD, NBDate, Holidays) :
             if IsSaturSundayFlag == 0 and IsHolidayFlag == 0: 
                 n += 1
             
-            if n >= NBDate : 
+            if n >= abs(NBDate) : 
                 ResultYYYYMMDD = TempYYYYMMDD
                 break
     return ResultYYYYMMDD                            
@@ -1357,6 +1360,32 @@ def NBusinessCountFromEndToPay(EndYYYYMMDD, PayYYYYMMDD, Holidays, ModifiedFollo
         ResultEndDate[0] = ParseBusinessDateIfHoliday(TempYYYY * 10000 + TempMM * 100 + EndDD, Holidays)
     
     return nbd
+
+def Generate_OptionDate(FirstOptionPayDate, SwapMaturity, NYearBetweenOptionPay, NBDateBetweenOptionFixToPay = 20, MaxNumberOption = -1, ModifiedFollow = 0) :
+    OptionPayDateList = [FirstOptionPayDate]
+    OptionFixDateList = []
+    Holidays = KoreaHolidaysFromStartToEnd(2020, 2070)
+    for i in range(1, 100) : 
+        NextDate = EDate_YYYYMMDD(OptionPayDateList[0], i*NYearBetweenOptionPay*12)
+        AdjDate = ParseBusinessDateIfHoliday(NextDate, Holidays)
+        if ModifiedFollow >= 1 : 
+            TargetDate = min(AdjDate, LastBusinessDate(NextDate//100, Holidays))
+        else : 
+            TargetDate = AdjDate
+        if NextDate >= SwapMaturity or (i >= MaxNumberOption and MaxNumberOption > 0): 
+            break
+        else : 
+            OptionPayDateList.append(TargetDate)
+
+    if NBDateBetweenOptionFixToPay == 0 : 
+        OptionFixDateList = OptionPayDateList
+    else : 
+        for i in range(len(OptionPayDateList)) : 
+            OptionFixDateList.append(NextNthBusinessDate(OptionPayDateList[i], -NBDateBetweenOptionFixToPay,Holidays))
+    OptionFixDateList = list(np.array(OptionFixDateList)[np.array(OptionFixDateList) < SwapMaturity])
+    OptionPayDateList = list(np.array(OptionPayDateList)[np.array(OptionPayDateList) < SwapMaturity])
+    
+    return OptionFixDateList, OptionPayDateList
 
 def Number_of_Coupons(
     ProductType,              # 상품종류 0이면 Futures, 1이면 Swap
@@ -1741,7 +1770,7 @@ def Preprocessing_Term(Term, PriceDate) :
             for i in range(len(Term)) : 
                 Term[i] = ((Term[i] - ExcelPriceDate)/365)
 
-def Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate) : 
+def Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate, CompareNumber = 0.6) : 
     if len(ZeroTerm) > 0 : 
         istermtype_ZeroTerm = istermtype(ZeroTerm)
         if istermtype_ZeroTerm == "YYYYMMDD" : 
@@ -1752,7 +1781,7 @@ def Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate) :
             for i in range(len(ZeroTerm)) : 
                 ZeroTerm[i] = ((ZeroTerm[i] - ExcelPriceDate)/365)
         
-        if np.abs(np.array(ZeroRate)).mean() > 0.6 : 
+        if np.abs(np.array(ZeroRate)).mean() > CompareNumber : 
             for i in range(len(ZeroRate)) : 
                 ZeroRate[i] = ZeroRate[i]/100
 
@@ -1838,6 +1867,8 @@ def FSR(PricingDate, SwapStartDate, SwapMaturity, NCPN_Ann, DayCountFlag,
         T2 = DayCountAtoB(PricingDate, SwapMaturity)/365
         DeltaT = DayCountFractionAtoB(SwapStartDate, SwapMaturity, DayCountFlag)
         return Calc_Forward_Rate_ForSOFR(Term, Rate, T1, T2, DeltaT)
+    Preprocessing_ZeroTermAndRate(Term, Rate, PricingDate)
+    Preprocessing_ZeroTermAndRate(TermDisc, RateDisc, PricingDate)
     NHoliday = len(Holiday)
     NTerm = len(Term)
     NTermDisc = len(TermDisc)
@@ -2178,19 +2209,38 @@ def HWQVTerm(t, T, kappa, HWVolTerm, HWVol) :
         V_1 = V_t_T(kappa, kappa, t, T, v, v)
         V_2 = V_t_T(kappa, kappa, 0, T, v, v)
         V_3 = V_t_T(kappa, kappa, 0, t, v, v)
-        RHS = 0.5 * (V_1 - V_2 + V_3)
+        RHS = 0.5 * (V_1)
     else : 
         V_1 = V_t_T2(kappa, kappa, t, T, HWVolTerm, HWVol, HWVolTerm, HWVol)
         V_2 = V_t_T2(kappa, kappa, 0, T, HWVolTerm, HWVol, HWVolTerm, HWVol)
         V_3 = V_t_T2(kappa, kappa, 0, t, HWVolTerm, HWVol, HWVolTerm, HWVol)
-        RHS = 0.5 * (V_1 - V_2 + V_3)
+        RHS = 0.5 * (V_1)
     return RHS 
+
+def HWCrossTerm(t, T, kappa1, kappa2, HWVolTerm1, HWVol1, HWVolTerm2, HWVol2, rho) : 
+    RHS = 0
+    if (len(HWVol1) == 1 and len(HWVol1) == 1) or kappa > 0.25 : 
+        v1 = np.interp((t+T)/2, HWVolTerm1, HWVol1)
+        v2 = np.interp((t+T)/2, HWVolTerm2, HWVol2)
+        V_1 = V_t_T(kappa1, kappa2, t, T, v1, v2)
+        V_2 = V_t_T(kappa1, kappa2, 0, T, v1, v2)
+        V_3 = V_t_T(kappa1, kappa2, 0, t, v1, v2)
+        RHS = 2.0 * rho * 0.5 * (V_1)
+    else : 
+        V_1 = V_t_T2(kappa1, kappa2, t, T, HWVolTerm1, HWVol1, HWVolTerm2, HWVol2)
+        V_2 = V_t_T2(kappa1, kappa2, 0, T, HWVolTerm1, HWVol1, HWVolTerm2, HWVol2)
+        V_3 = V_t_T2(kappa1, kappa2, 0, t, HWVolTerm1, HWVol1, HWVolTerm2, HWVol2)
+        RHS = 2.0 * rho * 0.5 * (V_1)
+    return RHS     
 
 def HullWhite_A_t_T_1F(DF_0_t_T, t, T, kappa, HWVolTerm, HWVol) : 
     return DF_0_t_T * np.exp(HWQVTerm(t, T, kappa, HWVolTerm, HWVol))        
 
 def HullWhite1F_DiscFactor_t_T(BtT, xt, A_t_T_1F) : 
     return np.exp(-xt * BtT) * A_t_T_1F
+
+def HullWhite2F_DiscFactor_t_T_2F(BtTxt, BtTyt, xt, yt, A_t_T_xt, A_t_T_yt, hwcross) : 
+    return np.exp(-xt * BtTxt - yt * BtTyt + hwcross) *  A_t_T_xt *  A_t_T_yt
 
 def XV(kappa, tVol, Vol, t, T) : 
     if len(tVol) == 1 : 
@@ -2276,6 +2326,70 @@ def SimulateParRateMC(PriceDate, SimulatedXt2D, SimulationDateList, RefSwapMatur
     SwapRate = (1-Disc[:,-1,:])/(Disc * deltat3D).sum(1)    
     SwapRateForwardMeasure = (1-df_t_T[:,-1])/(df_t_T * deltat).sum(1)
     
+    if df_t_T.shape[1] > 1 : 
+        MyFuncTemp = np.vectorize(lambda CpnRateList, YTMList, StartDateList, EndDateList : GPrimePrime_Over_GPrime(CpnRateList, YTMList, StartDateList, EndDateList, RefSwapNCPNOneYear))
+        GppOvGp = MyFuncTemp(SwapRateForwardMeasure, SwapRateForwardMeasure, np.array(SimulationDateList), EachSwapMaturityInSimulation)
+        v = np.interp(t1, HWVolTerm, HWVol)
+        ConvAdjAmt = GppOvGp * v * v * 100. * t1 * 0.5    
+    else : 
+        ConvAdjAmt = t1 * 0
+    return SwapRate, SwapRateForwardMeasure, ConvAdjAmt
+
+def ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, RefSwapMaturity_T, RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag = 0) :
+    EachSwapMaturityInSimulation = np.vectorize(EDate_YYYYMMDD)(SimulationDateList, int(RefSwapMaturity_T * 12 + 0.0001))
+    CpnDateListInSimul = []
+    for i in range(len(SimulationDateList)) : 
+        CpnDateListInSimul.append(np.array(malloc_cpn_date_holiday(SimulationDateList[i], EachSwapMaturityInSimulation[i], RefSwapNCPNOneYear)[0]).reshape(1,-1))
+    CpnDateArrayForEachSimulDate = np.concatenate(CpnDateListInSimul, axis = 0)
+
+    t1 = np.vectorize(DayCountAtoB)(PriceDate, SimulationDateList)/365
+    t2 = np.vectorize(DayCountAtoB)(PriceDate, CpnDateArrayForEachSimulDate)/365
+    r1 = np.interp(t1, ZeroTerm, ZeroRate)
+    r2 = np.interp(t2, ZeroTerm, ZeroRate)
+    df1 = np.exp(-r1 * t1)
+    df2 = np.exp(-r2 * t2)
+    df_t_T = df2/df1.reshape(-1,1)
+    MyFunc = np.vectorize(lambda DF_0_t_T, t, T: HullWhite_A_t_T_1F(DF_0_t_T, t, T, kappa, HWVolTerm, HWVol))
+    if HW2FFlag == 0 : 
+        A_t_T = MyFunc(df_t_T, t1.reshape(-1,1), t2) 
+        B_t_T = B_s_to_t(t1.reshape(-1,1), t2, kappa)
+        deltat = np.concatenate([(t2[:,0] - t1).reshape(-1,1), (t2[:,1:] - t2[:,:-1])], axis = 1)
+        deltat3D = deltat.reshape(deltat.shape[0], deltat.shape[1], 1)
+        B_t_T3D = B_t_T.reshape(B_t_T.shape[0], B_t_T.shape[1], 1)
+        A_t_T3D = A_t_T.reshape(A_t_T.shape[0], A_t_T.shape[1], 1)
+
+        Xt3D = xt_greed.reshape(len(SimulationDateList), 1, -1)
+        Disc = HullWhite1F_DiscFactor_t_T(B_t_T3D, Xt3D, A_t_T3D)
+        SwapRate = (1-Disc[:,-1,:])/(Disc * deltat3D).sum(1)    
+    else : 
+        MyFunc2F = np.vectorize(lambda DF_0_t_T, t, T: HullWhite_A_t_T_1F(DF_0_t_T, t, T, kappa2, HWVolTerm2, HWVol2))
+        MyFuncCrossTerm = np.vectorize(lambda t, T: HWCrossTerm(t, T, kappa, kappa2, HWVolTerm, HWVol, HWVolTerm2, HWVol2, HWRho12Factor))
+        deltat = np.concatenate([(t2[:,0] - t1).reshape(-1,1), (t2[:,1:] - t2[:,:-1])], axis = 1)
+        deltat3D = deltat.reshape(deltat.shape[0], deltat.shape[1], 1)
+
+        A_t_T_Xt = MyFunc(df_t_T, t1.reshape(-1,1), t2) 
+        B_t_T_Xt = B_s_to_t(t1.reshape(-1,1), t2, kappa)
+        B_t_T_Xt3D = B_t_T_Xt.reshape(B_t_T_Xt.shape[0], B_t_T_Xt.shape[1], 1)
+        A_t_T_Xt3D = A_t_T_Xt.reshape(A_t_T_Xt.shape[0], A_t_T_Xt.shape[1], 1)
+        
+        A_t_T_Yt = MyFunc2F(df_t_T, t1.reshape(-1,1), t2) 
+        B_t_T_Yt = B_s_to_t(t1.reshape(-1,1), t2, kappa)
+        B_t_T_Yt3D = B_t_T_Yt.reshape(B_t_T_Yt.shape[0], B_t_T_Yt.shape[1], 1)
+        A_t_T_Yt3D = A_t_T_Yt.reshape(A_t_T_Yt.shape[0], A_t_T_Yt.shape[1], 1)
+        
+        HWCross = np.exp(MyFuncCrossTerm(t1.reshape(-1,1), t2))
+        HWCross_4D = HWCross.reshape(HWCross.shape[0], HWCross.shape[1], 1, 1)
+        Xt3D = xt_greed.reshape(len(SimulationDateList), 1, -1)
+        Yt3D = yt_greed.reshape(len(SimulationDateList), 1, -1)
+        Disc1 = HullWhite1F_DiscFactor_t_T(B_t_T_Xt3D, Xt3D, A_t_T_Xt3D)
+        Disc2 = HullWhite1F_DiscFactor_t_T(B_t_T_Yt3D, Yt3D, A_t_T_Yt3D)
+        Disc1_4D = Disc1.reshape(Disc1.shape[0], Disc1.shape[1], Disc1.shape[2], 1)
+        Disc2_4D = Disc2.reshape(Disc2.shape[0], Disc2.shape[1], 1, Disc2.shape[2])
+        deltat4D = deltat3D.reshape(deltat3D.shape[0], deltat3D.shape[1], 1, 1)
+        Disc = Disc1_4D * Disc2_4D * HWCross_4D
+        SwapRate = (1-Disc[:,-1,:,:])/(Disc * deltat4D).sum(1)    
+
+    SwapRateForwardMeasure = (1-df_t_T[:,-1])/(df_t_T * deltat).sum(1)
     if df_t_T.shape[1] > 1 : 
         MyFuncTemp = np.vectorize(lambda CpnRateList, YTMList, StartDateList, EndDateList : GPrimePrime_Over_GPrime(CpnRateList, YTMList, StartDateList, EndDateList, RefSwapNCPNOneYear))
         GppOvGp = MyFuncTemp(SwapRateForwardMeasure, SwapRateForwardMeasure, np.array(SimulationDateList), EachSwapMaturityInSimulation)
@@ -2379,6 +2493,111 @@ def Calc_Payoff_Sim_and_NotSim(PriceDate, EffectiveDate, SimulatedRefRate, Nomin
         FixedRate2 = pd.Series([0.0])
         Payoff_NotSim = np.array([[0.0]])
     return {"FixingDate_Simul":FixingDate_Sim, "FixingDate2_Simul" :FixingDate2_Sim, "PayDate_Simul" : PayDate_Sim, "PrevFixDate" : PrevDate,"PrevFixDate2" : PrevDate2, "Payoff_Simul" : Payoff_Sim, "Payoff_Prev" : Payoff_NotSim,"FixedRate1_Prev" : FixedRate1,"FixedRate2_Prev" : FixedRate2, "PrevPayDate":PrevPayDate, "PrevDF" : PrevDF, "PrevCummulativeCpn" : CummulativePrevCpn, "Payoff_ForwardMeasure" : Payoff_ForwardMeasure}
+
+def Calc_Payoff_FDM_ForTimeGreed(ZeroTerm, ZeroRate, PriceDate, EffectiveDate, RefRateOnFixingDate, RefRateOnFixingDate_PowerSpread, Nominal, 
+                                 Phase2StartDate, ForwardStart, ForwardEnd, PayDate, DayCount,
+                                 RefSwapRate_Multiple_Phase1, RefSwapRate_Multiple_Phase2, FixedCpnRate_Phase1, FixedCpnRate_Phase2, FixingHistoryDate, 
+                                 FixingHistoryRate, ZeroCouponFlag, CompoundCouponFlag, RefRateForwardMeasure,RefRateForwardMeasure_PowerSpread, PowerSpreadFlag, rounding = 11, HW2FFlag = 0) : 
+
+    D1 = np.array(ForwardStart)
+    D2 = np.array(ForwardEnd)
+    SimIdx = np.array(ForwardStart) > PriceDate
+    NotSimIdx = (np.array(ForwardStart) <= PriceDate ) & (np.array(PayDate) > PriceDate)
+    FixingDate_Sim = np.array(ForwardStart)[SimIdx]
+    FixingDate2_Sim = np.array(ForwardEnd)[SimIdx]
+    PayDate_Sim = np.array(PayDate)[SimIdx]
+
+    IdxCummulativeCpn = -1
+    for i in range(len(PayDate)-1) : 
+        if (PriceDate >= PayDate[i] and PriceDate < PayDate[i+1]) : 
+            IdxCummulativeCpn = i 
+            break        
+
+    if ZeroCouponFlag == True : 
+        DeltaT = np.vectorize(DayCountFractionAtoB)(np.array([EffectiveDate]), D2, np.array([DayCount])).reshape(-1,1)
+    else : 
+        DeltaT = np.vectorize(DayCountFractionAtoB)(D1, D2, np.array([DayCount])).reshape(-1,1)
+    DeltaT_NotSim = DeltaT[NotSimIdx]
+    DeltaT_Sim = DeltaT[SimIdx]
+    RefRateMultiple = ((np.array(PayDate) < Phase2StartDate) * RefSwapRate_Multiple_Phase1 + (np.array(PayDate) >= Phase2StartDate) * RefSwapRate_Multiple_Phase2).reshape(-1,1)
+    RefRateMultiple_NotSim = RefRateMultiple[NotSimIdx]
+    RefRateMultiple_Sim = RefRateMultiple[SimIdx]
+    CpnRate = ((np.array(PayDate) < Phase2StartDate) * FixedCpnRate_Phase1 + (np.array(PayDate) >= Phase2StartDate) * FixedCpnRate_Phase2).reshape(-1,1)
+    CpnRate_NotSim = CpnRate[NotSimIdx]
+    CpnRate_Sim = CpnRate[SimIdx]
+
+    if CompoundCouponFlag == False : 
+        if PowerSpreadFlag == 0 : 
+            if HW2FFlag == 0 : 
+                Payoff_Sim = ((RefRateOnFixingDate* RefRateMultiple_Sim) + CpnRate_Sim) * DeltaT_Sim * Nominal
+            else : 
+                Multiple = RefRateMultiple_Sim[:,:,np.newaxis]
+                Cpn = CpnRate_Sim[:,:,np.newaxis]
+                dT = DeltaT_Sim[:,:,np.newaxis]
+                Payoff_Sim = ((RefRateOnFixingDate* Multiple) + Cpn) * dT * Nominal
+            Payoff_ForwardMeasure = ((RefRateForwardMeasure.reshape(-1,1)* RefRateMultiple_Sim) + CpnRate_Sim) * DeltaT_Sim * Nominal
+        else : 
+            if HW2FFlag == 0 : 
+                Payoff_Sim = (((RefRateOnFixingDate - RefRateOnFixingDate_PowerSpread)* RefRateMultiple_Sim) + CpnRate_Sim) * DeltaT_Sim * Nominal
+            else : 
+                Multiple = RefRateMultiple_Sim[:,:,np.newaxis]
+                Cpn = CpnRate_Sim[:,:,np.newaxis]
+                dT = DeltaT_Sim[:,:,np.newaxis]
+                Payoff_Sim = (((RefRateOnFixingDate - RefRateOnFixingDate_PowerSpread)* Multiple) + Cpn) * dT * Nominal
+                
+            Payoff_ForwardMeasure = (((RefRateForwardMeasure.reshape(-1,1) - RefRateForwardMeasure_PowerSpread.reshape(-1,1))* RefRateMultiple_Sim) + CpnRate_Sim) * DeltaT_Sim * Nominal
+            
+        if ZeroCouponFlag == True : 
+            CummulativePrevCpn = (CpnRate[IdxCummulativeCpn]) * DeltaT[IdxCummulativeCpn] * Nominal if IdxCummulativeCpn >= 0 else [0]
+        else : 
+            CummulativePrevCpn = [0]
+    else : 
+        div = 10 ** rounding
+        if PowerSpreadFlag == 0 : 
+            if HW2FFlag == 0 : 
+                Payoff_Sim = np.ceil(((1+(RefRateOnFixingDate*RefRateMultiple_Sim) + CpnRate_Sim)**DeltaT_Sim - 1) * div)/div * Nominal
+            else : 
+                Multiple = RefRateMultiple_Sim[:,:,np.newaxis]
+                Cpn = CpnRate_Sim[:,:,np.newaxis]
+                dT = DeltaT_Sim[:,:,np.newaxis]
+                Payoff_Sim = np.ceil(((1+(RefRateOnFixingDate*Multiple) + Cpn)**dT - 1) * div)/div * Nominal
+                
+            Payoff_ForwardMeasure = np.ceil(((1+(RefRateForwardMeasure.reshape(-1,1)*RefRateMultiple_Sim) + CpnRate_Sim)**DeltaT_Sim - 1) * div)/div * Nominal
+        else : 
+            if HW2FFlag == 0 :
+                Payoff_Sim = np.ceil(((1+((RefRateOnFixingDate - RefRateOnFixingDate_PowerSpread)*RefRateMultiple_Sim) + CpnRate_Sim)**DeltaT_Sim - 1) * div)/div * Nominal        
+            else : 
+                Multiple = RefRateMultiple_Sim[:,:,np.newaxis]
+                Cpn = CpnRate_Sim[:,:,np.newaxis]
+                dT = DeltaT_Sim[:,:,np.newaxis]
+                Payoff_Sim = np.ceil(((1+((RefRateOnFixingDate - RefRateOnFixingDate_PowerSpread)*Multiple) + Cpn)**dT - 1) * div)/div * Nominal        
+                
+            Payoff_ForwardMeasure = (((RefRateForwardMeasure.reshape(-1,1) - RefRateForwardMeasure_PowerSpread.reshape(-1,1))* RefRateMultiple_Sim) + CpnRate_Sim) * DeltaT_Sim * Nominal
+
+        if ZeroCouponFlag == True : 
+            CummulativePrevCpn = np.ceil(((1+ CpnRate[IdxCummulativeCpn]) ** DeltaT[IdxCummulativeCpn]-1) * div)/div * Nominal if IdxCummulativeCpn >= 0 else [0]
+        else : 
+            CummulativePrevCpn = [0]
+        
+    PrevDate = np.array(ForwardStart)[NotSimIdx]
+    PrevDate2 = np.array(ForwardEnd)[NotSimIdx]
+    PrevPayDate = np.array(PayDate)[NotSimIdx]
+    if len(PrevPayDate) > 0 : 
+        PrevT = np.vectorize(DayCountFractionAtoB)(PriceDate, PrevPayDate, np.array([0])).reshape(-1,1)
+        PrevR = np.interp(PrevT, ZeroTerm, ZeroRate)
+        PrevDF = np.exp(-PrevR * PrevT)
+        FixedRate1 = pd.Series(PrevDate, PrevDate).map(pd.Series(FixingHistoryRate, FixingHistoryDate)).fillna(0).values.reshape(-1,1)
+        FixedRate2 = pd.Series(PrevDate2, PrevDate).map(pd.Series(FixingHistoryRate, FixingHistoryDate)).fillna(0).values.reshape(-1,1)
+        Payoff_NotSim = ((FixedRate1 * RefRateMultiple_NotSim) + CpnRate_NotSim) * DeltaT_NotSim * Nominal
+    else : 
+        PrevPayDate = np.array([0])
+        PrevDF = np.array([[1.0]])
+        FixedRate1 = pd.Series([0.0])
+        FixedRate2 = pd.Series([0.0])
+        Payoff_NotSim = np.array([[0.0]])
+            
+    return {"FixingDate_Simul":FixingDate_Sim, "FixingDate2_Simul" :FixingDate2_Sim, "PayDate_Simul" : PayDate_Sim, "PrevFixDate" : PrevDate,"PrevFixDate2" : PrevDate2, "Payoff_Simul" : Payoff_Sim, "Payoff_Prev" : Payoff_NotSim,"FixedRate1_Prev" : FixedRate1,"FixedRate2_Prev" : FixedRate2, "PrevPayDate":PrevPayDate, "PrevDF" : PrevDF, "PrevCummulativeCpn" : CummulativePrevCpn, "Payoff_ForwardMeasure" : Payoff_ForwardMeasure}
+
 
 def HullWhiteCalibration1Factor(PriceDate, OptionTenor_ByMonth, SwapTenor_ByMonth, OptionVol, SwapFreqByMonth, BSVol0NormalVol1, Term, Rate, FixedKappa = 0, DayCountFlag = 0, KoreanHolidayFlag = True, AdditionalHolidays = [], initialkappa = 0.01, initialvol = 0.01, PrintMRSPE = False) :
     if PriceDate < 19000101 : 
@@ -3189,6 +3408,674 @@ def Calc_Value_FXSwap(K1, K2, Spot, T1, T2, DomesticTerm, DomesticRate, ForeignT
     v_F_t2 = Calc_Value_FXForward(K2, Spot, T2, DomesticTerm, DomesticRate, ForeignTerm, ForeignRate, 0)
     P = v_F_t1 - v_F_t2 if long0short1 == 0 else v_F_t2 - v_F_t1
     return P
+    
+def Pricing_IRCallableSwap_HWFDM(
+    Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, NumCpnOneYear_Leg1_Phase1, 
+    Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
+    NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
+    Leg2_DayCount, OptionFixDate, OptionPayDate, OptionHolder_0Recever1Payer, ZeroTerm, 
+    ZeroRate, Leg1_FixingHistoryDate, Leg1_FixingHistoryRate, Leg2_FixingHistoryDate, Leg2_FixingHistoryRate, 
+    kappa = 0.01, kappa2 = 0.01, HWVolTerm = [0.0001], HWVol = [0.006323], HWVolTerm2 = [0.0001], 
+    HWVol2 = [0.003323], HWRho12Factor = -0.3, CpnRounding = 15, HW2FFlag = 0, LoggingFlag = 0, 
+    LoggingDir = os.getcwd(), Leg1_DiscCurveName = "TempCurve", Leg1_EstCurveName = "TempCurve", Leg2_DiscCurveName = "TempCurve",
+    Leg2_EstCurveName = "TempCurve", KoreanAutoHolidayFlag = True, FixHolidays = [], PayHolidays = [],
+    Leg1_Phase2UseFlag = 0, NumCpnOneYear_Leg1_Phase2 = 0, Leg1_Phase2StartDate = 20280929, Leg1_RefSwapRate_Multiple_Phase2 = 0.0, Leg1_FixedCpnRate_Phase2 = 0.0237,   
+    Leg2_Phase2UseFlag = 0, NumCpnOneYear_Leg2_Phase2 = 4, Leg2_Phase2StartDate = 20280929, Leg2_RefSwapRate_Multiple_Phase2 = 1.0, Leg2_FixedCpnRate_Phase2 = -0.0012,
+    Leg1_PowerSpreadFlag = 0, Leg1_RefSwapMaturity_T_PowerSpread = 0.25, Leg2_PowerSpreadFlag = 0, Leg2_RefSwapMaturity_T_PowerSpread = 0.25
+    ) : 
+    '''
+    Description : Pricing IRCallable Swap Using Hull White 1, 2Factor Model
+    
+    Variables : 
+        Nominal -> Nominal Amount | <float or int>
+        SwapEffectiveDate -> Swap Effective Date (YYYYMMDD) | <int>
+        PriceDate -> Pricing Date (YYYYMMDD) | <int>
+        SwapMaturity -> Swap Maturity (YYYYMMDD) | <int>
+        NumCpnOneYear_Leg1_Phase1 -> Leg1) Number of Cpn for One Year(if ZeroCouponCallable Then input 0) | <int>
+        Leg1_RefSwapMaturity_T -> Leg1) Reference Rate Maturity to Convert T (ex 0.25, 0.5, 1, ...) | <float>
+        Leg1_RefSwapNCPNOneYear -> Leg1) Reference Rate Number of Swap Cpn for One Year | <int>
+        Leg1_FixedCpnRate_Phase1 -> Leg1) Fixed Cpn Rate Phase1 | <float>
+        Leg1_DayCount -> Leg1) DayCountFlag <int> [0: Act365 1: Act360 2: ActAct 3:30/360, ZeroCompoundCoupon = {5: Act365, 6:Act360, 7: ActAct, 8:30/360}]
+        NumCpnOneYear_Leg2_Phase1 -> Leg2) Number of Cpn for One Year <int> (if ZeroCouponCallable Then input 0)
+        Leg2_RefSwapMaturity_T -> Leg2) Reference Rate Maturity to Convert T (ex 0.25, 0.5, 1, ...) <float>
+        Leg2_RefSwapNCPNOneYear -> Leg2) Reference Rate Number of Swap Cpn for One Year <int>
+        Leg2_FixedCpnRate_Phase1 -> Leg2) Fixed Cpn Rate Phase1 <float>
+        Leg2_DayCount -> Leg2) DayCountFlag <int> [0: Act365 1: Act360 2: ActAct 3:30/360, ZeroCompoundCoupon = {5: Act365, 6:Act360, 7: ActAct, 8:30/360}]
+        OptionFixDate -> Option Fix Date (YYYYMMDD <int Array>)
+        OptionPayDate -> Option Pay Date (YYYYMMDD <int Array>)
+        OptionHolder_0Recever1Payer -> 0 if Receiver have option else 1(Payer have)
+        ZeroTerm -> Zero Discount Term Array <float Array>
+        ZeroRate -> Zero Discount Rate Array <float Array>
+        Leg1_FixingHistoryDate -> Leg1) Fixing Rate Date History Array <int Array>
+        Leg1_FixingHistoryRate -> Leg1) Fixing Rate History Array <float Array>
+        Leg2_FixingHistoryDate -> Leg2) Fixing Rate Date History Array <int Array>
+        Leg2_FixingHistoryRate -> Leg2) Fixing Rate History Array <float Array>
+        kappa -> Mean Revert Param <float>
+        kappa2 -> Mean Revert Param2 <float>
+        HWVolTerm -> Hull White 1F Vol Term <float Array>
+        HWVol -> Hull White 1F Vol Term <float Array> 
+        HWVolTerm2 -> Hull White 2F Vol Term <float Array>
+        HWVol2 -> Hull White 2F Vol Term <float Array> 
+        HWRho12Factor -> Corr between 1, 2 OS Process Randomness <float>
+        CpnRounding -> Coupon Rounding <int>
+        HW2FFlag -> 0 if HW1F else 1
+        LoggingDir -> Logging Directory <String>
+        KoreanAutoHolidayFlag -> True if Korean Schedule else False
+        FixHolidays -> Fixing Holiday Using Calculating Fixing Rate <int Array>
+        PayHolidays -> Holiday Using FixingEndDate to Payment <int Array>
+        
+    SampleVariable : 
+    
+        Nominal = 20000
+        SwapEffectiveDate, PriceDate, SwapMaturity = 20160929, 20250304, 20460929
+        NumCpnOneYear_Leg1_Phase1, Leg1_RefSwapRate_Multiple_Phase1, Leg1_FixedCpnRate_Phase1, Leg1_DayCount = 0, 0.0, 0.0237,  3
+        NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_FixedCpnRate_Phase1, Leg2_DayCount = 4, 1.0, -0.0012, 0
+        OptionFixDate = [20190902,20200903,20210831,20220901,20230904,20240830,20250903,20260901,20270831,20280905,20290903,20300830,20310903,20320901,20330831,20340831,20350903,20360903,20370903,20380903,20390905,20400905,20410904,20420903,20430904,20440905,20450905]
+        OptionPayDate = [20190930,20200929,20210929,20220929,20231004,20240930,20250929,20260929,20270929,20280929,20291001,20300930,20310929,20320929,20330929,20340929,20351001,20360929,20370929,20380929,20390929,20401001,20410930,20421001,20430929,20440929,20450929]
+        OptionHolder = 1
+        Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear = 0.25, 4
+        Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear = 0.25, 4
+
+        ZeroTerm = [0.00274, 0.00548, 0.25479, 0.506849, 0.756164, 1.00274, 1.512329, 2.00274, 3.00822, 4.00548, 5.00548, 6.00548, 7.008219, 8.013699, 9.010959, 10.00822, 12.01096, 15.0137, 20.01918, 25.02466, 30.02192]
+        ZeroRate = [0.027989, 0.027992, 0.028394, 0.027554, 0.026807, 0.02633, 0.025806, 0.025455, 0.025154, 0.025235, 0.025264, 0.025397, 0.025531, 0.025638, 0.025719, 0.025856, 0.026049, 0.025598, 0.024243, 0.022474, 0.021085]
+        kappa = -0.0133
+        kappa2 = 0.01
+        HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52]
+        HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368]
+        HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52]
+        HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2
+        HWRho12Factor = -0.3
+        CpnRounding = 15
+        HW2FFlag = 0
+
+        Leg1_Phase2UseFlag, NumCpnOneYear_Leg1_Phase2 = 0, 0
+        Leg1_Phase2StartDate, Leg1_RefSwapRate_Multiple_Phase2, Leg1_FixedCpnRate_Phase2= 20280929, 0.0, 0.0237
+        Leg2_Phase2UseFlag, NumCpnOneYear_Leg2_Phase2 = 0, 4
+        Leg2_Phase2StartDate, Leg2_RefSwapRate_Multiple_Phase2, Leg2_FixedCpnRate_Phase2 = 20280929, 1.0, -0.0012
+        Leg1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread = 0, 0.25
+        Leg2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread = 0, 0.25
+
+        LoggingFlag = 1
+        LoggingDir = currdir
+        Leg1_DiscCurveName = "TempCurve"
+        Leg1_EstCurveName = "TempCurve"
+        Leg2_DiscCurveName = "TempCurve"
+        Leg2_EstCurveName = "TempCurve"
+
+        Leg1_FixingHistoryDate = [DayPlus(20240102, i) for i in range(365)]
+        Leg1_FixingHistoryRate = [0.0344]*len(Leg1_FixingHistoryDate)
+        Leg2_FixingHistoryDate = [DayPlus(20240102, i) for i in range(365)]
+        Leg2_FixingHistoryRate = [0.0344]*len(Leg2_FixingHistoryDate)
+        KoreanAutoHolidayFlag = True
+        
+        Pricing_IRCallableSwap_HWFDM(
+            20000, 20160929, 20250304, 20460929, 0,         
+            0.0, 0.25, 4, 0.0237, 3, 
+            4, 1.0, 0.25, 4, -0.0012, 
+            0, 
+            [20190902,20200903,20210831,20220901,20230904,20240830,20250903,20260901,20270831,20280905,20290903,20300830,20310903,20320901,20330831,20340831,20350903,20360903,20370903,20380903,20390905,20400905,20410904,20420903,20430904,20440905,20450905], 
+            [20190930,20200929,20210929,20220929,20231004,20240930,20250929,20260929,20270929,20280929,20291001,20300930,20310929,20320929,20330929,20340929,20351001,20360929,20370929,20380929,20390929,20401001,20410930,20421001,20430929,20440929,20450929], 
+            1,
+            [0.00274, 0.00548, 0.25479, 0.506849, 0.756164, 1.00274, 1.512329, 2.00274, 3.00822, 4.00548, 5.00548, 6.00548, 7.008219, 8.013699, 9.010959, 10.00822, 12.01096, 15.0137, 20.01918, 25.02466, 30.02192],
+            [0.027989, 0.027992, 0.028394, 0.027554, 0.026807, 0.02633, 0.025806, 0.025455, 0.025154, 0.025235, 0.025264, 0.025397, 0.025531, 0.025638, 0.025719, 0.025856, 0.026049, 0.025598, 0.024243, 0.022474, 0.021085],
+            [DayPlus(20240102, i) for i in range(365)], 
+            [0.0344]*365, 
+            [DayPlus(20240102, i) for i in range(365)], 
+            [0.0344]*365, 
+            kappa = -0.0133,
+            kappa2 = 0.01,
+            HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+            HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368],
+            HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+            HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2)
+                
+    '''
+    OptionHolder = OptionHolder_0Recever1Payer
+
+    # Error Processing
+    if SwapMaturity < PriceDate : 
+        raise ValueError("PriceDate > SwapMaturity")
+    if SwapMaturity < SwapEffectiveDate : 
+        raise ValueError("SwapMaturity < SwapEffectiveDate")        
+
+    # Preprocessing
+    if PriceDate < 19000101 : 
+        PriceDate = ExcelDateToYYYYMMDD(PriceDate)
+    
+    if SwapEffectiveDate < 19000101 : 
+        SwapEffectiveDate = ExcelDateToYYYYMMDD(SwapEffectiveDate)
+        
+    if SwapMaturity < 19000101 : 
+        SwapMaturity = ExcelDateToYYYYMMDD(SwapMaturity)
+    
+    if NumCpnOneYear_Leg1_Phase2 < 0 : 
+        NumCpnOneYear_Leg1_Phase2 = NumCpnOneYear_Leg1_Phase1
+
+    if NumCpnOneYear_Leg2_Phase2 < 0 : 
+        NumCpnOneYear_Leg2_Phase2 = NumCpnOneYear_Leg2_Phase1
+
+    if KoreanAutoHolidayFlag == True : 
+        FixHolidays = KoreaHolidaysFromStartToEnd(PriceDate//10000-1,SwapMaturity//10000 + 1)
+        PayHolidays = FixHolidays
+        
+    for i in range(len(FixHolidays)) : 
+        if FixHolidays[i] < 19000101 : 
+            FixHolidays[i] = ExcelDateToYYYYMMDD(FixHolidays[i])
+    
+    for i in range(len(PayHolidays)) : 
+        if PayHolidays[i] < 19000101 : 
+            PayHolidays[i] = ExcelDateToYYYYMMDD(PayHolidays[i])
+    
+    for i in range(len(Leg1_FixingHistoryDate)) :
+        if Leg1_FixingHistoryDate[i] < 19000101 : 
+            Leg1_FixingHistoryDate[i] = ExcelDateToYYYYMMDD(Leg1_FixingHistoryDate[i])
+
+    for i in range(len(Leg2_FixingHistoryDate)) :
+        if Leg2_FixingHistoryDate[i] < 19000101 : 
+            Leg2_FixingHistoryDate[i] = ExcelDateToYYYYMMDD(Leg2_FixingHistoryDate[i])
+        
+    if abs(kappa) > 1.5 : 
+        kappa = kappa / 100
+    if abs(kappa2) > 1.5 : 
+        kappa2 = kappa2 / 100
+
+    # Function Start
+    NGreed = 100
+    Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate)
+    Preprocessing_ZeroTermAndRate(HWVolTerm, HWVol, PriceDate, CompareNumber = 0.3)
+    Preprocessing_ZeroTermAndRate(HWVolTerm2, HWVol2, PriceDate, CompareNumber = 0.3)
+
+    IdxOpt = np.array(OptionFixDate) > PriceDate
+    OptionFixDate = list(np.array(OptionFixDate)[IdxOpt])
+    OptionPayDate = list(np.array(OptionPayDate)[IdxOpt])
+    Leg1CompoundCouponFlag = False
+    Leg2CompoundCouponFlag = False
+    if Leg1_DayCount >= 5 : 
+        # 복리 제로쿠폰의 경우 5번 넘는 Flag를 넣으면 됨
+        Leg1_DayCount = Leg1_DayCount % 5
+        Leg1CompoundCouponFlag = True
+
+    if Leg2_DayCount >= 5 : 
+        # 복리 제로쿠폰의 경우 5번 넘는 Flag를 넣으면 됨
+        Leg2_DayCount = Leg2_DayCount % 5
+        Leg2CompoundCouponFlag = True
+
+    Leg1ZeroCouponFlag = (NumCpnOneYear_Leg1_Phase1 == 0) or (NumCpnOneYear_Leg1_Phase2 == 0) if Leg1_Phase2UseFlag == True else (NumCpnOneYear_Leg1_Phase1 == 0)
+    Leg2ZeroCouponFlag = (NumCpnOneYear_Leg2_Phase1 == 0) or (NumCpnOneYear_Leg2_Phase2 == 0) if Leg2_Phase2UseFlag == True else (NumCpnOneYear_Leg2_Phase1 == 0)
+    if Leg1ZeroCouponFlag == True : 
+        NumCpnOneYear_Leg1_Phase1 = max(1, NumCpnOneYear_Leg1_Phase2)    
+        NumCpnOneYear_Leg1_Phase2 = max(1, NumCpnOneYear_Leg1_Phase2)    
+
+    if Leg2ZeroCouponFlag == True : 
+        NumCpnOneYear_Leg2_Phase1 = max(1, NumCpnOneYear_Leg2_Phase2)    
+        NumCpnOneYear_Leg2_Phase2 = max(1, NumCpnOneYear_Leg2_Phase2)    
+
+    if Leg1_Phase2UseFlag > 0 : 
+        Leg1ForwardStart1,Leg1ForwardEnd1, Leg1PayDate1, Leg1ResultNBD1 = MappingCouponDates(1, SwapEffectiveDate, Leg1_Phase2StartDate, 0 if SwapEffectiveDate % 100 == Leg1_Phase2StartDate % 100 else -1, NumCpnOneYear_Leg1_Phase1, True, FixHolidays, PayHolidays, 1) 
+        Leg1ForwardStart2,Leg1ForwardEnd2, Leg1PayDate2, Leg1ResultNBD2 = MappingCouponDates(1, Leg1ForwardEnd1[-1], SwapMaturity, 0 if Leg1ForwardEnd1[-1] % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg1_Phase1, True, FixHolidays, PayHolidays, 1) 
+        Leg1ForwardStart = list(Leg1ForwardStart1) + list(Leg1ForwardStart2)
+        Leg1ForwardEnd = list(Leg1ForwardEnd1) + list(Leg1ForwardEnd2)
+        Leg1PayDate = list(Leg1PayDate1) + list(Leg1PayDate2)
+        Leg1ResultNBD = Leg1ResultNBD1
+    else : 
+        Leg1ForwardStart,Leg1ForwardEnd, Leg1PayDate, Leg1ResultNBD = MappingCouponDates(1, SwapEffectiveDate, SwapMaturity, 0 if SwapEffectiveDate % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg1_Phase1, True, FixHolidays, PayHolidays, 1) 
+
+    if Leg2_Phase2UseFlag > 0 : 
+        Leg2ForwardStart1,Leg2ForwardEnd1, Leg2PayDate1, Leg2ResultNBD1 = MappingCouponDates(1, SwapEffectiveDate, Leg2_Phase2StartDate, 0 if SwapEffectiveDate % 100 == Leg2_Phase2StartDate % 100 else -1, NumCpnOneYear_Leg2_Phase1, True, FixHolidays, PayHolidays, 1) 
+        Leg2ForwardStart2,Leg2ForwardEnd2, Leg2PayDate2, Leg2ResultNBD2 = MappingCouponDates(1, Leg2ForwardEnd1[-1], SwapMaturity, 0 if Leg2ForwardEnd1[-1] % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg2_Phase1, True, FixHolidays, PayHolidays, 1) 
+        Leg2ForwardStart = list(Leg2ForwardStart1) + list(Leg2ForwardStart2)
+        Leg2ForwardEnd = list(Leg2ForwardEnd1) + list(Leg2ForwardEnd2)
+        Leg2PayDate = list(Leg2PayDate1) + list(Leg2PayDate2)
+        Leg2ResultNBD = Leg2ResultNBD1
+    else : 
+        Leg2ForwardStart,Leg2ForwardEnd, Leg2PayDate, Leg2ResultNBD = MappingCouponDates(1, SwapEffectiveDate, SwapMaturity, 0 if SwapEffectiveDate % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg2_Phase1, True, FixHolidays, PayHolidays, 1) 
+    
+    if (PriceDate in Leg1ForwardStart) and (PriceDate not in Leg1_FixingHistoryDate):             
+        Sm_Add = EDate_YYYYMMDD(PriceDate, int(Leg1_RefSwapMaturity_T * 12 + 0.000001))
+        if Leg1_PowerSpreadFlag == 0 : 
+            Leg1_RHistAdd = FSR(PriceDate, PriceDate, Sm_Add, Leg1_RefSwapNCPNOneYear, Leg1_DayCount, FixHolidays, ZeroTerm, ZeroRate, ZeroTerm, ZeroRate)
+            Leg1_FixingHistoryDate.append(PriceDate)
+            Leg1_FixingHistoryRate.append(Leg1_RHistAdd)            
+        else : 
+            Leg1_RHistAdd = FSR(PriceDate, PriceDate, Sm_Add, Leg1_RefSwapNCPNOneYear, Leg1_DayCount, FixHolidays, ZeroTerm, ZeroRate, ZeroTerm, ZeroRate)
+            Sm_Add_PowerSpread = EDate_YYYYMMDD(PriceDate, int(Leg1_RefSwapMaturity_T_PowerSpread * 12 + 0.000001))
+            Leg1_RHistAdd_PowerSpread = FSR(PriceDate, PriceDate, Sm_Add_PowerSpread, Leg1_RefSwapNCPNOneYear, Leg1_DayCount, FixHolidays, ZeroTerm, ZeroRate, ZeroTerm, ZeroRate)
+            Leg1_FixingHistoryDate.append(PriceDate)
+            Leg1_FixingHistoryRate.append(Leg1_RHistAdd - Leg1_RHistAdd_PowerSpread)            
+
+    if (PriceDate in Leg2ForwardStart) and (PriceDate not in Leg2_FixingHistoryDate):             
+        Sm_Add = EDate_YYYYMMDD(PriceDate, int(Leg2_RefSwapMaturity_T * 12 + 0.000001))
+        if Leg2_PowerSpreadFlag == 0 : 
+            Leg2_RHistAdd = FSR(PriceDate, PriceDate, Sm_Add, Leg2_RefSwapNCPNOneYear, Leg2_DayCount, FixHolidays, ZeroTerm, ZeroRate, ZeroTerm, ZeroRate)
+            Leg2_FixingHistoryDate.append(PriceDate)
+            Leg2_FixingHistoryRate.append(Leg2_RHistAdd)            
+        else : 
+            Leg2_RHistAdd = FSR(PriceDate, PriceDate, Sm_Add, Leg2_RefSwapNCPNOneYear, Leg2_DayCount, FixHolidays, ZeroTerm, ZeroRate, ZeroTerm, ZeroRate)
+            Sm_Add_PowerSpread = EDate_YYYYMMDD(PriceDate, int(Leg2_RefSwapMaturity_T_PowerSpread * 12 + 0.000001))
+            Leg2_RHistAdd_PowerSpread = FSR(PriceDate, PriceDate, Sm_Add_PowerSpread, Leg2_RefSwapNCPNOneYear, Leg2_DayCount, FixHolidays, ZeroTerm, ZeroRate, ZeroTerm, ZeroRate)
+            Leg2_FixingHistoryDate.append(PriceDate)
+            Leg2_FixingHistoryRate.append(Leg2_RHistAdd - Leg2_RHistAdd_PowerSpread)            
+            
+    TotalDateList = np.sort(np.array(pd.Series([PriceDate] + Leg1ForwardStart + Leg1ForwardEnd + Leg1PayDate + Leg2ForwardStart + Leg2ForwardEnd + Leg2PayDate + OptionFixDate + OptionPayDate).unique()))    
+    SimulationDateList = TotalDateList[TotalDateList > PriceDate]
+
+    xt_min, xt_max = -0.1, 0.4
+    yt_min, yt_max = -0.1, 0.4
+    dxt = (xt_max - xt_min) / float(NGreed)
+    dyt = (yt_max - yt_min) / float(NGreed)
+    xt = np.linspace(xt_min, xt_max, NGreed+1)[:-1]
+    yt = np.linspace(yt_min, yt_max, NGreed+1)[:-1]
+    xt_greed = xt.reshape(1,-1) * np.ones(len(SimulationDateList)).reshape(-1,1)
+    yt_greed = yt.reshape(1,-1) * np.ones(len(SimulationDateList)).reshape(-1,1)
+
+    Leg1SwapRate, Leg1SwapRateForwardMeasure, Leg1ConvAdj = ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag)
+    if Leg1_PowerSpreadFlag == 0 : 
+        Leg1SwapRate_PowerSpread, Leg1SwapRateForwardMeasure_PowerSpread, Leg1ConvAdj_PowerSpread = Leg1SwapRate, Leg1SwapRateForwardMeasure, Leg1ConvAdj
+    else : 
+        Leg1SwapRate_PowerSpread, Leg1SwapRateForwardMeasure_PowerSpread, Leg1ConvAdj_PowerSpread = ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, Leg1_RefSwapMaturity_T_PowerSpread, Leg1_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag)
+        
+    Leg2SwapRate, Leg2SwapRateForwardMeasure, Leg2ConvAdj = ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag)
+    if Leg2_PowerSpreadFlag == 0 : 
+        Leg2SwapRate_PowerSpread, Leg2SwapRateForwardMeasure_PowerSpread, Leg2ConvAdj_PowerSpread = Leg2SwapRate, Leg2SwapRateForwardMeasure, Leg2ConvAdj
+    else : 
+        Leg2SwapRate_PowerSpread, Leg2SwapRateForwardMeasure_PowerSpread, Leg2ConvAdj_PowerSpread = ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, Leg2_RefSwapMaturity_T_PowerSpread, Leg2_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag)
+
+    IdxSimul = np.array([i for i in range(len(SimulationDateList)) if SimulationDateList[i] in Leg1ForwardStart])
+    Leg1RefRateOnFixingDate = Leg1SwapRate[IdxSimul]
+    Leg1RefRateOnFixingDate_PowerSpread = Leg1SwapRate_PowerSpread[IdxSimul]
+    Leg1RefRateOnFixingDateForwardMeasure = Leg1SwapRateForwardMeasure[IdxSimul] - Leg1ConvAdj[IdxSimul]
+    Leg1RefRateOnFixingDateForwardMeasure_PowerSpread = Leg1SwapRateForwardMeasure_PowerSpread[IdxSimul] - Leg1ConvAdj_PowerSpread[IdxSimul]
+    IdxSimul = np.array([i for i in range(len(SimulationDateList)) if SimulationDateList[i] in Leg2ForwardStart])
+    Leg2RefRateOnFixingDate = Leg2SwapRate[IdxSimul]
+    Leg2RefRateOnFixingDate_PowerSpread = Leg2SwapRate_PowerSpread[IdxSimul]
+    Leg2RefRateOnFixingDateForwardMeasure = Leg2SwapRateForwardMeasure[IdxSimul] - Leg2ConvAdj[IdxSimul]
+    Leg2RefRateOnFixingDateForwardMeasure_PowerSpread = Leg2SwapRateForwardMeasure_PowerSpread[IdxSimul] - Leg2ConvAdj_PowerSpread[IdxSimul]
+
+    Leg1_ResultData = Calc_Payoff_FDM_ForTimeGreed(ZeroTerm, ZeroRate, PriceDate, SwapEffectiveDate, Leg1RefRateOnFixingDate, Leg1RefRateOnFixingDate_PowerSpread, Nominal, 
+                                    Leg1_Phase2StartDate, Leg1ForwardStart, Leg1ForwardEnd, Leg1PayDate, Leg1_DayCount,
+                                    Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapRate_Multiple_Phase2, Leg1_FixedCpnRate_Phase1, Leg1_FixedCpnRate_Phase2, Leg1_FixingHistoryDate, 
+                                    Leg1_FixingHistoryRate, Leg1ZeroCouponFlag, Leg1CompoundCouponFlag, Leg1RefRateOnFixingDateForwardMeasure,Leg1RefRateOnFixingDateForwardMeasure_PowerSpread, Leg1_PowerSpreadFlag, CpnRounding, HW2FFlag)
+    Leg2_ResultData = Calc_Payoff_FDM_ForTimeGreed(ZeroTerm, ZeroRate, PriceDate, SwapEffectiveDate, Leg2RefRateOnFixingDate, Leg2RefRateOnFixingDate_PowerSpread, Nominal, 
+                                    Leg2_Phase2StartDate, Leg2ForwardStart, Leg2ForwardEnd, Leg2PayDate, Leg2_DayCount,
+                                    Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapRate_Multiple_Phase2, Leg2_FixedCpnRate_Phase1, Leg2_FixedCpnRate_Phase2, Leg2_FixingHistoryDate, 
+                                    Leg2_FixingHistoryRate, Leg2ZeroCouponFlag, Leg2CompoundCouponFlag, Leg2RefRateOnFixingDateForwardMeasure,Leg2RefRateOnFixingDateForwardMeasure_PowerSpread, Leg2_PowerSpreadFlag, CpnRounding, HW2FFlag)
+    DeltaTime = np.vectorize(DayCountAtoB)(SimulationDateList[:-1],SimulationDateList[1:])/365
+    FDMTime = np.vectorize(DayCountAtoB)([PriceDate],SimulationDateList)/365
+    r = np.interp(FDMTime, ZeroTerm, ZeroRate)
+    DF_TimeGreed = np.exp(-r * FDMTime)
+    if HW2FFlag == 0 : 
+        Leg1PayoffAccum = np.r_[Leg1_ResultData["Payoff_Prev"][-1] * np.ones((1,NGreed)), Leg1_ResultData["Payoff_Simul"][:-1]]
+        Leg2PayoffAccum = np.r_[Leg2_ResultData["Payoff_Prev"][-1] * np.ones((1,NGreed)), Leg2_ResultData["Payoff_Simul"][:-1]]
+    else : 
+        Leg1PayoffAccum = np.r_[Leg1_ResultData["Payoff_Prev"][-1] * np.ones((1,NGreed, NGreed)), Leg1_ResultData["Payoff_Simul"][:-1]]
+        Leg2PayoffAccum = np.r_[Leg2_ResultData["Payoff_Prev"][-1] * np.ones((1,NGreed, NGreed)), Leg2_ResultData["Payoff_Simul"][:-1]]
+
+    OptionExerciseOX = np.zeros(Leg1_ResultData["Payoff_Simul"][-1].shape)
+    nextoptidx = len(OptionPayDate) - 1
+
+    FDMValueAtGreedMax0Min = np.zeros((len(SimulationDateList),3))
+    PayoffGreedMax0Min = np.zeros((len(SimulationDateList),2))
+    Leg1SwapRateMax0Min = np.zeros((len(SimulationDateList),3))
+    Leg2SwapRateMax0Min = np.zeros((len(SimulationDateList),3))
+    if LoggingFlag > 0 : 
+        if HW2FFlag == 0 : 
+            Leg1SwapRateMax0Min[:,0] = Leg1SwapRate[:,0] if Leg1_PowerSpreadFlag == 0 else Leg1SwapRate[:,0] - Leg1SwapRate_PowerSpread[:, 0]
+            Leg1SwapRateMax0Min[:,-1] = Leg1SwapRate[:,-1] if Leg1_PowerSpreadFlag == 0 else Leg1SwapRate[:,-1] - Leg1SwapRate_PowerSpread[:, -1]
+            Leg2SwapRateMax0Min[:,0] = Leg2SwapRate[:,0] if Leg2_PowerSpreadFlag == 0 else Leg2SwapRate[:,0] - Leg2SwapRate_PowerSpread[:, 0]
+            Leg2SwapRateMax0Min[:,-1] = Leg2SwapRate[:,-1] if Leg2_PowerSpreadFlag == 0 else Leg2SwapRate[:,-1] - Leg2SwapRate_PowerSpread[:, -1]
+        else : 
+            Leg1SwapRateMax0Min[:,0] = Leg1SwapRate[:,0,0] if Leg1_PowerSpreadFlag == 0 else Leg1SwapRate[:,0,0] - Leg1SwapRate_PowerSpread[:, 0, 0]
+            Leg1SwapRateMax0Min[:,-1] = Leg1SwapRate[:,-1,-1] if Leg1_PowerSpreadFlag == 0 else Leg1SwapRate[:,-1,-1] - Leg1SwapRate_PowerSpread[:, -1, -1]
+            Leg2SwapRateMax0Min[:,0] = Leg2SwapRate[:,0,0] if Leg2_PowerSpreadFlag == 0 else Leg2SwapRate[:,0,0] - Leg2SwapRate_PowerSpread[:, 0,0]
+            Leg2SwapRateMax0Min[:,-1] = Leg2SwapRate[:,-1,-1] if Leg2_PowerSpreadFlag == 0 else Leg2SwapRate[:,-1,-1] - Leg2SwapRate_PowerSpread[:, -1, -1]
+        
+    for i in range(len(SimulationDateList)) : 
+        FDMDate = SimulationDateList[::-1][i]
+        T = FDMTime[::-1][i]
+        if i == 0 : 
+            FDMValue = Leg1_ResultData["Payoff_Simul"][-1] - Leg2_ResultData["Payoff_Simul"][-1]
+            if HW2FFlag == 0 : 
+                PayoffGreedMax0Min[-(i+1)][0] = np.interp(0, xt, Leg1_ResultData["Payoff_Simul"][-1])
+                PayoffGreedMax0Min[-(i+1)][1] = np.interp(0, xt, Leg2_ResultData["Payoff_Simul"][-1])
+            else : 
+                PayoffGreedMax0Min[-(i+1)][0] = Linterp2D(xt, yt, Leg1_ResultData["Payoff_Simul"][-1], 0, 0)
+                PayoffGreedMax0Min[-(i+1)][1] = Linterp2D(xt, yt, Leg2_ResultData["Payoff_Simul"][-1], 0, 0)
+                
+            if (FDMDate <= PriceDate) : 
+                break
+            
+        else :         
+            TPrev = FDMTime[::-1][i-1]
+            deltat = DeltaTime[::-1][i-1]        
+            df_t2 = DF_TimeGreed[::-1][i-1]
+            df_t1 = DF_TimeGreed[::-1][i]
+            PtT =  df_t2 / df_t1
+            if HW2FFlag == 0 : 
+                vol1 = np.interp((T+TPrev)/2, HWVolTerm, HWVol)
+                an = -deltat * 0.5 * (kappa * xt / dxt + vol1 * vol1 / (dxt * dxt))
+                bn = np.ones(len(an)) * (1.0 + deltat * vol1 * vol1 / (dxt * dxt)) + (1.0 / PtT - 1.0)
+                cn = deltat * 0.5 * (kappa * xt / dxt - vol1 * vol1 / (dxt * dxt))
+                a0 , b0 , c0 = an[0], bn[0], cn[0]
+                aN , bN , cN = an[-1],bn[-1],cn[-1]
+                bn[0] = 2*a0 + b0
+                cn[0] = c0-a0
+                bn[-1] = bN +2*cN
+                an[-1] = aN - cN 
+                k = np.array([an[1:], bn, cn[:-1]], dtype = object)
+                offset = [-1,0,1]
+                tdiag = diags(k,offset).toarray()
+                inv_tdiag = np.linalg.inv(tdiag)
+                FDMValue = inv_tdiag.dot(FDMValue)
+            else : 
+                vol1 = np.interp((T+TPrev)/2, HWVolTerm, HWVol)
+                vol2 = np.interp((T+TPrev)/2, HWVolTerm2, HWVol2)
+                s2F = 0.5 * vol1 * vol2 * HWRho12Factor * deltat / (4.0 * dxt * dyt)
+                
+                #################
+                # x tridiagonal #
+                #################
+
+                an1F = -deltat * 0.5 * (kappa * xt / dxt + vol1 * vol1 / (dxt * dxt))
+                bn1F = np.ones(len(an1F)) * (1.0 + deltat * vol1 * vol1 / (dxt * dxt)) + (1.0 / PtT - 1.0) * 0.5
+                cn1F = deltat * 0.5 * (kappa * xt / dxt - vol1 * vol1 / (dxt * dxt))
+                a01F , b01F , c01F = an1F[0], bn1F[0], cn1F[0]
+                aN1F , bN1F, cN1F = an1F[-1],bn1F[-1],cn1F[-1]
+                bn1F[0] = 2*a01F + b01F
+                cn1F[0] = c01F-a01F
+                bn1F[-1] = bN1F +2*cN1F
+                an1F[-1] = aN1F - cN1F 
+                k1F = np.array([an1F[1:], bn1F, cn1F[:-1]], dtype = object)
+                offset1F = [-1,0,1]
+                tdiag1F = diags(k1F,offset1F).toarray()
+                inv_tdiag1F = np.linalg.inv(tdiag1F)
+
+                ################
+                # x implicited #
+                ################
+                
+                adj1F = np.zeros((FDMValue.shape[0]+2,FDMValue.shape[1]+2))
+                adj1F[1:-1,1:-1] = FDMValue
+                adj1F[:,0] = adj1F[:,1] * 2 - adj1F[:,2]
+                adj1F[:,-1] = adj1F[:,-2] * 2 - adj1F[:,-3]
+                adj1F[0,:] = adj1F[1,:] * 2 - adj1F[2,:]
+                adj1F[-1,:] = adj1F[-2,:] * 2 - adj1F[-3,:]
+                RHSxt = s2F * (adj1F[2:,2:] + adj1F[:-2,:-2] - adj1F[2:,:-2] - adj1F[:-2, 2:]) + FDMValue              
+                FDMValue = inv_tdiag1F.dot(RHSxt).T
+
+                #################
+                # y tridiagonal #
+                #################
+
+                an2F = -deltat * 0.5 * (kappa * yt / dyt + vol1 * vol1 / (dyt * dyt))
+                bn2F = np.ones(len(an2F)) * (1.0 + deltat * vol1 * vol1 / (dyt * dyt)) + (1.0 / PtT - 1.0) * 0.5
+                cn2F = deltat * 0.5 * (kappa * yt / dyt - vol1 * vol1 / (dyt * dyt))
+                a02F , b02F , c02F = an2F[0], bn2F[0], cn2F[0]
+                aN2F , bN2F, cN2F = an2F[-1],bn2F[-1],cn2F[-1]
+                bn2F[0] = 2*a02F + b02F
+                cn2F[0] = c02F-a02F
+                bn2F[-1] = bN2F +2*cN2F
+                an2F[-1] = aN2F - cN2F 
+                k2F = np.array([an2F[1:], bn2F, cn2F[:-1]], dtype = object)
+                offset2F = [-1,0,1]
+                tdiag2F = diags(k2F,offset2F).toarray()
+                inv_tdiag2F = np.linalg.inv(tdiag2F)
+
+                ################
+                # y implicited #
+                ################
+
+                adj2F = np.zeros((FDMValue.shape[0]+2,FDMValue.shape[1]+2))
+                adj2F[1:-1,1:-1] = FDMValue
+                adj2F[:,0] = adj2F[:,1] * 2 - adj2F[:,2]
+                adj2F[:,-1] = adj2F[:,-2] * 2 - adj2F[:,-3]
+                adj2F[0,:] = adj2F[1,:] * 2 - adj2F[2,:]
+                adj2F[-1,:] = adj2F[-2,:] * 2 - adj2F[-3,:]
+                RHSyt = s2F * (adj2F[2:,2:] + adj2F[:-2,:-2] - adj2F[2:,:-2] - adj2F[:-2, 2:]) + FDMValue              
+                FDMValue = inv_tdiag2F.dot(RHSyt).T        
+                
+            if (FDMDate <= PriceDate) : 
+                break
+                    
+            if (FDMDate in Leg1_ResultData["PayDate_Simul"]) and (Leg1ZeroCouponFlag == False) : 
+                idx = list(Leg1_ResultData["PayDate_Simul"]).index(FDMDate)
+                FDMValue += Leg1_ResultData["Payoff_Simul"][idx]
+                PayoffGreedMax0Min[-(i+1)][0] = np.interp(0, xt, Leg1_ResultData["Payoff_Simul"][idx]) if HW2FFlag == 0 else Linterp2D(xt, yt, Leg1_ResultData["Payoff_Simul"][idx], 0, 0)            
+            elif (FDMDate in Leg1_ResultData["PrevPayDate"]) and (Leg1ZeroCouponFlag == False) : 
+                FDMValue += np.ones(FDMValue.shape) * Leg1_ResultData["Payoff_Prev"][-1]
+                PayoffGreedMax0Min[-(i+1)][0] = float(Leg1_ResultData["Payoff_Prev"][-1])            
+
+            if (FDMDate in Leg2_ResultData["PayDate_Simul"]) and (Leg2ZeroCouponFlag == False) : 
+                idx = list(Leg2_ResultData["PayDate_Simul"]).index(FDMDate)
+                FDMValue -= Leg2_ResultData["Payoff_Simul"][idx]
+                PayoffGreedMax0Min[-(i+1)][1] = np.interp(0, xt, Leg2_ResultData["Payoff_Simul"][idx]) if HW2FFlag == 0 else Linterp2D(xt, yt, Leg2_ResultData["Payoff_Simul"][idx], 0, 0)            
+            elif (FDMDate in Leg2_ResultData["PrevPayDate"]) and (Leg2ZeroCouponFlag == False) : 
+                FDMValue -= np.ones(FDMValue.shape) * Leg2_ResultData["Payoff_Prev"][-1]
+                PayoffGreedMax0Min[-(i+1)][1] = float(Leg2_ResultData["Payoff_Prev"][-1])            
+        
+        if i != 0 and len(OptionPayDate) > 0 and (FDMDate <= OptionPayDate[nextoptidx] and FDMDate >= OptionFixDate[nextoptidx]) : 
+            if FDMDate == OptionPayDate[nextoptidx] : 
+                OptionExerciseOX = OptionExerciseOX * 0
+            FixDateOpt = OptionFixDate[nextoptidx]
+            PayDateOpt = OptionPayDate[nextoptidx]
+            t1 = DayCountAtoB(PriceDate, FDMDate)/365
+            t2 = DayCountAtoB(PriceDate, PayDateOpt)/365
+            tmat_Leg1 = DayCountAtoB(PriceDate, Leg1_ResultData["PayDate_Simul"][-1])/365
+            tmat_Leg2 = DayCountAtoB(PriceDate, Leg2_ResultData["PayDate_Simul"][-1])/365
+            df_t1 = Calc_Discount_Factor(ZeroTerm, ZeroRate, t1)
+            df_t2 = Calc_Discount_Factor(ZeroTerm, ZeroRate, t2)
+            df_tmat_Leg1 = Calc_Discount_Factor(ZeroTerm, ZeroRate, tmat_Leg1)
+            df_tmat_Leg2 = Calc_Discount_Factor(ZeroTerm, ZeroRate, tmat_Leg2)
+            
+            Leg1_Idx = (FixDateOpt <= Leg1_ResultData["PayDate_Simul"]) & (PayDateOpt > Leg1_ResultData["FixingDate_Simul"])
+            Leg2_Idx = (FixDateOpt <= Leg2_ResultData["PayDate_Simul"]) & (PayDateOpt > Leg2_ResultData["FixingDate_Simul"])
+
+            if FDMDate <= Leg1_ResultData["PrevPayDate"][-1] : 
+                Leg1_Acc = np.ones(FDMValue.shape) * Leg1_ResultData["PrevCummulativeCpn"][-1]
+                Leg1_OptPayoff = np.ones(FDMValue.shape) *Leg1_ResultData["Payoff_Prev"][-1] - Leg1_Acc
+            else : 
+                Leg1_Acc = Leg1PayoffAccum[Leg1_Idx][-1] * float(Leg1ZeroCouponFlag == True)
+                Leg1_OptPayoff = Leg1_ResultData["Payoff_Simul"][Leg1_Idx][-1] - Leg1_Acc
+            
+            if FDMDate <= Leg2_ResultData["PrevPayDate"][-1] : 
+                Leg2_Acc = np.ones(FDMValue.shape) * Leg2_ResultData["PrevCummulativeCpn"][-1]
+                Leg2_OptPayoff = np.ones(FDMValue.shape) *Leg2_ResultData["Payoff_Prev"][-1] - Leg2_Acc
+            else : 
+                Leg2_Acc = Leg2PayoffAccum[Leg2_Idx][-1] * float(Leg2ZeroCouponFlag == True)
+                Leg2_OptPayoff = Leg2_ResultData["Payoff_Simul"][Leg2_Idx][-1] - Leg2_Acc
+            
+            NPV_ExerciseValue_Leg1 = Leg1_Acc * df_tmat_Leg1/df_t1 + Leg1_OptPayoff * df_t2/df_t1
+            NPV_ExerciseValue_Leg2 = Leg2_Acc * df_tmat_Leg2/df_t1 + Leg2_OptPayoff * df_t2/df_t1
+            NPV_ExerciseValue = NPV_ExerciseValue_Leg1 - NPV_ExerciseValue_Leg2
+            if FDMDate == max(OptionPayDate[nextoptidx], OptionFixDate[nextoptidx]) : 
+                if OptionHolder == 0 : 
+                    OptionExerciseOX = NPV_ExerciseValue > FDMValue
+                else : 
+                    OptionExerciseOX = NPV_ExerciseValue < FDMValue
+            FDMValue = (OptionExerciseOX == True) * NPV_ExerciseValue + (OptionExerciseOX == False) * FDMValue
+
+            if FDMDate == min(OptionFixDate[nextoptidx], OptionPayDate[nextoptidx]) : 
+                nextoptidx = max(0, nextoptidx - 1)
+                
+        if HW2FFlag == 0 : 
+            ResultValue = np.interp(0, xt, FDMValue)
+        else : 
+            ResultValue = Linterp2D(xt, yt, FDMValue, 0, 0)
+
+        if LoggingFlag > 0 : 
+            FDMValueAtGreedMax0Min[-(i+1)][0] = np.round(FDMValue[0], 2) if HW2FFlag == 0 else FDMValue[0, 0]
+            FDMValueAtGreedMax0Min[-(i+1)][1] = np.round(ResultValue, 2) 
+            FDMValueAtGreedMax0Min[-(i+1)][2] = np.round(FDMValue[-1], 2) if HW2FFlag == 0 else FDMValue[-1, -1]
+            if HW2FFlag == 0 : 
+                Leg1SwapRateMax0Min[-(i+1)][1] = np.interp(0, xt, Leg1SwapRate[-(i+1)]) if Leg1_PowerSpreadFlag == 0 else np.interp(0, xt, Leg1SwapRate[-(i+1)]) - np.interp(0, xt, Leg1SwapRate_PowerSpread[-(i+1)])
+                Leg2SwapRateMax0Min[-(i+1)][1] = np.interp(0, xt, Leg2SwapRate[-(i+1)]) if Leg2_PowerSpreadFlag == 0 else np.interp(0, xt, Leg2SwapRate[-(i+1)]) - np.interp(0, xt, Leg2SwapRate_PowerSpread[-(i+1)])
+            else : 
+                Leg1SwapRateMax0Min[-(i+1)][1] = Linterp2D(xt, yt, Leg1SwapRate[-(i+1)], 0, 0) if Leg1_PowerSpreadFlag == 0 else Linterp2D(xt, yt, Leg1SwapRate[-(i+1)], 0, 0) - Linterp2D(xt, yt, Leg1SwapRate_PowerSpread[-(i+1)], 0, 0)
+                Leg2SwapRateMax0Min[-(i+1)][1] = Linterp2D(xt, yt, Leg2SwapRate[-(i+1)], 0, 0) if Leg2_PowerSpreadFlag == 0 else Linterp2D(xt, yt, Leg2SwapRate[-(i+1)], 0, 0) - Linterp2D(xt, yt, Leg2SwapRate_PowerSpread[-(i+1)], 0, 0)
+            
+    if HW2FFlag == 0 : 
+        ResultPrice = np.interp(0, xt, FDMValue)
+    else : 
+        ResultPrice = Linterp2D(xt, yt, FDMValue, 0, 0)
+
+    OptionExerciseDeclare = ["OptionExerciseDeclare" if i in OptionFixDate else '' for i in SimulationDateList] 
+    OptionExercisePayment = ["OptionExercisePayment" if i in OptionPayDate else '' for i in SimulationDateList] 
+    
+    if LoggingFlag > 0 :                         
+        Result2 = pd.DataFrame(FDMValueAtGreedMax0Min, index = SimulationDateList, columns = ["V(xt("+str(np.round(xt[0],2))+"))","V(xt(0))","V(xt("+str(np.round(xt[-1],2))+"))"])
+        Result3 = pd.DataFrame(Leg1SwapRateMax0Min, index = SimulationDateList, columns = ["Leg1Rate(xt("+str(np.round(xt[0],2))+"))","Leg1Rate(xt(0))","Leg1Rate(xt("+str(np.round(xt[-1],2))+"))"])
+        Result4 = pd.DataFrame(Leg2SwapRateMax0Min, index = SimulationDateList, columns = ["Leg2Rate(xt("+str(np.round(xt[0],2))+"))","Leg2Rate(xt(0))","Leg2Rate(xt("+str(np.round(xt[-1],2))+"))"])
+        Result1 = pd.DataFrame(PayoffGreedMax0Min, index = SimulationDateList, columns = ["Leg1CF","Leg2CF"])
+        Result = pd.concat([Result1, Result2, Result3, Result4],axis = 1)
+
+        Leg1FwdPayoff = [(Leg1_ResultData["Payoff_ForwardMeasure"][list(Leg1_ResultData["PayDate_Simul"]).index(i), 0]) if i in Leg1_ResultData["PayDate_Simul"] else 0 for i in SimulationDateList]
+        Leg2FwdPayoff = [(Leg2_ResultData["Payoff_ForwardMeasure"][list(Leg2_ResultData["PayDate_Simul"]).index(i), 0]) if i in Leg2_ResultData["PayDate_Simul"] else 0 for i in SimulationDateList]
+        if Leg1_ResultData["PrevPayDate"][-1] in SimulationDateList : 
+            Leg1FwdPayoff[list(SimulationDateList).index(Leg1_ResultData["PrevPayDate"][-1])] = float(Leg1_ResultData["Payoff_Prev"][-1])
+        if Leg2_ResultData["PrevPayDate"][-1] in SimulationDateList : 
+            Leg2FwdPayoff[list(SimulationDateList).index(Leg2_ResultData["PrevPayDate"][-1])] = float(Leg2_ResultData["Payoff_Prev"][-1])
+        Result["Leg1_Payoff_FwdMsr"] = Leg1FwdPayoff
+        Result["Leg2_Payoff_FwdMsr"] = Leg2FwdPayoff
+        Result["DiscountFactor"] = DF_TimeGreed
+        Result["ResultPrice"] = ResultPrice
+        Result["Leg1_DiscCurveName"] = Leg1_DiscCurveName
+        Result["Leg1_EstCurveName"] = Leg1_EstCurveName
+        Result["Leg2_DiscCurveName"] = Leg2_DiscCurveName
+        Result["Leg2_EstCurveName"] = Leg2_EstCurveName
+        Result["OptionDeclare"] = OptionExerciseDeclare
+        Result["OptionPayment"] = OptionExercisePayment
+        
+        Result.to_csv(LoggingDir + "\\LoggingIRStructuredSwap.csv", index = True, encoding = "cp949")
+    else : 
+        if HW2FFlag == 0 : 
+            Result = pd.DataFrame(FDMValue.reshape(-1,1), columns = ["PriceByGreed"], index = xt)
+            Result.index.name = "xt"
+        else : 
+            Result = pd.DataFrame(FDMValue, columns = xt, index = yt)
+        Result["ResultPrice"] = ResultPrice
+    return Result            
+
+def Pricing_IRCallableSwap_HWFDM_Greek(
+    Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, NumCpnOneYear_Leg1_Phase1, 
+    Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
+    NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
+    Leg2_DayCount, OptionFixDate, OptionPayDate, OptionHolder_0Recever1Payer, ZeroTerm, 
+    ZeroRate, Leg1_FixingHistoryDate, Leg1_FixingHistoryRate, Leg2_FixingHistoryDate, Leg2_FixingHistoryRate, 
+    kappa = 0.01, kappa2 = 0.01, HWVolTerm = [0.0001], HWVol = [0.006323], HWVolTerm2 = [0.0001], 
+    HWVol2 = [0.003323], HWRho12Factor = -0.3, CpnRounding = 15, HW2FFlag = 0, LoggingFlag = 0, 
+    LoggingDir = os.getcwd(), Leg1_DiscCurveName = "TempCurve", Leg1_EstCurveName = "TempCurve", Leg2_DiscCurveName = "TempCurve",
+    Leg2_EstCurveName = "TempCurve", KoreanAutoHolidayFlag = True, FixHolidays = [], PayHolidays = [],
+    Leg1_Phase2UseFlag = 0, NumCpnOneYear_Leg1_Phase2 = 0, Leg1_Phase2StartDate = 20280929, Leg1_RefSwapRate_Multiple_Phase2 = 0.0, Leg1_FixedCpnRate_Phase2 = 0.0237,   
+    Leg2_Phase2UseFlag = 0, NumCpnOneYear_Leg2_Phase2 = 4, Leg2_Phase2StartDate = 20280929, Leg2_RefSwapRate_Multiple_Phase2 = 1.0, Leg2_FixedCpnRate_Phase2 = -0.0012,
+    Leg1_PowerSpreadFlag = 0, Leg1_RefSwapMaturity_T_PowerSpread = 0.25, Leg2_PowerSpreadFlag = 0, Leg2_RefSwapMaturity_T_PowerSpread = 0.25,
+    GreekFlag = 0) :
+         
+    ResultDict = {}
+    PInfo = Pricing_IRCallableSwap_HWFDM(
+            Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, NumCpnOneYear_Leg1_Phase1, 
+            Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
+            NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
+            Leg2_DayCount, OptionFixDate, OptionPayDate, OptionHolder_0Recever1Payer, ZeroTerm, 
+            ZeroRate, Leg1_FixingHistoryDate, Leg1_FixingHistoryRate, Leg2_FixingHistoryDate, Leg2_FixingHistoryRate, 
+            kappa, kappa2, HWVolTerm, HWVol, HWVolTerm2, 
+            HWVol2, HWRho12Factor, CpnRounding, HW2FFlag, LoggingFlag, 
+            LoggingDir, Leg1_DiscCurveName, Leg1_EstCurveName, Leg2_DiscCurveName,
+            Leg2_EstCurveName, KoreanAutoHolidayFlag, FixHolidays, PayHolidays,
+            Leg1_Phase2UseFlag, NumCpnOneYear_Leg1_Phase2, Leg1_Phase2StartDate, Leg1_RefSwapRate_Multiple_Phase2, Leg1_FixedCpnRate_Phase2,   
+            Leg2_Phase2UseFlag, NumCpnOneYear_Leg2_Phase2, Leg2_Phase2StartDate, Leg2_RefSwapRate_Multiple_Phase2, Leg2_FixedCpnRate_Phase2,
+            Leg1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread, Leg2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread)
+    P = PInfo["ResultPrice"].values[0]
+    ResultDict["Price"] = P
+    LoggingFlag = 0
+    PV01Array = np.zeros(len(ZeroTerm))
+    PVGammaArray = np.zeros(len(ZeroTerm))
+    for i in range(len(ZeroTerm)) : 
+        ZeroUp = np.array(ZeroRate).copy()
+        ZeroUp[i] = ZeroUp[i] + 0.0001
+        PuInfo = Pricing_IRCallableSwap_HWFDM(
+                Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, NumCpnOneYear_Leg1_Phase1, 
+                Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
+                NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
+                Leg2_DayCount, OptionFixDate, OptionPayDate, OptionHolder_0Recever1Payer, ZeroTerm, 
+                ZeroUp, Leg1_FixingHistoryDate, Leg1_FixingHistoryRate, Leg2_FixingHistoryDate, Leg2_FixingHistoryRate, 
+                kappa, kappa2, HWVolTerm, HWVol, HWVolTerm2, 
+                HWVol2, HWRho12Factor, CpnRounding, HW2FFlag, LoggingFlag, 
+                LoggingDir, Leg1_DiscCurveName, Leg1_EstCurveName, Leg2_DiscCurveName,
+                Leg2_EstCurveName, KoreanAutoHolidayFlag, FixHolidays, PayHolidays,
+                Leg1_Phase2UseFlag, NumCpnOneYear_Leg1_Phase2, Leg1_Phase2StartDate, Leg1_RefSwapRate_Multiple_Phase2, Leg1_FixedCpnRate_Phase2,   
+                Leg2_Phase2UseFlag, NumCpnOneYear_Leg2_Phase2, Leg2_Phase2StartDate, Leg2_RefSwapRate_Multiple_Phase2, Leg2_FixedCpnRate_Phase2,
+                Leg1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread, Leg2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread)
+        Pu = PuInfo["ResultPrice"].values[0]
+
+        ZeroDn = np.array(ZeroRate).copy()
+        ZeroDn[i] = ZeroUp[i] - 0.0001
+        PdInfo = Pricing_IRCallableSwap_HWFDM(
+                Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, NumCpnOneYear_Leg1_Phase1, 
+                Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
+                NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
+                Leg2_DayCount, OptionFixDate, OptionPayDate, OptionHolder_0Recever1Payer, ZeroTerm, 
+                ZeroDn, Leg1_FixingHistoryDate, Leg1_FixingHistoryRate, Leg2_FixingHistoryDate, Leg2_FixingHistoryRate, 
+                kappa, kappa2, HWVolTerm, HWVol, HWVolTerm2, 
+                HWVol2, HWRho12Factor, CpnRounding, HW2FFlag, LoggingFlag, 
+                LoggingDir, Leg1_DiscCurveName, Leg1_EstCurveName, Leg2_DiscCurveName,
+                Leg2_EstCurveName, KoreanAutoHolidayFlag, FixHolidays, PayHolidays,
+                Leg1_Phase2UseFlag, NumCpnOneYear_Leg1_Phase2, Leg1_Phase2StartDate, Leg1_RefSwapRate_Multiple_Phase2, Leg1_FixedCpnRate_Phase2,   
+                Leg2_Phase2UseFlag, NumCpnOneYear_Leg2_Phase2, Leg2_Phase2StartDate, Leg2_RefSwapRate_Multiple_Phase2, Leg2_FixedCpnRate_Phase2,
+                Leg1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread, Leg2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread)
+        Pd = PdInfo["ResultPrice"].values[0]
+
+        PV01 = (Pu - Pd)/2
+        PV01Array[i] = PV01
+        PVGammaArray[i] = (Pu + Pd - 2.0 * P)
+    ResultDict["PV01"] = PV01Array
+    ResultDict["PVGamma"] = PVGammaArray
+    
+    if GreekFlag > 1 :
+        VegaArray = np.zeros(len(HWVolTerm)) 
+        for i in range(len(HWVolTerm)) : 
+            VUp = np.array(HWVol).copy()
+            VUp[i] = VUp[i] + 0.0001    
+            PVuInfo = Pricing_IRCallableSwap_HWFDM(
+                    Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, NumCpnOneYear_Leg1_Phase1, 
+                    Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
+                    NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
+                    Leg2_DayCount, OptionFixDate, OptionPayDate, OptionHolder_0Recever1Payer, ZeroTerm, 
+                    ZeroRate, Leg1_FixingHistoryDate, Leg1_FixingHistoryRate, Leg2_FixingHistoryDate, Leg2_FixingHistoryRate, 
+                    kappa, kappa2, HWVolTerm, VUp, HWVolTerm2, 
+                    HWVol2, HWRho12Factor, CpnRounding, HW2FFlag, LoggingFlag, 
+                    LoggingDir, Leg1_DiscCurveName, Leg1_EstCurveName, Leg2_DiscCurveName,
+                    Leg2_EstCurveName, KoreanAutoHolidayFlag, FixHolidays, PayHolidays,
+                    Leg1_Phase2UseFlag, NumCpnOneYear_Leg1_Phase2, Leg1_Phase2StartDate, Leg1_RefSwapRate_Multiple_Phase2, Leg1_FixedCpnRate_Phase2,   
+                    Leg2_Phase2UseFlag, NumCpnOneYear_Leg2_Phase2, Leg2_Phase2StartDate, Leg2_RefSwapRate_Multiple_Phase2, Leg2_FixedCpnRate_Phase2,
+                    Leg1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread, Leg2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread)  
+            Vega = PVuInfo["ResultPrice"].values[0] - P
+            VegaArray[i] = Vega
+        ResultDict["Vega"] = VegaArray
+        ResultDict["VegaFRTB"] = VegaArray/0.0001 * np.array(HWVol)
+        ResultDict["VegaTerm"] = HWVolTerm
+        if HW2FFlag > 0 : 
+            VegaArray2 = np.zeros(len(HWVolTerm2)) 
+            for i in range(len(HWVolTerm2)) : 
+                VUp = np.array(HWVol2).copy()
+                VUp[i] = VUp[i] + 0.0001    
+                PVuInfo = Pricing_IRCallableSwap_HWFDM(
+                        Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, NumCpnOneYear_Leg1_Phase1, 
+                        Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
+                        NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
+                        Leg2_DayCount, OptionFixDate, OptionPayDate, OptionHolder_0Recever1Payer, ZeroTerm, 
+                        ZeroRate, Leg1_FixingHistoryDate, Leg1_FixingHistoryRate, Leg2_FixingHistoryDate, Leg2_FixingHistoryRate, 
+                        kappa, kappa2, HWVolTerm, HWVol, HWVolTerm2, 
+                        VUp, HWRho12Factor, CpnRounding, HW2FFlag, LoggingFlag, 
+                        LoggingDir, Leg1_DiscCurveName, Leg1_EstCurveName, Leg2_DiscCurveName,
+                        Leg2_EstCurveName, KoreanAutoHolidayFlag, FixHolidays, PayHolidays,
+                        Leg1_Phase2UseFlag, NumCpnOneYear_Leg1_Phase2, Leg1_Phase2StartDate, Leg1_RefSwapRate_Multiple_Phase2, Leg1_FixedCpnRate_Phase2,   
+                        Leg2_Phase2UseFlag, NumCpnOneYear_Leg2_Phase2, Leg2_Phase2StartDate, Leg2_RefSwapRate_Multiple_Phase2, Leg2_FixedCpnRate_Phase2,
+                        Leg1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread, Leg2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread)  
+                Vega = PVuInfo["ResultPrice"].values[0] - P
+                VegaArray2[i] = Vega
+            ResultDict["Vega2"] = VegaArray2
+            ResultDict["VegaTerm2"] = HWVolTerm2
+            ResultDict["VegaFRTB2"] = VegaArray2/0.0001 * np.array(HWVol2)
+    return ResultDict    
     
 ##############################################################################################################
 ########################################### 여기까지 Pricing Module ###########################################
@@ -6879,7 +7766,7 @@ while True :
     if len(str(MainFlag)) == 0 : 
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break
-    elif MainFlag not in [1,2,3,4,'1','2','3','4'] : 
+    elif MainFlag not in [1,2,3,4,5,'1','2','3','4','5'] : 
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break
     elif MainFlag in [2,'2'] :         
@@ -6901,7 +7788,7 @@ while True :
         print("\n####################\n####산출중(66%)#####\n####################\n")
         ResultData3 = AggregatedFRTB_RiskCharge(CSR, GIRR, FXR, EQR, COMR, CSR_SecuritizedNonCTP, CSR_CTP, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 2, DRC = DRC, RRAO= RRAO)
 
-        writer = pd.ExcelWriter('ResultFRTB.xlsx', engine='xlsxwriter')
+        writer = pd.ExcelWriter('ResultFRTB.xlsx', engine='xlsxwriter') # pylint: disable=abstract-class-instantiated
         ResultData1.to_excel(writer, sheet_name = 'ByBucket')
         ResultData2.to_excel(writer, sheet_name = 'ByDepart')
         ResultData3.to_excel(writer, sheet_name = 'ByPortfolio')
@@ -6919,7 +7806,7 @@ while True :
         except FileNotFoundError : 
             FXSpot = pd.DataFrame([])
         MainFlag2 = ""
-        n = (input("\nPricer를 선택하시오 : 1. 채권, 2. IRS, 3. IRS(Complex), 4. CMS Swap, 5. Currency Swap\n                       6. Equity Option \n->"))
+        n = (input("\nPricer를 선택하시오 : 1. 채권, 2. IRS, 3. IRS(Complex), 4. CMS Swap, 5. Currency Swap\n                       6. Equity Option 7. IRStructuredSwap \n->"))
         if int(n) == 1 or n == "채권" or str(n).lower() == "bond": 
             MainFlag2, Value, PV01, TempPV01 = PricingBondProgram()
         elif int(n) == 2 or n == "IRS" or str(n).lower() == "irs" : 
@@ -6963,1246 +7850,514 @@ while True :
         YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + "\\MarketData\\inputdata", namein = 'sw')
         PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayDate)
         
+    elif MainFlag in [5, '5'] : 
+        YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
+                                                                        namenotin = "swaption",
+                                                                        Comments = "IRS Pricing을 위한 커브 번호를 입력하시오.\n(Estimation Curve와 Discount Curve가 다른 경우 1, 2 등 두개 입력)")     
+        curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
+        print(curvename)
+        Curve = MyMarketDataList[0]
+        UsedCurveName1 = Name[0]
+        Curr = Name[0].split("\\")[-2].lower()
+        if 'krw' in Curr : 
+            HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+        elif "usd" in Curr : 
+            HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+        CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
+        CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
+        CurveTerm2, CurveRate2 = [], []        
+        UsedCurveName2 = ""        
+        Nominal = (input("\n IRS 액면가를 입력하시오.(통화 = " + Curr.upper() +")\n->").replace(",",""))            
+        Nominal = float(Nominal) if len(str(Nominal)) > 0 else 10000
+        EffectiveDate = (input("\n IRS 발행일(YYYYMMDD)을 입력하시오.\n->"))
+        EffectiveDate = int(EffectiveDate) if len(str(EffectiveDate)) > 0 else 20240627
+        MaturityDate = (input("\n IRS 만기일(YYYYMMDD)을 입력하시오.\n->"))
+        MaturityDate = int(MaturityDate) if len(str(MaturityDate)) > 0 else 20340627
+        MaturityDate = MaturityDate if MaturityDate > 200 else EffectiveDate + MaturityDate * 10000
+        print("\n ###################################\n ####### Leg1 Information Set ####### \n ###################################\n")
+        NumCpnOneYear_Leg1_Phase1 = input("\n Leg1) 해당 스왑의 연 쿠폰 지급횟수는? (ZeroCouponBond : 0, AnnualPayment : 1, SemiAnn : 2, Quarterly : 4)\n->")
+        NumCpnOneYear_Leg1_Phase1 = int(float(NumCpnOneYear_Leg1_Phase1)) if len(NumCpnOneYear_Leg1_Phase1) > 0 else 4
+        Leg1_FixedCpnRate_Phase1 = (input("\n Leg1) 고정쿠폰금리를 입력하시오(0.033, 0.055 또는 3.5, 5.5등으로 입력).\n->"))        
+        Leg1_FixedCpnRate_Phase1 = float(Leg1_FixedCpnRate_Phase1) if len(Leg1_FixedCpnRate_Phase1) > 0 else 0.0
+        Leg1_FixedCpnRate_Phase1 = Leg1_FixedCpnRate_Phase1/100 if Leg1_FixedCpnRate_Phase1 > 1 else Leg1_FixedCpnRate_Phase1
+        Leg1_RefRateFlag = input("\n Leg1 Information : Leg1은 기초금리에 연동된 변동금리를 사용합니까?(Y/N), 고정금리Leg라면 N을 입력\n->") if NumCpnOneYear_Leg1_Phase1 > 0 else ""
+        Leg1_PowerSpreadFlag = 0
+        if Leg1_RefRateFlag in ["Y",'y'] : 
+            Leg1_ReferenceRate = (input("\n Leg1 <기초금리Info>) 페이오프를 결정할 Reference Rate(기초자산금리)의 만기를 입력하시오.(ex: 3M, 1Y, 3Y, ...) \n 만약 고정금리라면 아무것도 입력하지 말고 Enter를 입력하시오.\n->")).lower().replace(" ","")
+            Leg1_RefSwapNCPNOneYear = input("\n Leg1 <기초금리Info>) 페이오프를 결정할 Reference Rate(기초자산금리)의 연 쿠폰 지급횟수를 입력하시오.(CD91이면 4, 5년 스왑금리 Q지급이면 4, ...) \n") if Leg1_ReferenceRate not in ['0.25', '3M','0.25Y'] else '4'
+            Leg1_RefSwapNCPNOneYear = int(float(Leg1_RefSwapNCPNOneYear)) if len(Leg1_RefSwapNCPNOneYear) > 0 else 4
+            Leg1_RefSwapRate_Multiple_Phase1 = input("\n Leg1 <기초금리Info>) 해당 기초자산금리에 대한 변동금리Payoff Multiple을 입력하시오.(1배면 1을 입력) \n")
+            Leg1_RefSwapRate_Multiple_Phase1 = float(Leg1_RefSwapRate_Multiple_Phase1) if len(Leg1_RefSwapRate_Multiple_Phase1) > 0 else 0
+            if '-' not in Leg1_ReferenceRate : 
+                if 'm' in Leg1_ReferenceRate : 
+                    Leg1_RefSwapMaturity_T = float(Leg1_ReferenceRate[:Leg1_ReferenceRate.index('m')])/12
+                elif 'y' in Leg1_ReferenceRate :
+                    Leg1_RefSwapMaturity_T = float(Leg1_ReferenceRate[:Leg1_ReferenceRate.index('y')])
+                elif len(Leg1_ReferenceRate) > 0 : 
+                    Leg1_RefSwapMaturity_T = float(Leg1_ReferenceRate)                    
+                else : 
+                    Leg1_RefSwapMaturity_T = 0.25
+                Leg1_RefSwapMaturity_T_PowerSpread = Leg1_RefSwapMaturity_T
+                print("\n Payoff = R(T=" + str(Leg1_RefSwapMaturity_T)+") x "+ str(Leg1_RefSwapRate_Multiple_Phase1) + " + " +str(np.round(Leg1_FixedCpnRate_Phase1*100,4)) + "% \n")
+            else : 
+                Leg1_PowerSpreadFlag = 1
+                Leg1_Rate12 = Leg1_ReferenceRate.split("-")
+                if 'm' in Leg1_Rate12[0] : 
+                    Leg1_RefSwapMaturity_T = float(Leg1_Rate12[0][:Leg1_Rate12[0].index('m')])/12
+                elif 'y' in Leg1_Rate12[0] :
+                    Leg1_RefSwapMaturity_T = float(Leg1_Rate12[0][:Leg1_Rate12[0].index('y')])
+                elif len(Leg1_Rate12[0]) > 0 : 
+                    Leg1_RefSwapMaturity_T = float(Leg1_Rate12[0])                    
+                else : 
+                    Leg1_RefSwapMaturity_T = 0.25
+                    
+                if 'm' in Leg1_Rate12[1] : 
+                    Leg1_RefSwapMaturity_T_PowerSpread = float(Leg1_Rate12[1][:Leg1_Rate12[1].index('m')])/12
+                elif 'y' in Leg1_Rate12[1] :
+                    Leg1_RefSwapMaturity_T_PowerSpread = float(Leg1_Rate12[1][:Leg1_Rate12[1].index('y')])
+                elif len(Leg1_Rate12[1]) > 0 : 
+                    Leg1_RefSwapMaturity_T_PowerSpread = float(Leg1_Rate12[1])                    
+                else : 
+                    Leg1_RefSwapMaturity_T_PowerSpread = 0.25   
+                print("\n Payoff = (R(T=" + str(Leg1_RefSwapMaturity_T)+") - R(T=" + str(Leg1_RefSwapMaturity_T_PowerSpread)+ ")) x "+ str(Leg1_RefSwapRate_Multiple_Phase1) + " + " +str(np.round(Leg1_FixedCpnRate_Phase1*100,4)) + "% \n")
+        else : 
+            Leg1_RefSwapNCPNOneYear, Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapMaturity_T_PowerSpread = 4, 0, 0.25, 0.25
+            print("\n Payoff = " +str(np.round(Leg1_FixedCpnRate_Phase1,4)) + "\n")
+        Leg1_DayCount = input("\n Leg1) DayCount를 입력하시오, 0: ACT365, 1:ACT360, 2: ActAct 3:30/360, ZeroCompoundCoupon = {5: Act365, 6:Act360, 7: ActAct, 8:30/360}  \n->") if NumCpnOneYear_Leg1_Phase1 > 0 else '3'
+        Leg1_DayCount = (int(Leg1_DayCount) if len(Leg1_DayCount) > 0 else 0) 
+        
+        print("\n ###################################\n ####### Leg2 Information Set ####### \n ###################################\n")
+        NumCpnOneYear_Leg2_Phase1 = input("\n Leg2) 해당 스왑의 연 쿠폰 지급횟수는? (ZeroCouponBond : 0, AnnualPayment : 1, SemiAnn : 2, Quarterly : 4)\n->")
+        NumCpnOneYear_Leg2_Phase1 = int(float(NumCpnOneYear_Leg2_Phase1)) if len(NumCpnOneYear_Leg2_Phase1) > 0 else 4
+        Leg2_FixedCpnRate_Phase1 = (input("\n Leg2) 고정쿠폰금리를 입력하시오(0.033, 0.055 또는 3.5, 5.5등으로 입력).\n->"))        
+        Leg2_FixedCpnRate_Phase1 = float(Leg2_FixedCpnRate_Phase1) if len(Leg2_FixedCpnRate_Phase1) > 0 else 0.0
+        Leg2_FixedCpnRate_Phase1 = Leg2_FixedCpnRate_Phase1/100 if Leg2_FixedCpnRate_Phase1 > 1 else Leg2_FixedCpnRate_Phase1
+        Leg2_RefRateFlag = input("\n Leg2 Information : Leg2은 기초금리에 연동된 변동금리를 사용합니까?(Y/N), 고정금리Leg라면 N을 입력\n->") if NumCpnOneYear_Leg2_Phase1 > 0 else ""
+        Leg2_PowerSpreadFlag = 0
+        if Leg2_RefRateFlag in ["Y",'y'] : 
+            Leg2_ReferenceRate = (input("\n Leg2 <기초금리Info>) 페이오프를 결정할 Reference Rate(기초자산금리)의 만기를 입력하시오.(ex: 3M, 1Y, 3Y, ...) \n 만약 고정금리라면 아무것도 입력하지 말고 Enter를 입력하시오.\n->")).lower().replace(" ","")
+            Leg2_RefSwapNCPNOneYear = input("\n Leg2 <기초금리Info>) 페이오프를 결정할 Reference Rate(기초자산금리)의 연 쿠폰 지급횟수를 입력하시오.(CD91이면 4, 5년 스왑금리 Q지급이면 4, ...) \n") if Leg2_ReferenceRate not in ['0.25', '3M','0.25Y'] else '4'
+            Leg2_RefSwapNCPNOneYear = int(float(Leg2_RefSwapNCPNOneYear)) if len(Leg2_RefSwapNCPNOneYear) > 0 else 4
+            Leg2_RefSwapRate_Multiple_Phase1 = input("\n Leg2 <기초금리Info>) 해당 기초자산금리에 대한 변동금리Payoff Multiple을 입력하시오.(1배면 1을 입력) \n")
+            Leg2_RefSwapRate_Multiple_Phase1 = float(Leg2_RefSwapRate_Multiple_Phase1) if len(Leg2_RefSwapRate_Multiple_Phase1) > 0 else 0
+            if '-' not in Leg2_ReferenceRate : 
+                if 'm' in Leg2_ReferenceRate : 
+                    Leg2_RefSwapMaturity_T = float(Leg2_ReferenceRate[:Leg2_ReferenceRate.index('m')])/12
+                elif 'y' in Leg2_ReferenceRate :
+                    Leg2_RefSwapMaturity_T = float(Leg2_ReferenceRate[:Leg2_ReferenceRate.index('y')])
+                elif len(Leg2_ReferenceRate) > 0 : 
+                    Leg2_RefSwapMaturity_T = float(Leg2_ReferenceRate)                    
+                else : 
+                    Leg2_RefSwapMaturity_T = 0.25
+                Leg2_RefSwapMaturity_T_PowerSpread = Leg2_RefSwapMaturity_T
+                print("\n Payoff = R(T=" + str(Leg2_RefSwapMaturity_T)+") x "+ str(Leg2_RefSwapRate_Multiple_Phase1) + " + " +str(np.round(Leg2_FixedCpnRate_Phase1*100,4)) + "% \n")
+            else : 
+                Leg2_PowerSpreadFlag = 1
+                Leg2_Rate12 = Leg2_ReferenceRate.split("-")
+                if 'm' in Leg2_Rate12[0] : 
+                    Leg2_RefSwapMaturity_T = float(Leg2_Rate12[0][:Leg2_Rate12[0].index('m')])/12
+                elif 'y' in Leg2_Rate12[0] :
+                    Leg2_RefSwapMaturity_T = float(Leg2_Rate12[0][:Leg2_Rate12[0].index('y')])
+                elif len(Leg2_Rate12[0]) > 0 : 
+                    Leg2_RefSwapMaturity_T = float(Leg2_Rate12[0])                    
+                else : 
+                    Leg2_RefSwapMaturity_T = 0.25
+                    
+                if 'm' in Leg2_Rate12[1] : 
+                    Leg2_RefSwapMaturity_T_PowerSpread = float(Leg2_Rate12[1][:Leg2_Rate12[1].index('m')])/12
+                elif 'y' in Leg2_Rate12[1] :
+                    Leg2_RefSwapMaturity_T_PowerSpread = float(Leg2_Rate12[1][:Leg2_Rate12[1].index('y')])
+                elif len(Leg2_Rate12[1]) > 0 : 
+                    Leg2_RefSwapMaturity_T_PowerSpread = float(Leg2_Rate12[1])                    
+                else : 
+                    Leg2_RefSwapMaturity_T_PowerSpread = 0.25   
+                print("\n Payoff = (R(T=" + str(Leg2_RefSwapMaturity_T)+") - R(T=" + str(Leg2_RefSwapMaturity_T_PowerSpread)+ ")) x "+ str(Leg2_RefSwapRate_Multiple_Phase1) + " + " +str(np.round(Leg2_FixedCpnRate_Phase1*100,4)) + "% \n")
+        else : 
+            Leg2_RefSwapNCPNOneYear, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapMaturity_T_PowerSpread = 4, 0, 0.25, 0.25
+            print("\n Payoff = " +str(np.round(Leg2_FixedCpnRate_Phase1,4)) + "\n")
+        Leg2_DayCount = input("\n Leg2) DayCount를 입력하시오, 0: ACT365, 1:ACT360, 2: ActAct 3:30/360, ZeroCompoundCoupon = {5: Act365, 6:Act360, 7: ActAct, 8:30/360}  \n->") if NumCpnOneYear_Leg2_Phase1 > 0 else '3'
+        Leg2_DayCount = (int(Leg2_DayCount) if len(Leg2_DayCount) > 0 else 0) 
+
+        OptionHolder = input("\n 취소 또는 조기상환 옵션은 Leg1에 있습니까? Leg2에 있습니까? Leg1은 0 Leg2는 1을 입력하시오.\n->")
+        OptionHolder = int(OptionHolder) if len(OptionHolder) > 0 else 0
+        OptionPaymentStart = input("\n 첫 번쨰 옵션 실행일(조기상환 지급일)은? \n->")    
+        OptionPaymentStart = int(OptionPaymentStart) if len(OptionPaymentStart) > 0 else EffectiveDate + 10000
+        NYearBetweenOptionPay = input("\n 옵션 행사일 간의 간격은 몇년입니까? \n->")
+        NYearBetweenOptionPay = float(NYearBetweenOptionPay) if len(NYearBetweenOptionPay) > 0 else 1
+        NBDateBetweenOptionFixToPay = input("\n 옵션 실행일은 옵션 행사 선언일로부터 몇 BusinessDay입니까? \n->")
+        NBDateBetweenOptionFixToPay = int(NBDateBetweenOptionFixToPay) if len(NBDateBetweenOptionFixToPay) > 0 else 0        
+        MaxNumberOption = input("\n 최대 옵션개수는 몇개입니까? \n->")
+        MaxNumberOption = int(MaxNumberOption) if len(MaxNumberOption) > 0 else -1
+        OptionFixDate, OptionPayDate = Generate_OptionDate(OptionPaymentStart, MaturityDate, NYearBetweenOptionPay, NBDateBetweenOptionFixToPay, -1, ModifiedFollow = 0)
+        Result = Pricing_IRCallableSwap_HWFDM_Greek(
+                    Nominal, EffectiveDate, int(YYYYMMDD), MaturityDate, int(NumCpnOneYear_Leg1_Phase1),         
+                    Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
+                    NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
+                    Leg2_DayCount,OptionFixDate,OptionPayDate,OptionHolder, CurveTerm1, CurveRate1,#[0.027989, 0.027992, 0.028394, 0.027554, 0.026807, 0.02633, 0.025806, 0.025455, 0.025154, 0.025235, 0.025264, 0.025397, 0.025531, 0.025638, 0.025719, 0.025856, 0.026049, 0.025598, 0.024243, 0.022474, 0.021085],
+                    [DayPlus(20240102, i) for i in range(365)], 
+                    [0.0344]*365, 
+                    [DayPlus(20240102, i) for i in range(365)], 
+                    [0.0344]*365, 
+                    kappa = -0.0133,
+                    kappa2 = 0.01,
+                    HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+                    HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368],
+                    HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+                    HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2,
+                    GreekFlag = 2, LoggingFlag = 1, LoggingDir= currdir)
+        DeltaGreek = pd.Series(Result["PV01"], index = CurveTerm1).reset_index()
+        DeltaGreek.columns = ["PV01Term","PV01"]
+        GIRRDelta = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(DeltaGreek, "PV01Term","PV01"), 4)
+        Cvup = list(np.array(CurveRate1) + 0.012)
+        Pu = Pricing_IRCallableSwap_HWFDM(
+                    Nominal, EffectiveDate, int(YYYYMMDD), MaturityDate, int(NumCpnOneYear_Leg1_Phase1),         
+                    Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
+                    NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
+                    Leg2_DayCount,OptionFixDate,OptionPayDate,OptionHolder, CurveTerm1, Cvup,[DayPlus(20240102, i) for i in range(365)], 
+                    [0.0344]*365, 
+                    [DayPlus(20240102, i) for i in range(365)], 
+                    [0.0344]*365, 
+                    kappa = -0.0133,
+                    kappa2 = 0.01,
+                    HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+                    HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368],
+                    HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+                    HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2)["ResultPrice"].iloc[0]
+        Cvdn = list(np.array(CurveRate1) - 0.012)
+        Pd = Pricing_IRCallableSwap_HWFDM(
+                    Nominal, EffectiveDate, int(YYYYMMDD), MaturityDate, int(NumCpnOneYear_Leg1_Phase1),         
+                    Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
+                    NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
+                    Leg2_DayCount,OptionFixDate,OptionPayDate,OptionHolder, CurveTerm1, Cvdn,[DayPlus(20240102, i) for i in range(365)], 
+                    [0.0344]*365, 
+                    [DayPlus(20240102, i) for i in range(365)], 
+                    [0.0344]*365, 
+                    kappa = -0.0133,
+                    kappa2 = 0.01,
+                    HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+                    HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368],
+                    HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+                    HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2)["ResultPrice"].iloc[0]
+        GammaGreek = DeltaGreek.copy()
+        GammaGreek.columns = ["Tenor","DeltaSensi"]
+        GammaGreek["DeltaSensi"] = GammaGreek["DeltaSensi"] * 10000
+        GammaGreek["Bucket"] ="KRW"
+        GammaGreek["RiskWeight"] = GIRR_DeltaRiskWeight(list(DeltaGreek["PV01Term"].values), ["KRW"] * len(DeltaGreek), ["IRS"] * len(DeltaGreek))
+        CVR_Plus = -(Pu - Result["Price"] - (GammaGreek["DeltaSensi"] * GammaGreek["RiskWeight"]).sum())
+        CVR_Minus = -(Pd - Result["Price"] + (GammaGreek["DeltaSensi"] * GammaGreek["RiskWeight"]).sum())
+        GIRRCurvature = max(abs(CVR_Plus), abs(CVR_Minus))
+        T = DayCountAtoB(int(YYYYMMDD), MaturityDate)/365
+        V = pd.Series(Result["VegaFRTB"][1:-1], Result["VegaTerm"][1:-1]).reset_index()
+        V.columns = ["Tenor1","VegaSensi"]
+        V["Tenor2"] = T - V["Tenor1"]
+        V["Risk_Type"] = "Vega"
+        V["Curve"] = UsedCurveName1.split("\\")[-1].split(".")[0]
+        V["Risk_Class"] = "GIRR"
+        V["Bucket"] = "KRW"
+        GIRRVega = Calc_GIRRVega(V, SensitivityColumnName = "VegaSensi")["KB_M"].iloc[0]
+        print("\n ResultPrice = " + str(np.round(Result["Price"],4)) + "\n")
+        print("\n GIRR Delta = " + str(np.round(GIRRDelta,2)) + "\n")
+        print("\n GIRR Curvature = "+str(np.round(GIRRCurvature,2)) + "\n")
+        print("\n GIRR Vega = "+str(np.round(GIRRVega,2)) + "\n")
         
 # %%
 
-# %%
-df2 = ReadCSV(r'C:\Users\ciiad\github5\FRTB_Python\MarketData\outputdata\20241210\KRW\KRW IRS ZeroCurve.csv')
-PriceDate = 20241210
-SwapTenor = [20280310, 20280310, 20280310, 20280310, 20280310]
-OptionTenor = [20250310, 20250610, 20250910, 20251210, 20260310]
-OptionVol = [0.0115, 0.0108, 0.0104, 0.01, 0.0105]
-SwapFreqByMonth = 3
-BSVol0NormalVol1 = 1
-Term = list(df2.Term)
-Rate = list(df2.Rate)
-
-MyDict = HullWhiteCalibration1Factor(PriceDate, OptionTenor, SwapTenor, OptionVol, SwapFreqByMonth, BSVol0NormalVol1, Term, Rate, FixedKappa = 0, DayCountFlag = 0, KoreanHolidayFlag = True, AdditionalHolidays = [], initialkappa = 0.01, initialvol = 0.005, PrintMRSPE=True)
-
-
-# %%
-NSimul = 10000
-Nominal = 20000
-SwapEffectiveDate = 20160929
-PriceDate = 20250304#20250304
-NumCpnOneYear_Leg2_Phase1 = 4
-NumCpnOneYear_Leg2_Phase2 = 4
-Leg2_Phase2StartDate = 20280929
-Leg2_Phase2UseFlag = 1
-Leg2_RefSwapRate_Multiple_Phase1 = 1.0
-Leg2_FixedCpnRate_Phase1 = -0.0012
-Leg2_RefSwapRate_Multiple_Phase2 = 1.0
-Leg2_FixedCpnRate_Phase2 = -0.0012
-Leg2_DayCount = 0
-NumCpnOneYear_Leg1_Phase1 = 0
-NumCpnOneYear_Leg1_Phase2 = 0
-Leg1_Phase2StartDate = 20280929
-Leg1_Phase2UseFlag = 1
-Leg1_RefSwapRate_Multiple_Phase1 = 0.0
-Leg1_FixedCpnRate_Phase1 = 0.0237
-Leg1_RefSwapRate_Multiple_Phase2 = 0.0
-Leg1_FixedCpnRate_Phase2 = 0.0237
-Leg1_DayCount = 3
-
-SwapMaturity = 20460929
-FixHolidays = KoreaHolidaysFromStartToEnd(2020, 2070)
-PayHolidays = FixHolidays
-OptionFixDate = [20190902,20200903,20210831,20220901,20230904,20240830,20250903,20260901,20270831,20280905,20290903,20300830,20310903,20320901,20330831,20340831,20350903,20360903,20370903,20380903,20390905,20400905,20410904,20420903,20430904,20440905,20450905]
-OptionPayDate = [20190930,20200929,20210929,20220929,20231004,20240930,20250929,20260929,20270929,20280929,20291001,20300930,20310929,20320929,20330929,20340929,20351001,20360929,20370929,20380929,20390929,20401001,20410930,20421001,20430929,20440929,20450929]
-OptionHolder = 1
-Leg1_RefSwapMaturity_T = 0.25
-Leg1_RefSwapNCPNOneYear = 4
-Leg2_RefSwapMaturity_T = 0.25
-Leg2_RefSwapNCPNOneYear = 4
-ZeroTerm = [0.00274, 0.00548, 0.25479, 0.506849, 0.756164, 1.00274, 1.512329, 2.00274, 3.00822, 4.00548, 5.00548, 6.00548, 7.008219, 8.013699, 9.010959, 10.00822, 12.01096, 15.0137, 20.01918, 25.02466, 30.02192]
-ZeroRate = [0.027989, 0.027992, 0.028394, 0.027554, 0.026807, 0.02633, 0.025806, 0.025455, 0.025154, 0.025235, 0.025264, 0.025397, 0.025531, 0.025638, 0.025719, 0.025856, 0.026049, 0.025598, 0.024243, 0.022474, 0.021085]
-kappa = -0.0133
-HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52]
-#HWVol = np.ones(len(HWVolTerm)) * 0.00001#
-HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368]
-FixingHistoryDate = [DayPlus(20240102, i) for i in range(365)]
-FixingHistoryRate = [0.0344]*len(FixingHistoryDate)
-
-MaxDate = 99991231
-IdxOpt = np.array(OptionFixDate) > PriceDate
-OptionFixDate = list(np.array(OptionFixDate)[IdxOpt])
-OptionPayDate = list(np.array(OptionPayDate)[IdxOpt])
-Leg1CompoundCouponFlag = False
-Leg2CompoundCouponFlag = False
-if Leg1_DayCount > 5 : 
-    Leg1_DayCount = Leg1_DayCount % 5
-    Leg1CompoundCouponFlag = True
-
-if Leg2_DayCount > 5 : 
-    Leg2_DayCount = Leg2_DayCount % 5
-    Leg2CompoundCouponFlag = True
-
-Leg1ZeroCouponFlag = (NumCpnOneYear_Leg1_Phase1 == 0) or (NumCpnOneYear_Leg1_Phase2 == 0)
-Leg2ZeroCouponFlag = (NumCpnOneYear_Leg2_Phase1 == 0) or (NumCpnOneYear_Leg2_Phase2 == 0)
-if Leg1ZeroCouponFlag == True : 
-    NumCpnOneYear_Leg1_Phase1 = max(1, NumCpnOneYear_Leg1_Phase2)    
-    NumCpnOneYear_Leg1_Phase2 = max(1, NumCpnOneYear_Leg1_Phase2)    
-
-if Leg2ZeroCouponFlag == True : 
-    NumCpnOneYear_Leg2_Phase1 = max(1, NumCpnOneYear_Leg2_Phase2)    
-    NumCpnOneYear_Leg2_Phase2 = max(1, NumCpnOneYear_Leg2_Phase2)    
-
-if Leg1_Phase2UseFlag > 0 : 
-    Leg1ForwardStart1,Leg1ForwardEnd1, Leg1PayDate1, Leg1ResultNBD1 = MappingCouponDates(1, SwapEffectiveDate, Leg1_Phase2StartDate, 0 if SwapEffectiveDate % 100 == Leg1_Phase2StartDate % 100 else -1, NumCpnOneYear_Leg1_Phase1, True, FixHolidays, PayHolidays, 1) 
-    Leg1ForwardStart2,Leg1ForwardEnd2, Leg1PayDate2, Leg1ResultNBD2 = MappingCouponDates(1, Leg1ForwardEnd1[-1], SwapMaturity, 0 if Leg1ForwardEnd1[-1] % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg1_Phase1, True, FixHolidays, PayHolidays, 1) 
-    Leg1ForwardStart = list(Leg1ForwardStart1) + list(Leg1ForwardStart2)
-    Leg1ForwardEnd = list(Leg1ForwardEnd1) + list(Leg1ForwardEnd2)
-    Leg1PayDate = list(Leg1PayDate1) + list(Leg1PayDate2)
-    Leg1ResultNBD = Leg1ResultNBD1
-else : 
-    Leg1ForwardStart,Leg1ForwardEnd, Leg1PayDate, Leg1ResultNBD = MappingCouponDates(1, SwapEffectiveDate, SwapMaturity, 0 if SwapEffectiveDate % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg1_Phase1, True, FixHolidays, PayHolidays, 1) 
-
-if Leg2_Phase2UseFlag > 0 : 
-    Leg2ForwardStart1,Leg2ForwardEnd1, Leg2PayDate1, Leg2ResultNBD1 = MappingCouponDates(1, SwapEffectiveDate, Leg2_Phase2StartDate, 0 if SwapEffectiveDate % 100 == Leg2_Phase2StartDate % 100 else -1, NumCpnOneYear_Leg2_Phase1, True, FixHolidays, PayHolidays, 1) 
-    Leg2ForwardStart2,Leg2ForwardEnd2, Leg2PayDate2, Leg2ResultNBD2 = MappingCouponDates(1, Leg2ForwardEnd1[-1], SwapMaturity, 0 if Leg2ForwardEnd1[-1] % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg2_Phase1, True, FixHolidays, PayHolidays, 1) 
-    Leg2ForwardStart = list(Leg2ForwardStart1) + list(Leg2ForwardStart2)
-    Leg2ForwardEnd = list(Leg2ForwardEnd1) + list(Leg2ForwardEnd2)
-    Leg2PayDate = list(Leg2PayDate1) + list(Leg2PayDate2)
-    Leg2ResultNBD = Leg2ResultNBD1
-else : 
-    Leg2ForwardStart,Leg2ForwardEnd, Leg2PayDate, Leg2ResultNBD = MappingCouponDates(1, SwapEffectiveDate, SwapMaturity, 0 if SwapEffectiveDate % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg2_Phase1, True, FixHolidays, PayHolidays, 1) 
-
-TotalDateList = np.sort(np.array(pd.Series([PriceDate] + Leg1ForwardStart + Leg1ForwardEnd + Leg1PayDate + Leg2ForwardStart + Leg2ForwardEnd + Leg2PayDate + OptionFixDate + OptionPayDate).unique()))    
-SimulationDateList = TotalDateList[TotalDateList > PriceDate]
-SimulatedXt = SimulateShortRateMC(NSimul, SimulationDateList, PriceDate, kappa, HWVolTerm, HWVol)
-Leg1SwapRate, Leg1SwapRateForwardMeasure, Leg1ConvAdj = SimulateParRateMC(PriceDate, SimulatedXt, SimulationDateList, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate)
-Leg2SwapRate, Leg2SwapRateForwardMeasure, Leg2ConvAdj = SimulateParRateMC(PriceDate, SimulatedXt, SimulationDateList, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate)
-DataF = pd.DataFrame(Leg1SwapRate, index = SimulationDateList).mean(1)
-
-Leg1SimulatedRefRate, Leg1SimulatedRefRate2, Leg1SimulatedDF_FixToPay, Leg1DF_to_Fixing, Leg1RefRateForwardMsr, Leg1RefRateForwardMsr2, Leg1DF_ForwardMsr, Xt_Leg1, Leg1Xt_Opt, Leg1Optdf_tfix, Leg1OptHWDF_tfix_tpay = Calc_RefRateOnFixingDate_And_ForwardDisc_FixingToPay(PriceDate, Leg1ForwardStart, Leg1ForwardEnd, Leg1PayDate, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate, SimulationDateList, OptionFixDate, OptionPayDate, Leg1SwapRate, SimulatedXt, Leg1SwapRateForwardMeasure, Leg1ConvAdj)
-Leg1Result = Calc_Payoff_Sim_and_NotSim(PriceDate, SwapEffectiveDate, Leg1SimulatedRefRate, Nominal, Leg1_Phase2StartDate, Leg1ForwardStart, Leg1ForwardEnd, Leg1PayDate, Leg1_DayCount,Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapRate_Multiple_Phase2, Leg1_FixedCpnRate_Phase1, Leg1_FixedCpnRate_Phase2, FixingHistoryDate, FixingHistoryRate, Leg1ZeroCouponFlag, Leg1CompoundCouponFlag, Leg1RefRateForwardMsr)
-
-Leg1SimulDF = Leg1DF_to_Fixing.reshape(-1,1) * Leg1SimulatedDF_FixToPay
-NPV_Leg1_Simul = Leg1Result["Payoff_Simul"] * Leg1SimulDF
-NPV_Leg1_BeforeSimul = Leg1Result["PrevDF"][-1] * Leg1Result["Payoff_Prev"][-1]  
-Leg1_PreFix = (NPV_Leg1_BeforeSimul[-1] if Leg1ZeroCouponFlag == False else 0)
-if Leg1Result["PrevPayDate"][-1] :     
-    Leg1PayoffDate = np.array([Leg1Result["PrevPayDate"][-1]] + list(Leg1Result["PayDate_Simul"]))
-    Leg1Payoff = np.r_[Leg1Result["Payoff_Prev"][-1] * np.ones((1,NSimul)), Leg1Result["Payoff_Simul"]]
-    Leg1DiscountFactor = np.r_[Leg1Result["PrevDF"][-1] * np.ones((1,NSimul)), Leg1SimulDF]
-else : 
-    Leg1PayoffDate = np.array(list(Leg1Result["PayDate_Simul"]))
-    Leg1Payoff = NPV_Leg1_Simul
-    Leg1DiscountFactor = Leg1SimulDF
-Leg1DiscountCashFlow = Leg1Payoff * Leg1DiscountFactor   
-
-Leg2SimulatedRefRate, Leg2SimulatedRefRate2, Leg2SimulatedDF_FixToPay, Leg2DF_to_Fixing, Leg2RefRateForwardMsr, Leg2RefRateForwardMsr2, Leg2DF_ForwardMsr, Xt_Leg2, Leg2Xt_Opt, Leg2Optdf_tfix, Leg2OptHWDF_tfix_tpay = Calc_RefRateOnFixingDate_And_ForwardDisc_FixingToPay(PriceDate, Leg2ForwardStart, Leg2ForwardEnd, Leg2PayDate, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate, SimulationDateList, OptionFixDate, OptionPayDate, Leg2SwapRate, SimulatedXt, Leg2SwapRateForwardMeasure, Leg2ConvAdj)
-Leg2Result = Calc_Payoff_Sim_and_NotSim(PriceDate, SwapEffectiveDate, Leg2SimulatedRefRate, Nominal, Leg2_Phase2StartDate, Leg2ForwardStart, Leg2ForwardEnd, Leg2PayDate, Leg2_DayCount,Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapRate_Multiple_Phase2, Leg2_FixedCpnRate_Phase1, Leg2_FixedCpnRate_Phase2, FixingHistoryDate, FixingHistoryRate, Leg2ZeroCouponFlag, Leg2CompoundCouponFlag, Leg2RefRateForwardMsr)
-Leg2SimulDF = Leg2DF_to_Fixing.reshape(-1,1) * Leg2SimulatedDF_FixToPay
-NPV_Leg2_Simul = Leg2Result["Payoff_Simul"] * Leg2SimulDF
-NPV_Leg2_BeforeSimul = Leg2Result["PrevDF"][-1] * Leg2Result["Payoff_Prev"][-1]
-Leg2_PreFix = (NPV_Leg2_BeforeSimul[-1] if Leg2ZeroCouponFlag == False else 0)
-if Leg2Result["PrevPayDate"][-1] :     
-    Leg2PayoffDate = np.array([Leg2Result["PrevPayDate"][-1]] + list(Leg2Result["PayDate_Simul"]))
-    Leg2Payoff = np.r_[Leg2Result["Payoff_Prev"][-1] * np.ones((1,NSimul)), Leg2Result["Payoff_Simul"]]
-    Leg2DiscountFactor = np.r_[Leg2Result["PrevDF"][-1] * np.ones((1,NSimul)), Leg2SimulDF]
-else : 
-    Leg2PayoffDate = np.array(list(Leg2Result["PayDate_Simul"]))
-    Leg2Payoff = NPV_Leg2_Simul
-    Leg2DiscountFactor = Leg2SimulDF
-Leg2DiscountCashFlow = Leg2Payoff * Leg2DiscountFactor
-
-NPV_Leg1 = (Leg1DiscountCashFlow.sum(0) if Leg1ZeroCouponFlag == False else Leg1DiscountCashFlow[-1])    
-NPV_Leg2 = (Leg2DiscountCashFlow.sum(0) if Leg2ZeroCouponFlag == False else Leg2DiscountCashFlow[-1])
-NPV_ =  NPV_Leg1 - NPV_Leg2
-Price_Leg1 = NPV_Leg1.mean() 
-Price_Leg2 = NPV_Leg2.mean()
-Price_ = NPV_.mean()
-NPV_Leg1_AccumulativeAdjust = ((Leg1Result["Payoff_Simul"] - Leg1Result["Payoff_Prev"][-1]) * Leg1SimulDF)[-1] if Leg1ZeroCouponFlag else (Leg1Result["Payoff_Simul"] * Leg1SimulDF).sum(0)
-NPV_Leg2_AccumulativeAdjust = ((Leg2Result["Payoff_Simul"] - Leg2Result["Payoff_Prev"][-1]) * Leg2SimulDF)[-1] if Leg2ZeroCouponFlag else (Leg2Result["Payoff_Simul"] * Leg2SimulDF).sum(0)
-NPV_AccumulativeAdjust = NPV_Leg1_AccumulativeAdjust - NPV_Leg2_AccumulativeAdjust
-Price_Leg1AccumulativeAdjust = NPV_Leg1_AccumulativeAdjust.mean() 
-Price_Leg2AccumulativeAdjust = NPV_Leg2_AccumulativeAdjust.mean()
-Price_AccumulativeAdjust = NPV_AccumulativeAdjust.mean()
-
-toptpay = np.vectorize(DayCountAtoB)(PriceDate, OptionPayDate)/365
-r_opt = np.interp(toptpay, ZeroTerm, ZeroRate)
-if Leg1ZeroCouponFlag == False and Leg2ZeroCouponFlag == False : 
-    OptionPath = np.zeros((len(OptionFixDate), NSimul))
-    for i in range(len(OptionFixDate)) : 
-        #i = 0        
-        IdxFixLeg1 = Leg1Result["PayDate_Simul"] > OptionFixDate[i]
-        IdxFixLeg2 = Leg2Result["PayDate_Simul"] > OptionFixDate[i]
-        Leg1ValueOnOptDate = NPV_Leg1_Simul[IdxFixLeg1][0]
-        Leg2ValueOnOptDate = NPV_Leg2_Simul[IdxFixLeg2][0]        
-        HoldingEstimationValue = Leg1ValueOnOptDate - Leg2ValueOnOptDate
-
-        OptionValue = (HoldingEstimationValue < 0) * -HoldingEstimationValue if OptionHolder == 0 else (HoldingEstimationValue > 0) * HoldingEstimationValue
-        PVOptionValue = OptionValue 
-        OptionPath[i] = PVOptionValue
+x, y = Generate_OptionDate(20190929, 20460929, 1, 20, -1, ModifiedFollow = 0)
+Result = Pricing_IRCallableSwap_HWFDM(
+            20000, 20160929, 20160928, 20460929, 0,         
+            0.0, 0.25, 4, 0.0237, 3, 
+            4, 1.0, 0.25, 4, -0.0012, 
+            0, 
+            x,#[20190902,20200903,20210831,20220901,20230904,20240830,20250903,20260901,20270831,20280905,20290903,20300830,20310903,20320901,20330831,20340831,20350903,20360903,20370903,20380903,20390905,20400905,20410904,20420903,20430904,20440905,20450905], 
+            y,#[20190930,20200929,20210929,20220929,20231004,20240930,20250929,20260929,20270929,20280929,20291001,20300930,20310929,20320929,20330929,20340929,20351001,20360929,20370929,20380929,20390929,20401001,20410930,20421001,20430929,20440929,20450929], 
+            1,
+            [0.00274, 0.00548, 0.25479, 0.506849, 0.756164, 1.00274, 1.512329, 2.00274, 3.00822, 4.00548, 5.00548, 6.00548, 7.008219, 8.013699, 9.010959, 10.00822, 12.01096, 15.0137, 20.01918, 25.02466, 30.02192],
+            [0.027989, 0.027992, 0.028394, 0.027554, 0.026807, 0.02633, 0.025806, 0.025455, 0.025154, 0.025235, 0.025264, 0.025397, 0.025531, 0.025638, 0.025719, 0.025856, 0.026049, 0.025598, 0.024243, 0.022474, 0.021085],
+            [DayPlus(20240102, i) for i in range(365)], 
+            [0.0344]*365, 
+            [DayPlus(20240102, i) for i in range(365)], 
+            [0.0344]*365, 
+            kappa = -0.0133,
+            kappa2 = 0.01,
+            HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+            HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368],
+            HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+            HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2,
+            LoggingFlag = 1)
         
-    OptionExerciseyesno = (OptionPath > 0).max(0) 
-    ReshapedOptionPayDate = np.array(OptionPayDate).reshape(-1,1)
-    OptionExerciseDate = (ReshapedOptionPayDate * (OptionPath > 0) + (OptionPath <= 0) * MaxDate).min(0).reshape(1,-1)
-    values, counts = np.unique(OptionExerciseDate, return_counts = True)
-    OptionProb = pd.Series(counts, values)/NSimul
-    
-    Leg1Payoff_OptAdj = (Leg1Result["PayDate_Simul"].reshape(-1,1) <= OptionExerciseDate) * Leg1Result["Payoff_Simul"] 
-    NPV_Leg1_Simul_OptAdj = Leg1Payoff_OptAdj * Leg1SimulatedDF_FixToPay * Leg1DF_to_Fixing.reshape(-1,1)
-    NPV_Leg1_OptAdj = NPV_Leg1_Simul_OptAdj.sum(0)
-
-    Leg2Payoff_OptAdj = (Leg2Result["PayDate_Simul"].reshape(-1,1) <= OptionExerciseDate) * Leg2Result["Payoff_Simul"] 
-    NPV_Leg2_Simul_OptAdj = Leg2Payoff_OptAdj * Leg2SimulatedDF_FixToPay * Leg2DF_to_Fixing.reshape(-1,1)
-    NPV_Leg2_OptAdj = NPV_Leg2_Simul_OptAdj.sum(0)
-    
-    NPV_OptAdj = NPV_Leg1_OptAdj - NPV_Leg2_OptAdj
-    Price_Leg1_OptAdj = NPV_Leg1_OptAdj.mean()
-    Price_Leg2_OptAdj = NPV_Leg2_OptAdj.mean()
-    Price_OptAdj = NPV_OptAdj.mean()   
-    OptionPrice = Price_OptAdj - Price_ 
-
-else : 
-    PrevCashAdjustFlag = 1
-    Leg1PayoffZeroAdjust = Leg1Payoff - Leg1Result["Payoff_Prev"][-1] if Leg1ZeroCouponFlag == True else Leg1Payoff
-    Leg2PayoffZeroAdjust = Leg2Payoff - Leg2Result["Payoff_Prev"][-1] if Leg2ZeroCouponFlag == True else Leg2Payoff
-    Leg1DiscountCashFlowZeroAdjust = Leg1PayoffZeroAdjust * Leg1DiscountFactor
-    Leg2DiscountCashFlowZeroAdjust = Leg2PayoffZeroAdjust * Leg2DiscountFactor
-
-    if Leg1ZeroCouponFlag == 1 : 
-        AccumCashFlow = np.concatenate([Leg1Result["Payoff_Prev"][-1] * np.ones((1,NSimul)), Leg1Result["Payoff_Simul"][:-1]], axis = 0 )                 
-        NPV_Leg1_Simul_ZeroAdj = (Leg1Result["Payoff_Simul"] - Leg1Result["PrevCummulativeCpn"][-1]) * Leg1SimulDF
-        NPV_Leg2_Simul_ZeroAdj = NPV_Leg2_Simul
-        NPV_Leg1_ZeroAdj = NPV_Leg1_Simul_ZeroAdj[-1]
-        NPV_Leg2_ZeroAdj = (NPV_Leg2_Simul_ZeroAdj.sum(0) + Leg2_PreFix)
-        CashAdjustNPV = NPV_Leg1_Simul_ZeroAdj[-1] - (NPV_Leg2_Simul_ZeroAdj.sum(0) + Leg2_PreFix)
-        PriceZeroAdj = CashAdjustNPV.mean()
-        CashAdjustPrice = CashAdjustNPV.mean()
-    else : 
-        AccumCashFlow = np.concatenate([Leg2Result["Payoff_Prev"][-1] * np.ones((1,NSimul)), Leg2Result["Payoff_Simul"][:-1]], axis = 0 )         
-        NPV_Leg2_Simul_ZeroAdj = (Leg2Result["Payoff_Simul"] - Leg2Result["PrevCummulativeCpn"][-1]) * Leg2SimulDF
-        NPV_Leg1_Simul_ZeroAdj = NPV_Leg1_Simul
-        NPV_Leg2_ZeroAdj = NPV_Leg2_Simul_ZeroAdj[-1]
-        NPV_Leg1_ZeroAdj = (NPV_Leg1_Simul_ZeroAdj.sum(0) + Leg1_PreFix)
-        CashAdjustNPV = NPV_ - Leg2Result["PrevCummulativeCpn"][-1] * Leg2SimulDF[-1]
-        PriceZeroAdj = CashAdjustNPV.mean()
-        CashAdjustPrice = CashAdjustNPV.mean()
-        
-    OptionPath = np.zeros((len(OptionFixDate), NSimul))
-    OptionExerciseFlag = np.zeros(NSimul)
-    OptionExerciseDate = np.zeros(NSimul) 
-    Leg1ValueOptResult = np.zeros((len(OptionFixDate), NSimul))
-    Leg2ValueOptResult = np.zeros((len(OptionFixDate), NSimul))    
-    ExerciseLeg1 = np.zeros((len(OptionFixDate), NSimul))
-    ExerciseLeg2 = np.zeros((len(OptionFixDate), NSimul))
-
-    for i in range(len(OptionFixDate)) : 
-        #i = 0
-        #i = 1
-        #i = 2
-        #i = 3
-
-        FixingDate = OptionFixDate[i]
-        PayDate = OptionPayDate[i]
-        t1 = DayCountAtoB(PriceDate, FixingDate)/365        
-                
-        if Leg1ZeroCouponFlag == True : 
-            Idx = (Leg1Result["FixingDate_Simul"] < FixingDate) & (Leg1Result["PayDate_Simul"] >= FixingDate) 
-            if Idx.max() == False : 
-                FixingDate = Leg1Result["PrevFixDate"][-1]
-                PayDate = Leg1Result["PrevPayDate"][-1]
-            else : 
-                FixingDate = Leg1Result["FixingDate_Simul"][Idx][-1]
-                PayDate = Leg1Result["PayDate_Simul"][Idx][-1]
-        elif Leg2ZeroCouponFlag == True : 
-            Idx = (Leg2Result["FixingDate_Simul"] < FixingDate) & (Leg2Result["PayDate_Simul"] >= FixingDate) 
-            if Idx.max() == False : 
-                FixingDate = Leg2Result["PrevFixDate"][-1]
-                PayDate = Leg2Result["PrevPayDate"][-1]
-            else : 
-                FixingDate = Leg2Result["FixingDate_Simul"][Idx][-1]
-                PayDate = Leg2Result["PayDate_Simul"][Idx][-1]
-        IdxFixLeg1 = Leg1Result["PayDate_Simul"] > FixingDate
-        IdxFixLeg2 = Leg2Result["PayDate_Simul"] > FixingDate
-                        
-        Leg1PrevFixFlag = FixingDate < Leg1Result["PrevPayDate"][-1]
-        Leg2PrevFixFlag = FixingDate < Leg2Result["PrevPayDate"][-1]                
-        ExerciseValueLeg1 = ExerciseValueLeg2 = 0
-        if Leg1ZeroCouponFlag == True : 
-            TMAT = DayCountAtoB(PriceDate, Leg1Result["PayDate_Simul"][-1])/365                        
-            x = Leg1Xt_Opt[i]
-            B_s_t = B_s_to_t(t1, TMAT, kappa)
-            QVT = HWQVTerm(t1, TMAT, kappa, HWVolTerm, HWVol)
-            df1 = Leg1Optdf_tfix[i]
-            df2 = Calc_Discount_Factor(ZeroTerm, ZeroRate, TMAT)
-            df_t_T = (df2/df1)
-            A_t_T = HullWhite_A_t_T_1F(df_t_T, t1, TMAT, kappa, HWVolTerm, HWVol) 
-            B_t_T = B_s_to_t(t1, TMAT, kappa)
-            df_t_T_HW = HullWhite1F_DiscFactor_t_T(B_t_T, x, A_t_T)
-            df_to_maturity = df1 * df_t_T_HW
-            if Leg1PrevFixFlag == True : 
-                if PrevCashAdjustFlag == 1 : 
-                    PrevCash = Leg1Result["PrevCummulativeCpn"][-1] 
-                    Leg1ValueOnOptDate = (Leg1Result["Payoff_Simul"][-1] - PrevCash)* df_to_maturity
-                    ExerciseValueLeg1 = (Leg1Result["Payoff_Prev"][-1] - PrevCash ) * Leg1Optdf_tfix[i] * Leg1OptHWDF_tfix_tpay[i]
-                else : 
-                    Leg1ValueOnOptDate = Leg1Result["Payoff_Simul"][-1]* df_to_maturity
-                    ExerciseValueLeg1 = (Leg1Result["Payoff_Prev"][-1]) * Leg1Optdf_tfix[i] * Leg1OptHWDF_tfix_tpay[i]                    
-            elif IdxFixLeg1.sum() == len(IdxFixLeg1) : 
-                if PrevCashAdjustFlag == 1 : 
-                    PrevCash = AccumCashFlow[IdxFixLeg1][0]
-                    Leg1ValueOnOptDate = (Leg1Result["Payoff_Simul"][-1] - PrevCash)* df_to_maturity
-                    ExerciseValueLeg1 = (Leg1Result["Payoff_Simul"][0] - Leg1Result["Payoff_Prev"][-1]) * Leg1Optdf_tfix[i] * Leg1OptHWDF_tfix_tpay[i]             
-                else : 
-                    Leg1ValueOnOptDate = Leg1Result["Payoff_Simul"][-1]* df_to_maturity
-                    ExerciseValueLeg1 = (Leg1Result["Payoff_Simul"][0]) * Leg1Optdf_tfix[i] * Leg1OptHWDF_tfix_tpay[i]                
-            else :             
-                if PrevCashAdjustFlag == 1 : 
-                    PrevCash = AccumCashFlow[IdxFixLeg1][0]
-                    Leg1ValueOnOptDate = (Leg1Result["Payoff_Simul"][-1] - PrevCash)* df_to_maturity
-                    ExerciseValueLeg1 = (Leg1Result["Payoff_Simul"][IdxFixLeg1 == True][0] - Leg1Result["Payoff_Simul"][IdxFixLeg1 == False][-1])* Leg1Optdf_tfix[i] * Leg1OptHWDF_tfix_tpay[i]  
-                else : 
-                    Leg1ValueOnOptDate = Leg1Result["Payoff_Simul"][-1]* df_to_maturity
-                    ExerciseValueLeg1 = (Leg1Result["Payoff_Simul"][IdxFixLeg1 == True][0])* Leg1Optdf_tfix[i] * Leg1OptHWDF_tfix_tpay[i]  
-        else : 
-            if Leg1PrevFixFlag == True : 
-                Leg1ValueOnOptDate = NPV_Leg1
-                ExerciseValueLeg1 = NPV_Leg1_Simul[PayDate >= Leg1Result["PayDate_Simul"]].sum(0) + Leg1_PreFix
-            else : 
-                Leg1ValueOnOptDate = Leg1DiscountCashFlow[Leg1PayoffDate > FixingDate].sum(0)
-                ExerciseValueLeg1 = Leg1DiscountCashFlow[(Leg1PayoffDate <= PayDate) & (FixingDate < Leg1PayoffDate)].sum(0)
-                
-        if Leg2ZeroCouponFlag == True : 
-            TMAT = DayCountAtoB(PriceDate, Leg2Result["PayDate_Simul"][-1])/365                        
-            x = Leg2Xt_Opt[i]
-            B_s_t = B_s_to_t(t1, TMAT, kappa)
-            QVT = HWQVTerm(t1, TMAT, kappa, HWVolTerm, HWVol)
-            df1 = Leg2Optdf_tfix[i]
-            df2 = Calc_Discount_Factor(ZeroTerm, ZeroRate, TMAT)
-            df_t_T = (df2/df1)
-            A_t_T = HullWhite_A_t_T_1F(df_t_T, t1, TMAT, kappa, HWVolTerm, HWVol) 
-            B_t_T = B_s_to_t(t1, TMAT, kappa)
-            df_t_T_HW = HullWhite1F_DiscFactor_t_T(B_t_T, x, A_t_T)
-            df_to_maturity = df1 * df_t_T_HW
-            if Leg2PrevFixFlag == True : 
-                if PrevCashAdjustFlag == 1 : 
-                    PrevCash = Leg2Result["PrevCummulativeCpn"][-1] 
-                    Leg2ValueOnOptDate = (Leg2Result["Payoff_Simul"][-1] - PrevCash)* df_to_maturity
-                    ExerciseValueLeg2 = (Leg2Result["Payoff_Prev"][-1] - PrevCash ) * Leg2Optdf_tfix[i] * Leg2OptHWDF_tfix_tpay[i]
-                else : 
-                    Leg2ValueOnOptDate = Leg2Result["Payoff_Simul"][-1]* df_to_maturity
-                    ExerciseValueLeg2 = (Leg2Result["Payoff_Prev"][-1]) * Leg2Optdf_tfix[i] * Leg2OptHWDF_tfix_tpay[i]                    
-            elif IdxFixLeg2.sum() == len(IdxFixLeg2) : 
-                if PrevCashAdjustFlag == 1 : 
-                    PrevCash = AccumCashFlow[IdxFixLeg2][0]
-                    Leg2ValueOnOptDate = (Leg2Result["Payoff_Simul"][-1] - PrevCash)* df_to_maturity
-                    ExerciseValueLeg2 = (Leg2Result["Payoff_Simul"][0] - Leg2Result["Payoff_Prev"][-1]) * Leg2Optdf_tfix[i] * Leg2OptHWDF_tfix_tpay[i]             
-                else : 
-                    Leg2ValueOnOptDate = Leg2Result["Payoff_Simul"][-1]* df_to_maturity
-                    ExerciseValueLeg2 = (Leg2Result["Payoff_Simul"][0]) * Leg2Optdf_tfix[i] * Leg2OptHWDF_tfix_tpay[i]                
-            else :             
-                if PrevCashAdjustFlag == 1 : 
-                    PrevCash = AccumCashFlow[IdxFixLeg2][0]
-                    Leg2ValueOnOptDate = (Leg2Result["Payoff_Simul"][-1] - PrevCash)* df_to_maturity
-                    ExerciseValueLeg2 = (Leg2Result["Payoff_Simul"][IdxFixLeg2 == True][0] - Leg2Result["Payoff_Simul"][IdxFixLeg2 == False][-1])* Leg2Optdf_tfix[i] * Leg2OptHWDF_tfix_tpay[i]  
-                else : 
-                    Leg2ValueOnOptDate = Leg2Result["Payoff_Simul"][-1]* df_to_maturity
-                    ExerciseValueLeg2 = (Leg2Result["Payoff_Simul"][IdxFixLeg2 == True][0])* Leg2Optdf_tfix[i] * Leg2OptHWDF_tfix_tpay[i]  
-        else : 
-            if Leg2PrevFixFlag == True : 
-                Leg2ValueOnOptDate = NPV_Leg2
-                ExerciseValueLeg2 = NPV_Leg2_Simul[PayDate >= Leg2Result["PayDate_Simul"]].sum(0) + Leg2_PreFix
-            else : 
-                Leg2ValueOnOptDate = Leg2DiscountCashFlow[Leg2PayoffDate > FixingDate].sum(0)
-                ExerciseValueLeg2 = Leg2DiscountCashFlow[(Leg2PayoffDate <= PayDate) & (FixingDate < Leg2PayoffDate)].sum(0)
-        print(i, PrevCash)
-        Leg1ValueOptResult[i] = Leg1ValueOnOptDate
-        Leg2ValueOptResult[i] = Leg2ValueOnOptDate
-        ExerciseLeg1[i] = ExerciseValueLeg1
-        ExerciseLeg2[i] = ExerciseValueLeg2        
-        ValueOnOptDate = Leg1ValueOnOptDate - Leg2ValueOnOptDate
-        ExerciseValueLeg = (ExerciseValueLeg1 - ExerciseValueLeg2)
-        OptionValue = (ValueOnOptDate < 0) * (0-ValueOnOptDate) if OptionHolder == 0 else (ValueOnOptDate > 0) * (-ValueOnOptDate + 0)
-        if (SimulationDateList == FixingDate).sum(0) == 0 :             
-            X_t = Leg1Xt_Opt[i]
-            x = np.c_[np.ones(NSimul), X_t, X_t*X_t]
-            beta = np.linalg.inv(x.T.dot(x)).dot(x.T.dot(OptionValue))
-            EstOptValue = np.maximum(x.dot(beta), 0) if OptionHolder == 0 else np.minimum(x.dot(beta), 0)            
-            
-            Xt = X_t[(ValueOnOptDate < 0) if OptionHolder == 0 else (ValueOnOptDate > 0)]
-            x2 = np.c_[np.ones(len(Xt)), Xt, Xt*Xt]
-            beta2 = np.linalg.inv(x2.T.dot(x2)).dot(x2.T.dot(OptionValue[(ValueOnOptDate < 0) if OptionHolder == 0 else (ValueOnOptDate > 0)]))
-            EstOptValue2 = np.maximum(x.dot(beta2), 0) if OptionHolder == 0 else np.minimum(x.dot(beta2), 0)            
-            
-        else : 
-            #X_t = SimulatedXt[SimulationDateList == FixingDate][0]
-            X_t = Leg1Xt_Opt[i]            
-            x = np.c_[np.ones(NSimul), X_t, X_t*X_t]
-            beta = np.linalg.inv(x.T.dot(x)).dot(x.T.dot(OptionValue))
-            EstOptValue = np.maximum(x.dot(beta), 0) if OptionHolder == 0 else np.minimum(x.dot(beta), 0)
-
-            Xt = X_t[(ValueOnOptDate < 0) if OptionHolder == 0 else (ValueOnOptDate > 0)]
-            x2 = np.c_[np.ones(len(Xt)), Xt, Xt*Xt]
-            beta2 = np.linalg.inv(x2.T.dot(x2)).dot(x2.T.dot(OptionValue[(ValueOnOptDate < 0) if OptionHolder == 0 else (ValueOnOptDate > 0)]))
-            EstOptValue2 = np.maximum(x.dot(beta2), 0) if OptionHolder == 0 else np.minimum(x.dot(beta2), 0)            
-
-        #EstOptValue = np.maximum(EstOptValue, ExerciseValueLeg) if OptionHolder == 0 else np.minimum(EstOptValue, ExerciseValueLeg)
-        OptionPath[i] = (ValueOnOptDate < EstOptValue) * (0-ValueOnOptDate) if OptionHolder == 0 else (ValueOnOptDate > EstOptValue) * (ValueOnOptDate - 0)
-        #PVOptionValue = np.abs(OptionValue) 
-        #OptionPath[i] = (ExerciseValueLeg - ValueOnOptDate) * (OptionValue > EstOptValue) if OptionHolder == 0 else (-ExerciseValueLeg + ValueOnOptDate) * (OptionValue < EstOptValue)
-        OptionExerciseFlag = np.maximum(OptionPath[i] != 0, OptionExerciseFlag)
-        #OptionExerciseDate += (OptionExerciseDate == 0) * (PVOptionValue>0) * OptionPayDate[i]
-    TempOptionV = (OptionPath * ((OptionPath !=0).cumsum(0).cumsum(0) == 1)).sum(0)
-    TempOptionV.mean()
-
-    '''
-    for i in range(len(OptionFixDate)) : 
-        #i = 0
-        #i = 1
-        #i = 2
-        #i = 3
-
-        FixingDate = OptionFixDate[i]
-        PayDate = OptionPayDate[i]
-        if Leg1ZeroCouponFlag == True : 
-            Idx = (Leg1Result["FixingDate_Simul"] < FixingDate) & (Leg1Result["PayDate_Simul"] >= FixingDate) 
-            if Idx.max() == False : 
-                FixingDate = Leg1Result["PrevFixDate"][-1]
-                PayDate = Leg1Result["PrevPayDate"][-1]
-            else : 
-                FixingDate = Leg1Result["FixingDate_Simul"][Idx][-1]
-                PayDate = Leg1Result["PayDate_Simul"][Idx][-1]
-        elif Leg2ZeroCouponFlag == True : 
-            Idx = (Leg2Result["FixingDate_Simul"] < FixingDate) & (Leg2Result["PayDate_Simul"] >= FixingDate) 
-            if Idx.max() == False : 
-                FixingDate = Leg2Result["PrevFixDate"][-1]
-                PayDate = Leg2Result["PrevPayDate"][-1]
-            else : 
-                FixingDate = Leg2Result["FixingDate_Simul"][Idx][-1]
-                PayDate = Leg2Result["PayDate_Simul"][Idx][-1]
-        IdxFixLeg1 = Leg1Result["PayDate_Simul"] > FixingDate
-        IdxFixLeg2 = Leg2Result["PayDate_Simul"] > FixingDate
-                        
-        Leg1PrevFixFlag = FixingDate < Leg1Result["PrevPayDate"][-1]
-        Leg2PrevFixFlag = FixingDate < Leg2Result["PrevPayDate"][-1]                
-        ExerciseValueLeg1 = ExerciseValueLeg2 = 0
-        if Leg1ZeroCouponFlag == True : 
-            if Leg1PrevFixFlag == True : 
-                if PrevCashAdjustFlag == 1 : 
-                    PrevCash = Leg1Result["PrevCummulativeCpn"][-1] 
-                    Leg1ValueOnOptDate = NPV_Leg1 - PrevCash* Leg1SimulDF[-1]
-                    ExerciseValueLeg1 = (Leg1Result["Payoff_Prev"][-1] - PrevCash ) * Leg1Result["PrevDF"][-1]
-                else : 
-                    Leg1ValueOnOptDate = NPV_Leg1
-                    ExerciseValueLeg1 = (Leg1Result["Payoff_Prev"][-1]) * Leg1Result["PrevDF"][-1]                    
-            elif IdxFixLeg1.sum() == len(IdxFixLeg1) : 
-                if PrevCashAdjustFlag == 1 : 
-                    PrevCash = AccumCashFlow[IdxFixLeg1][0]
-                    Leg1ValueOnOptDate = NPV_Leg1_Simul[-1]- PrevCash* Leg1SimulDF[-1]
-                    ExerciseValueLeg1 = (Leg1Result["Payoff_Simul"][0] - Leg1Result["Payoff_Prev"][-1]) * Leg1SimulDF[0]                
-                else : 
-                    Leg1ValueOnOptDate = NPV_Leg1_Simul[-1]
-                    ExerciseValueLeg1 = (Leg1Result["Payoff_Simul"][0]) * Leg1SimulDF[0]                
-            else :             
-                if PrevCashAdjustFlag == 1 : 
-                    PrevCash = AccumCashFlow[IdxFixLeg1][0]
-                    Leg1ValueOnOptDate = NPV_Leg1_Simul[-1]- PrevCash* Leg1SimulDF[-1]
-                    ExerciseValueLeg1 = (Leg1Result["Payoff_Simul"][IdxFixLeg1 == True][0] - Leg1Result["Payoff_Simul"][IdxFixLeg1 == False][-1])* Leg1SimulDF[IdxFixLeg1 == True][0]
-                else : 
-                    Leg1ValueOnOptDate = NPV_Leg1_Simul[-1]
-                    ExerciseValueLeg1 = (Leg1Result["Payoff_Simul"][IdxFixLeg1 == True][0])* Leg1SimulDF[IdxFixLeg1 == True][0]                    
-        else : 
-            if Leg1PrevFixFlag == True : 
-                Leg1ValueOnOptDate = NPV_Leg1_Simul.sum(0) + Leg1_PreFix
-                ExerciseValueLeg1 = NPV_Leg1_Simul[PayDate >= Leg1Result["PayDate_Simul"]].sum(0) + Leg1_PreFix
-            else : 
-                Leg1ValueOnOptDate = NPV_Leg1_Simul[FixingDate < Leg1Result["PayDate_Simul"]].sum(0)
-                ExerciseValueLeg1 = NPV_Leg1_Simul[(PayDate >= Leg1Result["PayDate_Simul"]) & (FixingDate < Leg1Result["PayDate_Simul"])].sum(0)            
-                
-        if Leg2ZeroCouponFlag == True : 
-            if Leg2PrevFixFlag == True : 
-                if PrevCashAdjustFlag == 1 : 
-                    PrevCash = Leg2Result["PrevCummulativeCpn"][-1]
-                    Leg2ValueOnOptDate = NPV_Leg2 - PrevCash* Leg2SimulDF[-1]
-                    ExerciseValueLeg2 = (Leg2Result["Payoff_Prev"][-1] - PrevCash ) * Leg2Result["PrevDF"][-1]
-                else : 
-                    Leg2ValueOnOptDate = NPV_Leg2
-                    ExerciseValueLeg2 = (Leg2Result["Payoff_Prev"][-1]) * Leg2Result["PrevDF"][-1]                    
-            elif IdxFixLeg2.sum() == len(IdxFixLeg2) : 
-                if PrevCashAdjustFlag == 1 : 
-                    PrevCash = AccumCashFlow[IdxFixLeg2][0]
-                    Leg2ValueOnOptDate = NPV_Leg2_Simul[-1]- PrevCash* Leg2SimulDF[-1]
-                    ExerciseValueLeg2 = (Leg2Result["Payoff_Simul"][0] - Leg2Result["Payoff_Prev"][-1]) * Leg2SimulDF[0]                
-                else : 
-                    Leg2ValueOnOptDate = NPV_Leg2_Simul[-1]
-                    ExerciseValueLeg2 = (Leg2Result["Payoff_Simul"][0]) * Leg2SimulDF[0]                
-            else :             
-                if PrevCashAdjustFlag == 1 : 
-                    PrevCash = AccumCashFlow[IdxFixLeg2][0]
-                    Leg2ValueOnOptDate = NPV_Leg2_Simul[-1]- PrevCash* Leg2SimulDF[-1]
-                    ExerciseValueLeg2 = (Leg2Result["Payoff_Simul"][IdxFixLeg2 == True][0] - Leg2Result["Payoff_Simul"][IdxFixLeg2 == False][-1])* Leg2SimulDF[IdxFixLeg2 == True][0]
-                else : 
-                    Leg2ValueOnOptDate = NPV_Leg2_Simul[-1]
-                    ExerciseValueLeg2 = (Leg2Result["Payoff_Simul"][IdxFixLeg2 == True][0])* Leg2SimulDF[IdxFixLeg2 == True][0]                    
-        else : 
-            if Leg2PrevFixFlag == True : 
-                Leg2ValueOnOptDate = NPV_Leg2_Simul.sum(0) + Leg2_PreFix
-                ExerciseValueLeg2 = NPV_Leg2_Simul[PayDate >= Leg2Result["PayDate_Simul"]].sum(0) + Leg2_PreFix
-            else : 
-                Leg2ValueOnOptDate = NPV_Leg2_Simul[FixingDate < Leg2Result["PayDate_Simul"]].sum(0)
-                ExerciseValueLeg2 = NPV_Leg2_Simul[(PayDate >= Leg2Result["PayDate_Simul"]) & (FixingDate < Leg2Result["PayDate_Simul"])].sum(0)            
-                
-        Leg1ValueOptResult[i] = Leg1ValueOnOptDate
-        Leg2ValueOptResult[i] = Leg2ValueOnOptDate
-        ExerciseLeg1[i] = ExerciseValueLeg1
-        ExerciseLeg2[i] = ExerciseValueLeg2        
-        ValueOnOptDate = Leg1ValueOnOptDate - Leg2ValueOnOptDate
-        ExerciseValueLeg = (ExerciseValueLeg1 - ExerciseValueLeg2)
-        OptionValue = (ValueOnOptDate < ExerciseValueLeg) * (ExerciseValueLeg-ValueOnOptDate) if OptionHolder == 0 else (ValueOnOptDate > ExerciseValueLeg) * (-ValueOnOptDate + ExerciseValueLeg)
-        if (SimulationDateList == FixingDate).sum(0) == 0 : 
-            X_t = SimulatedXt[0] 
-            x = np.c_[np.ones(NSimul), X_t, X_t*X_t]
-            beta = np.linalg.inv(x.T.dot(x)).dot(x.T.dot(OptionValue))
-            EstOptValue = np.maximum(x.dot(beta), 0) if OptionHolder == 0 else np.minimum(x.dot(beta), 0)
-        else : 
-            X_t = SimulatedXt[SimulationDateList == FixingDate][0]
-            x = np.c_[np.ones(NSimul), X_t, X_t*X_t]
-            beta = np.linalg.inv(x.T.dot(x)).dot(x.T.dot(OptionValue))
-            EstOptValue = np.maximum(x.dot(beta), 0) if OptionHolder == 0 else np.minimum(x.dot(beta), 0)
-
-        OptionPath[i] = (ValueOnOptDate < 0) * (0-ValueOnOptDate) if OptionHolder == 0 else (ValueOnOptDate > 0) * (ValueOnOptDate - 0)
-        #PVOptionValue = np.abs(OptionValue) 
-        #OptionPath[i] = (ExerciseValueLeg - ValueOnOptDate) * (OptionValue > EstOptValue) if OptionHolder == 0 else (-ExerciseValueLeg + ValueOnOptDate) * (OptionValue < EstOptValue)
-        OptionExerciseFlag = np.maximum(OptionPath[i]>0, OptionExerciseFlag)
-        #OptionExerciseDate += (OptionExerciseDate == 0) * (PVOptionValue>0) * OptionPayDate[i]
-    '''    
-    OptionPricePath = (((OptionPath != 0).cumsum(0).cumsum(0) == 1) * OptionPath).sum(0)
-    OptionExerciseyesno = (OptionPath > 0).max(0) 
-    ReshapedOptionPayDate = np.array(OptionPayDate).reshape(-1,1)
-    #OptionExerciseDate = (ReshapedOptionPayDate * (OptionPath > 0) + (OptionPath <= 0) * MaxDate).min(0).reshape(1,-1)
-    OptionExerciseDate =np.array(OptionPayDate)[OptionPath.argmax(0)] * OptionExerciseyesno + (OptionExerciseyesno == False) * MaxDate
-
-    values, counts = np.unique(OptionExerciseDate, return_counts = True)
-    OptionProb = pd.Series(counts, values)/NSimul
-
-    if Leg1ZeroCouponFlag == False : 
-        OptionExerciseBefore = (Leg1PayoffDate.reshape(-1,1) <= OptionExerciseDate)
-        NPV_Leg1_OptAdj = (OptionExerciseBefore * Leg1DiscountCashFlow).sum(0)        
-    else : 
-        OptionExerciseBefore = (Leg1PayoffDate.reshape(-1,1) <= OptionExerciseDate)
-        NPV_Leg1_OptAdj = (Leg1DiscountCashFlowZeroAdjust * ((OptionExerciseBefore.sum(0) == OptionExerciseBefore.cumsum(0)) * OptionExerciseBefore)).max(0)        
-
-    if Leg2ZeroCouponFlag == False : 
-        OptionExerciseBefore = (Leg2PayoffDate.reshape(-1,1) <= OptionExerciseDate)
-        NPV_Leg2_OptAdj = (OptionExerciseBefore * Leg2DiscountCashFlow).sum(0)        
-    else : 
-        OptionExerciseBefore = (Leg2PayoffDate.reshape(-1,1) <= OptionExerciseDate)
-        NPV_Leg2_OptAdj = (Leg2DiscountCashFlowZeroAdjust * ((OptionExerciseBefore.sum(0) == OptionExerciseBefore.cumsum(0)) * OptionExerciseBefore)).max(0)        
-
-    NPV_OptAdj = NPV_Leg1_OptAdj - NPV_Leg2_OptAdj
-    Price_Leg1_OptAdj = NPV_Leg1_OptAdj.mean()
-    Price_Leg2_OptAdj = NPV_Leg2_OptAdj.mean()
-    Price_OptAdj = NPV_OptAdj.mean()   
-    (Leg1DiscountCashFlowZeroAdjust[-1] - Leg2DiscountCashFlowZeroAdjust.sum(0)).mean()
-    OptionPrice = Price_OptAdj 
-    
-Leg1_ForwardMeasureCpn_Simul = (Leg1Result["Payoff_ForwardMeasure"]* Leg1DF_ForwardMsr)
-Leg2_ForwardMeasureCpn_Simul = (Leg2Result["Payoff_ForwardMeasure"]* Leg2DF_ForwardMsr)
-NPV_Leg1_ForwardMeasureCpn = (Leg1_ForwardMeasureCpn_Simul.sum(0) if Leg1ZeroCouponFlag == False else Leg1_ForwardMeasureCpn_Simul[-1]) + Leg1_PreFix
-NPV_Leg2_ForwardMeasureCpn = (Leg2_ForwardMeasureCpn_Simul.sum(0) if Leg2ZeroCouponFlag == False else Leg2_ForwardMeasureCpn_Simul[-1]) + Leg2_PreFix
-Final_NPV_Leg1 = NPV_Leg1_ForwardMeasureCpn.mean()
-Final_NPV_Leg2 = NPV_Leg2_ForwardMeasureCpn.mean()
-Final_NPV = Final_NPV_Leg1 - Final_NPV_Leg2 + (OptionPath.max(0).mean() if OptionHolder == 0 else -OptionPath.max(0).mean())
-    
 # %%
 # %%
-NSimul = 10000
-Nominal = 20000
-SwapEffectiveDate = 20160929
-PriceDate = 20250304#20250304
-NumCpnOneYear_Leg2_Phase1 = 4
-NumCpnOneYear_Leg2_Phase2 = 4
-Leg2_Phase2StartDate = 20280929
-Leg2_Phase2UseFlag = 1
-Leg2_RefSwapRate_Multiple_Phase1 = 1.0
-Leg2_FixedCpnRate_Phase1 = -0.0012
-Leg2_RefSwapRate_Multiple_Phase2 = 1.0
-Leg2_FixedCpnRate_Phase2 = -0.0012
-Leg2_DayCount = 0
-NumCpnOneYear_Leg1_Phase1 = 0
-NumCpnOneYear_Leg1_Phase2 = 0
-Leg1_Phase2StartDate = 20280929
-Leg1_Phase2UseFlag = 1
-Leg1_RefSwapRate_Multiple_Phase1 = 0.0
-Leg1_FixedCpnRate_Phase1 = 0.0237
-Leg1_RefSwapRate_Multiple_Phase2 = 0.0
-Leg1_FixedCpnRate_Phase2 = 0.0237
-Leg1_DayCount = 3
-
-SwapMaturity = 20460929
-FixHolidays = KoreaHolidaysFromStartToEnd(2020, 2070)
-PayHolidays = FixHolidays
-OptionFixDate = [20190902,20200903,20210831,20220901,20230904,20240830,20250903,20260901,20270831,20280905,20290903,20300830,20310903,20320901,20330831,20340831,20350903,20360903,20370903,20380903,20390905,20400905,20410904,20420903,20430904,20440905,20450905]
-OptionPayDate = [20190930,20200929,20210929,20220929,20231004,20240930,20250929,20260929,20270929,20280929,20291001,20300930,20310929,20320929,20330929,20340929,20351001,20360929,20370929,20380929,20390929,20401001,20410930,20421001,20430929,20440929,20450929]
-OptionHolder = 1
-Leg1_RefSwapMaturity_T = 0.25
-Leg1_RefSwapNCPNOneYear = 4
-Leg2_RefSwapMaturity_T = 0.25
-Leg2_RefSwapNCPNOneYear = 4
-ZeroTerm = [0.00274, 0.00548, 0.25479, 0.506849, 0.756164, 1.00274, 1.512329, 2.00274, 3.00822, 4.00548, 5.00548, 6.00548, 7.008219, 8.013699, 9.010959, 10.00822, 12.01096, 15.0137, 20.01918, 25.02466, 30.02192]
-ZeroRate = [0.027989, 0.027992, 0.028394, 0.027554, 0.026807, 0.02633, 0.025806, 0.025455, 0.025154, 0.025235, 0.025264, 0.025397, 0.025531, 0.025638, 0.025719, 0.025856, 0.026049, 0.025598, 0.024243, 0.022474, 0.021085]
-kappa = -0.0133
-HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52]
-#HWVol = np.ones(len(HWVolTerm)) * 0.00001#
-HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368]
-FixingHistoryDate = [DayPlus(20240102, i) for i in range(365)]
-FixingHistoryRate = [0.0344]*len(FixingHistoryDate)
-
-MaxDate = 99991231
-IdxOpt = np.array(OptionFixDate) > PriceDate
-OptionFixDate = list(np.array(OptionFixDate)[IdxOpt])
-OptionPayDate = list(np.array(OptionPayDate)[IdxOpt])
-Leg1CompoundCouponFlag = False
-Leg2CompoundCouponFlag = False
-if Leg1_DayCount > 5 : 
-    Leg1_DayCount = Leg1_DayCount % 5
-    Leg1CompoundCouponFlag = True
-
-if Leg2_DayCount > 5 : 
-    Leg2_DayCount = Leg2_DayCount % 5
-    Leg2CompoundCouponFlag = True
-
-Leg1ZeroCouponFlag = (NumCpnOneYear_Leg1_Phase1 == 0) or (NumCpnOneYear_Leg1_Phase2 == 0)
-Leg2ZeroCouponFlag = (NumCpnOneYear_Leg2_Phase1 == 0) or (NumCpnOneYear_Leg2_Phase2 == 0)
-if Leg1ZeroCouponFlag == True : 
-    NumCpnOneYear_Leg1_Phase1 = max(1, NumCpnOneYear_Leg1_Phase2)    
-    NumCpnOneYear_Leg1_Phase2 = max(1, NumCpnOneYear_Leg1_Phase2)    
-
-if Leg2ZeroCouponFlag == True : 
-    NumCpnOneYear_Leg2_Phase1 = max(1, NumCpnOneYear_Leg2_Phase2)    
-    NumCpnOneYear_Leg2_Phase2 = max(1, NumCpnOneYear_Leg2_Phase2)    
-
-if Leg1_Phase2UseFlag > 0 : 
-    Leg1ForwardStart1,Leg1ForwardEnd1, Leg1PayDate1, Leg1ResultNBD1 = MappingCouponDates(1, SwapEffectiveDate, Leg1_Phase2StartDate, 0 if SwapEffectiveDate % 100 == Leg1_Phase2StartDate % 100 else -1, NumCpnOneYear_Leg1_Phase1, True, FixHolidays, PayHolidays, 1) 
-    Leg1ForwardStart2,Leg1ForwardEnd2, Leg1PayDate2, Leg1ResultNBD2 = MappingCouponDates(1, Leg1ForwardEnd1[-1], SwapMaturity, 0 if Leg1ForwardEnd1[-1] % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg1_Phase1, True, FixHolidays, PayHolidays, 1) 
-    Leg1ForwardStart = list(Leg1ForwardStart1) + list(Leg1ForwardStart2)
-    Leg1ForwardEnd = list(Leg1ForwardEnd1) + list(Leg1ForwardEnd2)
-    Leg1PayDate = list(Leg1PayDate1) + list(Leg1PayDate2)
-    Leg1ResultNBD = Leg1ResultNBD1
-else : 
-    Leg1ForwardStart,Leg1ForwardEnd, Leg1PayDate, Leg1ResultNBD = MappingCouponDates(1, SwapEffectiveDate, SwapMaturity, 0 if SwapEffectiveDate % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg1_Phase1, True, FixHolidays, PayHolidays, 1) 
-
-if Leg2_Phase2UseFlag > 0 : 
-    Leg2ForwardStart1,Leg2ForwardEnd1, Leg2PayDate1, Leg2ResultNBD1 = MappingCouponDates(1, SwapEffectiveDate, Leg2_Phase2StartDate, 0 if SwapEffectiveDate % 100 == Leg2_Phase2StartDate % 100 else -1, NumCpnOneYear_Leg2_Phase1, True, FixHolidays, PayHolidays, 1) 
-    Leg2ForwardStart2,Leg2ForwardEnd2, Leg2PayDate2, Leg2ResultNBD2 = MappingCouponDates(1, Leg2ForwardEnd1[-1], SwapMaturity, 0 if Leg2ForwardEnd1[-1] % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg2_Phase1, True, FixHolidays, PayHolidays, 1) 
-    Leg2ForwardStart = list(Leg2ForwardStart1) + list(Leg2ForwardStart2)
-    Leg2ForwardEnd = list(Leg2ForwardEnd1) + list(Leg2ForwardEnd2)
-    Leg2PayDate = list(Leg2PayDate1) + list(Leg2PayDate2)
-    Leg2ResultNBD = Leg2ResultNBD1
-else : 
-    Leg2ForwardStart,Leg2ForwardEnd, Leg2PayDate, Leg2ResultNBD = MappingCouponDates(1, SwapEffectiveDate, SwapMaturity, 0 if SwapEffectiveDate % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg2_Phase1, True, FixHolidays, PayHolidays, 1) 
-
-TotalDateList = np.sort(np.array(pd.Series([PriceDate] + Leg1ForwardStart + Leg1ForwardEnd + Leg1PayDate + Leg2ForwardStart + Leg2ForwardEnd + Leg2PayDate + OptionFixDate + OptionPayDate).unique()))    
-SimulationDateList = TotalDateList[TotalDateList > PriceDate]
-SimulatedXt = SimulateShortRateMC(NSimul, SimulationDateList, PriceDate, kappa, HWVolTerm, HWVol)
-Leg1SwapRate, Leg1SwapRateForwardMeasure, Leg1ConvAdj = SimulateParRateMC(PriceDate, SimulatedXt, SimulationDateList, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate)
-Leg2SwapRate, Leg2SwapRateForwardMeasure, Leg2ConvAdj = SimulateParRateMC(PriceDate, SimulatedXt, SimulationDateList, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate)
-DataF = pd.DataFrame(Leg1SwapRate, index = SimulationDateList).mean(1)
-
-Leg1SimulatedRefRate, Leg1SimulatedRefRate2, Leg1SimulatedDF_FixToPay, Leg1DF_to_Fixing, Leg1RefRateForwardMsr, Leg1RefRateForwardMsr2, Leg1DF_ForwardMsr, Xt_Leg1, Leg1Xt_Opt, Leg1Optdf_tfix, Leg1OptHWDF_tfix_tpay = Calc_RefRateOnFixingDate_And_ForwardDisc_FixingToPay(PriceDate, Leg1ForwardStart, Leg1ForwardEnd, Leg1PayDate, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate, SimulationDateList, OptionFixDate, OptionPayDate, Leg1SwapRate, SimulatedXt, Leg1SwapRateForwardMeasure, Leg1ConvAdj)
-Leg1Result = Calc_Payoff_Sim_and_NotSim(PriceDate, SwapEffectiveDate, Leg1SimulatedRefRate, Nominal, Leg1_Phase2StartDate, Leg1ForwardStart, Leg1ForwardEnd, Leg1PayDate, Leg1_DayCount,Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapRate_Multiple_Phase2, Leg1_FixedCpnRate_Phase1, Leg1_FixedCpnRate_Phase2, FixingHistoryDate, FixingHistoryRate, Leg1ZeroCouponFlag, Leg1CompoundCouponFlag, Leg1RefRateForwardMsr)
-
-Leg1SimulDF = Leg1DF_to_Fixing.reshape(-1,1) * Leg1SimulatedDF_FixToPay
-NPV_Leg1_Simul = Leg1Result["Payoff_Simul"] * Leg1SimulDF
-NPV_Leg1_BeforeSimul = Leg1Result["PrevDF"][-1] * Leg1Result["Payoff_Prev"][-1]  
-Leg1_PreFix = (NPV_Leg1_BeforeSimul[-1] if Leg1ZeroCouponFlag == False else 0)
-if Leg1Result["PrevPayDate"][-1] :     
-    Leg1PayoffDate = np.array([Leg1Result["PrevPayDate"][-1]] + list(Leg1Result["PayDate_Simul"]))
-    Leg1Payoff = np.r_[Leg1Result["Payoff_Prev"][-1] * np.ones((1,NSimul)), Leg1Result["Payoff_Simul"]]
-    Leg1DiscountFactor = np.r_[Leg1Result["PrevDF"][-1] * np.ones((1,NSimul)), Leg1SimulDF]
-else : 
-    Leg1PayoffDate = np.array(list(Leg1Result["PayDate_Simul"]))
-    Leg1Payoff = NPV_Leg1_Simul
-    Leg1DiscountFactor = Leg1SimulDF
-Leg1DiscountCashFlow = Leg1Payoff * Leg1DiscountFactor   
-
-Leg2SimulatedRefRate, Leg2SimulatedRefRate2, Leg2SimulatedDF_FixToPay, Leg2DF_to_Fixing, Leg2RefRateForwardMsr, Leg2RefRateForwardMsr2, Leg2DF_ForwardMsr, Xt_Leg2, Leg2Xt_Opt, Leg2Optdf_tfix, Leg2OptHWDF_tfix_tpay = Calc_RefRateOnFixingDate_And_ForwardDisc_FixingToPay(PriceDate, Leg2ForwardStart, Leg2ForwardEnd, Leg2PayDate, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate, SimulationDateList, OptionFixDate, OptionPayDate, Leg2SwapRate, SimulatedXt, Leg2SwapRateForwardMeasure, Leg2ConvAdj)
-Leg2Result = Calc_Payoff_Sim_and_NotSim(PriceDate, SwapEffectiveDate, Leg2SimulatedRefRate, Nominal, Leg2_Phase2StartDate, Leg2ForwardStart, Leg2ForwardEnd, Leg2PayDate, Leg2_DayCount,Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapRate_Multiple_Phase2, Leg2_FixedCpnRate_Phase1, Leg2_FixedCpnRate_Phase2, FixingHistoryDate, FixingHistoryRate, Leg2ZeroCouponFlag, Leg2CompoundCouponFlag, Leg2RefRateForwardMsr)
-Leg2SimulDF = Leg2DF_to_Fixing.reshape(-1,1) * Leg2SimulatedDF_FixToPay
-NPV_Leg2_Simul = Leg2Result["Payoff_Simul"] * Leg2SimulDF
-NPV_Leg2_BeforeSimul = Leg2Result["PrevDF"][-1] * Leg2Result["Payoff_Prev"][-1]
-Leg2_PreFix = (NPV_Leg2_BeforeSimul[-1] if Leg2ZeroCouponFlag == False else 0)
-if Leg2Result["PrevPayDate"][-1] :     
-    Leg2PayoffDate = np.array([Leg2Result["PrevPayDate"][-1]] + list(Leg2Result["PayDate_Simul"]))
-    Leg2Payoff = np.r_[Leg2Result["Payoff_Prev"][-1] * np.ones((1,NSimul)), Leg2Result["Payoff_Simul"]]
-    Leg2DiscountFactor = np.r_[Leg2Result["PrevDF"][-1] * np.ones((1,NSimul)), Leg2SimulDF]
-else : 
-    Leg2PayoffDate = np.array(list(Leg2Result["PayDate_Simul"]))
-    Leg2Payoff = NPV_Leg2_Simul
-    Leg2DiscountFactor = Leg2SimulDF
-Leg2DiscountCashFlow = Leg2Payoff * Leg2DiscountFactor
-
-MyFunc = np.vectorize(lambda DF_0_t_T, t, T: HullWhite_A_t_T_1F(DF_0_t_T, t, T, kappa, HWVolTerm, HWVol))
-
-NPV_Leg1 = (Leg1DiscountCashFlow.sum(0) if Leg1ZeroCouponFlag == False else Leg1DiscountCashFlow[-1])    
-NPV_Leg2 = (Leg2DiscountCashFlow.sum(0) if Leg2ZeroCouponFlag == False else Leg2DiscountCashFlow[-1])
-NPV_ =  NPV_Leg1 - NPV_Leg2
-Price_Leg1 = NPV_Leg1.mean() 
-Price_Leg2 = NPV_Leg2.mean()
-Price_ = NPV_.mean()
-NPV_Leg1_AccumulativeAdjust = ((Leg1Result["Payoff_Simul"] - Leg1Result["Payoff_Prev"][-1]) * Leg1SimulDF)[-1] if Leg1ZeroCouponFlag else (Leg1Result["Payoff_Simul"] * Leg1SimulDF).sum(0)
-NPV_Leg2_AccumulativeAdjust = ((Leg2Result["Payoff_Simul"] - Leg2Result["Payoff_Prev"][-1]) * Leg2SimulDF)[-1] if Leg2ZeroCouponFlag else (Leg2Result["Payoff_Simul"] * Leg2SimulDF).sum(0)
-NPV_AccumulativeAdjust = NPV_Leg1_AccumulativeAdjust - NPV_Leg2_AccumulativeAdjust
-Price_Leg1AccumulativeAdjust = NPV_Leg1_AccumulativeAdjust.mean() 
-Price_Leg2AccumulativeAdjust = NPV_Leg2_AccumulativeAdjust.mean()
-Price_AccumulativeAdjust = NPV_AccumulativeAdjust.mean()
-
-toptfix = np.vectorize(DayCountAtoB)(PriceDate, OptionFixDate)/365
-toptpay = np.vectorize(DayCountAtoB)(PriceDate, OptionPayDate)/365
-r_opt = np.interp(toptfix, ZeroTerm, ZeroRate)
-dfoptfix = np.exp(-r_opt * toptfix)
-tpay_Leg1 = (np.vectorize(DayCountAtoB)(PriceDate, Leg1PayoffDate)/365)
-tpay_Leg2 = (np.vectorize(DayCountAtoB)(PriceDate, Leg2PayoffDate)/365)
-if Leg1ZeroCouponFlag == False and Leg2ZeroCouponFlag == False : 
-    OptionPath = np.zeros((len(OptionFixDate), NSimul))
-    for i in range(len(OptionFixDate)) : 
-        #i = 0        
-        IdxFixLeg1 = Leg1Result["PayDate_Simul"] > OptionFixDate[i]
-        IdxFixLeg2 = Leg2Result["PayDate_Simul"] > OptionFixDate[i]
-        Leg1ValueOnOptDate = NPV_Leg1_Simul[IdxFixLeg1][0]
-        Leg2ValueOnOptDate = NPV_Leg2_Simul[IdxFixLeg2][0]        
-        HoldingEstimationValue = Leg1ValueOnOptDate - Leg2ValueOnOptDate
-
-        OptionValue = (HoldingEstimationValue < 0) * -HoldingEstimationValue if OptionHolder == 0 else (HoldingEstimationValue > 0) * HoldingEstimationValue
-        PVOptionValue = OptionValue 
-        OptionPath[i] = PVOptionValue
-        
-    OptionExerciseyesno = (OptionPath > 0).max(0) 
-    ReshapedOptionPayDate = np.array(OptionPayDate).reshape(-1,1)
-    OptionExerciseDate = (ReshapedOptionPayDate * (OptionPath > 0) + (OptionPath <= 0) * MaxDate).min(0).reshape(1,-1)
-    values, counts = np.unique(OptionExerciseDate, return_counts = True)
-    OptionProb = pd.Series(counts, values)/NSimul
-    
-    Leg1Payoff_OptAdj = (Leg1Result["PayDate_Simul"].reshape(-1,1) <= OptionExerciseDate) * Leg1Result["Payoff_Simul"] 
-    NPV_Leg1_Simul_OptAdj = Leg1Payoff_OptAdj * Leg1SimulatedDF_FixToPay * Leg1DF_to_Fixing.reshape(-1,1)
-    NPV_Leg1_OptAdj = NPV_Leg1_Simul_OptAdj.sum(0)
-
-    Leg2Payoff_OptAdj = (Leg2Result["PayDate_Simul"].reshape(-1,1) <= OptionExerciseDate) * Leg2Result["Payoff_Simul"] 
-    NPV_Leg2_Simul_OptAdj = Leg2Payoff_OptAdj * Leg2SimulatedDF_FixToPay * Leg2DF_to_Fixing.reshape(-1,1)
-    NPV_Leg2_OptAdj = NPV_Leg2_Simul_OptAdj.sum(0)
-    
-    NPV_OptAdj = NPV_Leg1_OptAdj - NPV_Leg2_OptAdj
-    Price_Leg1_OptAdj = NPV_Leg1_OptAdj.mean()
-    Price_Leg2_OptAdj = NPV_Leg2_OptAdj.mean()
-    Price_OptAdj = NPV_OptAdj.mean()   
-    OptionPrice = Price_OptAdj - Price_ 
-
-else : 
-    PrevCashAdjustFlag = 1
-    Leg1PayoffZeroAdjust = Leg1Payoff - Leg1Result["Payoff_Prev"][-1] if Leg1ZeroCouponFlag == True else Leg1Payoff
-    Leg2PayoffZeroAdjust = Leg2Payoff - Leg2Result["Payoff_Prev"][-1] if Leg2ZeroCouponFlag == True else Leg2Payoff
-    Leg1DiscountCashFlowZeroAdjust = Leg1PayoffZeroAdjust * Leg1DiscountFactor
-    Leg2DiscountCashFlowZeroAdjust = Leg2PayoffZeroAdjust * Leg2DiscountFactor
-    if Leg1ZeroCouponFlag == True : 
-        if PriceDate >= Leg1ForwardStart[0] : 
-            A = np.ones((1,NSimul)) * Leg1Result["Payoff_Prev"][-1] - Leg1Result["PrevCummulativeCpn"][-1]
-            B = (Leg1Result["Payoff_Simul"][0] - Leg1Result["Payoff_Prev"][-1]).reshape(1,-1)
-            C = Leg1Result["Payoff_Simul"][1:] - Leg1Result["Payoff_Simul"][:-1]
-            CpnZeroAdjust = np.concatenate([A,B,C],axis = 0)
-        else : 
-            B = (Leg1Result["Payoff_Simul"][0] - Leg1Result["Payoff_Prev"][-1]).reshape(1,-1)
-            C = Leg1Result["Payoff_Simul"][1:] - Leg1Result["Payoff_Simul"][:-1]
-            CpnZeroAdjust = np.concatenate([B,C],axis = 0)
-
-    if Leg2ZeroCouponFlag == True : 
-        if PriceDate >= Leg2ForwardStart[0] : 
-            A = np.ones((1,NSimul)) * Leg2Result["Payoff_Prev"][-1] - Leg2Result["PrevCummulativeCpn"][-1]
-            B = (Leg2Result["Payoff_Simul"][0] - Leg2Result["Payoff_Prev"][-1]).reshape(1,-1)
-            C = Leg2Result["Payoff_Simul"][1:] - Leg2Result["Payoff_Simul"][:-1]
-            CpnZeroAdjust = np.concatenate([A,B,C],axis = 0)
-        else : 
-            B = (Leg2Result["Payoff_Simul"][0] - Leg2Result["Payoff_Prev"][-1]).reshape(1,-1)
-            C = Leg2Result["Payoff_Simul"][1:] - Leg2Result["Payoff_Simul"][:-1]
-            CpnZeroAdjust = np.concatenate([B,C],axis = 0)    
-        
-    OptionPath = np.zeros((len(OptionFixDate), NSimul))
-    OptionExerciseFlag = np.zeros(NSimul)
-    OptionExerciseDate = np.zeros(NSimul) 
-    Leg1ValueOpttime = np.zeros((len(OptionFixDate), NSimul))
-    Leg2ValueOpttime = np.zeros((len(OptionFixDate), NSimul))    
-    
-    for i in range(len(OptionFixDate)) : 
-        #i = 0
-        #i = 1
-        #i = 2
-        #i = 3
-
-        FixingDate = OptionFixDate[i]
-        PayDate = OptionPayDate[i]
-        t1 = toptfix[i]
-        t1pay = toptpay[i]
-
-        T_Maturity_Leg1 = tpay_Leg1[tpay_Leg1 > t1pay]
-        r_Leg1 = np.interp(T_Maturity_Leg1, ZeroTerm, ZeroRate)
-        df_t1_to_pay_Leg1 = np.exp(-r_Leg1 * T_Maturity_Leg1)/dfoptfix[i]
-        A_t_T_FixedToPay_Leg1 = MyFunc(df_t1_to_pay_Leg1,t1, T_Maturity_Leg1).reshape(-1,1)
-        B_t_T_FixedToPay_Leg1 = B_s_to_t(t1,T_Maturity_Leg1, kappa).reshape(-1,1)
-        x_Leg1 = Leg1Xt_Opt[i].reshape(1,-1)
-        HWDF_tfix_tpay_Leg1 = HullWhite1F_DiscFactor_t_T(B_t_T_FixedToPay_Leg1, x_Leg1, A_t_T_FixedToPay_Leg1)
-        if Leg1ZeroCouponFlag == True : 
-            Leg1ValueOnOptDate = CpnZeroAdjust[PayDate < Leg1PayoffDate].sum(0) * HWDF_tfix_tpay_Leg1[-1]
-        else : 
-            Leg1ValueOnOptDate = (Leg1Payoff[PayDate < Leg1PayoffDate] * HWDF_tfix_tpay_Leg1).sum(0)        
-        
-        T_Maturity_Leg2 = tpay_Leg2[tpay_Leg2 > t1pay]
-        r_Leg2 = np.interp(T_Maturity_Leg2, ZeroTerm, ZeroRate)
-        df_t1_to_pay_Leg2 = np.exp(-r_Leg2 * T_Maturity_Leg2)/dfoptfix[i]               
-        A_t_T_FixedToPay_Leg2 = MyFunc(df_t1_to_pay_Leg2,t1, T_Maturity_Leg2).reshape(-1,1)
-        B_t_T_FixedToPay_Leg2 = B_s_to_t(t1,T_Maturity_Leg2, kappa).reshape(-1,1)
-        x_Leg2 = Leg2Xt_Opt[i].reshape(1,-1)
-        HWDF_tfix_tpay_Leg2 = HullWhite1F_DiscFactor_t_T(B_t_T_FixedToPay_Leg2, x_Leg2, A_t_T_FixedToPay_Leg2)
-        if Leg2ZeroCouponFlag == True : 
-            Leg2ValueOnOptDate = CpnZeroAdjust[PayDate < Leg2PayoffDate].sum(0) * HWDF_tfix_tpay_Leg2[-1]
-        else : 
-            Leg2ValueOnOptDate = (Leg2Payoff[PayDate < Leg2PayoffDate] * HWDF_tfix_tpay_Leg2).sum(0)        
-
-        Leg1ValueOpttime[i] = Leg1ValueOnOptDate
-        Leg2ValueOpttime[i] = Leg2ValueOnOptDate
-        
-        ValueOnOptDate = Leg1ValueOnOptDate - Leg2ValueOnOptDate
-        OptionValue = (ValueOnOptDate < 0) * -ValueOnOptDate if OptionHolder == 0 else (ValueOnOptDate > 0) * -ValueOnOptDate
-        X_t = Leg1Xt_Opt[i]
-        x = np.c_[np.ones(NSimul), X_t, X_t*X_t]
-        beta = np.linalg.inv(x.T.dot(x)).dot(x.T.dot(OptionValue))
-        EstOptValue = np.maximum(x.dot(beta), 0) if OptionHolder == 0 else np.minimum(x.dot(beta), 0)            
-
-        OptionPath[i] = dfoptfix[i] * (OptionValue > EstOptValue) *(ValueOnOptDate<0) * OptionValue if OptionHolder == 0 else dfoptfix[i] * (OptionValue < EstOptValue)*(ValueOnOptDate>0) * -OptionValue
-        OptionExerciseFlag = np.maximum(OptionPath[i] != 0, OptionExerciseFlag)
-        #OptionExerciseDate += (OptionExerciseDate == 0) * (PVOptionValue>0) * OptionPayDate[i]
-
-    '''V = (Leg1ValueOpttime - Leg2ValueOpttime)
-    Value_On_OptDate = (V < 0) * -V if OptionHolder == 0 else (V > 0) * -V
-    OptimalIdx = Value_On_OptDate.argmax(0) if OptionHolder == 0 else Value_On_OptDate.argmin(0)
-    Value_By_OptimalTime = Value_On_OptDate[OptimalIdx, np.arange(NSimul)]
-    X_By_OptimalTime = Leg1Xt_Opt[OptimalIdx,np.arange(NSimul)]
-    df_By_OptimalTime = dfoptfix[OptimalIdx]
-    x = np.c_[np.ones(NSimul), X_By_OptimalTime, X_By_OptimalTime*X_By_OptimalTime]
-    beta = np.linalg.inv(x.T.dot(x)).dot(x.T.dot(Value_By_OptimalTime))
-    EstOptValue = np.maximum(0, beta[0] + Leg1Xt_Opt * beta[1] + Leg1Xt_Opt * Leg1Xt_Opt * beta[2]) if OptionHolder == 0 else np.minimum(0, beta[0] + Leg1Xt_Opt * beta[1] + Leg1Xt_Opt * Leg1Xt_Opt * beta[2])
-    OptionPath = dfoptfix.reshape(-1,1) * ((Value_On_OptDate > EstOptValue) * Value_On_OptDate if OptionHolder == 0 else (Value_On_OptDate < EstOptValue) * -Value_On_OptDate)
-    TempOptionV = (OptionPath * ((OptionPath !=0).cumsum(0).cumsum(0) == 1)).sum(0)
-    TempOptionV.mean()
-    '''
-    TempOptionV = (OptionPath * ((OptionPath !=0).cumsum(0).cumsum(0) == 1)).sum(0)
-    TempOptionV.mean()
-    
-    OptionPricePath = (((OptionPath != 0).cumsum(0).cumsum(0) == 1) * OptionPath).sum(0)
-    OptionExerciseyesno = (OptionPath > 0).max(0) 
-    ReshapedOptionPayDate = np.array(OptionPayDate).reshape(-1,1)
-    #OptionExerciseDate = (ReshapedOptionPayDate * (OptionPath > 0) + (OptionPath <= 0) * MaxDate).min(0).reshape(1,-1)
-    OptionExerciseDate =np.array(OptionPayDate)[OptionPath.argmax(0)] * OptionExerciseyesno + (OptionExerciseyesno == False) * MaxDate
-
-    values, counts = np.unique(OptionExerciseDate, return_counts = True)
-    OptionProb = pd.Series(counts, values)/NSimul
-
-    if Leg1ZeroCouponFlag == False : 
-        OptionExerciseBefore = (Leg1PayoffDate.reshape(-1,1) <= OptionExerciseDate)
-        NPV_Leg1_OptAdj = (OptionExerciseBefore * Leg1DiscountCashFlow).sum(0)        
-        Org_NPV_Leg1 = (Leg1DiscountCashFlow).sum(0) 
-    else : 
-        OptionExerciseBefore = (Leg1PayoffDate.reshape(-1,1) <= OptionExerciseDate)
-        Idx = (OptionExerciseBefore.cumsum(0) * OptionExerciseBefore).argmax(0)
-        Cpn = CpnZeroAdjust.cumsum(0)[Idx, np.arange(NSimul)]
-        DF = Leg1DiscountFactor[Idx, np.arange(NSimul)]
-        PrevValue = DF * Leg1Result["PrevCummulativeCpn"][-1]
-        NPV_Leg1_OptAdj = Cpn * DF
-        #NPV_Leg1_OptAdj = (Leg1DiscountCashFlowZeroAdjust * ((OptionExerciseBefore.sum(0) == OptionExerciseBefore.cumsum(0)) * OptionExerciseBefore)).max(0)        
-        Org_NPV_Leg1 = CpnZeroAdjust.sum(0) * Leg1DiscountFactor[-1] 
-
-    if Leg2ZeroCouponFlag == False : 
-        OptionExerciseBefore = (Leg2PayoffDate.reshape(-1,1) <= OptionExerciseDate)
-        NPV_Leg2_OptAdj = (OptionExerciseBefore * Leg2DiscountCashFlow).sum(0)        
-        Org_NPV_Leg2 = (Leg2DiscountCashFlow).sum(0) 
-    else : 
-        OptionExerciseBefore = (Leg2PayoffDate.reshape(-1,1) <= OptionExerciseDate)
-        Idx = (OptionExerciseBefore.cumsum(0) * OptionExerciseBefore).argmax(0)
-        Cpn = CpnZeroAdjust.cumsum(0)[Idx, np.arange(NSimul)]
-        DF = Leg2DiscountFactor[Idx, np.arange(NSimul)]
-        NPV_Leg2_OptAdj = Cpn * DF
-        #NPV_Leg2_OptAdj = (Leg2DiscountCashFlowZeroAdjust * ((OptionExerciseBefore.sum(0) == OptionExerciseBefore.cumsum(0)) * OptionExerciseBefore)).max(0)        
-        Org_NPV_Leg2 = CpnZeroAdjust.sum(0) * Leg2DiscountFactor[-1] 
-
-    Org_NPV = Org_NPV_Leg1 - Org_NPV_Leg2
-    Org_Price_Leg1 = Org_NPV_Leg1.mean()
-    Org_Price_Leg2 = Org_NPV_Leg2.mean()
-    Org_Price = Org_NPV.mean()
-        
-    NPV_OptAdj = NPV_Leg1_OptAdj - NPV_Leg2_OptAdj
-    Price_Leg1_OptAdj = NPV_Leg1_OptAdj.mean()
-    Price_Leg2_OptAdj = NPV_Leg2_OptAdj.mean()
-    Price_OptAdj = NPV_OptAdj.mean()  
-
-    OptionPrice = Price_OptAdj - Org_Price
-    
-Leg2Result["Payoff_Simul"].mean(1)    
-Leg1_ForwardMeasureCpn_Simul = (Leg1Result["Payoff_ForwardMeasure"]* Leg1DF_ForwardMsr)
-Leg2_ForwardMeasureCpn_Simul = (Leg2Result["Payoff_ForwardMeasure"]* Leg2DF_ForwardMsr)
-NPV_Leg1_ForwardMeasureCpn = (Leg1_ForwardMeasureCpn_Simul.sum(0) if Leg1ZeroCouponFlag == False else Leg1_ForwardMeasureCpn_Simul[-1]) + Leg1_PreFix
-NPV_Leg2_ForwardMeasureCpn = (Leg2_ForwardMeasureCpn_Simul.sum(0) if Leg2ZeroCouponFlag == False else Leg2_ForwardMeasureCpn_Simul[-1]) + Leg2_PreFix
-Final_NPV_Leg1 = NPV_Leg1_ForwardMeasureCpn.mean()
-Final_NPV_Leg2 = NPV_Leg2_ForwardMeasureCpn.mean()
-Final_NPV = Final_NPV_Leg1 - Final_NPV_Leg2 + (OptionPath.max(0).mean() if OptionHolder == 0 else -OptionPath.max(0).mean())
-    
-
 
 # %%
-NSimul = 10000
-Nominal = 20000
-SwapEffectiveDate = 20160929
-PriceDate = 20250304#20250304
-NumCpnOneYear_Leg2_Phase1 = 4
-NumCpnOneYear_Leg2_Phase2 = 4
-Leg2_Phase2StartDate = 20280929
-Leg2_Phase2UseFlag = 1
-Leg2_RefSwapRate_Multiple_Phase1 = 1.0
-Leg2_FixedCpnRate_Phase1 = -0.0012
-Leg2_RefSwapRate_Multiple_Phase2 = 1.0
-Leg2_FixedCpnRate_Phase2 = -0.0012
-Leg2_DayCount = 0
-NumCpnOneYear_Leg1_Phase1 = 0
-NumCpnOneYear_Leg1_Phase2 = 0
-Leg1_Phase2StartDate = 20280929
-Leg1_Phase2UseFlag = 1
-Leg1_RefSwapRate_Multiple_Phase1 = 0.0
-Leg1_FixedCpnRate_Phase1 = 0.0237
-Leg1_RefSwapRate_Multiple_Phase2 = 0.0
-Leg1_FixedCpnRate_Phase2 = 0.0237
-Leg1_DayCount = 3
 
-SwapMaturity = 20460929
-FixHolidays = KoreaHolidaysFromStartToEnd(2020, 2070)
-PayHolidays = FixHolidays
-OptionFixDate = [20190902,20200903,20210831,20220901,20230904,20240830,20250903,20260901,20270831,20280905,20290903,20300830,20310903,20320901,20330831,20340831,20350903,20360903,20370903,20380903,20390905,20400905,20410904,20420903,20430904,20440905,20450905]
-OptionPayDate = [20190930,20200929,20210929,20220929,20231004,20240930,20250929,20260929,20270929,20280929,20291001,20300930,20310929,20320929,20330929,20340929,20351001,20360929,20370929,20380929,20390929,20401001,20410930,20421001,20430929,20440929,20450929]
-OptionHolder = 1
-Leg1_RefSwapMaturity_T = 0.25
-Leg1_RefSwapNCPNOneYear = 4
-Leg2_RefSwapMaturity_T = 0.25
-Leg2_RefSwapNCPNOneYear = 4
-ZeroTerm = [0.00274, 0.00548, 0.25479, 0.506849, 0.756164, 1.00274, 1.512329, 2.00274, 3.00822, 4.00548, 5.00548, 6.00548, 7.008219, 8.013699, 9.010959, 10.00822, 12.01096, 15.0137, 20.01918, 25.02466, 30.02192]
-ZeroRate = [0.027989, 0.027992, 0.028394, 0.027554, 0.026807, 0.02633, 0.025806, 0.025455, 0.025154, 0.025235, 0.025264, 0.025397, 0.025531, 0.025638, 0.025719, 0.025856, 0.026049, 0.025598, 0.024243, 0.022474, 0.021085]
-kappa = -0.0133
-HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52]
-#HWVol = np.ones(len(HWVolTerm)) * 0.00001#
-HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368]
-FixingHistoryDate = [DayPlus(20240102, i) for i in range(365)]
-FixingHistoryRate = [0.0344]*len(FixingHistoryDate)
+#Generate_OptionDate(20190929, 20460929, 1, 20, -1, ModifiedFollow = 0)
+# %%
+def my_function(a,b) : 
+    a = int(a) if int(a) >= 19000101 else ExcelDateToYYYYMMDD(int(a))
+    b = int(b) if int(b) >= 19000101 else ExcelDateToYYYYMMDD(int(b))
+    return DayCountAtoB(a,b)    
 
-MaxDate = 99991231
-IdxOpt = np.array(OptionFixDate) > PriceDate
-OptionFixDate = list(np.array(OptionFixDate)[IdxOpt])
-OptionPayDate = list(np.array(OptionPayDate)[IdxOpt])
-Leg1CompoundCouponFlag = False
-Leg2CompoundCouponFlag = False
-if Leg1_DayCount > 5 : 
-    Leg1_DayCount = Leg1_DayCount % 5
-    Leg1CompoundCouponFlag = True
-
-if Leg2_DayCount > 5 : 
-    Leg2_DayCount = Leg2_DayCount % 5
-    Leg2CompoundCouponFlag = True
-
-Leg1ZeroCouponFlag = (NumCpnOneYear_Leg1_Phase1 == 0) or (NumCpnOneYear_Leg1_Phase2 == 0)
-Leg2ZeroCouponFlag = (NumCpnOneYear_Leg2_Phase1 == 0) or (NumCpnOneYear_Leg2_Phase2 == 0)
-if Leg1ZeroCouponFlag == True : 
-    NumCpnOneYear_Leg1_Phase1 = max(1, NumCpnOneYear_Leg1_Phase2)    
-    NumCpnOneYear_Leg1_Phase2 = max(1, NumCpnOneYear_Leg1_Phase2)    
-
-if Leg2ZeroCouponFlag == True : 
-    NumCpnOneYear_Leg2_Phase1 = max(1, NumCpnOneYear_Leg2_Phase2)    
-    NumCpnOneYear_Leg2_Phase2 = max(1, NumCpnOneYear_Leg2_Phase2)    
-
-if Leg1_Phase2UseFlag > 0 : 
-    Leg1ForwardStart1,Leg1ForwardEnd1, Leg1PayDate1, Leg1ResultNBD1 = MappingCouponDates(1, SwapEffectiveDate, Leg1_Phase2StartDate, 0 if SwapEffectiveDate % 100 == Leg1_Phase2StartDate % 100 else -1, NumCpnOneYear_Leg1_Phase1, True, FixHolidays, PayHolidays, 1) 
-    Leg1ForwardStart2,Leg1ForwardEnd2, Leg1PayDate2, Leg1ResultNBD2 = MappingCouponDates(1, Leg1ForwardEnd1[-1], SwapMaturity, 0 if Leg1ForwardEnd1[-1] % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg1_Phase1, True, FixHolidays, PayHolidays, 1) 
-    Leg1ForwardStart = list(Leg1ForwardStart1) + list(Leg1ForwardStart2)
-    Leg1ForwardEnd = list(Leg1ForwardEnd1) + list(Leg1ForwardEnd2)
-    Leg1PayDate = list(Leg1PayDate1) + list(Leg1PayDate2)
-    Leg1ResultNBD = Leg1ResultNBD1
-else : 
-    Leg1ForwardStart,Leg1ForwardEnd, Leg1PayDate, Leg1ResultNBD = MappingCouponDates(1, SwapEffectiveDate, SwapMaturity, 0 if SwapEffectiveDate % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg1_Phase1, True, FixHolidays, PayHolidays, 1) 
-
-if Leg2_Phase2UseFlag > 0 : 
-    Leg2ForwardStart1,Leg2ForwardEnd1, Leg2PayDate1, Leg2ResultNBD1 = MappingCouponDates(1, SwapEffectiveDate, Leg2_Phase2StartDate, 0 if SwapEffectiveDate % 100 == Leg2_Phase2StartDate % 100 else -1, NumCpnOneYear_Leg2_Phase1, True, FixHolidays, PayHolidays, 1) 
-    Leg2ForwardStart2,Leg2ForwardEnd2, Leg2PayDate2, Leg2ResultNBD2 = MappingCouponDates(1, Leg2ForwardEnd1[-1], SwapMaturity, 0 if Leg2ForwardEnd1[-1] % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg2_Phase1, True, FixHolidays, PayHolidays, 1) 
-    Leg2ForwardStart = list(Leg2ForwardStart1) + list(Leg2ForwardStart2)
-    Leg2ForwardEnd = list(Leg2ForwardEnd1) + list(Leg2ForwardEnd2)
-    Leg2PayDate = list(Leg2PayDate1) + list(Leg2PayDate2)
-    Leg2ResultNBD = Leg2ResultNBD1
-else : 
-    Leg2ForwardStart,Leg2ForwardEnd, Leg2PayDate, Leg2ResultNBD = MappingCouponDates(1, SwapEffectiveDate, SwapMaturity, 0 if SwapEffectiveDate % 100 == SwapMaturity % 100 else -1, NumCpnOneYear_Leg2_Phase1, True, FixHolidays, PayHolidays, 1) 
-
-TotalDateList = np.sort(np.array(pd.Series([PriceDate] + Leg1ForwardStart + Leg1ForwardEnd + Leg1PayDate + Leg2ForwardStart + Leg2ForwardEnd + Leg2PayDate + OptionFixDate + OptionPayDate).unique()))    
-SimulationDateList = TotalDateList[TotalDateList > PriceDate]
-SimulatedXt = SimulateShortRateMC(NSimul, SimulationDateList, PriceDate, kappa, HWVolTerm, HWVol)
-Leg1SwapRate, Leg1SwapRateForwardMeasure, Leg1ConvAdj = SimulateParRateMC(PriceDate, SimulatedXt, SimulationDateList, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate)
-Leg2SwapRate, Leg2SwapRateForwardMeasure, Leg2ConvAdj = SimulateParRateMC(PriceDate, SimulatedXt, SimulationDateList, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate)
-DataF = pd.DataFrame(Leg1SwapRate, index = SimulationDateList).mean(1)
-
-Leg1SimulatedRefRate, Leg1SimulatedRefRate2, Leg1SimulatedDF_FixToPay, Leg1DF_to_Fixing, Leg1RefRateForwardMsr, Leg1RefRateForwardMsr2, Leg1DF_ForwardMsr, Xt_Leg1, Leg1Xt_Opt, Leg1Optdf_tfix, Leg1OptHWDF_tfix_tpay = Calc_RefRateOnFixingDate_And_ForwardDisc_FixingToPay(PriceDate, Leg1ForwardStart, Leg1ForwardEnd, Leg1PayDate, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate, SimulationDateList, OptionFixDate, OptionPayDate, Leg1SwapRate, SimulatedXt, Leg1SwapRateForwardMeasure, Leg1ConvAdj)
-Leg1Result = Calc_Payoff_Sim_and_NotSim(PriceDate, SwapEffectiveDate, Leg1SimulatedRefRate, Nominal, Leg1_Phase2StartDate, Leg1ForwardStart, Leg1ForwardEnd, Leg1PayDate, Leg1_DayCount,Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapRate_Multiple_Phase2, Leg1_FixedCpnRate_Phase1, Leg1_FixedCpnRate_Phase2, FixingHistoryDate, FixingHistoryRate, Leg1ZeroCouponFlag, Leg1CompoundCouponFlag, Leg1RefRateForwardMsr)
-
-Leg1SimulDF = Leg1DF_to_Fixing.reshape(-1,1) * Leg1SimulatedDF_FixToPay
-NPV_Leg1_Simul = Leg1Result["Payoff_Simul"] * Leg1SimulDF
-NPV_Leg1_BeforeSimul = Leg1Result["PrevDF"][-1] * Leg1Result["Payoff_Prev"][-1]  
-Leg1_PreFix = (NPV_Leg1_BeforeSimul[-1] if Leg1ZeroCouponFlag == False else 0)
-if Leg1Result["PrevPayDate"][-1] :     
-    Leg1PayoffDate = np.array([Leg1Result["PrevPayDate"][-1]] + list(Leg1Result["PayDate_Simul"]))
-    Leg1Payoff = np.r_[Leg1Result["Payoff_Prev"][-1] * np.ones((1,NSimul)), Leg1Result["Payoff_Simul"]]
-    Leg1DiscountFactor = np.r_[Leg1Result["PrevDF"][-1] * np.ones((1,NSimul)), Leg1SimulDF]
-else : 
-    Leg1PayoffDate = np.array(list(Leg1Result["PayDate_Simul"]))
-    Leg1Payoff = NPV_Leg1_Simul
-    Leg1DiscountFactor = Leg1SimulDF
-Leg1DiscountCashFlow = Leg1Payoff * Leg1DiscountFactor   
-Leg1SimulatedRefRate.mean(1)
-Leg2SimulatedRefRate, Leg2SimulatedRefRate2, Leg2SimulatedDF_FixToPay, Leg2DF_to_Fixing, Leg2RefRateForwardMsr, Leg2RefRateForwardMsr2, Leg2DF_ForwardMsr, Xt_Leg2, Leg2Xt_Opt, Leg2Optdf_tfix, Leg2OptHWDF_tfix_tpay = Calc_RefRateOnFixingDate_And_ForwardDisc_FixingToPay(PriceDate, Leg2ForwardStart, Leg2ForwardEnd, Leg2PayDate, kappa, HWVolTerm, HWVol, ZeroTerm, ZeroRate, SimulationDateList, OptionFixDate, OptionPayDate, Leg2SwapRate, SimulatedXt, Leg2SwapRateForwardMeasure, Leg2ConvAdj)
-Leg2Result = Calc_Payoff_Sim_and_NotSim(PriceDate, SwapEffectiveDate, Leg2SimulatedRefRate, Nominal, Leg2_Phase2StartDate, Leg2ForwardStart, Leg2ForwardEnd, Leg2PayDate, Leg2_DayCount,Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapRate_Multiple_Phase2, Leg2_FixedCpnRate_Phase1, Leg2_FixedCpnRate_Phase2, FixingHistoryDate, FixingHistoryRate, Leg2ZeroCouponFlag, Leg2CompoundCouponFlag, Leg2RefRateForwardMsr)
-Leg2SimulDF = Leg2DF_to_Fixing.reshape(-1,1) * Leg2SimulatedDF_FixToPay
-NPV_Leg2_Simul = Leg2Result["Payoff_Simul"] * Leg2SimulDF
-NPV_Leg2_BeforeSimul = Leg2Result["PrevDF"][-1] * Leg2Result["Payoff_Prev"][-1]
-Leg2_PreFix = (NPV_Leg2_BeforeSimul[-1] if Leg2ZeroCouponFlag == False else 0)
-if Leg2Result["PrevPayDate"][-1] :     
-    Leg2PayoffDate = np.array([Leg2Result["PrevPayDate"][-1]] + list(Leg2Result["PayDate_Simul"]))
-    Leg2Payoff = np.r_[Leg2Result["Payoff_Prev"][-1] * np.ones((1,NSimul)), Leg2Result["Payoff_Simul"]]
-    Leg2DiscountFactor = np.r_[Leg2Result["PrevDF"][-1] * np.ones((1,NSimul)), Leg2SimulDF]
-else : 
-    Leg2PayoffDate = np.array(list(Leg2Result["PayDate_Simul"]))
-    Leg2Payoff = NPV_Leg2_Simul
-    Leg2DiscountFactor = Leg2SimulDF
-Leg2DiscountCashFlow = Leg2Payoff * Leg2DiscountFactor
-
-MyFunc = np.vectorize(lambda DF_0_t_T, t, T: HullWhite_A_t_T_1F(DF_0_t_T, t, T, kappa, HWVolTerm, HWVol))
-
-NPV_Leg1 = (Leg1DiscountCashFlow.sum(0) if Leg1ZeroCouponFlag == False else Leg1DiscountCashFlow[-1])    
-NPV_Leg2 = (Leg2DiscountCashFlow.sum(0) if Leg2ZeroCouponFlag == False else Leg2DiscountCashFlow[-1])
-NPV_ =  NPV_Leg1 - NPV_Leg2
-Price_Leg1 = NPV_Leg1.mean() 
-Price_Leg2 = NPV_Leg2.mean()
-Price_ = NPV_.mean()
-NPV_Leg1_AccumulativeAdjust = ((Leg1Result["Payoff_Simul"] - Leg1Result["Payoff_Prev"][-1]) * Leg1SimulDF)[-1] if Leg1ZeroCouponFlag else (Leg1Result["Payoff_Simul"] * Leg1SimulDF).sum(0)
-NPV_Leg2_AccumulativeAdjust = ((Leg2Result["Payoff_Simul"] - Leg2Result["Payoff_Prev"][-1]) * Leg2SimulDF)[-1] if Leg2ZeroCouponFlag else (Leg2Result["Payoff_Simul"] * Leg2SimulDF).sum(0)
-NPV_AccumulativeAdjust = NPV_Leg1_AccumulativeAdjust - NPV_Leg2_AccumulativeAdjust
-Price_Leg1AccumulativeAdjust = NPV_Leg1_AccumulativeAdjust.mean() 
-Price_Leg2AccumulativeAdjust = NPV_Leg2_AccumulativeAdjust.mean()
-Price_AccumulativeAdjust = NPV_AccumulativeAdjust.mean()
-
-toptfix = np.vectorize(DayCountAtoB)(PriceDate, OptionFixDate)/365
-toptpay = np.vectorize(DayCountAtoB)(PriceDate, OptionPayDate)/365
-r_opt = np.interp(toptfix, ZeroTerm, ZeroRate)
-r_optpay = np.interp(toptpay, ZeroTerm, ZeroRate)
-dfoptfix = np.exp(-r_opt * toptfix)
-dfoptpay = np.exp(-r_optpay * toptpay)
-tpay_Leg1 = (np.vectorize(DayCountAtoB)(PriceDate, Leg1PayoffDate)/365)
-tpay_Leg2 = (np.vectorize(DayCountAtoB)(PriceDate, Leg2PayoffDate)/365)
-if Leg1ZeroCouponFlag == False and Leg2ZeroCouponFlag == False : 
-    OptionPath = np.zeros((len(OptionFixDate), NSimul))
-    for i in range(len(OptionFixDate)) : 
-        #i = 0        
-        IdxFixLeg1 = Leg1Result["PayDate_Simul"] > OptionFixDate[i]
-        IdxFixLeg2 = Leg2Result["PayDate_Simul"] > OptionFixDate[i]
-        Leg1ValueOnOptDate = NPV_Leg1_Simul[IdxFixLeg1][0]
-        Leg2ValueOnOptDate = NPV_Leg2_Simul[IdxFixLeg2][0]        
-        HoldingEstimationValue = Leg1ValueOnOptDate - Leg2ValueOnOptDate
-
-        OptionValue = (HoldingEstimationValue < 0) * -HoldingEstimationValue if OptionHolder == 0 else (HoldingEstimationValue > 0) * HoldingEstimationValue
-        PVOptionValue = OptionValue 
-        OptionPath[i] = PVOptionValue
-        
-    OptionExerciseyesno = (OptionPath > 0).max(0) 
-    ReshapedOptionPayDate = np.array(OptionPayDate).reshape(-1,1)
-    OptionExerciseDate = (ReshapedOptionPayDate * (OptionPath > 0) + (OptionPath <= 0) * MaxDate).min(0).reshape(1,-1)
-    values, counts = np.unique(OptionExerciseDate, return_counts = True)
-    OptionProb = pd.Series(counts, values)/NSimul
+def make_variable_interface(frame, VariableName, textfont = 12, anchor = 'w', padx = 10, pady = 2, bold = False, titlelable = False, titleName = "", defaultflag = False, defaultvalue = None) : 
     
-    Leg1Payoff_OptAdj = (Leg1Result["PayDate_Simul"].reshape(-1,1) <= OptionExerciseDate) * Leg1Result["Payoff_Simul"] 
-    NPV_Leg1_Simul_OptAdj = Leg1Payoff_OptAdj * Leg1SimulatedDF_FixToPay * Leg1DF_to_Fixing.reshape(-1,1)
-    NPV_Leg1_OptAdj = NPV_Leg1_Simul_OptAdj.sum(0)
+    myfont = ("맑은 고딕", textfont) if bold == False else ("맑은 고딕", textfont, 'bold')
+    if titlelable == True : 
+        tk.Label(frame, text = titleName, font = ("맑은 고딕", textfont, 'bold')).pack(anchor = anchor, padx = padx, pady = pady)    
+        
+    tk.Label(frame, text = VariableName, font = myfont).pack(anchor = anchor, padx = padx, pady = pady)    
+    entry = tk.Entry(frame)
+    if defaultflag == True : 
+        entry.insert(0, defaultvalue)
+    entry.pack(anchor = anchor, padx = padx, pady = pady)
+    return entry
 
-    Leg2Payoff_OptAdj = (Leg2Result["PayDate_Simul"].reshape(-1,1) <= OptionExerciseDate) * Leg2Result["Payoff_Simul"] 
-    NPV_Leg2_Simul_OptAdj = Leg2Payoff_OptAdj * Leg2SimulatedDF_FixToPay * Leg2DF_to_Fixing.reshape(-1,1)
-    NPV_Leg2_OptAdj = NPV_Leg2_Simul_OptAdj.sum(0)
+def make_listvariable_interface(frame, VariableName, MyList, listheight = 5,textfont = 12, anchor = 'w', padx = 10, pady = 2, bold = False, titlelable = False, titleName = "", defaultflag = False, defaultvalue = 0) : 
     
-    NPV_OptAdj = NPV_Leg1_OptAdj - NPV_Leg2_OptAdj
-    Price_Leg1_OptAdj = NPV_Leg1_OptAdj.mean()
-    Price_Leg2_OptAdj = NPV_Leg2_OptAdj.mean()
-    Price_OptAdj = NPV_OptAdj.mean()   
-    OptionPrice = Price_OptAdj - Price_ 
-
-else : 
-        
-    Leg1PayoffAccum = np.r_[Leg1Result["PrevCummulativeCpn"][-1] * np.ones((1,NSimul)), Leg1Payoff[:-1]]
-    Leg2PayoffAccum = np.r_[Leg2Result["PrevCummulativeCpn"][-1] * np.ones((1,NSimul)), Leg2Payoff[:-1]]
-    OptionPath = np.zeros((len(OptionFixDate), NSimul))
-    OptionExerciseFlag = np.zeros(NSimul)
-    OptionExerciseDate = np.zeros(NSimul) 
-    Leg1ValueOpttime = np.zeros((len(OptionFixDate), NSimul))
-    Leg2ValueOpttime = np.zeros((len(OptionFixDate), NSimul))    
-    ValueOpttime = np.zeros((len(OptionFixDate), NSimul))
-    OptionExerciseValueLeg1 = np.zeros((len(OptionFixDate), NSimul))
-    OptionExerciseValueLeg2 = np.zeros((len(OptionFixDate), NSimul))
-    OptionExerciseValue = np.zeros((len(OptionFixDate), NSimul))
-    OptionExerciseOX = np.zeros((len(OptionFixDate), NSimul))
-    BetaArray = np.zeros((len(OptionFixDate), 3))
-    for i in range(len(OptionFixDate)) : 
-        #i = 0
-        #i = 1
-        #i = 2
-        #i = 3
-
-        FixingDate = OptionFixDate[i]
-        PayDate = OptionPayDate[i]
-        t1 = toptfix[i]
-        t1pay = toptpay[i]
-
-        T_Maturity_Leg1 = tpay_Leg1[tpay_Leg1 > t1pay]
-        r_Leg1 = np.interp(T_Maturity_Leg1, ZeroTerm, ZeroRate)
-        df_t1_to_pay_Leg1 = np.exp(-r_Leg1 * T_Maturity_Leg1)/dfoptfix[i]
-        A_t_T_FixedToPay_Leg1 = MyFunc(df_t1_to_pay_Leg1,t1, T_Maturity_Leg1).reshape(-1,1)
-        B_t_T_FixedToPay_Leg1 = B_s_to_t(t1,T_Maturity_Leg1, kappa).reshape(-1,1)
-        x_Leg1 = Leg1Xt_Opt[i].reshape(1,-1)
-        HWDF_tfix_tpay_Leg1 = HullWhite1F_DiscFactor_t_T(B_t_T_FixedToPay_Leg1, x_Leg1, A_t_T_FixedToPay_Leg1)
-        if Leg1ZeroCouponFlag == True : 
-            Leg1ValueOnOptDate = Leg1Payoff[PayDate < Leg1PayoffDate][-1] * Leg1DiscountFactor[-1]/dfoptfix[i]#HWDF_tfix_tpay_Leg1[-1]
-        else : 
-            #Leg1ValueOnOptDate = (Leg1Payoff[PayDate < Leg1PayoffDate] * HWDF_tfix_tpay_Leg1).sum(0)        
-            Leg1ValueOnOptDate = (Leg1Payoff[PayDate < Leg1PayoffDate] * Leg1DiscountFactor[PayDate < Leg1PayoffDate]/dfoptfix[i]).sum(0)        
-        Leg1DiscountFactor[-1]/dfoptfix[i]
-        T_Maturity_Leg2 = tpay_Leg2[tpay_Leg2 > t1pay]
-        r_Leg2 = np.interp(T_Maturity_Leg2, ZeroTerm, ZeroRate)
-        df_t1_to_pay_Leg2 = np.exp(-r_Leg2 * T_Maturity_Leg2)/dfoptfix[i]               
-        A_t_T_FixedToPay_Leg2 = MyFunc(df_t1_to_pay_Leg2,t1, T_Maturity_Leg2).reshape(-1,1)
-        B_t_T_FixedToPay_Leg2 = B_s_to_t(t1,T_Maturity_Leg2, kappa).reshape(-1,1)
-        x_Leg2 = Leg2Xt_Opt[i].reshape(1,-1)
-        HWDF_tfix_tpay_Leg2 = HullWhite1F_DiscFactor_t_T(B_t_T_FixedToPay_Leg2, x_Leg2, A_t_T_FixedToPay_Leg2)
-        if Leg2ZeroCouponFlag == True : 
-            Leg2ValueOnOptDate = Leg1Payoff[PayDate < Leg2PayoffDate][-1] * HWDF_tfix_tpay_Leg2[-1]
-        else : 
-            #Leg2ValueOnOptDate = (Leg2Payoff[PayDate < Leg2PayoffDate] * HWDF_tfix_tpay_Leg2).sum(0)        
-            Leg2ValueOnOptDate = (Leg2Payoff[PayDate < Leg2PayoffDate] * Leg2DiscountFactor[PayDate < Leg2PayoffDate]/dfoptfix[i]).sum(0)        
-
-        Leg1ValueOpttime[i] = Leg1ValueOnOptDate
-        Leg2ValueOpttime[i] = Leg2ValueOnOptDate
-
-        df_t1_to_optpay = dfoptpay[i]/dfoptfix[i]        
-        A_t_T_FixedToOptPay = MyFunc(df_t1_to_optpay,t1, t1pay).reshape(-1,1)
-        B_t_T_FixedToOptPay = B_s_to_t(t1,t1pay, kappa).reshape(-1,1)
-        HWDF_tfix_toptpay = HullWhite1F_DiscFactor_t_T(B_t_T_FixedToOptPay, x_Leg1, A_t_T_FixedToOptPay)[-1]
-        
-        if Leg1ZeroCouponFlag == True : 
-            ExerciseCpnLeg1 = Leg1Payoff[PayDate >= Leg1PayoffDate][-1] - Leg1PayoffAccum[PayDate >= Leg1PayoffDate][-1]
-            AccumCpnLeg1 = Leg1Payoff[PayDate >= Leg1PayoffDate][-1]
-#            ExerciseValueLeg1 = AccumCpnLeg1 * HWDF_tfix_tpay_Leg1[-1] + ExerciseCpnLeg1 * HWDF_tfix_toptpay
-            ExerciseValueLeg1 = AccumCpnLeg1 * Leg1DiscountFactor[-1]/dfoptfix[i] + ExerciseCpnLeg1 * HWDF_tfix_toptpay
-        else : 
-            ExerciseValueLeg1 = Leg1Payoff[PayDate >= Leg1PayoffDate][-1] * HWDF_tfix_toptpay
-
-        if Leg2ZeroCouponFlag == True : 
-            ExerciseCpnLeg2 = Leg2Payoff[PayDate >= Leg2PayoffDate][-1] - Leg2PayoffAccum[PayDate >= Leg2PayoffDate][-1]
-            AccumCpnLeg2 = Leg2Payoff[PayDate >= Leg2PayoffDate][-1]
-#            ExerciseValueLeg2 = AccumCpnLeg2 * HWDF_tfix_tpay_Leg2[-1] + ExerciseCpnLeg2 * HWDF_tfix_toptpay
-            ExerciseValueLeg2 = AccumCpnLeg2 * Leg2DiscountFactor[-1]/dfoptfix[i] + ExerciseCpnLeg2 * HWDF_tfix_toptpay
-        else : 
-            ExerciseValueLeg2 = Leg2Payoff[PayDate >= Leg2PayoffDate][-1] * HWDF_tfix_toptpay
-                
-        OptionExerciseValueLeg1[i] = ExerciseValueLeg1
-        OptionExerciseValueLeg2[i] = ExerciseValueLeg2
-                
-        ValueOnOptDate = Leg1ValueOnOptDate - Leg2ValueOnOptDate
-        ExerciseValue = ExerciseValueLeg1 - ExerciseValueLeg2
-        ValueOpttime[i] = ValueOnOptDate
-        OptionExerciseValue[i] = ExerciseValue
-        
-        OptionValue = (ValueOnOptDate < ExerciseValue) * (ExerciseValue - ValueOnOptDate) if OptionHolder == 0 else (ValueOnOptDate > ExerciseValue) * (ExerciseValue-ValueOnOptDate)
-        X_t = Leg1Xt_Opt[i]
-        x = np.c_[np.ones(NSimul), X_t, X_t*X_t]
-        beta = np.linalg.inv(x.T.dot(x)).dot(x.T.dot(OptionValue))
-        BetaArray[i] = beta
-        EstOptValue = np.maximum(x.dot(beta), 0) if OptionHolder == 0 else np.minimum(x.dot(beta), 0)            
-
-        OptionPath[i] = dfoptfix[i] * (OptionValue > EstOptValue) * OptionValue if OptionHolder == 0 else dfoptfix[i] * (OptionValue < EstOptValue)* -OptionValue
-        
-        OptionExerciseFlag = np.maximum(OptionPath[i] != 0, OptionExerciseFlag)
-        #OptionExerciseDate += (OptionExerciseDate == 0) * (PVOptionValue>0) * OptionPayDate[i]
-    '''    
-    OptionPath.max(0).mean()
-    OptionValueMatrix = (ValueOpttime < OptionExerciseValue) * (OptionExerciseValue - ValueOpttime) if OptionHolder == 0 else (ValueOpttime > OptionExerciseValue) * (OptionExerciseValue - ValueOpttime)
-    for i in range(len(OptionFixDate)-1,-1,-1) :
-        #i = len(OptionFixDate)-1
-        #i = len(OptionFixDate)-2
-        if i == len(OptionFixDate)-1 : 
-            ValueOnOptDate = ValueOpttime[i]
-        else : 
-            ValueOnOptDate = (OptionExerciseOX[i+1] > 0) * OptionExerciseValue[i+1] * dfoptfix[i+1]/dfoptfix[i] + (OptionExerciseOX[i+1] <= 0) * ValueOpttime[i]
-        ExerciseValue = OptionExerciseValue[i]
-
-        OptionValue = (ValueOnOptDate < ExerciseValue) * (ExerciseValue - ValueOnOptDate) if OptionHolder == 0 else (ValueOnOptDate > ExerciseValue) * (ExerciseValue-ValueOnOptDate)
-        X_t = Leg1Xt_Opt[i]
-        x = np.c_[np.ones(NSimul), X_t, X_t*X_t]
-        beta = np.linalg.inv(x.T.dot(x)).dot(x.T.dot(OptionValue))
-        EstOptValue = np.maximum(x.dot(beta), 0) if OptionHolder == 0 else np.minimum(x.dot(beta), 0) 
-        OptionExerciseOX[i] = OptionValue > EstOptValue if OptionHolder == 0 else OptionValue < EstOptValue 
-        OptionPath[i] = dfoptfix[i] * OptionExerciseOX[i] * OptionValue         
-
-    NPVOptionExercise = OptionExerciseValue * dfoptfix.reshape(-1,1)
-    NPVOptionNotExercise = ValueOpttime * dfoptfix.reshape(-1,1)
+    myfont = ("맑은 고딕", textfont) if bold == False else ("맑은 고딕", textfont)
+    if titlelable == True : 
+        tk.Label(frame, text = titleName, font = ("맑은 고딕", textfont, 'bold')).pack(anchor = anchor, padx = padx, pady = pady)    
     
-    EstOptValueArray = BetaArray[:,0:1] + BetaArray[:,1:2] * Leg1Xt_Opt + BetaArray[:,1:2] * Leg1Xt_Opt * Leg1Xt_Opt
-    EstOptValueArray = np.maximum(0, EstOptValueArray) if OptionHolder == 0 else np.minimum(0, EstOptValueArray)
-    OptionPath = (OptionValueMatrix > EstOptValueArray) * OptionValueMatrix if OptionHolder == 0 else (OptionValueMatrix < EstOptValueArray) * OptionValueMatrix
-    '''    
-    TempOptionV = (OptionPath * ((OptionPath !=0).cumsum(0).cumsum(0) == 1)).sum(0)
-    TempOptionV.mean()
+    tk.Label(frame, text = VariableName, font = myfont).pack(anchor = anchor, padx = padx, pady = pady)    
+    listbox = tk.Listbox(frame, height = listheight, exportselection = False)
+    for item in MyList : 
+        if "|" not in item : 
+            listbox.insert(tk.END, str(item))
+        else : 
+            mystr = item.split("|")
+            mystr1 = mystr[0]
+            mystr2 = mystr[1]
+            lenmystr1 = len(mystr1)
+            lenmystr2 = len(mystr2)
+            needstradd1 = max(0, 8 - lenmystr1)
+            needstradd2 = max(0, 8 - lenmystr2)
+            MyString1 = mystr1 + (" " * lenmystr1)
+            MyString2 = mystr2 + (" " * lenmystr2)
+            listbox.insert(tk.END, str(MyString1 + " | " + MyString2))            
     
-    OptionPricePath = (((OptionPath != 0).cumsum(0).cumsum(0) == 1) * OptionPath).sum(0)
-    OptionExerciseyesno = (OptionPath > 0).max(0) 
-    ReshapedOptionPayDate = np.array(OptionPayDate).reshape(-1,1)
-    #OptionExerciseDate = (ReshapedOptionPayDate * (OptionPath > 0) + (OptionPath <= 0) * MaxDate).min(0).reshape(1,-1)
-    OptionExerciseDate =np.array(OptionPayDate)[OptionPath.argmax(0)] * OptionExerciseyesno + (OptionExerciseyesno == False) * MaxDate
+    listbox.pack(anchor = anchor, padx = padx, pady = pady)
+    if defaultflag == True : 
+        listbox.selection_set(defaultvalue)
+    return listbox
 
-    values, counts = np.unique(OptionExerciseDate, return_counts = True)
-    OptionProb = pd.Series(counts, values)/NSimul
+def termratestr(term, rate) : 
+    return [str(np.round(x,4)) + '|' + str(y) for x, y in zip(term, rate)]
 
-    if Leg1ZeroCouponFlag == False : 
-        OptionExerciseBefore = (Leg1PayoffDate.reshape(-1,1) <= OptionExerciseDate)
-        NPV_Leg1_OptAdj = (OptionExerciseBefore * Leg1DiscountCashFlow).sum(0)        
+term1 = [0.00274, 0.00548, 0.25479, 0.506849, 0.756164, 1.00274, 1.512329, 2.00274, 3.00822, 4.00548, 5.00548, 6.00548, 7.008219, 8.013699, 9.010959, 10.00822, 12.01096, 15.0137, 20.01918, 25.02466, 30.02192]
+rate1 = [2.7989, 2.7992, 2.8394, 2.7554, 2.6807, 2.633, 2.5806, 2.5455, 2.5154, 2.5235, 2.5264, 2.5397, 2.5531, 2.5638, 2.5719, 2.5856, 2.6049, 2.5598, 2.4243, 2.2474, 2.1085]
+HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
+
+root = tk.Tk()
+root.title("Callable Swap Pricer(Single Phase)")
+root.geometry("1200x750+30+30")
+root.resizable(False, False)
+
+left_frame = tk.Frame(root)
+left_frame.pack(side = 'left', padx = 10, pady = 5, anchor = 'n')
+
+v_Nominal = make_variable_interface(left_frame, 'Nominal Amount', bold = False, textfont = 11, defaultflag = True, defaultvalue=10000)
+v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20200627)
+v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20300627)
+vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["0","1","2","4","6"], titlelable = True, titleName = "Leg1 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue=3)
+v_L1_FixedCpnRate_P1 = make_variable_interface(left_frame, 'Leg1 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.59)
+v_L1_RefSwapMaturity_T = make_variable_interface(left_frame, 'Leg1 변동금리 만기\n(3M-> 0.25, 5Y-> 5)', bold = False, titlelable = True, titleName = "변동금리 사용의 경우\n아래 데이터 입력", textfont = 11)
+vb_L1_RefSwapNCPNOneYear_P1 = make_listvariable_interface(left_frame, 'Leg1 변동금리의 \n연 쿠폰지급수', ["1","2","4","6"], listheight = 3, textfont = 11)
+v_L1_RefRateMultiple_P1 = make_variable_interface(left_frame, 'Leg1 변동금리Multiple', bold = False, textfont = 11)
+vb_L1_DayCount = make_listvariable_interface(left_frame, 'Leg1 DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360","5: Cmp ACT/365","6: Cmp ACT/360","7: Cmp ACT/ACT","8: Cmp 30/360"], listheight = 3, textfont = 11)
+
+center_frame = tk.Frame(root)
+center_frame.pack(side = 'left', padx = 10, pady = 5, anchor = 'n')
+v_PriceDate = make_variable_interface(center_frame, 'PriceDate', bold = False, textfont = 11, pady = 3)
+vb_Holiday = make_listvariable_interface(center_frame, 'HolidayFlag', ["KRW","USD","GBP","JPY"], listheight = 4, textfont = 11, pady = 2, defaultflag = True, defaultvalue = 0)
+
+vb_L2_NumCpnOneYear_P1 = make_listvariable_interface(center_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["0","1","2","4","6"], titlelable = True, titleName = "Leg2 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue = 3)
+v_L2_FixedCpnRate_P1 = make_variable_interface(center_frame, 'Leg2 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = 0, defaultvalue = 0)
+v_L2_RefSwapMaturity_T = make_variable_interface(center_frame, 'Leg2 변동금리 만기\n(3M-> 0.25, 5Y-> 5)', bold = False, titlelable = True, titleName = "변동금리 사용의 경우\n아래 데이터 입력", textfont = 11, defaultflag = True ,defaultvalue = 0.25)
+vb_L2_RefSwapNCPNOneYear_P1 = make_listvariable_interface(center_frame, 'Leg2 변동금리의 \n연 쿠폰지급수', ["1","2","4","6"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 2)
+v_L2_RefRateMultiple_P1 = make_variable_interface(center_frame, 'Leg2 변동금리Multiple', bold = False, textfont = 11, defaultflag = True, defaultvalue = 1.0)
+vb_L2_DayCount = make_listvariable_interface(center_frame, 'Leg2 DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360","5: Cmp ACT/365","6: Cmp ACT/360","7: Cmp ACT/ACT","8: Cmp 30/360"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0)
+
+right_frame = tk.Frame(root)
+right_frame.pack(side = 'left', padx = 10, pady = 5, anchor = 'n')
+vb_OptionHolder = make_listvariable_interface(right_frame, 'OptionHolder', ["0: Leg1 Hold Option","1: Leg2 Hold Option"], titleName = "Option Information", titlelable= True, listheight = 3, textfont = 11, defaultflag = True, defaultvalue= 1)
+v_FirstOptPayDate = make_variable_interface(right_frame, '첫 옵션행사일\n(지급일기준)', bold = False, textfont = 11, defaultflag = True, defaultvalue = 20210627)
+vb_NYearBetweenOptionPay = make_listvariable_interface(right_frame, '옵션행사간격', ["6M","12M","24M","36M","60M"], listheight = 5, textfont = 11, defaultflag = True, defaultvalue = 1)
+v_NBDateBetweenOptionFixToPay = make_variable_interface(right_frame, '옵션행사선언일과\n옵션지급일사이의\n영업일수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 20)
+v_MaxNumOpt = make_variable_interface(right_frame, '최대옵션개수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 0)
+v_L1FirstFixing = make_variable_interface(right_frame, 'Leg1)최근Fixing금리(%)\n(Fixing이후 평가시 입력)', bold = False, textfont = 11)
+v_L2FirstFixing = make_variable_interface(right_frame, 'Leg2)최근Fixing금리(%)\n(Fixing이후 평가시 입력)', bold = False, textfont = 11)
+vb_GreekFlag = make_listvariable_interface(right_frame, 'Greek산출', ["0: Pricing만","1: Delta,Gamma","2: Delta,Gamma,Vega"], listheight = 3, textfont = 11)
+
+rightright_frame = tk.Frame(root)
+rightright_frame.pack(side = 'left', padx = 10, pady = 5, anchor = 'n')
+vb_zerocurve = make_listvariable_interface(rightright_frame, 'ZeroCurve(자동Load)', termratestr(term1, rate1), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
+v_hwkappa = make_variable_interface(rightright_frame, 'HullWhite Kappa', bold = False, textfont = 11, titleName = "\nHull White Params", titlelable = True, defaultflag = True, defaultvalue = 0.01)
+v_hwvolterm = make_variable_interface(rightright_frame, 'HullWhite Vol Tenor\n[0.25, 0.5, 1.0, ...] 등의\n포멧으로 입력', bold = False, textfont = 11, defaultflag = True, defaultvalue = "0.25, 0.5, 1")
+v_hwvol = make_variable_interface(rightright_frame, 'HullWhite Volatility(%)\n[0.87, 0.88, 0.91, ...] 등의\n포멧으로 입력', bold = False, textfont = 11, defaultflag = True, defaultvalue = "0.01, 0.098, 0.089")
+
+Result_frame = tk.Frame(root)
+Result_frame.pack(side = 'left', padx = 10, pady = 5, anchor = 'n')
+vb_Logging = make_listvariable_interface(Result_frame, 'CSVLogging', ["0: Logging안함","1: CSVLogging"], listheight = 2, textfont = 11, titleName="Pricing Result",titlelable=True)
+
+def run_function() : 
+    Nominal = int(v_Nominal.get()) if len(str(v_Nominal.get())) > 0 else 10000
+    SwapEffectiveDate = int(v_SwapEffectiveDate.get()) if len(str(v_SwapEffectiveDate.get())) > 0 else 20200627
+    SwapMaturity = int(v_SwapMaturity.get()) if len(str(v_SwapMaturity.get())) > 0 else (SwapEffectiveDate + 100000)
+    L1_NumCpnOneYear_P1 = int(vb_L1_NumCpnOneYear_P1.get(vb_L1_NumCpnOneYear_P1.curselection())) if vb_L1_NumCpnOneYear_P1.curselection() else 4
+    if len(str(v_L1_FixedCpnRate_P1.get())) > 0 : 
+        if "%" in str(v_L1_FixedCpnRate_P1.get()) : 
+            L1_FixedCpnRate_P1 = float(v_L1_FixedCpnRate_P1.get())/100
+        else : 
+            L1_FixedCpnRate_P1 = float(str(v_L1_FixedCpnRate_P1.get()).replace("%",""))/100
     else : 
-        OptionExerciseBefore = (Leg1PayoffDate.reshape(-1,1) <= OptionExerciseDate)
-        Idx = (OptionExerciseBefore.cumsum(0) * OptionExerciseBefore).argmax(0)
-        Cpn = Leg1Payoff.cumsum(0)[Idx, np.arange(NSimul)]
-        DF = Leg1DiscountFactor[Idx, np.arange(NSimul)]
-        PrevValue = DF * Leg1Result["PrevCummulativeCpn"][-1]
-        NPV_Leg1_OptAdj = Cpn * DF
-        #NPV_Leg1_OptAdj = (Leg1DiscountCashFlowZeroAdjust * ((OptionExerciseBefore.sum(0) == OptionExerciseBefore.cumsum(0)) * OptionExerciseBefore)).max(0)        
+        L1_FixedCpnRate_P1 = 0
+    
+    L1_PowerSpreadFlag = 0
+    if len(str(v_L1_RefSwapMaturity_T.get())) > 0 :         
+        if '-' in str(v_L1_RefSwapMaturity_T.get()) : 
+            SplitedStr = str(v_L1_RefSwapMaturity_T.get()).split("-")
+            if 'm' in SplitedStr[0].lower() :
+                L1_RefSwapMaturity_T = float(SplitedStr[0].lower().split("m")[0])/12
+            elif 'y' in SplitedStr[0].lower() : 
+                L1_RefSwapMaturity_T = float(SplitedStr[0].lower().split("y")[0]) 
+            else : 
+                L1_RefSwapMaturity_T = float(SplitedStr[0]) 
 
-    if Leg2ZeroCouponFlag == False : 
-        OptionExerciseBefore = (Leg2PayoffDate.reshape(-1,1) <= OptionExerciseDate)
-        NPV_Leg2_OptAdj = (OptionExerciseBefore * Leg2DiscountCashFlow).sum(0)        
+            if 'm' in SplitedStr[1].lower() :
+                L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("m")[0])/12
+            elif 'y' in SplitedStr[1].lower() : 
+                L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("y")[0]) 
+            else : 
+                L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1]) 
+            L1_PowerSpreadFlag = 1
+        else : 
+            if 'm' in str(v_L1_RefSwapMaturity_T.get()).lower() : 
+                L1_RefSwapMaturity_T = float(str(v_L1_RefSwapMaturity_T.get()).split('m')[0])/12
+            elif 'y' in str(v_L1_RefSwapMaturity_T.get()).lower() :
+                L1_RefSwapMaturity_T = float(str(v_L1_RefSwapMaturity_T.get()).split('y')[0])
+            else :
+                L1_RefSwapMaturity_T = float(v_L1_RefSwapMaturity_T.get()) 
+            L1_RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T
     else : 
-        OptionExerciseBefore = (Leg2PayoffDate.reshape(-1,1) <= OptionExerciseDate)
-        Idx = (OptionExerciseBefore.cumsum(0) * OptionExerciseBefore).argmax(0)
-        Cpn = Leg1Payoff.cumsum(0)[Idx, np.arange(NSimul)]
-        DF = Leg2DiscountFactor[Idx, np.arange(NSimul)]
-        NPV_Leg2_OptAdj = Cpn * DF
-        #NPV_Leg2_OptAdj = (Leg2DiscountCashFlowZeroAdjust * ((OptionExerciseBefore.sum(0) == OptionExerciseBefore.cumsum(0)) * OptionExerciseBefore)).max(0)        
-
+        L1_RefSwapMaturity_T = 0.25
+        L1_RefSwapMaturity_T_PowerSpread = 0.25
         
-    NPV_OptAdj = NPV_Leg1_OptAdj - NPV_Leg2_OptAdj
-    Price_Leg1_OptAdj = NPV_Leg1_OptAdj.mean()
-    Price_Leg2_OptAdj = NPV_Leg2_OptAdj.mean()
-    Price_OptAdj = NPV_OptAdj.mean()  
+    L1_RefSwapNCPNOneYear_P1 = int(vb_L1_RefSwapNCPNOneYear_P1.get(vb_L1_RefSwapNCPNOneYear_P1.curselection())) if vb_L1_RefSwapNCPNOneYear_P1.curselection() else 4
+    if L1_RefSwapMaturity_T == 0.25 : 
+        L1_RefSwapNCPNOneYear_P1 = 4
+
+    L1_RefRateMultiple_P1 = float(v_L1_RefRateMultiple_P1.get()) if len(str(v_L1_RefRateMultiple_P1.get())) > 0 else 0
+    L1_DayCount = int(str(vb_L1_DayCount.get(vb_L1_DayCount.curselection())).split(":")[0]) if vb_L1_DayCount.curselection() else (0 if L1_NumCpnOneYear_P1 != 0 else 3)
+
+    L2_NumCpnOneYear_P1 = int(vb_L2_NumCpnOneYear_P1.get(vb_L2_NumCpnOneYear_P1.curselection())) if vb_L2_NumCpnOneYear_P1.curselection() else 4
+    if len(str(v_L2_FixedCpnRate_P1.get())) > 0 : 
+        if "%" in str(v_L2_FixedCpnRate_P1.get()) : 
+            L2_FixedCpnRate_P1 = float(v_L2_FixedCpnRate_P1.get())/100
+        else : 
+            L2_FixedCpnRate_P1 = float(str(v_L2_FixedCpnRate_P1.get()).replace("%",""))/100
+    else : 
+        L2_FixedCpnRate_P1 = 0
     
-Leg2Result["Payoff_Simul"].mean(1)    
-Leg1_ForwardMeasureCpn_Simul = (Leg1Result["Payoff_ForwardMeasure"]* Leg1DF_ForwardMsr)
-Leg2_ForwardMeasureCpn_Simul = (Leg2Result["Payoff_ForwardMeasure"]* Leg2DF_ForwardMsr)
-NPV_Leg1_ForwardMeasureCpn = (Leg1_ForwardMeasureCpn_Simul.sum(0) if Leg1ZeroCouponFlag == False else Leg1_ForwardMeasureCpn_Simul[-1]) + Leg1_PreFix
-NPV_Leg2_ForwardMeasureCpn = (Leg2_ForwardMeasureCpn_Simul.sum(0) if Leg2ZeroCouponFlag == False else Leg2_ForwardMeasureCpn_Simul[-1]) + Leg2_PreFix
-Final_NPV_Leg1 = NPV_Leg1_ForwardMeasureCpn.mean()
-Final_NPV_Leg2 = NPV_Leg2_ForwardMeasureCpn.mean()
-Final_NPV = Final_NPV_Leg1 - Final_NPV_Leg2 + (OptionPath.max(0).mean() if OptionHolder == 0 else -OptionPath.max(0).mean())
+    L2_PowerSpreadFlag = 0
+    if len(str(v_L2_RefSwapMaturity_T.get())) > 0 :         
+        if '-' in str(v_L2_RefSwapMaturity_T.get()) : 
+            SplitedStr = str(v_L2_RefSwapMaturity_T.get()).split("-")
+            if 'm' in SplitedStr[0].lower() :
+                L2_RefSwapMaturity_T = float(SplitedStr[0].lower().split("m")[0])/12
+            elif 'y' in SplitedStr[0].lower() : 
+                L2_RefSwapMaturity_T = float(SplitedStr[0].lower().split("y")[0]) 
+            else : 
+                L2_RefSwapMaturity_T = float(SplitedStr[0]) 
+
+            if 'm' in SplitedStr[1].lower() :
+                L2_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("m")[0])/12
+            elif 'y' in SplitedStr[1].lower() : 
+                L2_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("y")[0]) 
+            else : 
+                L2_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1]) 
+            L2_PowerSpreadFlag = 1
+        else : 
+            if 'm' in str(v_L2_RefSwapMaturity_T.get()).lower() : 
+                L2_RefSwapMaturity_T = float(str(v_L2_RefSwapMaturity_T.get()).split('m')[0])/12
+            elif 'y' in str(v_L2_RefSwapMaturity_T.get()).lower() :
+                L2_RefSwapMaturity_T = float(str(v_L2_RefSwapMaturity_T.get()).split('y')[0])
+            else :
+                L2_RefSwapMaturity_T = float(v_L2_RefSwapMaturity_T.get()) 
+            L2_RefSwapMaturity_T_PowerSpread = L2_RefSwapMaturity_T
+    else : 
+        L2_RefSwapMaturity_T = 0.25
+        L2_RefSwapMaturity_T_PowerSpread = 0.25
+        
+    L2_RefSwapNCPNOneYear_P1 = int(vb_L2_RefSwapNCPNOneYear_P1.get(vb_L2_RefSwapNCPNOneYear_P1.curselection())) if vb_L2_RefSwapNCPNOneYear_P1.curselection() else 4
+    if L2_RefSwapMaturity_T == 0.25 : 
+        L2_RefSwapNCPNOneYear_P1 = 4
+        
+    L2_RefRateMultiple_P1 = float(v_L2_RefRateMultiple_P1.get()) if len(str(v_L2_RefRateMultiple_P1.get())) > 0 else 0
+    L2_DayCount = int(str(vb_L2_DayCount.get(vb_L2_DayCount.curselection())).split(":")[0]) if vb_L2_DayCount.curselection() else (0 if L2_NumCpnOneYear_P1 != 0 else 3)
+
+    PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else 20240627
+    Holiday = str(vb_Holiday.get(vb_Holiday.curselection())).upper() if vb_Holiday.curselection() else "KRW"
+    OptionHolder = int(str(vb_OptionHolder.get(vb_OptionHolder.curselection())).split(":")[0]) if vb_OptionHolder.curselection() else 0    
+    FirstOptPayDate = int(v_FirstOptPayDate.get()) if len(str(v_FirstOptPayDate.get())) > 0 else SwapEffectiveDate + 10000
+    NYearBetweenOptionPay = float(str(vb_NYearBetweenOptionPay.get(vb_NYearBetweenOptionPay.curselection())).split("M")[0])/12 if vb_NYearBetweenOptionPay.curselection() else 1    
+    MaxNumOpt = int(v_MaxNumOpt.get()) if len(str(v_MaxNumOpt.get())) > 0 else -1
+    NBDateBetweenOptionFixToPay = int(v_NBDateBetweenOptionFixToPay.get()) if len(str(v_NBDateBetweenOptionFixToPay.get())) > 0 else 0
     
+    GreekFlag = int(str(vb_GreekFlag.get(vb_GreekFlag.curselection())).split(":")[0]) if vb_GreekFlag.curselection() else 0
+    LoggingFlag = int(str(vb_Logging.get(vb_Logging.curselection())).split(":")[0]) if vb_Logging.curselection() else 0
+    
+    hwkappa = float(v_hwkappa.get()) if len(str(v_hwkappa.get())) > 0 else 0.001
+    if len(str(v_hwvolterm.get())) > 0 : 
+        if '(' in str(v_hwvolterm.get()) or ')' in str(v_hwvolterm.get()) : 
+            tenorstr = str(v_hwvolterm.get()).replace("(","").replace(")","").split(',')
+        elif '[' in str(v_hwvolterm.get()) or ']' in str(v_hwvolterm.get()) :
+            tenorstr = str(v_hwvolterm.get()).replace("[","").replace("]","").split(',')
+        else : 
+            tenorstr = str(v_hwvolterm.get()).split(',')
+        hwvolterm = list(np.vectorize(lambda x : float(x))(tenorstr))
+    else : 
+        hwvolterm = [1.0]
+
+    if len(str(v_hwvol.get())) > 0 : 
+        if '(' in str(v_hwvol.get()) or ')' in str(v_hwvol.get()) : 
+            volstr = str(v_hwvol.get()).replace("(","").replace(")","").split(',')
+        elif '[' in str(v_hwvol.get()) or ']' in str(v_hwvol.get()) :
+            volstr = str(v_hwvol.get()).replace("[","").replace("]","").split(',')
+        else : 
+            volstr = str(v_hwvol.get()).split(',')
+        hwvol = list(np.vectorize(lambda x : float(x))(volstr))
+    else : 
+        hwvol = [0.001]
+
+    L1FirstFixing = float(v_L1FirstFixing.get())/100 if str(v_L1FirstFixing.get()) else 0.0
+    L2FirstFixing = float(v_L2FirstFixing.get())/100 if str(v_L2FirstFixing.get()) else 0.0
+    
+    L1_FixingHistoryDate = [DayPlus(int(PriceDate) - 10000, i) for i in range(365)]
+    L1_FixingHistoryRate = [L1FirstFixing] * len(L1_FixingHistoryDate)    
+    L2_FixingHistoryDate = [DayPlus(int(PriceDate) - 10000, i) for i in range(366)] 
+    L2_FixingHistoryRate = [L2FirstFixing] * len(L2_FixingHistoryDate)    
+    OptionFixDate, OptionPayDate = Generate_OptionDate(FirstOptPayDate, SwapMaturity, NYearBetweenOptionPay, NBDateBetweenOptionFixToPay, MaxNumOpt, ModifiedFollow = 0)
+    if GreekFlag == 0 : 
+        resultdict = Pricing_IRCallableSwap_HWFDM(
+                Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, L1_NumCpnOneYear_P1,         
+                L1_RefRateMultiple_P1, L1_RefSwapMaturity_T, L1_RefSwapNCPNOneYear_P1, L1_FixedCpnRate_P1, L1_DayCount, 
+                L2_NumCpnOneYear_P1, L2_RefRateMultiple_P1, L2_RefSwapMaturity_T, L2_RefSwapNCPNOneYear_P1, L2_FixedCpnRate_P1, 
+                L2_DayCount, OptionFixDate,OptionPayDate,OptionHolder,
+                term1,rate1, L1_FixingHistoryDate, L1_FixingHistoryRate, L2_FixingHistoryDate, L2_FixingHistoryRate, 
+                hwkappa,
+                0.01,
+                hwvolterm, hwvol, HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+                HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2,
+                HWRho12Factor = -0.3, CpnRounding = 15, HW2FFlag = 0, LoggingFlag = LoggingFlag, 
+                LoggingDir = currdir, Leg1_DiscCurveName = "TempCurve", Leg1_EstCurveName = "TempCurve", Leg2_DiscCurveName = "TempCurve",
+                Leg2_EstCurveName = "TempCurve", KoreanAutoHolidayFlag = True, FixHolidays = Holiday, PayHolidays = Holiday,
+                Leg1_PowerSpreadFlag = L1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T_PowerSpread, Leg2_PowerSpreadFlag = L2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread = L2_RefSwapMaturity_T_PowerSpread)
+        result = resultdict["ResultPrice"].iloc[0]
+    else : 
+        result = 0
+    output_label.config(text = f"결과: {result}\n선택한 값: {L1_NumCpnOneYear_P1}\n액면가: {Nominal}", font = ("맑은 고딕", 12))
+
+tk.Button(Result_frame, text = '실행', pady = 2, font = ("맑은 고딕",12), command = run_function).pack()
+output_label = tk.Label(Result_frame, text = "", anchor = "w")
+output_label.pack(padx = 10, pady = 2)
+root.mainloop()
+
 # %%
