@@ -8,11 +8,14 @@ v1.1.1
 import numpy as np
 import pandas as pd
 import tkinter as tk
+from tkinter import ttk
 # JIT은 쓰지말자
 #from numba import jit
 import warnings
 import os
 from scipy.sparse import diags
+PrevTreeFlag = 0
+tree = None
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
 vers = "1.1.1"
@@ -117,6 +120,7 @@ EQSpotRW = [0.5500 ,0.6000 ,0.4500 ,0.5500 ,0.3000 ,0.3500 ,0.4000 ,0.5000 ,0.70
 EQRepoRW = [0.0055 ,0.0060 ,0.0045 ,0.0055 ,0.0030 ,0.0035 ,0.0040 ,0.0050 ,0.0070 ,0.0050 ,0.0070 ,0.0015 ,0.0025]
 EQDeltaRWMappingDF = pd.DataFrame([EQSpotRW,EQRepoRW], columns = EQBucketIndex, index = ["SpotRW","RepoRW"]).T
 COMM_Delta_RWMapping = pd.Series([0.3,0.35,0.6,0.8,0.4,0.45,0.2,0.35,0.25,0.35,0.5],index = np.arange(1,12))
+
 ##############################################################################################################
 ########################################### 여기까지 FRTB StaticData ##########################################
 ########################################### 여기부터 Pricing Lib ##############################################  
@@ -1530,7 +1534,7 @@ def MappingCouponDates(
                 ResultPayDate[0] = SwapMat_YYYYMMDD      
             ResultNBD[0] = NBDayFromEndDate  
         else :
-            if (SwapMat_DD < 7 and StartDD >= 24) :
+            if ((SwapMat_DD < 7 and StartDD >= 24) or NBDayFromEndDate < 0 ):
                 ##########################################
                 ## If PayDate is next month of EndDate  ##
                 ##########################################
@@ -1581,7 +1585,7 @@ def MappingCouponDates(
         TempYYYYMMDD = StartDateYYYYMMDD
         EndYYYYMM = (int)(SwapMat_YYYYMMDD // 100)
         TempEndList = [0]
-        if (SwapMat_DD < 7 and StartDD >= 24) : 
+        if ( (SwapMat_DD < 7 and StartDD >= 24) or NBDayFromEndDate < 0 ): 
             ##########################################
             ## If PayDate is next month of EndDate  ##
             ##########################################
@@ -1964,7 +1968,7 @@ def CDF_N(x) :
 def BS_Option(PriceDate, MaturityDate, S0, X, TermDisc, 
               RateDisc, DivTerm, DivRate, Volatility, QuantoCorr = 0, 
               FXVolTerm = [], FXVol = [], DivFlag = 0, EstTerm = [], EstRate = [], 
-              ForwardPrice = 0, LoggingFlag = 0, LoggingDir = "", VolTerm = [0], VolParity = [0],TypeFlag = 'c') :
+              ForwardPrice = 0, LoggingFlag = 0, LoggingDir = "", VolTerm = [0], VolParity = [0],TypeFlag = 'c', ATMVolFlag = False, ATMVol = []) :
     
     if len(EstTerm) == 0 and ForwardPrice == 0 : 
         EstTerm = TermDisc
@@ -1984,10 +1988,16 @@ def BS_Option(PriceDate, MaturityDate, S0, X, TermDisc,
     StockLevel = X/S0 if np.array(VolParity).max() < 3.0 else S0
     v = 0.001
     try : 
-        v = Linterp2D(VolTerm, VolParity, Volatility, TimeToMaturity, StockLevel)
+        if ATMVolFlag == False : 
+            v = Linterp2D(VolTerm, VolParity, Volatility, TimeToMaturity, StockLevel)
+        else : 
+            v = np.interp(TimeToMaturity, VolTerm, ATMVol)
     except TypeError : 
-        v = Volatility
-    
+        if ATMVolFlag == False : 
+            v = Volatility
+        else : 
+            v = np.interp(TimeToMaturity, VolTerm, ATMVol)
+                
     d1, d2 = 0, 0
     fxvol = Linterp(FXVolTerm, FXVol, TimeToMaturity) if len(FXVolTerm) > 0 else 0
     r_est = Linterp(EstTerm, EstRate, TimeToMaturity) - fxvol * v * QuantoCorr 
@@ -3041,7 +3051,7 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
             LoggingDF.append(np.exp(-r * tpay))             
     
     if LoggingFlag == 1 : 
-        LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingEstStart,LoggingEstEnd,LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingAdj, LoggingCpnFix, LoggingCpnRate, LoggingRawCpn, LoggingDF], index = ["Start","End","EstStart","EstEnd","Pay","Frac","ForwardRate","ConAdj","CpnFixed","Cpn","RawCpn","DF"]).T               
+        LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingEstStart,LoggingEstEnd,LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingAdj, LoggingCpnFix, LoggingCpnRate, LoggingRawCpn, LoggingDF], index = ["Start","End","EstStart","EstEnd","Pay","Frac","ForwardRate","ConvAdj","CpnFixed","Cpn","RawCpn","DF"]).T               
         if (len(DiscCurveName) > 0) : 
             LoggingDF["DiscCurve"] = DiscCurveName
             LoggingDF["EstCurve"] = DiscCurveName if len(EstZeroCurveTerm) == 0 else EstCurveName
@@ -3052,7 +3062,7 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
         df = ReadCSV(LoggingDir + "\\LoggingFilesBond.csv")
         ColList = ["Leg1_" + str(s) for s in df.columns]
         df.columns = ColList
-        LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingEstStart, LoggingEstEnd, LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingAdj, LoggingCpnFix, LoggingCpnRate, LoggingRawCpn, LoggingDF], index = ["Start","End","EstStart","EstEnd","Pay","Frac","ForwardRate","ConAdj","CpnFixed","Cpn","RawCpn","DF"]).T               
+        LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingEstStart, LoggingEstEnd, LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingAdj, LoggingCpnFix, LoggingCpnRate, LoggingRawCpn, LoggingDF], index = ["Start","End","EstStart","EstEnd","Pay","Frac","ForwardRate","ConvAdj","CpnFixed","Cpn","RawCpn","DF"]).T               
         if (len(DiscCurveName) > 0) : 
             LoggingDF["DiscCurve"] = DiscCurveName
             LoggingDF["EstCurve"] = DiscCurveName if len(EstZeroCurveTerm) == 0 else EstCurveName
@@ -3717,17 +3727,16 @@ def Pricing_IRCallableSwap_HWFDM(
     PayoffGreedMax0Min = np.zeros((len(SimulationDateList),2))
     Leg1SwapRateMax0Min = np.zeros((len(SimulationDateList),3))
     Leg2SwapRateMax0Min = np.zeros((len(SimulationDateList),3))
-    if LoggingFlag > 0 : 
-        if HW2FFlag == 0 : 
-            Leg1SwapRateMax0Min[:,0] = Leg1SwapRate[:,0] if Leg1_PowerSpreadFlag == 0 else Leg1SwapRate[:,0] - Leg1SwapRate_PowerSpread[:, 0]
-            Leg1SwapRateMax0Min[:,-1] = Leg1SwapRate[:,-1] if Leg1_PowerSpreadFlag == 0 else Leg1SwapRate[:,-1] - Leg1SwapRate_PowerSpread[:, -1]
-            Leg2SwapRateMax0Min[:,0] = Leg2SwapRate[:,0] if Leg2_PowerSpreadFlag == 0 else Leg2SwapRate[:,0] - Leg2SwapRate_PowerSpread[:, 0]
-            Leg2SwapRateMax0Min[:,-1] = Leg2SwapRate[:,-1] if Leg2_PowerSpreadFlag == 0 else Leg2SwapRate[:,-1] - Leg2SwapRate_PowerSpread[:, -1]
-        else : 
-            Leg1SwapRateMax0Min[:,0] = Leg1SwapRate[:,0,0] if Leg1_PowerSpreadFlag == 0 else Leg1SwapRate[:,0,0] - Leg1SwapRate_PowerSpread[:, 0, 0]
-            Leg1SwapRateMax0Min[:,-1] = Leg1SwapRate[:,-1,-1] if Leg1_PowerSpreadFlag == 0 else Leg1SwapRate[:,-1,-1] - Leg1SwapRate_PowerSpread[:, -1, -1]
-            Leg2SwapRateMax0Min[:,0] = Leg2SwapRate[:,0,0] if Leg2_PowerSpreadFlag == 0 else Leg2SwapRate[:,0,0] - Leg2SwapRate_PowerSpread[:, 0,0]
-            Leg2SwapRateMax0Min[:,-1] = Leg2SwapRate[:,-1,-1] if Leg2_PowerSpreadFlag == 0 else Leg2SwapRate[:,-1,-1] - Leg2SwapRate_PowerSpread[:, -1, -1]
+    if HW2FFlag == 0 : 
+        Leg1SwapRateMax0Min[:,0] = Leg1SwapRate[:,0] if Leg1_PowerSpreadFlag == 0 else Leg1SwapRate[:,0] - Leg1SwapRate_PowerSpread[:, 0]
+        Leg1SwapRateMax0Min[:,-1] = Leg1SwapRate[:,-1] if Leg1_PowerSpreadFlag == 0 else Leg1SwapRate[:,-1] - Leg1SwapRate_PowerSpread[:, -1]
+        Leg2SwapRateMax0Min[:,0] = Leg2SwapRate[:,0] if Leg2_PowerSpreadFlag == 0 else Leg2SwapRate[:,0] - Leg2SwapRate_PowerSpread[:, 0]
+        Leg2SwapRateMax0Min[:,-1] = Leg2SwapRate[:,-1] if Leg2_PowerSpreadFlag == 0 else Leg2SwapRate[:,-1] - Leg2SwapRate_PowerSpread[:, -1]
+    else : 
+        Leg1SwapRateMax0Min[:,0] = Leg1SwapRate[:,0,0] if Leg1_PowerSpreadFlag == 0 else Leg1SwapRate[:,0,0] - Leg1SwapRate_PowerSpread[:, 0, 0]
+        Leg1SwapRateMax0Min[:,-1] = Leg1SwapRate[:,-1,-1] if Leg1_PowerSpreadFlag == 0 else Leg1SwapRate[:,-1,-1] - Leg1SwapRate_PowerSpread[:, -1, -1]
+        Leg2SwapRateMax0Min[:,0] = Leg2SwapRate[:,0,0] if Leg2_PowerSpreadFlag == 0 else Leg2SwapRate[:,0,0] - Leg2SwapRate_PowerSpread[:, 0,0]
+        Leg2SwapRateMax0Min[:,-1] = Leg2SwapRate[:,-1,-1] if Leg2_PowerSpreadFlag == 0 else Leg2SwapRate[:,-1,-1] - Leg2SwapRate_PowerSpread[:, -1, -1]
         
     for i in range(len(SimulationDateList)) : 
         FDMDate = SimulationDateList[::-1][i]
@@ -3901,16 +3910,15 @@ def Pricing_IRCallableSwap_HWFDM(
         else : 
             ResultValue = Linterp2D(xt, yt, FDMValue, 0, 0)
 
-        if LoggingFlag > 0 : 
-            FDMValueAtGreedMax0Min[-(i+1)][0] = np.round(FDMValue[0], 2) if HW2FFlag == 0 else FDMValue[0, 0]
-            FDMValueAtGreedMax0Min[-(i+1)][1] = np.round(ResultValue, 2) 
-            FDMValueAtGreedMax0Min[-(i+1)][2] = np.round(FDMValue[-1], 2) if HW2FFlag == 0 else FDMValue[-1, -1]
-            if HW2FFlag == 0 : 
-                Leg1SwapRateMax0Min[-(i+1)][1] = np.interp(0, xt, Leg1SwapRate[-(i+1)]) if Leg1_PowerSpreadFlag == 0 else np.interp(0, xt, Leg1SwapRate[-(i+1)]) - np.interp(0, xt, Leg1SwapRate_PowerSpread[-(i+1)])
-                Leg2SwapRateMax0Min[-(i+1)][1] = np.interp(0, xt, Leg2SwapRate[-(i+1)]) if Leg2_PowerSpreadFlag == 0 else np.interp(0, xt, Leg2SwapRate[-(i+1)]) - np.interp(0, xt, Leg2SwapRate_PowerSpread[-(i+1)])
-            else : 
-                Leg1SwapRateMax0Min[-(i+1)][1] = Linterp2D(xt, yt, Leg1SwapRate[-(i+1)], 0, 0) if Leg1_PowerSpreadFlag == 0 else Linterp2D(xt, yt, Leg1SwapRate[-(i+1)], 0, 0) - Linterp2D(xt, yt, Leg1SwapRate_PowerSpread[-(i+1)], 0, 0)
-                Leg2SwapRateMax0Min[-(i+1)][1] = Linterp2D(xt, yt, Leg2SwapRate[-(i+1)], 0, 0) if Leg2_PowerSpreadFlag == 0 else Linterp2D(xt, yt, Leg2SwapRate[-(i+1)], 0, 0) - Linterp2D(xt, yt, Leg2SwapRate_PowerSpread[-(i+1)], 0, 0)
+        FDMValueAtGreedMax0Min[-(i+1)][0] = np.round(FDMValue[0], 2) if HW2FFlag == 0 else FDMValue[0, 0]
+        FDMValueAtGreedMax0Min[-(i+1)][1] = np.round(ResultValue, 2) 
+        FDMValueAtGreedMax0Min[-(i+1)][2] = np.round(FDMValue[-1], 2) if HW2FFlag == 0 else FDMValue[-1, -1]
+        if HW2FFlag == 0 : 
+            Leg1SwapRateMax0Min[-(i+1)][1] = np.interp(0, xt, Leg1SwapRate[-(i+1)]) if Leg1_PowerSpreadFlag == 0 else np.interp(0, xt, Leg1SwapRate[-(i+1)]) - np.interp(0, xt, Leg1SwapRate_PowerSpread[-(i+1)])
+            Leg2SwapRateMax0Min[-(i+1)][1] = np.interp(0, xt, Leg2SwapRate[-(i+1)]) if Leg2_PowerSpreadFlag == 0 else np.interp(0, xt, Leg2SwapRate[-(i+1)]) - np.interp(0, xt, Leg2SwapRate_PowerSpread[-(i+1)])
+        else : 
+            Leg1SwapRateMax0Min[-(i+1)][1] = Linterp2D(xt, yt, Leg1SwapRate[-(i+1)], 0, 0) if Leg1_PowerSpreadFlag == 0 else Linterp2D(xt, yt, Leg1SwapRate[-(i+1)], 0, 0) - Linterp2D(xt, yt, Leg1SwapRate_PowerSpread[-(i+1)], 0, 0)
+            Leg2SwapRateMax0Min[-(i+1)][1] = Linterp2D(xt, yt, Leg2SwapRate[-(i+1)], 0, 0) if Leg2_PowerSpreadFlag == 0 else Linterp2D(xt, yt, Leg2SwapRate[-(i+1)], 0, 0) - Linterp2D(xt, yt, Leg2SwapRate_PowerSpread[-(i+1)], 0, 0)
             
     if HW2FFlag == 0 : 
         ResultPrice = np.interp(0, xt, FDMValue)
@@ -3920,38 +3928,32 @@ def Pricing_IRCallableSwap_HWFDM(
     OptionExerciseDeclare = ["OptionExerciseDeclare" if i in OptionFixDate else '' for i in SimulationDateList] 
     OptionExercisePayment = ["OptionExercisePayment" if i in OptionPayDate else '' for i in SimulationDateList] 
     
-    if LoggingFlag > 0 :                         
-        Result2 = pd.DataFrame(FDMValueAtGreedMax0Min, index = SimulationDateList, columns = ["V(xt("+str(np.round(xt[0],2))+"))","V(xt(0))","V(xt("+str(np.round(xt[-1],2))+"))"])
-        Result3 = pd.DataFrame(Leg1SwapRateMax0Min, index = SimulationDateList, columns = ["Leg1Rate(xt("+str(np.round(xt[0],2))+"))","Leg1Rate(xt(0))","Leg1Rate(xt("+str(np.round(xt[-1],2))+"))"])
-        Result4 = pd.DataFrame(Leg2SwapRateMax0Min, index = SimulationDateList, columns = ["Leg2Rate(xt("+str(np.round(xt[0],2))+"))","Leg2Rate(xt(0))","Leg2Rate(xt("+str(np.round(xt[-1],2))+"))"])
-        Result1 = pd.DataFrame(PayoffGreedMax0Min, index = SimulationDateList, columns = ["Leg1CF","Leg2CF"])
-        Result = pd.concat([Result1, Result2, Result3, Result4],axis = 1)
+    Result2 = pd.DataFrame(FDMValueAtGreedMax0Min, index = SimulationDateList, columns = ["V(xt("+str(np.round(xt[0],2))+"))","V(xt(0))","V(xt("+str(np.round(xt[-1],2))+"))"])
+    Result3 = pd.DataFrame(Leg1SwapRateMax0Min, index = SimulationDateList, columns = ["Leg1Rate(xt("+str(np.round(xt[0],2))+"))","Leg1Rate(xt(0))","Leg1Rate(xt("+str(np.round(xt[-1],2))+"))"])
+    Result4 = pd.DataFrame(Leg2SwapRateMax0Min, index = SimulationDateList, columns = ["Leg2Rate(xt("+str(np.round(xt[0],2))+"))","Leg2Rate(xt(0))","Leg2Rate(xt("+str(np.round(xt[-1],2))+"))"])
+    Result1 = pd.DataFrame(PayoffGreedMax0Min, index = SimulationDateList, columns = ["Leg1CF","Leg2CF"])
+    Result = pd.concat([Result1, Result2, Result3, Result4],axis = 1)
 
-        Leg1FwdPayoff = [(Leg1_ResultData["Payoff_ForwardMeasure"][list(Leg1_ResultData["PayDate_Simul"]).index(i), 0]) if i in Leg1_ResultData["PayDate_Simul"] else 0 for i in SimulationDateList]
-        Leg2FwdPayoff = [(Leg2_ResultData["Payoff_ForwardMeasure"][list(Leg2_ResultData["PayDate_Simul"]).index(i), 0]) if i in Leg2_ResultData["PayDate_Simul"] else 0 for i in SimulationDateList]
-        if Leg1_ResultData["PrevPayDate"][-1] in SimulationDateList : 
-            Leg1FwdPayoff[list(SimulationDateList).index(Leg1_ResultData["PrevPayDate"][-1])] = float(Leg1_ResultData["Payoff_Prev"][-1])
-        if Leg2_ResultData["PrevPayDate"][-1] in SimulationDateList : 
-            Leg2FwdPayoff[list(SimulationDateList).index(Leg2_ResultData["PrevPayDate"][-1])] = float(Leg2_ResultData["Payoff_Prev"][-1])
-        Result["Leg1_Payoff_FwdMsr"] = Leg1FwdPayoff
-        Result["Leg2_Payoff_FwdMsr"] = Leg2FwdPayoff
-        Result["DiscountFactor"] = DF_TimeGreed
-        Result["ResultPrice"] = ResultPrice
-        Result["Leg1_DiscCurveName"] = Leg1_DiscCurveName
-        Result["Leg1_EstCurveName"] = Leg1_EstCurveName
-        Result["Leg2_DiscCurveName"] = Leg2_DiscCurveName
-        Result["Leg2_EstCurveName"] = Leg2_EstCurveName
-        Result["OptionDeclare"] = OptionExerciseDeclare
-        Result["OptionPayment"] = OptionExercisePayment
-        
+    Leg1FwdPayoff = [(Leg1_ResultData["Payoff_ForwardMeasure"][list(Leg1_ResultData["PayDate_Simul"]).index(i), 0]) if i in Leg1_ResultData["PayDate_Simul"] else 0 for i in SimulationDateList]
+    Leg2FwdPayoff = [(Leg2_ResultData["Payoff_ForwardMeasure"][list(Leg2_ResultData["PayDate_Simul"]).index(i), 0]) if i in Leg2_ResultData["PayDate_Simul"] else 0 for i in SimulationDateList]
+    if Leg1_ResultData["PrevPayDate"][-1] in SimulationDateList : 
+        Leg1FwdPayoff[list(SimulationDateList).index(Leg1_ResultData["PrevPayDate"][-1])] = float(Leg1_ResultData["Payoff_Prev"][-1])
+    if Leg2_ResultData["PrevPayDate"][-1] in SimulationDateList : 
+        Leg2FwdPayoff[list(SimulationDateList).index(Leg2_ResultData["PrevPayDate"][-1])] = float(Leg2_ResultData["Payoff_Prev"][-1])
+    Result["Leg1_Payoff_FwdMsr"] = Leg1FwdPayoff
+    Result["Leg2_Payoff_FwdMsr"] = Leg2FwdPayoff
+    Result["DiscountFactor"] = DF_TimeGreed
+    Result["ResultPrice"] = ResultPrice
+    Result["Leg1_DiscCurveName"] = Leg1_DiscCurveName
+    Result["Leg1_EstCurveName"] = Leg1_EstCurveName
+    Result["Leg2_DiscCurveName"] = Leg2_DiscCurveName
+    Result["Leg2_EstCurveName"] = Leg2_EstCurveName
+    Result["OptionDeclare"] = OptionExerciseDeclare
+    Result["OptionPayment"] = OptionExercisePayment
+
+    if LoggingFlag > 0 :                                 
         Result.to_csv(LoggingDir + "\\LoggingIRStructuredSwap.csv", index = True, encoding = "cp949")
-    else : 
-        if HW2FFlag == 0 : 
-            Result = pd.DataFrame(FDMValue.reshape(-1,1), columns = ["PriceByGreed"], index = xt)
-            Result.index.name = "xt"
-        else : 
-            Result = pd.DataFrame(FDMValue, columns = xt, index = yt)
-        Result["ResultPrice"] = ResultPrice
+
     return Result            
 
 def Pricing_IRCallableSwap_HWFDM_Greek(
@@ -4076,6 +4078,466 @@ def Pricing_IRCallableSwap_HWFDM_Greek(
             ResultDict["VegaTerm2"] = HWVolTerm2
             ResultDict["VegaFRTB2"] = VegaArray2/0.0001 * np.array(HWVol2)
     return ResultDict    
+
+def PricingIRStructuredSwapProgram(HolidayData, currdir) : 
+    YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
+                                                                    namenotin = "vol",
+                                                                    Comments = "IRS Pricing을 위한 커브 번호를 입력하시오.",
+                                                                    MultiSelection = False)     
+    curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
+    PriceDateDefault = int(YYYYMMDD)
+    Curve = MyMarketDataList[0]
+    UsedCurveName = Name[0].split("\\")[-1].split(".")[0]
+    Curr = Name[0].split("\\")[-2].upper()
+    CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
+    CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
+
+    root = tk.Tk()
+    root.title("Callable Swap Pricer(Single Phase)")
+    root.geometry("1500x750+30+30")
+    root.resizable(False, False)
+
+    left_frame = tk.Frame(root)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+
+    v_Nominal = make_variable_interface(left_frame, 'Nominal Amount', bold = False, textfont = 11, defaultflag = True, defaultvalue=10000)
+    v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20160929)
+    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20460929)
+    vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["0","1","2","4","6"], titlelable = True, titleName = "Leg1 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue=3)
+    v_L1_FixedCpnRate_P1 = make_variable_interface(left_frame, 'Leg1 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.19)
+    v_L1_RefSwapMaturity_T = make_variable_interface(left_frame, 'Leg1 변동금리 만기\n(3M-> 0.25, 5Y-> 5)', bold = False, titlelable = True, titleName = "변동금리 사용의 경우\n아래 데이터 입력", textfont = 11)
+    vb_L1_RefSwapNCPNOneYear_P1 = make_listvariable_interface(left_frame, 'Leg1 변동금리의 \n연 쿠폰지급수', ["1","2","4","6"], listheight = 3, textfont = 11)
+    v_L1_RefRateMultiple_P1 = make_variable_interface(left_frame, 'Leg1 변동금리Multiple', bold = False, textfont = 11)
+    vb_L1_DayCount = make_listvariable_interface(left_frame, 'Leg1 DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360","5: Cmp ACT/365","6: Cmp ACT/360","7: Cmp ACT/ACT","8: Cmp 30/360"], listheight = 3, textfont = 11)
+
+    center_frame = tk.Frame(root)
+    center_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_PriceDate = make_variable_interface(center_frame, 'PriceDate', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = PriceDateDefault)
+    vb_Holiday = make_listvariable_interface(center_frame, 'HolidayFlag', ["KRW","USD","GBP","JPY"], listheight = 4, textfont = 11, pady = 2, defaultflag = True, defaultvalue = 0)
+
+    vb_L2_NumCpnOneYear_P1 = make_listvariable_interface(center_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["0","1","2","4","6"], titlelable = True, titleName = "Leg2 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue = 3)
+    v_L2_FixedCpnRate_P1 = make_variable_interface(center_frame, 'Leg2 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue = -0.1)
+    v_L2_RefSwapMaturity_T = make_variable_interface(center_frame, 'Leg2 변동금리 만기\n(3M-> 0.25, 5Y-> 5)', bold = False, titlelable = True, titleName = "변동금리 사용의 경우\n아래 데이터 입력", textfont = 11, defaultflag = True ,defaultvalue = 0.25)
+    vb_L2_RefSwapNCPNOneYear_P1 = make_listvariable_interface(center_frame, 'Leg2 변동금리의 \n연 쿠폰지급수', ["1","2","4","6"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 2)
+    v_L2_RefRateMultiple_P1 = make_variable_interface(center_frame, 'Leg2 변동금리Multiple', bold = False, textfont = 11, defaultflag = True, defaultvalue = 1.0)
+    vb_L2_DayCount = make_listvariable_interface(center_frame, 'Leg2 DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360","5: Cmp ACT/365","6: Cmp ACT/360","7: Cmp ACT/ACT","8: Cmp 30/360"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0)
+
+    right_frame = tk.Frame(root)
+    right_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    vb_OptionHolder = make_listvariable_interface(right_frame, 'OptionHolder', ["0: Leg1 Hold Option","1: Leg2 Hold Option"], titleName = "Option Information", titlelable= True, listheight = 3, textfont = 11, defaultflag = True, defaultvalue= 0)
+    v_FirstOptPayDate = make_variable_interface(right_frame, '첫 옵션행사일\n(지급일기준)', bold = False, textfont = 11, defaultflag = True, defaultvalue = 20190929)
+    vb_NYearBetweenOptionPay = make_listvariable_interface(right_frame, '옵션행사간격', ["6M","12M","24M","36M","60M"], listheight = 5, textfont = 11, defaultflag = True, defaultvalue = 1)
+    v_NBDateBetweenOptionFixToPay = make_variable_interface(right_frame, '옵션행사선언일과\n옵션지급일사이의\n영업일수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 20)
+    v_MaxNumOpt = make_variable_interface(right_frame, '최대옵션개수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 0)
+    v_L1FirstFixing = make_variable_interface(right_frame, 'Leg1)최근Fixing금리(%)\n(Fixing이후 평가시 입력)', bold = False, textfont = 11)
+    v_L2FirstFixing = make_variable_interface(right_frame, 'Leg2)최근Fixing금리(%)\n(Fixing이후 평가시 입력)', bold = False, textfont = 11)
+    vb_GreekFlag = make_listvariable_interface(right_frame, 'Greek산출', ["0: Pricing만","1: Delta,Gamma","2: Delta,Gamma,Vega"], listheight = 3, textfont = 11)
+
+    rightright_frame = tk.Frame(root)
+    rightright_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    vb_zerocurve = make_listvariable_interface(rightright_frame, 'ZeroCurve(자동Load)', termratestr(CurveTerm1, CurveRate1), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
+    v_hwkappa = make_variable_interface(rightright_frame, 'HullWhite Kappa', bold = False, textfont = 11, titleName = "\nHull White Params", titlelable = True, defaultflag = True, defaultvalue = 0.01)
+    v_hwvolterm = make_variable_interface(rightright_frame, 'HullWhite Vol Tenor\n[0.25, 0.5, 1.0, ...] 등의\n포멧으로 입력', bold = False, textfont = 11, defaultflag = True, defaultvalue = "0.25, 0.5, 1")
+    v_hwvol = make_variable_interface(rightright_frame, 'HullWhite Volatility(%)\n[0.87, 0.88, 0.91, ...] 등의\n포멧으로 입력', bold = False, textfont = 11, defaultflag = True, defaultvalue = "0.87, 0.98, 0.89")
+
+    Result_frame = tk.Frame(root)
+    Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    vb_Logging = make_listvariable_interface(Result_frame, 'CSVLogging', ["0: Logging안함","1: CSVLogging"], listheight = 2, textfont = 11, titleName="Pricing Result",titlelable=True, pady = 10)
+    
+    PV01, TempPV01 = None, None
+    PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2]
+    def run_function(MyArrays) : 
+        PrevTreeFlag = MyArrays[0] 
+        tree = MyArrays[1] 
+        scrollbar = MyArrays[2]
+        scrollbar2 = MyArrays[3]        
+        Nominal = int(v_Nominal.get()) if len(str(v_Nominal.get())) > 0 else 10000
+        SwapEffectiveDate = int(v_SwapEffectiveDate.get()) if len(str(v_SwapEffectiveDate.get())) > 0 else 20200627
+        SwapMaturity = int(v_SwapMaturity.get()) if len(str(v_SwapMaturity.get())) > 0 else (SwapEffectiveDate + 100000)
+        L1_NumCpnOneYear_P1 = int(vb_L1_NumCpnOneYear_P1.get(vb_L1_NumCpnOneYear_P1.curselection())) if vb_L1_NumCpnOneYear_P1.curselection() else 4
+        if len(str(v_L1_FixedCpnRate_P1.get())) > 0 : 
+            if "%" in str(v_L1_FixedCpnRate_P1.get()) : 
+                L1_FixedCpnRate_P1 = float(v_L1_FixedCpnRate_P1.get())/100
+            else : 
+                L1_FixedCpnRate_P1 = float(str(v_L1_FixedCpnRate_P1.get()).replace("%",""))/100
+        else : 
+            L1_FixedCpnRate_P1 = 0
+        
+        L1_PowerSpreadFlag = 0
+        if len(str(v_L1_RefSwapMaturity_T.get())) > 0 :         
+            if '-' in str(v_L1_RefSwapMaturity_T.get()) : 
+                SplitedStr = str(v_L1_RefSwapMaturity_T.get()).split("-")
+                if 'm' in SplitedStr[0].lower() :
+                    L1_RefSwapMaturity_T = float(SplitedStr[0].lower().split("m")[0])/12
+                elif 'y' in SplitedStr[0].lower() : 
+                    L1_RefSwapMaturity_T = float(SplitedStr[0].lower().split("y")[0]) 
+                else : 
+                    L1_RefSwapMaturity_T = float(SplitedStr[0]) 
+
+                if 'm' in SplitedStr[1].lower() :
+                    L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("m")[0])/12
+                elif 'y' in SplitedStr[1].lower() : 
+                    L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("y")[0]) 
+                else : 
+                    L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1]) 
+                L1_PowerSpreadFlag = 1
+            else : 
+                if 'm' in str(v_L1_RefSwapMaturity_T.get()).lower() : 
+                    L1_RefSwapMaturity_T = float(str(v_L1_RefSwapMaturity_T.get()).split('m')[0])/12
+                elif 'y' in str(v_L1_RefSwapMaturity_T.get()).lower() :
+                    L1_RefSwapMaturity_T = float(str(v_L1_RefSwapMaturity_T.get()).split('y')[0])
+                else :
+                    L1_RefSwapMaturity_T = float(v_L1_RefSwapMaturity_T.get()) 
+                L1_RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T
+        else : 
+            L1_RefSwapMaturity_T = 0.25
+            L1_RefSwapMaturity_T_PowerSpread = 0.25
+            
+        L1_RefSwapNCPNOneYear_P1 = int(vb_L1_RefSwapNCPNOneYear_P1.get(vb_L1_RefSwapNCPNOneYear_P1.curselection())) if vb_L1_RefSwapNCPNOneYear_P1.curselection() else 4
+        if L1_RefSwapMaturity_T == 0.25 : 
+            L1_RefSwapNCPNOneYear_P1 = 4
+
+        L1_RefRateMultiple_P1 = float(v_L1_RefRateMultiple_P1.get()) if len(str(v_L1_RefRateMultiple_P1.get())) > 0 else 0
+        L1_DayCount = int(str(vb_L1_DayCount.get(vb_L1_DayCount.curselection())).split(":")[0]) if vb_L1_DayCount.curselection() else (0 if L1_NumCpnOneYear_P1 != 0 else 3)
+
+        if L1_PowerSpreadFlag == True : 
+            L1ResultPayoff = "(R(T=" + str(L1_RefSwapMaturity_T)+") - R(T=" + str(L1_RefSwapMaturity_T_PowerSpread)+ ")) x "+ str(L1_RefRateMultiple_P1) + " + " +str(np.round(L1_FixedCpnRate_P1*100,4)) + "%"
+        else : 
+            L1ResultPayoff = "R(T=" + str(L1_RefSwapMaturity_T)+") x "+ str(L1_RefRateMultiple_P1) + " + " +str(np.round(L1_FixedCpnRate_P1*100,4)) + "%"
+        
+        L2_NumCpnOneYear_P1 = int(vb_L2_NumCpnOneYear_P1.get(vb_L2_NumCpnOneYear_P1.curselection())) if vb_L2_NumCpnOneYear_P1.curselection() else 4
+        if len(str(v_L2_FixedCpnRate_P1.get())) > 0 : 
+            if "%" in str(v_L2_FixedCpnRate_P1.get()) : 
+                L2_FixedCpnRate_P1 = float(v_L2_FixedCpnRate_P1.get())/100
+            else : 
+                L2_FixedCpnRate_P1 = float(str(v_L2_FixedCpnRate_P1.get()).replace("%",""))/100
+        else : 
+            L2_FixedCpnRate_P1 = 0
+        
+        L2_PowerSpreadFlag = 0
+        if len(str(v_L2_RefSwapMaturity_T.get())) > 0 :         
+            if '-' in str(v_L2_RefSwapMaturity_T.get()) : 
+                SplitedStr = str(v_L2_RefSwapMaturity_T.get()).split("-")
+                if 'm' in SplitedStr[0].lower() :
+                    L2_RefSwapMaturity_T = float(SplitedStr[0].lower().split("m")[0])/12
+                elif 'y' in SplitedStr[0].lower() : 
+                    L2_RefSwapMaturity_T = float(SplitedStr[0].lower().split("y")[0]) 
+                else : 
+                    L2_RefSwapMaturity_T = float(SplitedStr[0]) 
+
+                if 'm' in SplitedStr[1].lower() :
+                    L2_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("m")[0])/12
+                elif 'y' in SplitedStr[1].lower() : 
+                    L2_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("y")[0]) 
+                else : 
+                    L2_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1]) 
+                L2_PowerSpreadFlag = 1
+            else : 
+                if 'm' in str(v_L2_RefSwapMaturity_T.get()).lower() : 
+                    L2_RefSwapMaturity_T = float(str(v_L2_RefSwapMaturity_T.get()).split('m')[0])/12
+                elif 'y' in str(v_L2_RefSwapMaturity_T.get()).lower() :
+                    L2_RefSwapMaturity_T = float(str(v_L2_RefSwapMaturity_T.get()).split('y')[0])
+                else :
+                    L2_RefSwapMaturity_T = float(v_L2_RefSwapMaturity_T.get()) 
+                L2_RefSwapMaturity_T_PowerSpread = L2_RefSwapMaturity_T
+        else : 
+            L2_RefSwapMaturity_T = 0.25
+            L2_RefSwapMaturity_T_PowerSpread = 0.25
+            
+        L2_RefSwapNCPNOneYear_P1 = int(vb_L2_RefSwapNCPNOneYear_P1.get(vb_L2_RefSwapNCPNOneYear_P1.curselection())) if vb_L2_RefSwapNCPNOneYear_P1.curselection() else 4
+        if L2_RefSwapMaturity_T == 0.25 : 
+            L2_RefSwapNCPNOneYear_P1 = 4
+            
+        L2_RefRateMultiple_P1 = float(v_L2_RefRateMultiple_P1.get()) if len(str(v_L2_RefRateMultiple_P1.get())) > 0 else 0
+        L2_DayCount = int(str(vb_L2_DayCount.get(vb_L2_DayCount.curselection())).split(":")[0]) if vb_L2_DayCount.curselection() else (0 if L2_NumCpnOneYear_P1 != 0 else 3)
+        if L2_PowerSpreadFlag == True : 
+            L2ResultPayoff = "(R(T=" + str(L2_RefSwapMaturity_T)+") - R(T=" + str(L2_RefSwapMaturity_T_PowerSpread)+ ")) x "+ str(L2_RefRateMultiple_P1) + " + " +str(np.round(L2_FixedCpnRate_P1*100,4)) + "%"
+        else : 
+            L2ResultPayoff = "R(T=" + str(L2_RefSwapMaturity_T)+") x "+ str(L2_RefRateMultiple_P1) + " + " +str(np.round(L2_FixedCpnRate_P1*100,4)) + "%"
+
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else 20240627
+        Holiday = str(vb_Holiday.get(vb_Holiday.curselection())).upper() if vb_Holiday.curselection() else "KRW"
+        if 'KRW' in Curr : 
+            HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+        elif "KRW" in Curr : 
+            HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+        else : 
+            if Curr in HolidayData.columns : 
+                HolidaysForSwap = HolidayData[Curr].unique().astype(np.int64)
+            else : 
+                HolidaysForSwap = []
+                            
+        OptionHolder = int(str(vb_OptionHolder.get(vb_OptionHolder.curselection())).split(":")[0]) if vb_OptionHolder.curselection() else 0    
+        FirstOptPayDate = int(v_FirstOptPayDate.get()) if len(str(v_FirstOptPayDate.get())) > 0 else SwapEffectiveDate + 10000
+        NYearBetweenOptionPay = float(str(vb_NYearBetweenOptionPay.get(vb_NYearBetweenOptionPay.curselection())).split("M")[0])/12 if vb_NYearBetweenOptionPay.curselection() else 1    
+        MaxNumOpt = int(v_MaxNumOpt.get()) if len(str(v_MaxNumOpt.get())) > 0 else -1
+        NBDateBetweenOptionFixToPay = int(v_NBDateBetweenOptionFixToPay.get()) if len(str(v_NBDateBetweenOptionFixToPay.get())) > 0 else 0
+        
+        GreekFlag = int(str(vb_GreekFlag.get(vb_GreekFlag.curselection())).split(":")[0]) if vb_GreekFlag.curselection() else 0
+        LoggingFlag = int(str(vb_Logging.get(vb_Logging.curselection())).split(":")[0]) if vb_Logging.curselection() else 0
+        
+        hwkappa = float(v_hwkappa.get()) if len(str(v_hwkappa.get())) > 0 else 0.001
+        if len(str(v_hwvolterm.get())) > 0 : 
+            if '(' in str(v_hwvolterm.get()) or ')' in str(v_hwvolterm.get()) : 
+                tenorstr = str(v_hwvolterm.get()).replace("(","").replace(")","").split(',')
+            elif '[' in str(v_hwvolterm.get()) or ']' in str(v_hwvolterm.get()) :
+                tenorstr = str(v_hwvolterm.get()).replace("[","").replace("]","").split(',')
+            else : 
+                tenorstr = str(v_hwvolterm.get()).split(',')
+            hwvolterm = list(np.vectorize(lambda x : float(x))(tenorstr))
+        else : 
+            hwvolterm = [1.0]
+
+        if len(str(v_hwvol.get())) > 0 : 
+            if '(' in str(v_hwvol.get()) or ')' in str(v_hwvol.get()) : 
+                volstr = str(v_hwvol.get()).replace("(","").replace(")","").split(',')
+            elif '[' in str(v_hwvol.get()) or ']' in str(v_hwvol.get()) :
+                volstr = str(v_hwvol.get()).replace("[","").replace("]","").split(',')
+            else : 
+                volstr = str(v_hwvol.get()).split(',')
+            hwvol = list(np.vectorize(lambda x : float(x))(volstr))
+        else : 
+            hwvol = [0.001]
+
+        L1FirstFixing = float(v_L1FirstFixing.get())/100 if str(v_L1FirstFixing.get()) else 0.0
+        L2FirstFixing = float(v_L2FirstFixing.get())/100 if str(v_L2FirstFixing.get()) else 0.0
+        
+        L1_FixingHistoryDate = [DayPlus(int(PriceDate) - 10000, i) for i in range(365)]
+        L1_FixingHistoryRate = [L1FirstFixing] * len(L1_FixingHistoryDate)    
+        L2_FixingHistoryDate = [DayPlus(int(PriceDate) - 10000, i) for i in range(366)] 
+        L2_FixingHistoryRate = [L2FirstFixing] * len(L2_FixingHistoryDate)    
+        OptionFixDate, OptionPayDate = Generate_OptionDate(FirstOptPayDate, SwapMaturity, NYearBetweenOptionPay, NBDateBetweenOptionFixToPay, MaxNumOpt, ModifiedFollow = 0)
+        if GreekFlag == 0 : 
+            resultframe = Pricing_IRCallableSwap_HWFDM(
+                    Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, L1_NumCpnOneYear_P1,         
+                    L1_RefRateMultiple_P1, L1_RefSwapMaturity_T, L1_RefSwapNCPNOneYear_P1, L1_FixedCpnRate_P1, L1_DayCount, 
+                    L2_NumCpnOneYear_P1, L2_RefRateMultiple_P1, L2_RefSwapMaturity_T, L2_RefSwapNCPNOneYear_P1, L2_FixedCpnRate_P1, 
+                    L2_DayCount, OptionFixDate,OptionPayDate,OptionHolder,
+                    CurveTerm1,CurveRate1, L1_FixingHistoryDate, L1_FixingHistoryRate, L2_FixingHistoryDate, L2_FixingHistoryRate, 
+                    hwkappa,
+                    0.01,
+                    hwvolterm, hwvol, HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+                    HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2,
+                    HWRho12Factor = -0.3, CpnRounding = 15, HW2FFlag = 0, LoggingFlag = LoggingFlag, 
+                    LoggingDir = currdir, Leg1_DiscCurveName = UsedCurveName, Leg1_EstCurveName = UsedCurveName, Leg2_DiscCurveName = UsedCurveName,
+                    Leg2_EstCurveName = UsedCurveName, KoreanAutoHolidayFlag = (Holiday == "KRW"), FixHolidays = HolidaysForSwap, PayHolidays = HolidaysForSwap,
+                    Leg1_PowerSpreadFlag = L1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T_PowerSpread, Leg2_PowerSpreadFlag = L2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread = L2_RefSwapMaturity_T_PowerSpread)
+            resultprice = resultframe["ResultPrice"].iloc[0]
+            GIRRDelta = 0
+            GIRRCurvature = 0
+            GIRRVega = 0
+            
+        else : 
+            resultframe = Pricing_IRCallableSwap_HWFDM(
+                    Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, L1_NumCpnOneYear_P1,         
+                    L1_RefRateMultiple_P1, L1_RefSwapMaturity_T, L1_RefSwapNCPNOneYear_P1, L1_FixedCpnRate_P1, L1_DayCount, 
+                    L2_NumCpnOneYear_P1, L2_RefRateMultiple_P1, L2_RefSwapMaturity_T, L2_RefSwapNCPNOneYear_P1, L2_FixedCpnRate_P1, 
+                    L2_DayCount, OptionFixDate,OptionPayDate,OptionHolder,
+                    CurveTerm1,CurveRate1, L1_FixingHistoryDate, L1_FixingHistoryRate, L2_FixingHistoryDate, L2_FixingHistoryRate, 
+                    hwkappa,
+                    0.01,
+                    hwvolterm, hwvol, HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+                    HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2,
+                    HWRho12Factor = -0.3, CpnRounding = 15, HW2FFlag = 0, LoggingFlag = LoggingFlag, 
+                    LoggingDir = currdir, Leg1_DiscCurveName = UsedCurveName, Leg1_EstCurveName = UsedCurveName, Leg2_DiscCurveName = UsedCurveName,
+                    Leg2_EstCurveName = UsedCurveName, KoreanAutoHolidayFlag =  (Holiday == "KRW"), FixHolidays = HolidaysForSwap, PayHolidays = HolidaysForSwap,
+                    Leg1_PowerSpreadFlag = L1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T_PowerSpread, Leg2_PowerSpreadFlag = L2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread = L2_RefSwapMaturity_T_PowerSpread)
+            resultprice = resultframe["ResultPrice"].iloc[0]
+            Result = Pricing_IRCallableSwap_HWFDM_Greek(
+                    Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, L1_NumCpnOneYear_P1,         
+                    L1_RefRateMultiple_P1, L1_RefSwapMaturity_T, L1_RefSwapNCPNOneYear_P1, L1_FixedCpnRate_P1, L1_DayCount, 
+                    L2_NumCpnOneYear_P1, L2_RefRateMultiple_P1, L2_RefSwapMaturity_T, L2_RefSwapNCPNOneYear_P1, L2_FixedCpnRate_P1, 
+                    L2_DayCount, OptionFixDate,OptionPayDate,OptionHolder,
+                    CurveTerm1,CurveRate1, L1_FixingHistoryDate, L1_FixingHistoryRate, L2_FixingHistoryDate, L2_FixingHistoryRate, 
+                    hwkappa,
+                    0.01,
+                    hwvolterm, hwvol, HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+                    HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2,
+                    HWRho12Factor = -0.3, CpnRounding = 15, HW2FFlag = 0, LoggingFlag = False, 
+                    LoggingDir = currdir, Leg1_DiscCurveName = UsedCurveName, Leg1_EstCurveName = UsedCurveName, Leg2_DiscCurveName = UsedCurveName,
+                    Leg2_EstCurveName = UsedCurveName, KoreanAutoHolidayFlag =  (Holiday == "KRW"), FixHolidays = HolidaysForSwap, PayHolidays = HolidaysForSwap,
+                    Leg1_PowerSpreadFlag = L1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T_PowerSpread, Leg2_PowerSpreadFlag = L2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread = L2_RefSwapMaturity_T_PowerSpread,
+                    GreekFlag = GreekFlag)
+            
+            DeltaGreek = pd.Series(Result["PV01"], index = CurveTerm1).reset_index()
+            DeltaGreek.columns = ["PV01Term","PV01"]
+            GIRRDelta = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(DeltaGreek, "PV01Term","PV01"), 4)
+            Cvup = list(np.array(CurveRate1) + 0.012)
+            Pu = Pricing_IRCallableSwap_HWFDM(
+                    Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, L1_NumCpnOneYear_P1,         
+                    L1_RefRateMultiple_P1, L1_RefSwapMaturity_T, L1_RefSwapNCPNOneYear_P1, L1_FixedCpnRate_P1, L1_DayCount, 
+                    L2_NumCpnOneYear_P1, L2_RefRateMultiple_P1, L2_RefSwapMaturity_T, L2_RefSwapNCPNOneYear_P1, L2_FixedCpnRate_P1, 
+                    L2_DayCount, OptionFixDate,OptionPayDate,OptionHolder,
+                    CurveTerm1,Cvup, L1_FixingHistoryDate, L1_FixingHistoryRate, L2_FixingHistoryDate, L2_FixingHistoryRate, 
+                    hwkappa,
+                    0.01,
+                    hwvolterm, hwvol, HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+                    HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2,
+                    HWRho12Factor = -0.3, CpnRounding = 15, HW2FFlag = 0, LoggingFlag = LoggingFlag, 
+                    LoggingDir = currdir, Leg1_DiscCurveName = UsedCurveName, Leg1_EstCurveName = UsedCurveName, Leg2_DiscCurveName = UsedCurveName,
+                    Leg2_EstCurveName = UsedCurveName, KoreanAutoHolidayFlag =  (Holiday == "KRW"), FixHolidays = HolidaysForSwap, PayHolidays = HolidaysForSwap,
+                    Leg1_PowerSpreadFlag = L1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T_PowerSpread, Leg2_PowerSpreadFlag = L2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread = L2_RefSwapMaturity_T_PowerSpread)["ResultPrice"].iloc[0]
+            Cvdn = list(np.array(CurveRate1) - 0.012)
+            Pd = Pricing_IRCallableSwap_HWFDM(
+                    Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, L1_NumCpnOneYear_P1,         
+                    L1_RefRateMultiple_P1, L1_RefSwapMaturity_T, L1_RefSwapNCPNOneYear_P1, L1_FixedCpnRate_P1, L1_DayCount, 
+                    L2_NumCpnOneYear_P1, L2_RefRateMultiple_P1, L2_RefSwapMaturity_T, L2_RefSwapNCPNOneYear_P1, L2_FixedCpnRate_P1, 
+                    L2_DayCount, OptionFixDate,OptionPayDate,OptionHolder,
+                    CurveTerm1,Cvdn, L1_FixingHistoryDate, L1_FixingHistoryRate, L2_FixingHistoryDate, L2_FixingHistoryRate, 
+                    hwkappa,
+                    0.01,
+                    hwvolterm, hwvol, HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+                    HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2,
+                    HWRho12Factor = -0.3, CpnRounding = 15, HW2FFlag = 0, LoggingFlag = LoggingFlag, 
+                    LoggingDir = currdir, Leg1_DiscCurveName = UsedCurveName, Leg1_EstCurveName = UsedCurveName, Leg2_DiscCurveName = UsedCurveName,
+                    Leg2_EstCurveName = UsedCurveName, KoreanAutoHolidayFlag =  (Holiday == "KRW"), FixHolidays = HolidaysForSwap, PayHolidays = HolidaysForSwap,
+                    Leg1_PowerSpreadFlag = L1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T_PowerSpread, Leg2_PowerSpreadFlag = L2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread = L2_RefSwapMaturity_T_PowerSpread)["ResultPrice"].iloc[0]
+            GammaGreek = DeltaGreek.copy()
+            GammaGreek.columns = ["Tenor","DeltaSensi"]
+            GammaGreek["DeltaSensi"] = GammaGreek["DeltaSensi"] * 10000
+            GammaGreek["Bucket"] ="KRW"
+            GammaGreek["RiskWeight"] = GIRR_DeltaRiskWeight(list(DeltaGreek["PV01Term"].values), ["KRW"] * len(DeltaGreek), ["IRS"] * len(DeltaGreek))
+            CVR_Plus = -(Pu - Result["Price"] - (GammaGreek["DeltaSensi"] * GammaGreek["RiskWeight"]).sum())
+            CVR_Minus = -(Pd - Result["Price"] + (GammaGreek["DeltaSensi"] * GammaGreek["RiskWeight"]).sum())
+            GIRRCurvature = max(abs(CVR_Plus), abs(CVR_Minus))
+            T = DayCountAtoB(int(YYYYMMDD), SwapMaturity)/365
+            if GreekFlag > 1 : 
+                V = pd.Series(Result["VegaFRTB"][1:-1], Result["VegaTerm"][1:-1]).reset_index()
+                V.columns = ["Tenor1","VegaSensi"]
+                V["Tenor2"] = T - V["Tenor1"]
+                V["Risk_Type"] = "Vega"
+                V["Curve"] = UsedCurveName
+                V["Risk_Class"] = "GIRR"
+                V["Bucket"] = "KRW"
+                GIRRVega = Calc_GIRRVega(V, SensitivityColumnName = "VegaSensi")["KB_M"].iloc[0]
+            else : 
+                GIRRVega = 0
+        if PrevTreeFlag == 0 : 
+            tree = ttk.Treeview(root)
+        else : 
+            tree.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
+            tree = ttk.Treeview(root)
+        resultframe = resultframe.applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+        tree.pack(padx=5, pady=5, fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")    
+        
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, resultframe.reset_index(), width = 100)
+        if GreekFlag > 0 : 
+            output_label.config(text = f"\n결과: {np.round(resultprice,4)}\n\nLeg1 Payoff: \n{L1ResultPayoff}\n\nLeg2 Payoff: \n{L2ResultPayoff}\n\nGIRR Delta: {np.round(GIRRDelta,4)}\n\nGIRR Curvature: {np.round(GIRRCurvature,4)}\n\nGIRR Vega: {np.round(GIRRVega,4)} ", font = ("맑은 고딕", 12, 'bold'))
+        else : 
+            output_label.config(text = f"\n결과: {np.round(resultprice,4)}\n\nLeg1 Payoff: \n{L1ResultPayoff}\n\nLeg2 Payoff: \n{L2ResultPayoff}", font = ("맑은 고딕", 12, 'bold'))
+        MyArrays[0] = PrevTreeFlag 
+        MyArrays[1] = tree 
+        MyArrays[2] = scrollbar
+        MyArrays[3] = scrollbar2        
+    temp_func = lambda : run_function(MyArrays)            
+    tk.Button(Result_frame, text = '실행', padx = 20, pady = 20, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+    output_label = tk.Label(Result_frame, text = "", anchor = "n")
+    output_label.pack(padx = 5, pady = 2)
+
+    root.mainloop()
+    MainFlag2 = 0#input("종료하시겠습니까? (Y/N)\n->")
+
+    return MainFlag2, 1, 1, 1
+
+#############################################################################################################
+#TK GUI Tool
+def make_variable_interface(frame, VariableName, textfont = 12, anchor = 'w', padx = 5, pady = 2, bold = False, titlelable = False, titleName = "", defaultflag = False, defaultvalue = None) : 
+    
+    myfont = ("맑은 고딕", textfont) if bold == False else ("맑은 고딕", textfont, 'bold')
+    if titlelable == True : 
+        tk.Label(frame, text = titleName, font = ("맑은 고딕", textfont, 'bold')).pack(anchor = anchor, padx = padx, pady = pady)    
+        
+    tk.Label(frame, text = VariableName, font = myfont).pack(anchor = anchor, padx = padx, pady = pady)    
+    entry = tk.Entry(frame)
+    if defaultflag == True : 
+        entry.insert(0, defaultvalue)
+    entry.pack(anchor = anchor, padx = padx, pady = pady)
+    return entry
+
+def make_listvariable_interface(frame, VariableName, MyList, listheight = 5,textfont = 12, anchor = 'w', padx = 5, pady = 2, bold = False, titlelable = False, titleName = "", defaultflag = False, defaultvalue = 0, width = 20) : 
+    
+    myfont = ("맑은 고딕", textfont) if bold == False else ("맑은 고딕", textfont)
+    if titlelable == True : 
+        tk.Label(frame, text = titleName, font = ("맑은 고딕", textfont, 'bold')).pack(anchor = anchor, padx = padx, pady = pady)    
+    
+    tk.Label(frame, text = VariableName, font = myfont).pack(anchor = anchor, padx = padx, pady = pady)    
+    listbox = tk.Listbox(frame, height = listheight, exportselection = False, width = width)
+    for item in MyList : 
+        if "|" not in item : 
+            listbox.insert(tk.END, str(item))
+        else : 
+            mystr = item.split("|")
+            mystr1 = mystr[0]
+            mystr2 = mystr[1]
+            lenmystr1 = len(mystr1)
+            lenmystr2 = len(mystr2)
+            needstradd1 = max(0, 8 - lenmystr1)
+            needstradd2 = max(0, 8 - lenmystr2)
+            MyString1 = mystr1 + (" " * needstradd1)
+            MyString2 = mystr2 + (" " * needstradd2)
+            listbox.insert(tk.END, str(MyString1 + " | " + MyString2))            
+    
+    listbox.pack(anchor = anchor, padx = padx, pady = pady)
+    if defaultflag == True : 
+        listbox.selection_set(defaultvalue)
+    return listbox
+
+def make_multilistvariable_interface(frame, VariableName, MyList, listheight = 5,textfont = 12, anchor = 'w', padx = 5, pady = 2, bold = False, titlelable = False, titleName = "", defaultflag = False, defaultvalue = 0, width = 20) : 
+    
+    myfont = ("맑은 고딕", textfont) if bold == False else ("맑은 고딕", textfont)
+    if titlelable == True : 
+        tk.Label(frame, text = titleName, font = ("맑은 고딕", textfont, 'bold')).pack(anchor = anchor, padx = padx, pady = pady)    
+    
+    tk.Label(frame, text = VariableName, font = myfont).pack(anchor = anchor, padx = padx, pady = pady)    
+    listbox = tk.Listbox(frame, selectmode="multiple", height = listheight, exportselection = False, width = width)
+    for item in MyList : 
+        if "|" not in item : 
+            listbox.insert(tk.END, str(item))
+        else : 
+            mystr = item.split("|")
+            mystr1 = mystr[0]
+            mystr2 = mystr[1]
+            lenmystr1 = len(mystr1)
+            lenmystr2 = len(mystr2)
+            needstradd1 = max(0, 8 - lenmystr1)
+            needstradd2 = max(0, 8 - lenmystr2)
+            MyString1 = mystr1 + (" " * needstradd1)
+            MyString2 = mystr2 + (" " * needstradd2)
+            listbox.insert(tk.END, str(MyString1 + " | " + MyString2))            
+    
+    listbox.pack(anchor = anchor, padx = padx, pady = pady)
+    if defaultflag == True : 
+        listbox.selection_set(defaultvalue)
+    return listbox
+
+def termratestr(term, rate) : 
+    return [str(np.round(x,4)) + '|' + str(y) for x, y in zip(term, rate)]
+
+def insert_dataframe_to_treeview(treeview, dataframe, width = 50):
+    # 기존 컬럼과 데이터 제거
+    treeview.delete(*treeview.get_children())
+    treeview["columns"] = list(dataframe.columns)
+    treeview["show"] = "headings"
+
+    # 컬럼 헤더 설정
+    for col in dataframe.columns:
+        treeview.heading(col, text=col)
+        treeview.column(col, width=width, anchor="center")  # 너비 설정 가능
+
+    # 데이터 삽입
+    for _, row in dataframe.iterrows():
+        treeview.insert("", tk.END, values=list(row))
+    return 1
+    
     
 ##############################################################################################################
 ########################################### 여기까지 Pricing Module ###########################################
@@ -4127,7 +4589,7 @@ def Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01 ,col = "PV01Term", bpv = "PV01")
     Risk = Calc_GIRRDelta(Data, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, "Delta_Sensi").iloc[0]["KB_M"]
     return Risk
 
-def Calc_CSRDeltaNotCorrelated_FromGreeks(PV01 ,col = "PV01Term", bpv = "PV01") : 
+def Calc_CSRDeltaNotCorrelated_FromGreeks(PV01 ,col = "PV01Term", bpv = "PV01", bucket = 0) : 
     CSR_RiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)   
     Data = MapCSRDeltaGreeks(PV01.set_index(col)[bpv], CSR_RiskFactor).reset_index()
     Data.columns = ["Tenor","Delta_Sensi"]
@@ -4137,7 +4599,11 @@ def Calc_CSRDeltaNotCorrelated_FromGreeks(PV01 ,col = "PV01Term", bpv = "PV01") 
     Data["Curve"] = "Bond"
     Data["Issuer"] = "TempIssuer"
     Data["Bucket"] = "KRW"    
-    B = input("\n 채권 버킷을 입력하시오(숫자)\n버킷1:정부,중앙은행\n버킷2:지방정부,공공행정\n버킷3:금융\n버킷4:원자재\n버킷5:소비재\n버킷6:기술통신\n->")
+    if bucket == 0 : 
+        B = input("\n 채권 버킷을 입력하시오(숫자)\n버킷1:정부,중앙은행\n버킷2:지방정부,공공행정\n버킷3:금융\n버킷4:원자재\n버킷5:소비재\n버킷6:기술통신\n->")
+    else : 
+        B = str(bucket)
+        
     if len(str(B)) == 0 or B == '0': 
         B = 1
     else : 
@@ -4268,7 +4734,8 @@ def PreProcessingKDBData(KDBData, dataformat = 'Combined') :
         DataCOMRVega = DataCOMR[DataCOMR["Risk_Type"].isin(["Vega","베가","베가(Vega)"])]
         DataCOMRDelta = DataCOMRDelta.rename(columns = {"RiskFactor1":"Underlying","RiskFactor2":"Tenor","RiskFactor3":"Delivery"})
         DataCOMRCurvature = DataCOMRCurvature.rename(columns = {"RiskFactor1":"Underlying","RiskFactor2":"Delivery","RiskFactor3":"TempRiskFactor3"})
-        DataCOMRVega = DataCOMRVega.rename(columns = {"RiskFactor1":"Underlying","RiskFactor2":"Tenor","RiskFactor3":"Delivery"})
+        DataCOMRVega = DataCOMRVega.rename(columns = {"RiskFactor1":"Tenor","RiskFactor2":"Underlying","RiskFactor3":"Delivery"})
+        DataCOMRVega["Tenor"].apply(lambda x : str(x).lower().split("y")[0] if 'y' in str(x).lower() else (str(float(str(x).lower().split("m")[0])/12) if 'm' in str(x).lower() else x))
         
         DataCOMR = pd.concat([DataCOMRDelta, DataCOMRCurvature, DataCOMRVega],axis = 0)
     if dataformat == 'Combined' : 
@@ -6568,10 +7035,14 @@ def MarketDataFileListPrint(currdir, namein = "", namenotin = "") :
     Result = pd.DataFrame([YYYYMMDD, filenum, folder, filenames, filenamesprint], index = ["YYYYMMDD","Number","Folder","Directory","DirectoryPrint"]).T
     return Result
 
-def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING", namein = "", namenotin = "", Comments = "") : 
+#MarketDataDir = currdir + '\\MarketData\\outputdata' 
+#namenotin = "swaption"
+#Comments = "채권 Pricing을 위한 커브 번호를 입력하시오."
+def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING", namein = "", namenotin = "", Comments = "", MainComments = "", MultiSelection = True) : 
     Data = MarketDataFileListPrint(MarketDataDir, namein ,namenotin ).sort_values(by = "YYYYMMDD")[-50:]
+    
     GroupbyYYYYMMDD = Data.groupby("YYYYMMDD").first().reset_index()
-    PrintDate = "\n 다음 중 사용하실 MarketData 날짜를 고르세요. (번호선택)\n"
+    PrintDate = MainComments + "\n 다음 중 사용하실 MarketData 날짜를 고르세요. (번호선택)\n"
     FixedDateInFlag = 0
     n = 0
     for x, y in zip(GroupbyYYYYMMDD["Number"], GroupbyYYYYMMDD["YYYYMMDD"]) : 
@@ -6580,31 +7051,42 @@ def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING", namein =
             FixedDateInFlag = n
             break
         n = n + 1
-    if FixedDateInFlag == 0 : 
-        DateMarketDataIdx = input(PrintDate + "-> ")
-    else : 
-        DateMarketDataIdx = FixedDateInFlag + 1
-    YYYYMMDD = GroupbyYYYYMMDD["YYYYMMDD"].iloc[int(DateMarketDataIdx) - 1]
-    TargetFiles = Data[Data["YYYYMMDD"].astype(str) == YYYYMMDD].groupby("Directory").first().reset_index()
+    #if FixedDateInFlag == 0 : 
+    #    DateMarketDataIdx = input(PrintDate + "-> ")
+    #else : 
+    #    DateMarketDataIdx = FixedDateInFlag + 1
+
+    YYYYMMDD = MainViewer(Title = 'MarketData:Date', MyText = '사용하실 마켓데이터 날짜는?(번호입력)', MyList = list(GroupbyYYYYMMDD["YYYYMMDD"]), size = "800x450+30+30", splitby = ".", listheight = 8, textfont = 13, titlelable = False, titleName = "Name")        
+    YYYYMMDD = str(YYYYMMDD)
+    #YYYYMMDD = GroupbyYYYYMMDD["YYYYMMDD"].isin([TargetDate, str(TargetDate)])
+    TargetFiles = Data[Data["YYYYMMDD"].isin([YYYYMMDD, int(YYYYMMDD)])].groupby("Directory").first().reset_index()
+
     if len(Comments) == 0 : 
-        PrintMarketData = "\n 다음 중 사용하실 MarketData를 고르세요.(example : 1 || example2 : 1, 2, 3 와 같은 여러개 선택)\n"
+        PrintMarketData = "\n 다음 중 사용하실 MarketData를 고르세요.(example : 1 || example2 : 1, 2, 3 와 같은 여러개 선택가능)\n"
+        PrintComments = "다음 중 사용하실 MarketData를 고르세요.\n(example : 1 || example2 : 1, 2, 3 와 같은 여러개 선택가능"
     else : 
         PrintMarketData = "\n" + Comments + "\n"
+        PrintComments = Comments + "\n"
     TargetList = []
     for idxx, x in enumerate(TargetFiles["Directory"]) : 
         PrintMarketData += ' ' + str(idxx+1) +". "+ str(x) + "\n"
-    DataMarketData = input(PrintMarketData + '->')
+    DataMarketData = MainViewer(Title = 'Viewer', MyText = PrintComments, MyList = TargetFiles["DirectoryPrint"], size = "800x450+30+30", splitby = ".", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = MultiSelection)#input(PrintMarketData + '->')
+    DataMarketData = str(DataMarketData)
     MarketDataList = []
     MarketDataName = []
     
     if len(DataMarketData) == 1 : 
-        MarketDataList.append(ReadCSV(TargetFiles["Directory"].iloc[int(DataMarketData) - 1]).dropna(how = 'all'))
-        MarketDataName.append(TargetFiles["Directory"].iloc[int(DataMarketData) - 1])
+        NumberList = DataMarketData.replace(" ","").split(",")
+        idx = TargetFiles["Number"].astype(str).isin(NumberList)
+        MarketDataList.append(ReadCSV(TargetFiles["Directory"][idx].iloc[0]).dropna(how = 'all'))
+        MarketDataName.append(TargetFiles["Directory"][idx].iloc[0])
     else : 
         NumberList = DataMarketData.replace(" ","").split(",")
-        for n in NumberList : 
-            TargetList.append(TargetFiles["Number"].iloc[int(n)-1])
-        TargetFiles2 = TargetFiles[TargetFiles["Number"].astype(np.int64).isin(TargetList)]
+        #for n in NumberList : 
+            #TargetList.append(TargetFiles["Number"].iloc[int(n)-1])
+        #    TargetFiles[TargetFiles["Number"].isin([int(n), str(n)])]
+        #TargetFiles2 = TargetFiles[TargetFiles["Number"].astype(np.int64).isin(TargetList)]
+        TargetFiles2 = TargetFiles[TargetFiles["Number"].astype(str).isin(NumberList)]
         for idx in range(len(TargetFiles2)) : 
             MarketDataList.append(ReadCSV(TargetFiles2["Directory"].iloc[idx]))
             MarketDataName.append(TargetFiles2["Directory"].iloc[idx])
@@ -6711,6 +7193,136 @@ def MainFunction(currdir) :
         Data = pd.concat([Data1, Data2, Data3, Data4, Data5],axis = 0)
     return Data    
 
+def MainFunction2(currdir = os.getcwd()) : 
+    MyFiles = FileListPrint(currdir)
+    MyFiles["RiskClass"] = MyFiles["DirectoryPrint"].apply(lambda x : 'girr' if 'girr' in x.lower() else (
+                                                            'csr' if 'csr' in x.lower() else (
+                                                                'fxr' if 'fx' in x.lower() else (
+                                                                    'eqr' if 'eq' in x.lower() else (
+                                                                        'comr' if 'com' in x.lower() else (
+                                                                            'frtb' if 'frtb' in x.lower() else "None"))))))
+    GIRRFiles = MyFiles[MyFiles["RiskClass"] == 'girr']
+    CSRFiles = MyFiles[MyFiles["RiskClass"] == 'csr']
+    EQRFiles = MyFiles[MyFiles["RiskClass"] == 'eqr']
+    FXRFiles = MyFiles[MyFiles["RiskClass"] == 'fxr']
+    COMRFiles = MyFiles[MyFiles["RiskClass"] == 'comr']
+    FRTBTotalFiles = MyFiles[MyFiles["RiskClass"] == 'frtb']
+    
+    root = tk.Tk()
+    root.title("FRTB Files")
+    root.geometry("1000x750+30+30")
+    root.resizable(False, False)
+    GIRRFileSelection, CSRFileSelection, EQRFileSelection, FXRFileSelection, COMRFileSelection, FRTBFileSelection = None, None, None, None, None, None
+    if len(FRTBTotalFiles) > 0 : 
+        FRTBFilesLen = len(FRTBTotalFiles)
+        left_frame = tk.Frame(root)
+        left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+        FRTBFileSelection = make_listvariable_interface(left_frame, 'FRTB FileName\n(리스트에서 선택)', list(FRTBTotalFiles["DirectoryPrint"]), listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0, width = 90) if FRTBFilesLen > 0 else None
+    else : 
+        GIRRFilesLen = len(GIRRFiles)
+        CSRFilesLen = len(CSRFiles)
+        EQRFilesLen = len(EQRFiles)
+        FXRFilesLen = len(FXRFiles)
+        COMRFilesLen = len(COMRFiles)
+        left_frame = tk.Frame(root)
+        left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+        GIRRFileSelection = make_listvariable_interface(left_frame, 'GIRR FileName\n(리스트에서 선택)', list(GIRRFiles["DirectoryPrint"]), listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0, width = 90) if GIRRFilesLen > 0 else None
+        CSRFileSelection = make_listvariable_interface(left_frame, 'CSR FileName\n(리스트에서 선택)', list(CSRFiles["DirectoryPrint"]), listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0, width = 90) if CSRFilesLen > 0 else None
+        EQRFileSelection = make_listvariable_interface(left_frame, 'EQR FileName\n(리스트에서 선택)', list(EQRFiles["DirectoryPrint"]), listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0, width = 90) if EQRFilesLen > 0 else None
+        FXRFileSelection = make_listvariable_interface(left_frame, 'FXR FileName\n(리스트에서 선택)', list(FXRFiles["DirectoryPrint"]), listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0, width = 90) if FXRFilesLen > 0 else None
+        COMRFileSelection = make_listvariable_interface(left_frame, 'COMR FileName\n(리스트에서 선택)', list(COMRFiles["DirectoryPrint"]), listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0, width = 90) if COMRFilesLen > 0 else None
+
+    PrevTreeFlag = 0
+    tree, scrollbar, scrollbar2 = None, None, None
+    GIRRNumberArray = []
+    CSRNumberArray = []
+    EQRNumberArray = []
+    FXRNumberArray = []
+    COMRNumberArray = []
+    FRTBNumberArray = []
+    def run_function(GIRRNumberArray, CSRNumberArray, EQRNumberArray, FXRNumberArray, COMRNumberArray, FRTBNumberArray) :
+        global tree, PrevTreeFlag, scrollbar, scrollbar2
+        if len(FRTBTotalFiles) > 0 : 
+            FRTBNumber = int(str(FRTBFileSelection.get(FRTBFileSelection.curselection())).split(".")[0]) if FRTBFileSelection.curselection() else 0
+            FRTBNumberArray.append(FRTBNumber)
+        else : 
+            GIRRNumber = int(str(GIRRFileSelection.get(GIRRFileSelection.curselection())).split(".")[0]) if GIRRFileSelection.curselection() else 0
+            GIRRNumberArray.append(GIRRNumber)
+            CSRNumber = int(str(CSRFileSelection.get(CSRFileSelection.curselection())).split(".")[0]) if CSRFileSelection.curselection() else 0
+            CSRNumberArray.append(CSRNumber)
+            EQRNumber = int(str(EQRFileSelection.get(EQRFileSelection.curselection())).split(".")[0]) if EQRFileSelection.curselection() else 0
+            EQRNumberArray.append(EQRNumber)
+            FXRNumber = int(str(FXRFileSelection.get(FXRFileSelection.curselection())).split(".")[0]) if FXRFileSelection.curselection() else 0
+            FXRNumberArray.append(FXRNumber)
+            COMRNumber = int(str(COMRFileSelection.get(COMRFileSelection.curselection())).split(".")[0]) if COMRFileSelection.curselection() else 0
+            COMRNumberArray.append(COMRNumber)
+        root.destroy()
+    temp_function = lambda : run_function(GIRRNumberArray, CSRNumberArray, EQRNumberArray, FXRNumberArray, COMRNumberArray, FRTBNumberArray)
+    tk.Button(left_frame, text = '실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = temp_function, width = 15).pack()
+    root.mainloop()            
+    if len(FRTBTotalFiles) > 0 : 
+        Data = ReadCSV(MyFiles[MyFiles["Number"] == FRTBNumberArray[-1]]["Directory"].iloc[0])
+    else : 
+        Data1 = ReadCSV(MyFiles[MyFiles["Number"] == GIRRNumberArray[-1]]["Directory"].iloc[0])
+        Data2 = ReadCSV(MyFiles[MyFiles["Number"] == CSRNumberArray[-1]]["Directory"].iloc[0])
+        Data3 = ReadCSV(MyFiles[MyFiles["Number"] == EQRNumberArray[-1]]["Directory"].iloc[0])
+        Data4 = ReadCSV(MyFiles[MyFiles["Number"] == FXRNumberArray[-1]]["Directory"].iloc[0])
+        Data5 = ReadCSV(MyFiles[MyFiles["Number"] == COMRNumberArray[-1]]["Directory"].iloc[0])
+        Data = pd.concat([Data1, Data2, Data3, Data4, Data5],axis = 0)
+    return Data
+
+def ViewFRTB(Data) : 
+    root = tk.Tk()
+    root.title("FRTB Result")
+    root.geometry("1500x750+30+30")
+    root.resizable(False, False)
+    tree = ttk.Treeview(root)
+    DataDF = Data.reset_index().applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+    tree.pack(padx=5, pady=5, fill="both", expand=True)
+    scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+    scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
+    tree.configure(yscrollcommand=scrollbar.set)
+    tree.configure(xscrollcommand=scrollbar2.set)
+    scrollbar.pack(side="right", fill="y")    
+    scrollbar2.pack(side="bottom", fill="x")    
+    PrevTreeFlag = insert_dataframe_to_treeview(tree, DataDF, width = 100)
+    root.mainloop()    
+
+def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False) : 
+    root = tk.Tk()
+    root.title(Title)
+    root.geometry(size)
+    root.resizable(False, False)
+    left_frame = tk.Frame(root)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    if MultiSelection == False : 
+        FunctionSelection = make_listvariable_interface(left_frame, MyText, MyList, listheight = listheight, textfont = textfont, defaultflag = True, defaultvalue=0, width = 95, titlelable= titlelable, titleName=titleName)
+    else : 
+        FunctionSelection = make_multilistvariable_interface(left_frame, MyText, MyList, listheight = listheight, textfont = textfont, width = 95, titlelable= titlelable, titleName=titleName)
+    FunctionSelected = []
+    PrevTreeFlag = 0
+    tree, scrollbar, scrollabar2 = None, None, None
+    def run_function(FunctionSelected) : 
+        global tree, PrevTreeFlag, scrollbar, scrollbar2
+        if MultiSelection == False : 
+            Number = int(str(FunctionSelection.get(FunctionSelection.curselection())).split(splitby)[0]) if FunctionSelection.curselection() else 1
+            FunctionSelected.append(Number)
+        else : 
+            selected_indices = FunctionSelection.curselection()  # 선택된 인덱스들
+            selected_values = [FunctionSelection.get(i) for i in selected_indices]
+            templst = []
+            for v in selected_values : 
+                templst.append(int(v.split(splitby)[0]))            
+            if len(templst) > 0 : 
+                FunctionSelected.append(str(templst).replace("[","").replace("]",""))                
+            else : 
+                FunctionSelected.append(0)
+        root.destroy()
+    temp_function = lambda : run_function(FunctionSelected)
+    tk.Button(left_frame, text = '실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = temp_function, width = 15).pack()
+    root.mainloop()            
+    return FunctionSelected[-1]    
+
 def CalcFXRateToKRW(FXData, Currency = "USD", BaseDate = "20250627") :    
     if "-" in str(FXData.index[0]) :
         FXData = FXData.copy()
@@ -6778,10 +7390,10 @@ def PrintingMarketDataInformation(YYYYMMDD, NameList, MyMarketDataList) :
     PrintingContents = curvename
     return PrintingContents    
 
-def PricingEquityOptionProgram() : 
+def PricingEquityOptionProgram(currdir = os.getcwd()) : 
     YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata', 
-                                                                  namenotin = "crs",
-                                                                  Comments = "옵션 Pricing을 위한 Zero 커브 번호 및 Volatility 번호를 입력하시오.(Vol, ZeroCurve Data 2개 선택)\n ex : 1, 2") 
+                                                                  namenotin = "waption",
+                                                                  Comments = "옵션 Pricing을 위한 Zero 커브 번호 및 Volatility 번호를 입력하시오.\n  (반드시 ZeroCurve, Vol Data 2개 선택)\n ex : 1, 2") 
     curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
     print(curvename)    
     MyMarketDataList_ExceptVol = []
@@ -6798,6 +7410,7 @@ def PricingEquityOptionProgram() :
     TermVol = np.array(VolData.columns, dtype = np.float64)
     ParityVol = np.array(VolData.index, dtype = np.float64)
     Vols2D = VolData.values.astype(np.float64)
+
     if len(NameList_ExceptVol) == 1 : 
         DiscTerm = MyMarketDataList_ExceptVol[0]["Term"]
         DiscRate = MyMarketDataList_ExceptVol[0]["Rate"]
@@ -6821,54 +7434,125 @@ def PricingEquityOptionProgram() :
              
     Preprocessing_ZeroTermAndRate(DiscTerm, DiscRate, int(YYYYMMDD))
     Preprocessing_ZeroTermAndRate(EstTerm, EstRate, int(YYYYMMDD))
-    S = float(input("\n기초자산가격을 입력하시오.\n->"))
-    X = float(input("\n옵션 행사가격을 입력하시오.\n->"))
-    Maturity = input("\n옵션 만기(YYYYMMDD형태) 입력하시오.\n->")    
-    ForwardPriceStr = input("\n기초자산 Forward 가격을 입력하시오.(해당 변수를 사용하지 않으려면 Enter를 누르시오)\n->")
-    ForwardPrice = 0 if len(ForwardPriceStr) == 0 else float(ForwardPriceStr)
-    DivTerm = [0]
-    if ForwardPrice > 0 : 
-        DivRate = [0]
-    else : 
-        DivRateStr = input("\n배당수익률을 입력하시오\n->")
-        DivRate = [float(DivRateStr)] if len(DivRateStr) > 0 else [0]
-        if DivRate[0] > 1.0 : 
-            DivRate[0] /= 100
-    QuantoCorrStr = input("\nQuanto Correlation을 입력하시오.(해당 변수를 사용하지 않으려면 Enter를 누르시오)\n->")
-    QuantoCorr = 0 if len(QuantoCorrStr) == 0 else float(QuantoCorrStr)
-    FX_Vol = 0
-    if QuantoCorr != 0 : 
-        FX_Vol = float(input("\nFX Vol을 입력하시오.\n->"))
-        if FX_Vol > 1.0 : 
-            FX_Vol /= 100
     
-    c_str = input("\n Call옵션이면 enter 또는 c를 입력하시오\n->")
-    if len(c_str) == 0 or c_str in ['c','C'] : 
-        TypeFlag = 'c'
-    else :
-        TypeFlag = 'p'
+    root = tk.Tk()
+    root.title("Bond Pricer(Single Phase)")
+    root.geometry("1500x750+30+30")
+    root.resizable(False, False)
     
-    Price, Delta, Gamma, Vega, Theta, Rho = BS_Option(int(YYYYMMDD), int(Maturity), S, X, DiscTerm, 
-              DiscRate, DivTerm, DivRate, Vols2D, QuantoCorr = QuantoCorr, 
-              FXVolTerm = [0], FXVol = [FX_Vol], DivFlag = 0, EstTerm = EstTerm, EstRate = EstRate, 
-              ForwardPrice = ForwardPrice, LoggingFlag = 1, LoggingDir = currdir, VolTerm = TermVol, VolParity = ParityVol,TypeFlag = TypeFlag)
-    print("##############\n옵션가격은 " + str(np.round(Price,4)) + "\n##############\n")
+    left_frame = tk.Frame(root)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_StockOrForward = make_listvariable_interface(left_frame, '기초자산가격/선도가격여부\n(리스트에서 선택)', ["0: 기초자산가격","1: 선도가격"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0)
+    v_S = make_variable_interface(left_frame, '기초자산가격', bold = False, textfont = 11, defaultflag = True, defaultvalue=250)
+    v_F = make_variable_interface(left_frame, '선도가격(사용할경우)', bold = False, textfont = 11, defaultflag = True, defaultvalue=0)
+    v_X = make_variable_interface(left_frame, '행사가격', bold = False, textfont = 11, defaultflag = True, defaultvalue=240)
+    v_Maturity = make_variable_interface(left_frame, '옵션만기(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=int(YYYYMMDD)+10000)
+    v_QuantoCorr = make_variable_interface(left_frame, 'QuantoCorr', bold = False, textfont = 11, titlelable= True, titleName = "QuantoInfo", defaultflag = True, defaultvalue=0)
+    v_FXVol = make_variable_interface(left_frame, 'FXVol', bold = False, textfont = 11, defaultflag = True, defaultvalue=0)
+    
+    center_frame = tk.Frame(root)
+    center_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_PriceDate = make_variable_interface(center_frame, 'PriceDate', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = int(YYYYMMDD))
+    v_Div = make_variable_interface(center_frame, '배당수익률(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue=0)
+    v_c_or_p = make_listvariable_interface(center_frame, '콜(C)/풋(P)\n(리스트에서 선택)', ["C: Call","P: Put"], listheight = 2, textfont = 11, defaultflag = True, defaultvalue=0)
+    v_ATMVolFlag = make_listvariable_interface(center_frame, 'ATMVolFlag', ["0: Surface","1: ATMVol"], listheight = 2, textfont = 11, defaultflag = True, defaultvalue=0)
+    vb_zerocurve = make_listvariable_interface(center_frame, 'ZeroCurve(자동Load)', termratestr(DiscTerm, DiscRate), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
+    
+    Result_frame = tk.Frame(root)
+    Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    vb_Logging = make_listvariable_interface(Result_frame, 'CSVLogging', ["0: Logging안함","1: CSVLogging"], listheight = 2, textfont = 11, titleName="Pricing Result",titlelable=True, pady = 10)
+    Value = 0
+    Price, Delta, Gamma = None, None, None
+    PV01, TempPV01 = None, None
+    PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2]
+    def run_function(MyArrays) : 
+        PrevTreeFlag = MyArrays[0] 
+        tree = MyArrays[1] 
+        scrollbar = MyArrays[2]
+        scrollbar2 = MyArrays[3]   
+
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else 20240627
+        ForwardUseFlag = int(str(v_StockOrForward.get(v_StockOrForward.curselection())).split(":")[0]) if v_StockOrForward.curselection() else 0
+        if ForwardUseFlag == 0 : 
+            ForwardPrice = 0
+        else : 
+            ForwardPrice = float(v_F.get()) if len(str(v_F.get())) > 0 else 0 
+        S = float(v_S.get())
+        X = float(v_X.get())
+        Maturity = float(v_Maturity.get()) if len(str(v_Maturity.get())) > 0 else (int(YYYYMMDD) + 10000)
+        DivTerm = [0]
+        if ForwardPrice > 0 : 
+            DivRate = [0]
+        else : 
+            DivRate = [float(v_Div.get())/100] if len(str(v_Div.get())) > 0 else [0]
+        QuantoCorr = float(v_QuantoCorr.get()) if len(str(v_QuantoCorr.get())) else 0
+        FX_Vol = float(v_FXVol.get()) if len(str(v_FXVol.get())) else 0
+        c_or_p = str(v_c_or_p.get(v_c_or_p.curselection())).split(":")[0] if v_c_or_p.curselection() else 'C'
+        ATMVolFlag = int(str(v_ATMVolFlag.get(v_ATMVolFlag.curselection())).split(":")[0]) if v_ATMVolFlag.curselection() else 0
+        VolsATM = []
+        if ATMVolFlag > 0 : 
+            if np.abs(ParityVol).max() < 10 : 
+                for i in range(Vols2D.shape[1]) : 
+                    VolsATM.append(np.interp(1, ParityVol, Vols2D[:,i]))
+            else : 
+                for i in range(Vols2D.shape[1]) : 
+                    VolsATM.append(np.interp(S, ParityVol, Vols2D[:,i]))
+
+        if c_or_p in ['c','C'] : 
+            TypeFlag = 'c'
+        else :
+            TypeFlag = 'p'    
+        LoggingFlag = int(str(vb_Logging.get(vb_Logging.curselection())).split(":")[0]) if vb_Logging.curselection() else 0
+        Price, Delta, Gamma, Vega, Theta, Rho = BS_Option(int(PriceDate), int(Maturity), S, X, DiscTerm, 
+                DiscRate, DivTerm, DivRate, Vols2D, QuantoCorr = QuantoCorr, 
+                FXVolTerm = [0], FXVol = [FX_Vol], DivFlag = 0, EstTerm = EstTerm, EstRate = EstRate, 
+                ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir, VolTerm = TermVol, VolParity = ParityVol,TypeFlag = TypeFlag, ATMVolFlag = ATMVolFlag, ATMVol = VolsATM)
+        if PrevTreeFlag == 0 : 
+            tree = ttk.Treeview(root)
+        else : 
+            tree.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
+            tree = ttk.Treeview(root)
+        VolDF = VolData.reset_index().applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+        tree.pack(padx=5, pady=5, fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")    
+
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, VolDF, width = 100)
+
+        output_label.config(text = f"\n결과: {np.round(Price,4)}\nDelta: {np.round(Delta,4)}\nGamma: {np.round(Gamma,4)}\nVega: {np.round(Vega,4)}\nTheta: {np.round(Theta,4)}\nRho: {np.round(Rho,4)}", font = ("맑은 고딕", 12, 'bold'))
+        MyArrays[0] = PrevTreeFlag 
+        MyArrays[1] = tree 
+        MyArrays[2] = scrollbar
+        MyArrays[3] = scrollbar2        
+    temp_func = lambda : run_function(MyArrays)
+    tk.Button(Result_frame, text = '실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+    output_label = tk.Label(Result_frame, text = "", anchor = "n")
+    output_label.pack(padx = 5, pady = 2)
+    root.mainloop()            
+            
     MainFlag2 = input("\n종료하시겠습니까? (Y/N)\n->")
 
     return MainFlag2, Price, Delta, Gamma
 
-def PricingBondProgram() : 
+def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) : 
     YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata', 
-                                                                  namenotin = "swaption",
-                                                                  Comments = "채권 Pricing을 위한 커브 번호를 입력하시오.") 
+                                                                  namenotin = "vol",
+                                                                  Comments = "채권 Pricing을 위한 커브 번호를 입력하시오.",
+                                                                  MultiSelection = False) 
     curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
     print(curvename)    
     if len(MyMarketDataList) == 1 : 
         Curve = MyMarketDataList[0]
         UsedCurveName = Name[0]
     elif len(MyMarketDataList) == 0 : 
-        print("\n해당 폴더에 MarketData가 없습니다.\n")
-        MainFlag2 = input("\n종료하시겠습니까? (Y/N)\n->")
+        MainFlag2 = MainViewer(Title = 'Continue', MyText = '해당 폴더에 MarketData가 없습니다\n종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
         return MainFlag2, "","",""
     else : 
         print("\n     채권을 평가하기 위해 사용할 커브 번호를 입력하세요.\n")        
@@ -6881,82 +7565,209 @@ def PricingBondProgram() :
         HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
     elif "usd" in Curr : 
         HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)            
+    else : 
+        if Curr.upper() in HolidayDate.columns : 
+            HolidaysForSwap = list(HolidayDate[Curr.upper()].values)
+        else : 
+            HolidaysForSwap = []
         
     CurveTerm = list(Curve["Term" if "Term" in Curve.columns else "term"])
     CurveRate = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
-    Nominal = (input("\n 채권 액면가를 입력하시오.(통화 = " + Curr.upper() +")\n->").replace(",",""))
-    Nominal = float(Nominal) if len(str(Nominal)) > 0 else 10000
-    EffectiveDate = (input("\n 채권 발행일(YYYYMMDD)을 입력하시오.\n->"))
-    EffectiveDate = int(EffectiveDate) if len(str(EffectiveDate)) > 0 else 20240627    
-    MaturityDate = (input("\n 채권 만기일(YYYYMMDD)을 입력하시오.(만기일O, 지급일 X)\n->"))
-    MaturityDate = int(MaturityDate) if len(str(MaturityDate)) > 0 else 20340627
-    MaturityToPayDate = (input("\n 채권 만기일에서 대금결제일까지 영업일수를 입력하시오.\n"))
-    MaturityToPayDate = int(MaturityToPayDate) if len(str(MaturityToPayDate)) > 0 else 0
-    FloatFlag = int(input("\n 변동금리채라면 1을 입력하시오.\n->"))
-    CpnRate = float(input("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n->"))
-    if CpnRate > 1.0 : 
-        CpnRate = CpnRate / 100    
-    NumCpnOneYear = (input("\n 1년에 이자지급횟수를 입력하시오.\n->"))
-    NumCpnOneYear = int(NumCpnOneYear) if len(str(NumCpnOneYear)) > 0 else 4
-    DayCountFlag = int(input("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n->"))
-    FixingRate = 0.0
-    if FloatFlag in [1,'1', 2,'2'] : 
-        if int(YYYYMMDD) >= EffectiveDate : 
-            print("\n 최근 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n->")        
-            FixingRate = float(input())
-            if FixingRate > 1 : 
-                FixingRate = FixingRate / 100
     
-    Value, PV01, TempPV01 = Calc_Bond_PV01(Nominal, 1, FloatFlag, FixingRate, EffectiveDate, 
-            int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm, CurveRate, 
-            NumCpnOneYear, DayCountFlag, KoreanHoliday = False, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = [],
-            EstZeroCurveRate = [], FixingHolidayList = HolidaysForSwap, AdditionalPayHolidayList  = HolidaysForSwap, NominalDateIsNominalPayDate = False,
-            LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1, DiscCurveName = UsedCurveName)         
+    root = tk.Tk()
+    root.title("Bond Pricer(Single Phase)")
+    root.geometry("1500x750+30+30")
+    root.resizable(False, False)
     
-    print("##############\n채권가격은 " + str(np.round(Value,4)) + "\n##############\n")
-    GIRRRisk = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 2 if Value > 10000 else 4)
-    CSRRisk, BKT = Calc_CSRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01")
-    CSRRisk = np.round(CSRRisk, 2 if Value > 10000 else 4)
-    print(" 해당 채권거래시 CSR은 " + str(format(CSRRisk,",")) + " (통화 = " + Curr.upper() +")만큼 증가합니다.\n")
-    print("\n 더 엄밀한 FRTB 증가분을 알고싶다면, csv파일의 민감도를 FRTB RAW Files에 추가하여 계산하시오.\n")        
-    print("##############\n####산출완료#####\n##############\n")
-    
-    BookFlag = input("\n 해당 채권을 Book\Bond\Bond.csv에 Booking하시겠습니까? (Y/N)\n-> ")
-    if BookFlag in ["y","Y","1"] : 
-        GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
-        Data_GIRR = MapGIRRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
-        Data_GIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
-        GIRR = pd.DataFrame([list(Data_GIRR["GIRR_Delta_Sensi"])], columns = list(Data_GIRR["GIRR_Tenor"].apply(lambda x : "GIRR_" + str(x))))
-        CSR_RiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
-        Data_CSR = MapCSRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], CSR_RiskFactor).reset_index()
-        Data_CSR.columns = ["CSR_Tenor","CSR_Delta_Sensi"]
-        CSR = pd.DataFrame([list(Data_CSR["CSR_Delta_Sensi"])], columns = list(Data_CSR["CSR_Tenor"].apply(lambda x : "CSR_" + str(x))))
+    left_frame = tk.Frame(root)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_Nominal = make_variable_interface(left_frame, 'Nominal Amount', bold = False, textfont = 11, defaultflag = True, defaultvalue=10000)
+    v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20160929)
+    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20460929)
+    vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["0","1","2","4","6"], titlelable = True, titleName = "Leg1 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue=3)
+    v_SwapMaturityToPayDate = make_variable_interface(left_frame, 'MaturityToPayDate', bold = False, textfont = 11, defaultflag = True, defaultvalue = 2)
+    v_L1_FixedCpnRate_P1 = make_variable_interface(left_frame, 'Leg1 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.49)
+    v_FloatFlag = make_variable_interface(left_frame, '변동금리채여부(0 or 1)', bold = False, textfont = 11, defaultflag = True, defaultvalue = 0)
+    vb_L1_DayCount = make_listvariable_interface(left_frame, 'Leg1 DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360"], listheight = 3, textfont = 11)
+
+    center_frame = tk.Frame(root)
+    center_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_PriceDate = make_variable_interface(center_frame, 'PriceDate', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = int(YYYYMMDD))
+    v_L1FirstFixing = make_variable_interface(center_frame, 'Leg1)최근Fixing금리(%)\n(Fixing이후 평가시 입력)', bold = False, textfont = 11)
+    vb_zerocurve = make_listvariable_interface(center_frame, 'ZeroCurve(자동Load)', termratestr(CurveTerm, CurveRate), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
+
+    Result_frame = tk.Frame(root)
+    Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    vb_Logging = make_listvariable_interface(Result_frame, 'CSVLogging', ["0: Logging안함","1: CSVLogging"], listheight = 2, textfont = 11, titleName="Pricing Result",titlelable=True, pady = 10)
+    vb_Book = make_listvariable_interface(Result_frame, 'Book', ["0: Book 안함","1: Booking"], listheight = 2, textfont = 11, pady = 10)
+    vb_CSRBucket = make_listvariable_interface(Result_frame, 'CSRBucket', ["1: 정부,중앙은행","2: 지방정부, 공공행정","3: 금융","4: 원자재","5: 소비재","6: 기술통신"], listheight = 4, textfont = 11, pady = 10)
+
+    Value = 0
+    PV01, TempPV01 = None, None
+    PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2]
+    def run_function(MyArrays) : 
+        PrevTreeFlag = MyArrays[0] 
+        tree = MyArrays[1] 
+        scrollbar = MyArrays[2]
+        scrollbar2 = MyArrays[3]        
+        Nominal = int(v_Nominal.get()) if len(str(v_Nominal.get())) > 0 else 10000
+        SwapEffectiveDate = int(v_SwapEffectiveDate.get()) if len(str(v_SwapEffectiveDate.get())) > 0 else 20200627
+        SwapMaturity = int(v_SwapMaturity.get()) if len(str(v_SwapMaturity.get())) > 0 else (SwapEffectiveDate + 100000)
+        SwapMaturityToPayDate = int(v_SwapMaturityToPayDate.get()) if len(str(v_SwapMaturityToPayDate.get())) > 0 else 0
+        FloatFlag= int(v_FloatFlag.get()) if len(str(v_FloatFlag.get())) > 0 else 0
+        L1_NumCpnOneYear_P1 = int(vb_L1_NumCpnOneYear_P1.get(vb_L1_NumCpnOneYear_P1.curselection())) if vb_L1_NumCpnOneYear_P1.curselection() else 4
+        if len(str(v_L1_FixedCpnRate_P1.get())) > 0 : 
+            if "%" in str(v_L1_FixedCpnRate_P1.get()) : 
+                L1_FixedCpnRate_P1 = float(v_L1_FixedCpnRate_P1.get())/100
+            else : 
+                L1_FixedCpnRate_P1 = float(str(v_L1_FixedCpnRate_P1.get()).replace("%",""))/100
+        else : 
+            L1_FixedCpnRate_P1 = 0
+        if FloatFlag > 0 :
+            L1ResultPayoff = "R(T) x 1" + " + " +str(np.round(L1_FixedCpnRate_P1*100,4)) + "%"
+        else : 
+            L1ResultPayoff = str(np.round(L1_FixedCpnRate_P1*100,4)) + "%"
+            
+        L1_DayCount = int(str(vb_L1_DayCount.get(vb_L1_DayCount.curselection())).split(":")[0]) if vb_L1_DayCount.curselection() else 0
         
-        df_pre = ReadCSV(currdir + "\\Book\\Bond\\Bond.csv")
-        MyCol = ["Nominal","FloatFlag","FixingRate","EffectiveDate","EndDate",
-                 "NBDFromEndDateToPayDate","CpnRate","NumCpnOneYear","DayCountFlag","ModifiedFollowing",
-                 "DiscCurveName","EstCurveName","Currency","Holiday","MTM","PriceDate","Bucket"]
-        Contents = [Nominal, FloatFlag, FixingRate, EffectiveDate, MaturityDate, 
-                    MaturityToPayDate, CpnRate, NumCpnOneYear, DayCountFlag, 1, 
-                    UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-2], UsedCurveName.split("\\")[-2], Value, YYYYMMDD, str(BKT)]
-        data2 = pd.DataFrame([Contents], columns = MyCol)
-        data2 = pd.concat([data2, GIRR, CSR],axis = 1)
-        df = pd.concat([df_pre, data2],axis = 0)
-        df.index = np.arange(len(df))
-        df.to_csv(currdir + "\\Book\\Bond\\Bond.csv", index = False, encoding = "cp949")
-        print("\n##############\n###\\Book\\Bond\\Bond.csv\n###Booking완료####\n##############\n")     
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else 20240627
+        LoggingFlag = int(str(vb_Logging.get(vb_Logging.curselection())).split(":")[0]) if vb_Logging.curselection() else 0
+        BookFlag = int(str(vb_Book.get(vb_Book.curselection())).split(":")[0]) if vb_Book.curselection() else 0
+        Bucket= int(str(vb_CSRBucket.get(vb_CSRBucket.curselection())).split(":")[0]) if vb_CSRBucket.curselection() else 1
+        L1FirstFixing = float(v_L1FirstFixing.get())/100 if str(v_L1FirstFixing.get()) else 0.0
+        Value, PV01, TempPV01 = Calc_Bond_PV01(Nominal, 1, FloatFlag, L1FirstFixing, SwapEffectiveDate, 
+                int(PriceDate), SwapMaturity, L1_FixedCpnRate_P1, CurveTerm, CurveRate, 
+                L1_NumCpnOneYear_P1, L1_DayCount, KoreanHoliday = False, MaturityToPayDate = SwapMaturityToPayDate, EstZeroCurveTerm = [],
+                EstZeroCurveRate = [], FixingHolidayList = HolidaysForSwap, AdditionalPayHolidayList  = HolidaysForSwap, NominalDateIsNominalPayDate = False,
+                LoggingFlag = LoggingFlag, LoggingDir = currdir, ModifiedFollow = 1, DiscCurveName = UsedCurveName)         
+        GIRRRisk = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 2 if Value > 10000 else 4)
+        CSRRisk, BKT = Calc_CSRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01", Bucket)
+        CSRRisk = np.round(CSRRisk, 2 if Value > 10000 else 4)
+        if PrevTreeFlag == 0 : 
+            tree = ttk.Treeview(root)
+        else : 
+            tree.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
+            tree = ttk.Treeview(root)
+        PV01 = PV01.applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+        tree.pack(padx=5, pady=5, fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")    
+        
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, PV01.reset_index(), width = 100)
+        if BookFlag in ["y","Y","1",1] : 
+            GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
+            Data_GIRR = MapGIRRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
+            Data_GIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
+            GIRR = pd.DataFrame([list(Data_GIRR["GIRR_Delta_Sensi"])], columns = list(Data_GIRR["GIRR_Tenor"].apply(lambda x : "GIRR_" + str(x))))
+            CSR_RiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
+            Data_CSR = MapCSRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], CSR_RiskFactor).reset_index()
+            Data_CSR.columns = ["CSR_Tenor","CSR_Delta_Sensi"]
+            CSR = pd.DataFrame([list(Data_CSR["CSR_Delta_Sensi"])], columns = list(Data_CSR["CSR_Tenor"].apply(lambda x : "CSR_" + str(x))))
+            
+            df_pre = ReadCSV(currdir + "\\Book\\Bond\\Bond.csv")
+            MyCol = ["Nominal","FloatFlag","FixingRate","EffectiveDate","EndDate",
+                    "NBDFromEndDateToPayDate","CpnRate","NumCpnOneYear","DayCountFlag","ModifiedFollowing",
+                    "DiscCurveName","EstCurveName","Currency","Holiday","MTM","PriceDate","Bucket"]
+            Contents = [Nominal, FloatFlag, L1FirstFixing, SwapEffectiveDate, SwapMaturity, 
+                        SwapMaturityToPayDate, L1_FixedCpnRate_P1, L1_NumCpnOneYear_P1, L1_DayCount, 1, 
+                        UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-2], UsedCurveName.split("\\")[-2], Value, YYYYMMDD, str(BKT)]
+            data2 = pd.DataFrame([Contents], columns = MyCol)
+            data2 = pd.concat([data2, GIRR, CSR],axis = 1)
+            df = pd.concat([df_pre, data2],axis = 0)
+            df.index = np.arange(len(df))
+            df.to_csv(currdir + "\\Book\\Bond\\Bond.csv", index = False, encoding = "cp949")            
+        output_label.config(text = f"\n결과: {np.round(Value,4)}\n\nLeg1 Payoff: \n{L1ResultPayoff}\n\nGIRR: \n{GIRRRisk}\n\nCSR: \n{CSRRisk}\n\nBooking = {bool(BookFlag)}", font = ("맑은 고딕", 12, 'bold'))
+        MyArrays[0] = PrevTreeFlag 
+        MyArrays[1] = tree 
+        MyArrays[2] = scrollbar
+        MyArrays[3] = scrollbar2        
+    temp_func = lambda : run_function(MyArrays)
+    tk.Button(Result_frame, text = '실행', padx = 20, pady = 20, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+    output_label = tk.Label(Result_frame, text = "", anchor = "n")
+    output_label.pack(padx = 5, pady = 2)
+    root.mainloop()
     
-    MainFlag2 = input("\n종료하시겠습니까? (Y/N)\n->")
+    #Nominal = (input("\n 채권 액면가를 입력하시오.(통화 = " + Curr.upper() +")\n->").replace(",",""))
+    #Nominal = float(Nominal) if len(str(Nominal)) > 0 else 10000
+    #EffectiveDate = (input("\n 채권 발행일(YYYYMMDD)을 입력하시오.\n->"))
+    #EffectiveDate = int(EffectiveDate) if len(str(EffectiveDate)) > 0 else 20240627    
+    #MaturityDate = (input("\n 채권 만기일(YYYYMMDD)을 입력하시오.(만기일O, 지급일 X)\n->"))
+    #MaturityDate = int(MaturityDate) if len(str(MaturityDate)) > 0 else 20340627
+    #MaturityToPayDate = (input("\n 채권 만기일에서 대금결제일까지 영업일수를 입력하시오.\n"))
+    #MaturityToPayDate = int(MaturityToPayDate) if len(str(MaturityToPayDate)) > 0 else 0
+    #FloatFlag = int(input("\n 변동금리채라면 1을 입력하시오.\n->"))
+    #CpnRate = float(input("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n->"))
+    #if CpnRate > 1.0 : 
+    #    CpnRate = CpnRate / 100    
+    #NumCpnOneYear = (input("\n 1년에 이자지급횟수를 입력하시오.\n->"))
+    #NumCpnOneYear = int(NumCpnOneYear) if len(str(NumCpnOneYear)) > 0 else 4
+    #DayCountFlag = int(input("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n->"))
+    #FixingRate = 0.0
+    #if FloatFlag in [1,'1', 2,'2'] : 
+    #    if int(YYYYMMDD) >= EffectiveDate : 
+    #        print("\n 최근 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n->")        
+    #        FixingRate = float(input())
+    #        if FixingRate > 1 : 
+    #            FixingRate = FixingRate / 100
+    #
+    #Value, PV01, TempPV01 = Calc_Bond_PV01(Nominal, 1, FloatFlag, FixingRate, EffectiveDate, 
+    #        int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm, CurveRate, 
+    #        NumCpnOneYear, DayCountFlag, KoreanHoliday = False, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = [],
+    #        EstZeroCurveRate = [], FixingHolidayList = HolidaysForSwap, AdditionalPayHolidayList  = HolidaysForSwap, NominalDateIsNominalPayDate = False,
+    #        LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1, DiscCurveName = UsedCurveName)         
+    #
+    #print("##############\n채권가격은 " + str(np.round(Value,4)) + "\n##############\n")
+    #GIRRRisk = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 2 if Value > 10000 else 4)
+    #CSRRisk, BKT = Calc_CSRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01")
+    #CSRRisk = np.round(CSRRisk, 2 if Value > 10000 else 4)
+    #print(" 해당 채권거래시 CSR은 " + str(format(CSRRisk,",")) + "GIRR은 " + str(format(GIRRisk,",")) +" (통화 = " + Curr.upper() +")만큼 증가합니다.\n")
+    #print("\n 더 엄밀한 FRTB 증가분을 알고싶다면, csv파일의 민감도를 FRTB RAW Files에 추가하여 계산하시오.\n")        
+    #print("##############\n####산출완료#####\n##############\n")
+    #
+    #BookFlag = input("\n 해당 채권을 Book\Bond\Bond.csv에 Booking하시겠습니까? (Y/N)\n-> ")
+    #if BookFlag in ["y","Y","1"] : 
+    #    GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
+    #    Data_GIRR = MapGIRRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
+    #    Data_GIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
+    #    GIRR = pd.DataFrame([list(Data_GIRR["GIRR_Delta_Sensi"])], columns = list(Data_GIRR["GIRR_Tenor"].apply(lambda x : "GIRR_" + str(x))))
+    #    CSR_RiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
+    #    Data_CSR = MapCSRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], CSR_RiskFactor).reset_index()
+    #    Data_CSR.columns = ["CSR_Tenor","CSR_Delta_Sensi"]
+    #    CSR = pd.DataFrame([list(Data_CSR["CSR_Delta_Sensi"])], columns = list(Data_CSR["CSR_Tenor"].apply(lambda x : "CSR_" + str(x))))
+    #    
+    #    df_pre = ReadCSV(currdir + "\\Book\\Bond\\Bond.csv")
+    #    MyCol = ["Nominal","FloatFlag","FixingRate","EffectiveDate","EndDate",
+    #             "NBDFromEndDateToPayDate","CpnRate","NumCpnOneYear","DayCountFlag","ModifiedFollowing",
+    #             "DiscCurveName","EstCurveName","Currency","Holiday","MTM","PriceDate","Bucket"]
+    #    Contents = [Nominal, FloatFlag, FixingRate, EffectiveDate, MaturityDate, 
+    #                MaturityToPayDate, CpnRate, NumCpnOneYear, DayCountFlag, 1, 
+    #                UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-2], UsedCurveName.split("\\")[-2], Value, YYYYMMDD, str(BKT)]
+    #    data2 = pd.DataFrame([Contents], columns = MyCol)
+    #    data2 = pd.concat([data2, GIRR, CSR],axis = 1)
+    #    df = pd.concat([df_pre, data2],axis = 0)
+    #    df.index = np.arange(len(df))
+    #    df.to_csv(currdir + "\\Book\\Bond\\Bond.csv", index = False, encoding = "cp949")
+    #    print("\n##############\n###\\Book\\Bond\\Bond.csv\n###Booking완료####\n##############\n")     
+    
+    MainFlag2 = 0
     return MainFlag2, Value, PV01, TempPV01
 
 def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) , ComplexIRSFlag = 0, CMSUseFlag = 0) : 
     YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
-                                                                  namenotin = "swaption",
+                                                                  namenotin = "vol",
                                                                   Comments = "IRS Pricing을 위한 커브 번호를 입력하시오.\n(Estimation Curve와 Discount Curve가 다른 경우 1, 2 등 두개 입력)")     
     curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
     print(curvename)  
     HolidaysForSwap = []
     Curr, UsedCurveName1 = "", ""
+
     if len(MyMarketDataList) == 1 : 
         Curve = MyMarketDataList[0]
         UsedCurveName1 = Name[0]
@@ -6967,7 +7778,7 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
             HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
         CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
         CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
-        CurveTerm2, CurveRate2 = [], []        
+        CurveTerm2, CurveRate2 = CurveTerm1, CurveRate1     
         UsedCurveName2 = ""
     else : 
         print("\n\n     위의 커브 중 IRS 스왑을 평가하기 위해 사용할 커브 번호를 입력하세요. \n\n     * 두 커브를 선택할 경우 DiscCurveNum, EstCurveNum 순으로 입력하시오 \n     (예 1, 2 -> 1DiscCurve, 2EstCurve)\n")        
@@ -7012,138 +7823,204 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
     if len(HolidayData) > 0 : 
         if Curr.upper() in HolidayData.columns : 
             HolidaysForSwap = list(HolidayData[Curr.upper()].dropna().unique())    
-            
-    Nominal = (input("\n IRS 액면가를 입력하시오.(통화 = " + Curr.upper() +")\n->").replace(",",""))            
-    Nominal = float(Nominal) if len(str(Nominal)) > 0 else 10000
-    EffectiveDate = (input("\n IRS 발행일(YYYYMMDD)을 입력하시오.\n->"))
-    EffectiveDate = int(EffectiveDate) if len(str(EffectiveDate)) > 0 else 20240627
-    MaturityDate = (input("\n IRS 만기일(YYYYMMDD)을 입력하시오.(만기일O, 지급일 X)\n->"))
-    MaturityDate = int(MaturityDate) if len(str(MaturityDate)) > 0 else 20340627
-    MaturityToPayDate = (input("\n IRS 만기일에서 대금결제일까지 영업일수를 입력하시오.(ex 2일이면 2입력)\n->"))
-    MaturityToPayDate = int(MaturityToPayDate) if len(str(MaturityToPayDate)) > 0 else 0
-    FixedPayer = input("\n 변동금리 수취여부를 입력하시오.\n 1. 변동금리 수취, 고정금리 지급\n 2. 고정금리 수취, 변동금리 지급.\n->")
-    FixedPayerFlag = 1 if FixedPayer in ['1',1] else 0    
-    CpnRate = float(input("\n 쿠폰금리를 입력하시오(0.03, 0.05 등).\n->"))
-    
-    if CpnRate > 1.0 : 
-        CpnRate = CpnRate / 100
-    if ("std" in UsedCurveName1.lower() or "irs" in UsedCurveName1.lower()) :
-        if 'krw' in Curr :
-            NumCpnOneYear = 4
-        else : 
-            NumCpnOneYear = (input("\n 1년에 이자지급횟수를 입력하시오.\n->"))
-            NumCpnOneYear = int(NumCpnOneYear) if len(str(NumCpnOneYear)) > 0 else 4
-    elif ("fx" in UsedCurveName1.lower() or "crs" in UsedCurveName1.lower()) and "krw" in Curr : 
-        NumCpnOneYear = 4
-    else : 
-        NumCpnOneYear = (input("\n 1년에 이자지급횟수를 입력하시오.\n->"))
-        NumCpnOneYear = int(NumCpnOneYear) if len(str(NumCpnOneYear)) > 0 else 4
-    if "krw" in Curr.lower() : 
-        DayCountFlag = 0
-    elif "usd" in Curr.lower() : 
-        DayCountFlag = 1
-    else : 
-        DayCountFlag = int(input("\n Act365는 0을 | Act360은 1을 | ACTACT이면 2를 | 30/360이면 3를 입력하시오 \n->"))
-    FixingRate = 0.0
-    if int(YYYYMMDD) >= EffectiveDate : 
-        print("\n 최근 Fixing금리를 입력하시오. 입력안해도 되면 0을 입력하시오. \n->")        
-        FixingRate = float(input())
-        if FixingRate > 1.0 : 
-            FixingRate = FixingRate/100
-
-    LookBackDays, ObservShift = 0, False
-    if ComplexIRSFlag > 0 : 
-        LookBackDaysStr = input("\nLook Back Days를 입력하시오.\n->")
-        LookBackDays = 0 if len(LookBackDaysStr) == 0 else int(LookBackDaysStr) 
-        ObservShiftStr = input("\nObservation Shift를 하시겠습니까?(Y/N).\n->")
-        ObservShift = False if len(ObservShiftStr) == 0 else ObservShiftStr in ["Y",'y']
-
-    VolArray, TermVol = [], []
-    CMSFlag, RefSwapMaturity_T, RefSwapNCPNAnn = 0, 0.25, 4
-    if CMSUseFlag > 0 : 
-        CMSFlag = 1
-        RefSwapMaturity_T_Str = input("\nCMS 기초금리의 스왑만기를 입력하시오.(1Y : 1, 2Y: 2, ... 5Y: 5)\n->")
-        RefSwapMaturity_T = 5 if len(RefSwapMaturity_T_Str) == 0 else float(RefSwapMaturity_T_Str)
-        #RefSwapNCPNAnn_Str = input("\nCMS 기초금리의 쿠폰의 연 지급횟수 입력하시오.(연 4회지급이면 4 입력)\n->")
-        #RefSwapNCPNAnn = 4 if len(RefSwapNCPNAnn_Str) == 0 else int(RefSwapNCPNAnn_Str)            
-        RefSwapNCPNAnn = NumCpnOneYear
+    if CMSUseFlag == True : 
         YYYYMMDD2, Name2, MyMarketDataList2 = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
                                                                         namein = "tion",
-                                                                        Comments = "Convexity Adjustment를 위한 Swaption Vol Curve를 선택하시오\n->")     
+                                                                        Comments = "Convexity Adjustment를 위한 Swaption Vol Curve를 선택하시오\n->",
+                                                                        MainComments = "\nCMS, CMT Pricing을 위해 Volatility 마켓데이터를 선택해야합니다.")     
+    else : 
+        YYYYMMDD2, Name2, MyMarketDataList2 = YYYYMMDD, Name, MyMarketDataList                    
 
-        OptionData = pd.DataFrame([])
-        for i in range(len(Name2)) :
-            if "SwapMat/OptMat" in MyMarketDataList2[i].columns or "스왑만기/옵션만기" in MyMarketDataList2[i].columns :
-                OptData = MyMarketDataList2[i].set_index(MyMarketDataList2[i].columns[0])
-                MyInd = OptData.index.astype(np.float64)/12
-                MyCol = OptData.columns.astype(np.float64)/12
-                OptionData = pd.DataFrame(OptData.values, columns = MyCol, index = MyInd)
-                break
-        if i == len(Name) : 
-            print("\nSwaption Vol Market Data가 없습니다 종료합니다.\n")
-            return  "y",np.nan,np.nan,np.nan
-        
-        t = DayCountAtoB(int(YYYYMMDD), MaturityDate)/365
-
-        x = np.array(OptionData.index)
-        TermVol = list(OptionData.columns)
-        for i in range(len(OptionData.columns)) : 
-            y = OptionData.values[:,i]
-            v = Linterp(x, y, t)
-            VolArray.append(v)
-
-    Value, PV01, TempPV01 = Calc_IRS_PV01(Nominal, FixingRate, EffectiveDate, 
-              int(YYYYMMDD), MaturityDate, CpnRate, CurveTerm1, CurveRate1, 
-              NumCpnOneYear, DayCountFlag, KoreanHoliday = False, MaturityToPayDate = MaturityToPayDate, EstZeroCurveTerm = CurveTerm2,
-              EstZeroCurveRate = CurveRate2, FixingHolidayList = HolidaysForSwap, AdditionalPayHolidayList  = HolidaysForSwap, NominalDateIsNominalPayDate = False,
-              LoggingFlag = 1, LoggingDir = currdir, ModifiedFollow = 1, FixedPayerFlag = FixedPayerFlag, 
-              DiscCurveNameLeg1 = UsedCurveName1, EstCurveNameLeg1 = UsedCurveName2, DiscCurveNameLeg2 = UsedCurveName1, EstCurveNameLeg2 = UsedCurveName2, LookBackDays = LookBackDays,
-              ObservShift = ObservShift, CMSFlag = CMSFlag, RefSwapMaturity_T = RefSwapMaturity_T, RefSwapNCPNAnn = RefSwapNCPNAnn, TermVol = TermVol, Vol = VolArray)         
+    root = tk.Tk()
+    root.title("IRS Pricer(Single Phase)")
+    root.geometry("1500x750+30+30")
+    root.resizable(False, False)
     
-    print("##############\nIRS 가격은 " + str(np.round(Value,4)) + "\n##############\n")
-    GIRRRisk1 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 4 if Value > 10000 else 2)
-    GIRRRisk2 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(TempPV01, "PV01TermEst","PVEst01"), 4 if Value > 10000 else 2)
-    GIRRRisk = GIRRRisk1 + GIRRRisk2
-    print(" 해당 IRS 거래시 GIRR은 " + str(format(GIRRRisk,",")) + "(통화 = " + Curr.upper() +") 만큼 증가합니다. \n")
-    print("\n 더 엄밀한 FRTB 증가분을 알고싶다면, csv파일의 민감도를 FRTB RAW Files에 추가하여 계산하시오.\n")    
-    print("#################\n####산출완료#####\n#################\n")
+    left_frame = tk.Frame(root)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20160929)
+    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20460929)
+    vb_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["0","1","2","4","6"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=3)
+    v_SwapMaturityToPayDate = make_variable_interface(left_frame, 'MaturityToPayDate', bold = False, textfont = 11, defaultflag = True, defaultvalue = 2)
+    vb_FixedPayer = make_listvariable_interface(left_frame, '변동금리 수취여부', ["0: 고정수취, 변동지급","1: 변동수취, 고정지급"], listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 1)
+    v_FixedCpnRate_P1 = make_variable_interface(left_frame, '고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.427565)
+    if CMSUseFlag == True : 
+        v_RefSwapMaturity_T = make_variable_interface(left_frame, '변동금리 만기\n(3M-> 0.25, 5Y-> 5)', bold = False, titlelable = True, titleName = "변동금리 사용의 경우\n아래 데이터 입력", textfont = 11)
+        vb_RefSwapNCPNOneYear_P1 = make_listvariable_interface(left_frame, '변동금리의 \n연 쿠폰지급수', ["1","2","4","6"], listheight = 3, textfont = 11)
+    else : 
+        v_RefSwapMaturity_T, vb_RefSwapNCPNOneYear_P1 = None, None        
+    vb_DayCount = make_listvariable_interface(left_frame, 'DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360"], listheight = 3, textfont = 11)
 
-    BookFlag = input("\n 해당 IRS을 Book\IRS\IRS.csv에 Booking하시겠습니까? (Y/N)\n-> ")
-    if BookFlag in ["y","Y","1"] : 
-        GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
-        Data_GIRR = MapGIRRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
-        Data_GIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
-        GIRR = pd.DataFrame([list(Data_GIRR["GIRR_Delta_Sensi"])], columns = list(Data_GIRR["GIRR_Tenor"].apply(lambda x : "GIRR_" + str(x))))
+    center_frame = tk.Frame(root)
+    center_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_Nominal = make_variable_interface(center_frame, 'Nominal Amount', bold = True, textfont = 11, defaultflag = True, defaultvalue=10000)
+    v_PriceDate = make_variable_interface(center_frame, 'PriceDate', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = int(YYYYMMDD))
+    v_L1FirstFixing = make_variable_interface(center_frame, '최근Fixing금리(%)\n(Fixing이후 평가시 입력)', bold = False, textfont = 11)
+    vb_zerocurve = make_listvariable_interface(center_frame, 'ZeroDiscCurve(자동Load)', termratestr(CurveTerm1, CurveRate1), titleName = "MARKET DATA INFO", titlelable= True, listheight = 11, textfont = 11)
+    vb_zerocurve2 = make_listvariable_interface(center_frame, 'ZeroEstCurve(자동Load)', termratestr(CurveTerm2, CurveRate2), listheight = 11, textfont = 11)
+
+    right_frame = tk.Frame(root)
+    right_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_LookBackDays = make_variable_interface(right_frame, 'LookBackDays', bold = False, textfont = 11, titleName = "SOFR설정(필요시입력)", titlelable= True, defaultflag = True, defaultvalue = 0)
+    vb_ObservShift = make_listvariable_interface(right_frame, 'ObservShift', ["0: FALSE","1: TRUE"], listheight = 2, textfont = 11, defaultflag = True, defaultvalue= 0)
+
+    Result_frame = tk.Frame(root)
+    Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    vb_Logging = make_listvariable_interface(Result_frame, 'CSVLogging', ["0: Logging안함","1: CSVLogging"], listheight = 2, textfont = 11, titleName="Pricing Result",titlelable=True, pady = 10)
+    vb_Book = make_listvariable_interface(Result_frame, 'Book', ["0: Book 안함","1: Booking"], listheight = 2, textfont = 11, pady = 10)
+    Value = 0
+    PV01, TempPV01 = None, None
+    PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2]
+    def run_function(MyArrays) : 
+        PrevTreeFlag = MyArrays[0] 
+        tree = MyArrays[1] 
+        scrollbar = MyArrays[2]
+        scrollbar2 = MyArrays[3]        
+        VolSearch = 0
+        Nominal = int(v_Nominal.get()) if len(str(v_Nominal.get())) > 0 else 10000
+        SwapEffectiveDate = int(v_SwapEffectiveDate.get()) if len(str(v_SwapEffectiveDate.get())) > 0 else 20200627
+        SwapMaturity = int(v_SwapMaturity.get()) if len(str(v_SwapMaturity.get())) > 0 else (SwapEffectiveDate + 100000)
+        SwapMaturityToPayDate = int(v_SwapMaturityToPayDate.get()) if len(str(v_SwapMaturityToPayDate.get())) > 0 else 0
+
+        FixedPayer = int(str(vb_FixedPayer.get(vb_FixedPayer.curselection())).split(":")[0]) if vb_FixedPayer.curselection() else 1
+        NumCpnOneYear_P1 = int(vb_NumCpnOneYear_P1.get(vb_NumCpnOneYear_P1.curselection())) if vb_NumCpnOneYear_P1.curselection() else 4
+        if len(str(v_FixedCpnRate_P1.get())) > 0 : 
+            if "%" in str(v_FixedCpnRate_P1.get()) : 
+                FixedCpnRate_P1 = float(v_FixedCpnRate_P1.get())/100
+            else : 
+                FixedCpnRate_P1 = float(str(v_FixedCpnRate_P1.get()).replace("%",""))/100
+        else : 
+            FixedCpnRate_P1 = 0
+            
+        if CMSUseFlag == True : 
+            if len(str(v_RefSwapMaturity_T.get())) > 0 :         
+                if 'm' in str(v_RefSwapMaturity_T.get()).lower() : 
+                    RefSwapMaturity_T = float(str(v_RefSwapMaturity_T.get()).split('m')[0])/12
+                elif 'y' in str(v_RefSwapMaturity_T.get()).lower() :
+                    RefSwapMaturity_T = float(str(v_RefSwapMaturity_T.get()).split('y')[0])
+                else :
+                    RefSwapMaturity_T = float(v_RefSwapMaturity_T.get()) 
+            else : 
+                RefSwapMaturity_T = 0.25
+            RefSwapNCPNOneYear_P1 = int(vb_RefSwapNCPNOneYear_P1.get(vb_RefSwapNCPNOneYear_P1.curselection())) if vb_RefSwapNCPNOneYear_P1.curselection() else 4
+        else : 
+            RefSwapMaturity_T = 0.25
+            RefSwapNCPNOneYear_P1 = 4
+        if FixedPayer == 1 : 
+            if CMSUseFlag == True  : 
+                ResultPayoff = "R(T="+ str(np.round(RefSwapMaturity_T, 2))+") x 1" + " - " +str(np.round(FixedCpnRate_P1*100,4)) + "%"
+            else : 
+                ResultPayoff = "R(T) x 1" + " - " +str(np.round(FixedCpnRate_P1*100,4)) + "%"
+        else : 
+            ResultPayoff = str(np.round(FixedCpnRate_P1*100,4)) + "% - R(T) x 1"
+            
+        DayCount = int(str(vb_DayCount.get(vb_DayCount.curselection())).split(":")[0]) if vb_DayCount.curselection() else 0
         
-        df_pre = ReadCSV(currdir + "\\Book\\IRS\\IRS.csv")
-        MyCol = ["Nominal","FixingRate","EffectiveDate","EndDate",
-                 "NBDFromEndDateToPayDate","CpnRate","NumCpnOneYear","DayCountFlag","ModifiedFollowing",
-                 "DiscCurveNameLeg1","EstCurveNameLeg1","DiscCurveNameLeg2","EstCurveNameLeg2",
-                 "Currency","Holiday","MTM","PriceDate"]
-        Contents = [Nominal, FixingRate, EffectiveDate, MaturityDate, 
-                    MaturityToPayDate, CpnRate, NumCpnOneYear, DayCountFlag, 1, 
-                    UsedCurveName1.split("\\")[-1], UsedCurveName2.split("\\")[-1], UsedCurveName1.split("\\")[-1], UsedCurveName2.split("\\")[-1],
-                    UsedCurveName1.split("\\")[-2], UsedCurveName1.split("\\")[-2], Value , YYYYMMDD]
-        data2 = pd.DataFrame([Contents], columns = MyCol)
-        data2 = pd.concat([data2, GIRR],axis = 1)
-        df = pd.concat([df_pre, data2],axis = 0)
-        df.index = np.arange(len(df))
-        df.to_csv(currdir + "\\Book\\IRS\\IRS.csv", index = False, encoding = "cp949")
-        print("\n##############\n\\Book\\IRS\\IRS.csv\n###Booking완료####\n##############\n")         
-    
-    MainFlag2 = input("종료하시겠습니까? (Y/N)\n->")
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else int(YYYYMMDD)
+        LookBackDays = int(v_LookBackDays.get()) if len(str(v_LookBackDays.get())) > 0 else 0
+        ObservShift = int(str(vb_Logging.get(vb_ObservShift.curselection())).split(":")[0]) if vb_ObservShift.curselection() else 0
+        LoggingFlag = int(str(vb_Logging.get(vb_Logging.curselection())).split(":")[0]) if vb_Logging.curselection() else 0
+        BookFlag = int(str(vb_Book.get(vb_Book.curselection())).split(":")[0]) if vb_Book.curselection() else 0
+        L1FirstFixing = float(v_L1FirstFixing.get())/100 if str(v_L1FirstFixing.get()) else 0.0              
+        VolArray, TermVol = [], []            
+        if CMSUseFlag == True : 
+            OptionData = pd.DataFrame([])
+            for i in range(len(Name2)) :
+                if "SwapMat/OptMat" in MyMarketDataList2[i].columns or "스왑만기/옵션만기" in MyMarketDataList2[i].columns :
+                    OptData = MyMarketDataList2[i].set_index(MyMarketDataList2[i].columns[0])
+                    MyInd = OptData.index.astype(np.float64)/12
+                    MyCol = OptData.columns.astype(np.float64)/12
+                    OptionData = pd.DataFrame(OptData.values, columns = MyCol, index = MyInd)
+                    break        
+            if i == len(Name) : 
+                VolSearch = 0
+            else : 
+                VolSearch = 1                    
+            t = DayCountAtoB(int(PriceDate), SwapMaturity)/365
+
+            if VolSearch == 1 : 
+                x = np.array(OptionData.index)
+                TermVol = list(OptionData.columns)
+                for i in range(len(OptionData.columns)) : 
+                    y = OptionData.values[:,i]
+                    v = Linterp(x, y, t)
+                    VolArray.append(v)               
+            else : 
+                TermVol = [1]
+                VolArray = [0.01]
+        Value, PV01, TempPV01 = Calc_IRS_PV01(Nominal, L1FirstFixing, SwapEffectiveDate, 
+                int(PriceDate), SwapMaturity, FixedCpnRate_P1, CurveTerm1, CurveRate1, 
+                NumCpnOneYear_P1, DayCount, KoreanHoliday = False, MaturityToPayDate = SwapMaturityToPayDate, EstZeroCurveTerm = CurveTerm2,
+                EstZeroCurveRate = CurveRate2, FixingHolidayList = HolidaysForSwap, AdditionalPayHolidayList  = HolidaysForSwap, NominalDateIsNominalPayDate = False,
+                LoggingFlag = LoggingFlag, LoggingDir = currdir, ModifiedFollow = 1, FixedPayerFlag = FixedPayer, 
+                DiscCurveNameLeg1 = UsedCurveName1, EstCurveNameLeg1 = UsedCurveName2, DiscCurveNameLeg2 = UsedCurveName1, EstCurveNameLeg2 = UsedCurveName2, LookBackDays = LookBackDays,
+                ObservShift = ObservShift, CMSFlag = CMSUseFlag, RefSwapMaturity_T = RefSwapMaturity_T, RefSwapNCPNAnn = RefSwapNCPNOneYear_P1, TermVol = TermVol, Vol = VolArray)         
+        GIRRRisk1 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 4 if Value > 10000 else 2)
+        GIRRRisk2 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(TempPV01, "PV01TermEst","PVEst01"), 4 if Value > 10000 else 2)
+        GIRRRisk = np.round(GIRRRisk1 + GIRRRisk2, 4)
+        if PrevTreeFlag == 0 : 
+            tree = ttk.Treeview(root)
+        else : 
+            tree.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
+            tree = ttk.Treeview(root)
+        PV01 = PV01.applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+        tree.pack(padx=5, pady=5, fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")    
+        
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, PV01.reset_index(), width = 100)        
+        
+        if BookFlag in ["y","Y","1",1] : 
+            GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
+            Data_GIRR = MapGIRRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
+            Data_GIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
+            GIRR = pd.DataFrame([list(Data_GIRR["GIRR_Delta_Sensi"])], columns = list(Data_GIRR["GIRR_Tenor"].apply(lambda x : "GIRR_" + str(x))))
+            
+            df_pre = ReadCSV(currdir + "\\Book\\IRS\\IRS.csv")
+            MyCol = ["Nominal","FixingRate","EffectiveDate","EndDate",
+                    "NBDFromEndDateToPayDate","CpnRate","NumCpnOneYear","DayCountFlag","ModifiedFollowing",
+                    "DiscCurveNameLeg1","EstCurveNameLeg1","DiscCurveNameLeg2","EstCurveNameLeg2",
+                    "Currency","Holiday","MTM","PriceDate"]
+            Contents = [Nominal, L1FirstFixing, SwapEffectiveDate, SwapMaturity, 
+                        SwapMaturityToPayDate, FixedCpnRate_P1, NumCpnOneYear_P1, DayCount, 1, 
+                        UsedCurveName1.split("\\")[-1], UsedCurveName2.split("\\")[-1], UsedCurveName1.split("\\")[-1], UsedCurveName2.split("\\")[-1],
+                        UsedCurveName1.split("\\")[-2], UsedCurveName1.split("\\")[-2], Value , YYYYMMDD]
+            data2 = pd.DataFrame([Contents], columns = MyCol)
+            data2 = pd.concat([data2, GIRR],axis = 1)
+            df = pd.concat([df_pre, data2],axis = 0)
+            df.index = np.arange(len(df))
+            df.to_csv(currdir + "\\Book\\IRS\\IRS.csv", index = False, encoding = "cp949")
+
+        output_label.config(text = f"\n결과: {np.round(Value,4)}\n\Payoff: \n{ResultPayoff}\n\nGIRR: {GIRRRisk}\n\nBooking = {bool(BookFlag)}\n\nVolSearch ={bool(VolSearch)}", font = ("맑은 고딕", 12, 'bold'))
+        MyArrays[0] = PrevTreeFlag 
+        MyArrays[1] = tree 
+        MyArrays[2] = scrollbar
+        MyArrays[3] = scrollbar2        
+    temp_func = lambda : run_function(MyArrays)
+    tk.Button(Result_frame, text = '실행', padx = 20, pady = 20, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+    output_label = tk.Label(Result_frame, text = "", anchor = "n")
+    output_label.pack(padx = 5, pady = 2)
+    root.mainloop()
+                
+    MainFlag2 = 0
     return MainFlag2, Value, PV01, TempPV01
 
 def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([])) : 
-    print("\n Currency Swap을 평가하기 위해서는 최소 두가지 커브를 선택해야 합니다.\n")
-    YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata') 
+    YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',namenotin = "vol", MainComments = "Currency Swap을 평가하기 위해서는 최소 두가지 커브를 선택해야 합니다.\n") 
     if len(Name) == 1 : 
         print("\n Currency Swap을 평가하기 위해서는 최소 두가지 커브가 필요하므로 종료합니다.\n")
         return "", 0, pd.DataFrame([]), pd.DataFrame([]), pd.DataFrame([]), pd.DataFrame([])
     
     curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
     print(curvename)  
-
+    CurveNameShort = np.vectorize(lambda x : x.split("\\")[-1].replace(".csv",""))(Name)
     Curr, Curr2, UsedCurveName1, UsedCurveName2, UsedCurveName3, UsedCurveName4 = "", "" ,"" ,"" ,"" ,""
     print("\n\n     위 커브번호 중 Currency Rate Swap을 평가하기 위해 사용할 두개의 커브 번호를 입력하세요. \n\n        * 두 커브를 입력할 경우 Domestic Curve 번호, Foreign Curve(USD 등) 번호 순으로 입력하시오 \n       (예 1, 2 -> 1: Domestic, 2: Foreign)\n\n        만약 Float Float Basis 스왑이라면 커브를 4개 입력하시오 \n       (예 1, 2, 3, 4 -> 1: Domestic Disc, 2: Foreign Disc, 3: Domestic Est, 4: Foreign Est)\n")        
     MyStr = input("     -> ")
@@ -7280,7 +8157,7 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
     print("##############\n증가할 GIRR 리스크량은 약 " + str(np.round(a+b+c+d,4)) + "\n##############\n")
     print("#################\n####산출완료#####\n#################\n")
 
-    MainFlag2 = input("종료하시겠습니까? (Y/N)\n->")
+    MainFlag2 = 0#input("종료하시겠습니까? (Y/N)\n->")
     return MainFlag2, Value, PV01DomesticDisc, PV01ForeignDisc, PV01DomesticEst, PV01ForeignEst
 
 def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "") : 
@@ -7324,8 +8201,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
     ZeroTermForeign, ZeroRateForeign, ForeignEstCurveTerm, ForeignEstCurveRate, DomesticEstCurveTerm, DomesticEstCurveRate = [],[], [], [], [], []
     
     if ForeignCurveNeeded > 0: 
-        print("\n CRS 커브생성을 위해서는 Foreign ZeroRate가 필요합니다.(" + SecondCurrency+ " ZeroCurve)\nForeign ZeroRate의 위치 번호를 선택하시오.\n (만약 베이시스스왑 등의 호가를 사용하면 Domestic Estimation Curve가 추가로 필요하므로 Foreign Curve 번호, Domestic Est Curve 번호 순으로 두개의 번호를 입력하시오.)")
-        YYYYMMDD2, Name2, Data2 = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata', str(YYYYMMDD), namenotin = "ption")
+        YYYYMMDD2, Name2, Data2 = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata', str(YYYYMMDD), namenotin = "ption", MainComments="CRS 커브생성을 위해서는 Foreign ZeroRate가 필요합니다.(" + SecondCurrency+ " ZeroCurve)\nForeign ZeroRate의 위치 번호를 선택하시오.\n (만약 베이시스스왑 등의 호가를 사용하면 Domestic Estimation Curve가 추가로 필요하므로 \nForeign Curve 번호, Domestic Est Curve 번호 순으로 두개의 번호를 입력하시오.")
         ForeignZero = Data2[0]
         ZeroTermForeign = ForeignEstCurveTerm = list(ForeignZero["Term"])
         ZeroRateForeign = ForeignEstCurveRate = list(ForeignZero["Rate"])
@@ -7583,8 +8459,9 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
         if RAWFORMAT == 1 : 
             PriceDate = RAWData["기준일자"].iloc[0]
             if len(Bond) + len(IRS) > 0 : 
-                AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
-                if AddBookedPosition == 'y' :
+                #AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
+                AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
+                if AddBookedPosition == 1 :
                     Depart = input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
                     for i in range(len(Bond)) : 
                         cvname = Bond["DiscCurveName"].iloc[i].replace(".csv","")
@@ -7696,8 +8573,9 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         ResultAddData = pd.concat([ResultAddData, TempData],axis = 0)
         else : 
             if len(Bond) + len(IRS) > 0 : 
-                AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
-                if AddBookedPosition == 'y' :
+                #AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
+                AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
+                if AddBookedPosition == 1 :
                     Depart = input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
                     for i in range(len(Bond)) : 
                         cvname = Bond["DiscCurveName"].iloc[i].replace(".csv","")
@@ -7762,7 +8640,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
     return ResultAddData
 
 while True : 
-    MainFlag = input("사용하실 기능은?(번호입력) \n 1: Pricing 및 CSR, GIRR 간이 시뮬레이션 \n 2: FRTB SA Risk Calculation \n 3: CurveGenerator \n 4: IR Swaption ImpliedVol Calculation \n-> ")
+    MainFlag = MainViewer()#input("사용하실 기능은?(번호입력) \n 1: Pricing 및 CSR, GIRR 간이 시뮬레이션 \n 2: FRTB SA Risk Calculation \n 3: CurveGenerator \n 4: IR Swaption ImpliedVol Calculation \n-> ")
     if len(str(MainFlag)) == 0 : 
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break
@@ -7771,7 +8649,7 @@ while True :
         break
     elif MainFlag in [2,'2'] :         
         RAWFORMAT = 0#int(input("자체데이터 RAWData 엑셀 포멧이면 0을 KDB RAW Data 포멧의 경우 1을 입력하시오\n-> "))
-        RAWData = MainFunction(currdir)
+        RAWData = MainFunction2(currdir)#MainFunction(currdir)
         AddedData = AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT)
         if len(AddedData) > 0 : 
             RAWData = pd.concat([RAWData, AddedData],axis = 0)
@@ -7787,16 +8665,23 @@ while True :
         ResultData2 = AggregatedFRTB_RiskCharge(CSR, GIRR, FXR, EQR, COMR, CSR_SecuritizedNonCTP, CSR_CTP, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 1, DRC = DRC, RRAO= RRAO)
         print("\n####################\n####산출중(66%)#####\n####################\n")
         ResultData3 = AggregatedFRTB_RiskCharge(CSR, GIRR, FXR, EQR, COMR, CSR_SecuritizedNonCTP, CSR_CTP, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 2, DRC = DRC, RRAO= RRAO)
-
         writer = pd.ExcelWriter('ResultFRTB.xlsx', engine='xlsxwriter') # pylint: disable=abstract-class-instantiated
         ResultData1.to_excel(writer, sheet_name = 'ByBucket')
         ResultData2.to_excel(writer, sheet_name = 'ByDepart')
         ResultData3.to_excel(writer, sheet_name = 'ByPortfolio')
         writer.save()
         writer.close()
+        ViewerFRTBFlag = MainViewer(Title = 'Continue', MyText = '산출완료되었습니다.\n 확인할 뷰어를 선택하시오.', MyList = ["0: 버킷별", "1: 부서별","2: 포트별"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
+        if ViewerFRTBFlag == 0 : 
+            ViewFRTB(ResultData1)
+        elif ViewerFRTBFlag == 1 : 
+            ViewFRTB(ResultData2)
+        else : 
+            ViewFRTB(ResultData3)
+            
         print("#################\n####산출완료#####\n#################\n")
-        MainFlag2 = input("종료하시겠습니까? (Y/N)\n->")
-        if str(MainFlag2).lower() == 'y' or len(str(MainFlag2)) == 0:
+        MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
+        if MainFlag2 == 0:
             print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
             break
     elif MainFlag in [1,'1'] :                     
@@ -7806,20 +8691,25 @@ while True :
         except FileNotFoundError : 
             FXSpot = pd.DataFrame([])
         MainFlag2 = ""
-        n = (input("\nPricer를 선택하시오 : 1. 채권, 2. IRS, 3. IRS(Complex), 4. CMS Swap, 5. Currency Swap\n                       6. Equity Option 7. IRStructuredSwap \n->"))
+        n = MainViewer(Title = 'Pricer', MyText = 'Pricer를 선택하시오', MyList = ["1: 채권", "2: IRS", "3: CMS Swap", "4: Currency Swap","5: Equity Option", "6: IRStructuredSwap"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")#(input("\nPricer를 선택하시오 : 1. 채권, 2. IRS, 3. CMS Swap, 4. Currency Swap\n                       5. Equity Option 6. IRStructuredSwap \n->"))
         if int(n) == 1 or n == "채권" or str(n).lower() == "bond": 
-            MainFlag2, Value, PV01, TempPV01 = PricingBondProgram()
+            MainFlag2, Value, PV01, TempPV01 = PricingBondProgram(HolidayDate, currdir)
         elif int(n) == 2 or n == "IRS" or str(n).lower() == "irs" : 
             MainFlag2, Value, PV01, TempPV01 = PricingIRSProgram(HolidayDate, FXSpot)            
-        elif int(n) == 3 : 
-            MainFlag2, Value, PV01, TempPV01 = PricingIRSProgram(HolidayDate, FXSpot, ComplexIRSFlag= 1)            
-        elif int(n) == 4 or n == "CMS" or str(n).lower() == "cms" : 
+        elif int(n) == 3 or n == "CMS" or str(n).lower() == "cms" : 
             MainFlag2, Value, PV01, TempPV01 = PricingIRSProgram(HolidayDate, FXSpot, CMSUseFlag=1)            
-        elif int(n) == 5 or n == "CRS" or str(n).lower() == "crs" : 
+        elif int(n) == 4 or n == "CRS" or str(n).lower() == "crs" : 
             MainFlag2, Value, PV01, TempPV01, TempPV01Est, TempPV01Est2 = PricingCRSProgram(HolidayDate, FXSpot)
-        elif int(n) == 6 or n == "옵션" or str(n).lower() == "option" :
-            MainFlag2, Value, PV01, TempPV01 = PricingEquityOptionProgram()
-            
+        elif int(n) == 5 or n == "옵션" or str(n).lower() == "option" :
+            MainFlag2, Value, PV01, TempPV01 = PricingEquityOptionProgram(currdir)
+        elif int(n) == 6 :
+            MainFlag2, Value, PV01, TempPV01 = PricingIRStructuredSwapProgram(HolidayDate, currdir)             
+
+        MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
+        if MainFlag2 == 0:
+            print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
+            break
+
         if str(MainFlag2).lower() == 'y' or len(str(MainFlag2)) == 0:
             print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
             break
@@ -7850,514 +8740,38 @@ while True :
         YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + "\\MarketData\\inputdata", namein = 'sw')
         PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayDate)
         
-    elif MainFlag in [5, '5'] : 
-        YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
-                                                                        namenotin = "swaption",
-                                                                        Comments = "IRS Pricing을 위한 커브 번호를 입력하시오.\n(Estimation Curve와 Discount Curve가 다른 경우 1, 2 등 두개 입력)")     
-        curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
-        print(curvename)
-        Curve = MyMarketDataList[0]
-        UsedCurveName1 = Name[0]
-        Curr = Name[0].split("\\")[-2].lower()
-        if 'krw' in Curr : 
-            HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
-        elif "usd" in Curr : 
-            HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
-        CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
-        CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
-        CurveTerm2, CurveRate2 = [], []        
-        UsedCurveName2 = ""        
-        Nominal = (input("\n IRS 액면가를 입력하시오.(통화 = " + Curr.upper() +")\n->").replace(",",""))            
-        Nominal = float(Nominal) if len(str(Nominal)) > 0 else 10000
-        EffectiveDate = (input("\n IRS 발행일(YYYYMMDD)을 입력하시오.\n->"))
-        EffectiveDate = int(EffectiveDate) if len(str(EffectiveDate)) > 0 else 20240627
-        MaturityDate = (input("\n IRS 만기일(YYYYMMDD)을 입력하시오.\n->"))
-        MaturityDate = int(MaturityDate) if len(str(MaturityDate)) > 0 else 20340627
-        MaturityDate = MaturityDate if MaturityDate > 200 else EffectiveDate + MaturityDate * 10000
-        print("\n ###################################\n ####### Leg1 Information Set ####### \n ###################################\n")
-        NumCpnOneYear_Leg1_Phase1 = input("\n Leg1) 해당 스왑의 연 쿠폰 지급횟수는? (ZeroCouponBond : 0, AnnualPayment : 1, SemiAnn : 2, Quarterly : 4)\n->")
-        NumCpnOneYear_Leg1_Phase1 = int(float(NumCpnOneYear_Leg1_Phase1)) if len(NumCpnOneYear_Leg1_Phase1) > 0 else 4
-        Leg1_FixedCpnRate_Phase1 = (input("\n Leg1) 고정쿠폰금리를 입력하시오(0.033, 0.055 또는 3.5, 5.5등으로 입력).\n->"))        
-        Leg1_FixedCpnRate_Phase1 = float(Leg1_FixedCpnRate_Phase1) if len(Leg1_FixedCpnRate_Phase1) > 0 else 0.0
-        Leg1_FixedCpnRate_Phase1 = Leg1_FixedCpnRate_Phase1/100 if Leg1_FixedCpnRate_Phase1 > 1 else Leg1_FixedCpnRate_Phase1
-        Leg1_RefRateFlag = input("\n Leg1 Information : Leg1은 기초금리에 연동된 변동금리를 사용합니까?(Y/N), 고정금리Leg라면 N을 입력\n->") if NumCpnOneYear_Leg1_Phase1 > 0 else ""
-        Leg1_PowerSpreadFlag = 0
-        if Leg1_RefRateFlag in ["Y",'y'] : 
-            Leg1_ReferenceRate = (input("\n Leg1 <기초금리Info>) 페이오프를 결정할 Reference Rate(기초자산금리)의 만기를 입력하시오.(ex: 3M, 1Y, 3Y, ...) \n 만약 고정금리라면 아무것도 입력하지 말고 Enter를 입력하시오.\n->")).lower().replace(" ","")
-            Leg1_RefSwapNCPNOneYear = input("\n Leg1 <기초금리Info>) 페이오프를 결정할 Reference Rate(기초자산금리)의 연 쿠폰 지급횟수를 입력하시오.(CD91이면 4, 5년 스왑금리 Q지급이면 4, ...) \n") if Leg1_ReferenceRate not in ['0.25', '3M','0.25Y'] else '4'
-            Leg1_RefSwapNCPNOneYear = int(float(Leg1_RefSwapNCPNOneYear)) if len(Leg1_RefSwapNCPNOneYear) > 0 else 4
-            Leg1_RefSwapRate_Multiple_Phase1 = input("\n Leg1 <기초금리Info>) 해당 기초자산금리에 대한 변동금리Payoff Multiple을 입력하시오.(1배면 1을 입력) \n")
-            Leg1_RefSwapRate_Multiple_Phase1 = float(Leg1_RefSwapRate_Multiple_Phase1) if len(Leg1_RefSwapRate_Multiple_Phase1) > 0 else 0
-            if '-' not in Leg1_ReferenceRate : 
-                if 'm' in Leg1_ReferenceRate : 
-                    Leg1_RefSwapMaturity_T = float(Leg1_ReferenceRate[:Leg1_ReferenceRate.index('m')])/12
-                elif 'y' in Leg1_ReferenceRate :
-                    Leg1_RefSwapMaturity_T = float(Leg1_ReferenceRate[:Leg1_ReferenceRate.index('y')])
-                elif len(Leg1_ReferenceRate) > 0 : 
-                    Leg1_RefSwapMaturity_T = float(Leg1_ReferenceRate)                    
-                else : 
-                    Leg1_RefSwapMaturity_T = 0.25
-                Leg1_RefSwapMaturity_T_PowerSpread = Leg1_RefSwapMaturity_T
-                print("\n Payoff = R(T=" + str(Leg1_RefSwapMaturity_T)+") x "+ str(Leg1_RefSwapRate_Multiple_Phase1) + " + " +str(np.round(Leg1_FixedCpnRate_Phase1*100,4)) + "% \n")
-            else : 
-                Leg1_PowerSpreadFlag = 1
-                Leg1_Rate12 = Leg1_ReferenceRate.split("-")
-                if 'm' in Leg1_Rate12[0] : 
-                    Leg1_RefSwapMaturity_T = float(Leg1_Rate12[0][:Leg1_Rate12[0].index('m')])/12
-                elif 'y' in Leg1_Rate12[0] :
-                    Leg1_RefSwapMaturity_T = float(Leg1_Rate12[0][:Leg1_Rate12[0].index('y')])
-                elif len(Leg1_Rate12[0]) > 0 : 
-                    Leg1_RefSwapMaturity_T = float(Leg1_Rate12[0])                    
-                else : 
-                    Leg1_RefSwapMaturity_T = 0.25
-                    
-                if 'm' in Leg1_Rate12[1] : 
-                    Leg1_RefSwapMaturity_T_PowerSpread = float(Leg1_Rate12[1][:Leg1_Rate12[1].index('m')])/12
-                elif 'y' in Leg1_Rate12[1] :
-                    Leg1_RefSwapMaturity_T_PowerSpread = float(Leg1_Rate12[1][:Leg1_Rate12[1].index('y')])
-                elif len(Leg1_Rate12[1]) > 0 : 
-                    Leg1_RefSwapMaturity_T_PowerSpread = float(Leg1_Rate12[1])                    
-                else : 
-                    Leg1_RefSwapMaturity_T_PowerSpread = 0.25   
-                print("\n Payoff = (R(T=" + str(Leg1_RefSwapMaturity_T)+") - R(T=" + str(Leg1_RefSwapMaturity_T_PowerSpread)+ ")) x "+ str(Leg1_RefSwapRate_Multiple_Phase1) + " + " +str(np.round(Leg1_FixedCpnRate_Phase1*100,4)) + "% \n")
-        else : 
-            Leg1_RefSwapNCPNOneYear, Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapMaturity_T_PowerSpread = 4, 0, 0.25, 0.25
-            print("\n Payoff = " +str(np.round(Leg1_FixedCpnRate_Phase1,4)) + "\n")
-        Leg1_DayCount = input("\n Leg1) DayCount를 입력하시오, 0: ACT365, 1:ACT360, 2: ActAct 3:30/360, ZeroCompoundCoupon = {5: Act365, 6:Act360, 7: ActAct, 8:30/360}  \n->") if NumCpnOneYear_Leg1_Phase1 > 0 else '3'
-        Leg1_DayCount = (int(Leg1_DayCount) if len(Leg1_DayCount) > 0 else 0) 
-        
-        print("\n ###################################\n ####### Leg2 Information Set ####### \n ###################################\n")
-        NumCpnOneYear_Leg2_Phase1 = input("\n Leg2) 해당 스왑의 연 쿠폰 지급횟수는? (ZeroCouponBond : 0, AnnualPayment : 1, SemiAnn : 2, Quarterly : 4)\n->")
-        NumCpnOneYear_Leg2_Phase1 = int(float(NumCpnOneYear_Leg2_Phase1)) if len(NumCpnOneYear_Leg2_Phase1) > 0 else 4
-        Leg2_FixedCpnRate_Phase1 = (input("\n Leg2) 고정쿠폰금리를 입력하시오(0.033, 0.055 또는 3.5, 5.5등으로 입력).\n->"))        
-        Leg2_FixedCpnRate_Phase1 = float(Leg2_FixedCpnRate_Phase1) if len(Leg2_FixedCpnRate_Phase1) > 0 else 0.0
-        Leg2_FixedCpnRate_Phase1 = Leg2_FixedCpnRate_Phase1/100 if Leg2_FixedCpnRate_Phase1 > 1 else Leg2_FixedCpnRate_Phase1
-        Leg2_RefRateFlag = input("\n Leg2 Information : Leg2은 기초금리에 연동된 변동금리를 사용합니까?(Y/N), 고정금리Leg라면 N을 입력\n->") if NumCpnOneYear_Leg2_Phase1 > 0 else ""
-        Leg2_PowerSpreadFlag = 0
-        if Leg2_RefRateFlag in ["Y",'y'] : 
-            Leg2_ReferenceRate = (input("\n Leg2 <기초금리Info>) 페이오프를 결정할 Reference Rate(기초자산금리)의 만기를 입력하시오.(ex: 3M, 1Y, 3Y, ...) \n 만약 고정금리라면 아무것도 입력하지 말고 Enter를 입력하시오.\n->")).lower().replace(" ","")
-            Leg2_RefSwapNCPNOneYear = input("\n Leg2 <기초금리Info>) 페이오프를 결정할 Reference Rate(기초자산금리)의 연 쿠폰 지급횟수를 입력하시오.(CD91이면 4, 5년 스왑금리 Q지급이면 4, ...) \n") if Leg2_ReferenceRate not in ['0.25', '3M','0.25Y'] else '4'
-            Leg2_RefSwapNCPNOneYear = int(float(Leg2_RefSwapNCPNOneYear)) if len(Leg2_RefSwapNCPNOneYear) > 0 else 4
-            Leg2_RefSwapRate_Multiple_Phase1 = input("\n Leg2 <기초금리Info>) 해당 기초자산금리에 대한 변동금리Payoff Multiple을 입력하시오.(1배면 1을 입력) \n")
-            Leg2_RefSwapRate_Multiple_Phase1 = float(Leg2_RefSwapRate_Multiple_Phase1) if len(Leg2_RefSwapRate_Multiple_Phase1) > 0 else 0
-            if '-' not in Leg2_ReferenceRate : 
-                if 'm' in Leg2_ReferenceRate : 
-                    Leg2_RefSwapMaturity_T = float(Leg2_ReferenceRate[:Leg2_ReferenceRate.index('m')])/12
-                elif 'y' in Leg2_ReferenceRate :
-                    Leg2_RefSwapMaturity_T = float(Leg2_ReferenceRate[:Leg2_ReferenceRate.index('y')])
-                elif len(Leg2_ReferenceRate) > 0 : 
-                    Leg2_RefSwapMaturity_T = float(Leg2_ReferenceRate)                    
-                else : 
-                    Leg2_RefSwapMaturity_T = 0.25
-                Leg2_RefSwapMaturity_T_PowerSpread = Leg2_RefSwapMaturity_T
-                print("\n Payoff = R(T=" + str(Leg2_RefSwapMaturity_T)+") x "+ str(Leg2_RefSwapRate_Multiple_Phase1) + " + " +str(np.round(Leg2_FixedCpnRate_Phase1*100,4)) + "% \n")
-            else : 
-                Leg2_PowerSpreadFlag = 1
-                Leg2_Rate12 = Leg2_ReferenceRate.split("-")
-                if 'm' in Leg2_Rate12[0] : 
-                    Leg2_RefSwapMaturity_T = float(Leg2_Rate12[0][:Leg2_Rate12[0].index('m')])/12
-                elif 'y' in Leg2_Rate12[0] :
-                    Leg2_RefSwapMaturity_T = float(Leg2_Rate12[0][:Leg2_Rate12[0].index('y')])
-                elif len(Leg2_Rate12[0]) > 0 : 
-                    Leg2_RefSwapMaturity_T = float(Leg2_Rate12[0])                    
-                else : 
-                    Leg2_RefSwapMaturity_T = 0.25
-                    
-                if 'm' in Leg2_Rate12[1] : 
-                    Leg2_RefSwapMaturity_T_PowerSpread = float(Leg2_Rate12[1][:Leg2_Rate12[1].index('m')])/12
-                elif 'y' in Leg2_Rate12[1] :
-                    Leg2_RefSwapMaturity_T_PowerSpread = float(Leg2_Rate12[1][:Leg2_Rate12[1].index('y')])
-                elif len(Leg2_Rate12[1]) > 0 : 
-                    Leg2_RefSwapMaturity_T_PowerSpread = float(Leg2_Rate12[1])                    
-                else : 
-                    Leg2_RefSwapMaturity_T_PowerSpread = 0.25   
-                print("\n Payoff = (R(T=" + str(Leg2_RefSwapMaturity_T)+") - R(T=" + str(Leg2_RefSwapMaturity_T_PowerSpread)+ ")) x "+ str(Leg2_RefSwapRate_Multiple_Phase1) + " + " +str(np.round(Leg2_FixedCpnRate_Phase1*100,4)) + "% \n")
-        else : 
-            Leg2_RefSwapNCPNOneYear, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapMaturity_T_PowerSpread = 4, 0, 0.25, 0.25
-            print("\n Payoff = " +str(np.round(Leg2_FixedCpnRate_Phase1,4)) + "\n")
-        Leg2_DayCount = input("\n Leg2) DayCount를 입력하시오, 0: ACT365, 1:ACT360, 2: ActAct 3:30/360, ZeroCompoundCoupon = {5: Act365, 6:Act360, 7: ActAct, 8:30/360}  \n->") if NumCpnOneYear_Leg2_Phase1 > 0 else '3'
-        Leg2_DayCount = (int(Leg2_DayCount) if len(Leg2_DayCount) > 0 else 0) 
 
-        OptionHolder = input("\n 취소 또는 조기상환 옵션은 Leg1에 있습니까? Leg2에 있습니까? Leg1은 0 Leg2는 1을 입력하시오.\n->")
-        OptionHolder = int(OptionHolder) if len(OptionHolder) > 0 else 0
-        OptionPaymentStart = input("\n 첫 번쨰 옵션 실행일(조기상환 지급일)은? \n->")    
-        OptionPaymentStart = int(OptionPaymentStart) if len(OptionPaymentStart) > 0 else EffectiveDate + 10000
-        NYearBetweenOptionPay = input("\n 옵션 행사일 간의 간격은 몇년입니까? \n->")
-        NYearBetweenOptionPay = float(NYearBetweenOptionPay) if len(NYearBetweenOptionPay) > 0 else 1
-        NBDateBetweenOptionFixToPay = input("\n 옵션 실행일은 옵션 행사 선언일로부터 몇 BusinessDay입니까? \n->")
-        NBDateBetweenOptionFixToPay = int(NBDateBetweenOptionFixToPay) if len(NBDateBetweenOptionFixToPay) > 0 else 0        
-        MaxNumberOption = input("\n 최대 옵션개수는 몇개입니까? \n->")
-        MaxNumberOption = int(MaxNumberOption) if len(MaxNumberOption) > 0 else -1
-        OptionFixDate, OptionPayDate = Generate_OptionDate(OptionPaymentStart, MaturityDate, NYearBetweenOptionPay, NBDateBetweenOptionFixToPay, -1, ModifiedFollow = 0)
-        Result = Pricing_IRCallableSwap_HWFDM_Greek(
-                    Nominal, EffectiveDate, int(YYYYMMDD), MaturityDate, int(NumCpnOneYear_Leg1_Phase1),         
-                    Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
-                    NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
-                    Leg2_DayCount,OptionFixDate,OptionPayDate,OptionHolder, CurveTerm1, CurveRate1,#[0.027989, 0.027992, 0.028394, 0.027554, 0.026807, 0.02633, 0.025806, 0.025455, 0.025154, 0.025235, 0.025264, 0.025397, 0.025531, 0.025638, 0.025719, 0.025856, 0.026049, 0.025598, 0.024243, 0.022474, 0.021085],
-                    [DayPlus(20240102, i) for i in range(365)], 
-                    [0.0344]*365, 
-                    [DayPlus(20240102, i) for i in range(365)], 
-                    [0.0344]*365, 
-                    kappa = -0.0133,
-                    kappa2 = 0.01,
-                    HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
-                    HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368],
-                    HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
-                    HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2,
-                    GreekFlag = 2, LoggingFlag = 1, LoggingDir= currdir)
-        DeltaGreek = pd.Series(Result["PV01"], index = CurveTerm1).reset_index()
-        DeltaGreek.columns = ["PV01Term","PV01"]
-        GIRRDelta = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(DeltaGreek, "PV01Term","PV01"), 4)
-        Cvup = list(np.array(CurveRate1) + 0.012)
-        Pu = Pricing_IRCallableSwap_HWFDM(
-                    Nominal, EffectiveDate, int(YYYYMMDD), MaturityDate, int(NumCpnOneYear_Leg1_Phase1),         
-                    Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
-                    NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
-                    Leg2_DayCount,OptionFixDate,OptionPayDate,OptionHolder, CurveTerm1, Cvup,[DayPlus(20240102, i) for i in range(365)], 
-                    [0.0344]*365, 
-                    [DayPlus(20240102, i) for i in range(365)], 
-                    [0.0344]*365, 
-                    kappa = -0.0133,
-                    kappa2 = 0.01,
-                    HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
-                    HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368],
-                    HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
-                    HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2)["ResultPrice"].iloc[0]
-        Cvdn = list(np.array(CurveRate1) - 0.012)
-        Pd = Pricing_IRCallableSwap_HWFDM(
-                    Nominal, EffectiveDate, int(YYYYMMDD), MaturityDate, int(NumCpnOneYear_Leg1_Phase1),         
-                    Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
-                    NumCpnOneYear_Leg2_Phase1, Leg2_RefSwapRate_Multiple_Phase1, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, Leg2_FixedCpnRate_Phase1, 
-                    Leg2_DayCount,OptionFixDate,OptionPayDate,OptionHolder, CurveTerm1, Cvdn,[DayPlus(20240102, i) for i in range(365)], 
-                    [0.0344]*365, 
-                    [DayPlus(20240102, i) for i in range(365)], 
-                    [0.0344]*365, 
-                    kappa = -0.0133,
-                    kappa2 = 0.01,
-                    HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
-                    HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368],
-                    HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
-                    HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2)["ResultPrice"].iloc[0]
-        GammaGreek = DeltaGreek.copy()
-        GammaGreek.columns = ["Tenor","DeltaSensi"]
-        GammaGreek["DeltaSensi"] = GammaGreek["DeltaSensi"] * 10000
-        GammaGreek["Bucket"] ="KRW"
-        GammaGreek["RiskWeight"] = GIRR_DeltaRiskWeight(list(DeltaGreek["PV01Term"].values), ["KRW"] * len(DeltaGreek), ["IRS"] * len(DeltaGreek))
-        CVR_Plus = -(Pu - Result["Price"] - (GammaGreek["DeltaSensi"] * GammaGreek["RiskWeight"]).sum())
-        CVR_Minus = -(Pd - Result["Price"] + (GammaGreek["DeltaSensi"] * GammaGreek["RiskWeight"]).sum())
-        GIRRCurvature = max(abs(CVR_Plus), abs(CVR_Minus))
-        T = DayCountAtoB(int(YYYYMMDD), MaturityDate)/365
-        V = pd.Series(Result["VegaFRTB"][1:-1], Result["VegaTerm"][1:-1]).reset_index()
-        V.columns = ["Tenor1","VegaSensi"]
-        V["Tenor2"] = T - V["Tenor1"]
-        V["Risk_Type"] = "Vega"
-        V["Curve"] = UsedCurveName1.split("\\")[-1].split(".")[0]
-        V["Risk_Class"] = "GIRR"
-        V["Bucket"] = "KRW"
-        GIRRVega = Calc_GIRRVega(V, SensitivityColumnName = "VegaSensi")["KB_M"].iloc[0]
-        print("\n ResultPrice = " + str(np.round(Result["Price"],4)) + "\n")
-        print("\n GIRR Delta = " + str(np.round(GIRRDelta,2)) + "\n")
-        print("\n GIRR Curvature = "+str(np.round(GIRRCurvature,2)) + "\n")
-        print("\n GIRR Vega = "+str(np.round(GIRRVega,2)) + "\n")
         
+
 # %%
 
-x, y = Generate_OptionDate(20190929, 20460929, 1, 20, -1, ModifiedFollow = 0)
-Result = Pricing_IRCallableSwap_HWFDM(
-            20000, 20160929, 20160928, 20460929, 0,         
-            0.0, 0.25, 4, 0.0237, 3, 
-            4, 1.0, 0.25, 4, -0.0012, 
-            0, 
-            x,#[20190902,20200903,20210831,20220901,20230904,20240830,20250903,20260901,20270831,20280905,20290903,20300830,20310903,20320901,20330831,20340831,20350903,20360903,20370903,20380903,20390905,20400905,20410904,20420903,20430904,20440905,20450905], 
-            y,#[20190930,20200929,20210929,20220929,20231004,20240930,20250929,20260929,20270929,20280929,20291001,20300930,20310929,20320929,20330929,20340929,20351001,20360929,20370929,20380929,20390929,20401001,20410930,20421001,20430929,20440929,20450929], 
-            1,
-            [0.00274, 0.00548, 0.25479, 0.506849, 0.756164, 1.00274, 1.512329, 2.00274, 3.00822, 4.00548, 5.00548, 6.00548, 7.008219, 8.013699, 9.010959, 10.00822, 12.01096, 15.0137, 20.01918, 25.02466, 30.02192],
-            [0.027989, 0.027992, 0.028394, 0.027554, 0.026807, 0.02633, 0.025806, 0.025455, 0.025154, 0.025235, 0.025264, 0.025397, 0.025531, 0.025638, 0.025719, 0.025856, 0.026049, 0.025598, 0.024243, 0.022474, 0.021085],
-            [DayPlus(20240102, i) for i in range(365)], 
-            [0.0344]*365, 
-            [DayPlus(20240102, i) for i in range(365)], 
-            [0.0344]*365, 
-            kappa = -0.0133,
-            kappa2 = 0.01,
-            HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
-            HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368],
-            HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
-            HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2,
-            LoggingFlag = 1)
-        
+#x, y = Generate_OptionDate(20190929, 20460929, 1, 20, -1, ModifiedFollow = 0)
+#Result = Pricing_IRCallableSwap_HWFDM(
+#            20000, 20160929, 20250304, 20460929, 0,         
+#            0.0, 0.25, 4, 0.0237, 3, 
+#            4, 1.0, 0.25, 4, -0.0012, 
+#            0, 
+#            x,#[20190902,20200903,20210831,20220901,20230904,20240830,20250903,20260901,20270831,20280905,20290903,20300830,20310903,20320901,20330831,20340831,20350903,20360903,20370903,20380903,20390905,20400905,20410904,20420903,20430904,20440905,20450905], 
+#            y,#[20190930,20200929,20210929,20220929,20231004,20240930,20250929,20260929,20270929,20280929,20291001,20300930,20310929,20320929,20330929,20340929,20351001,20360929,20370929,20380929,20390929,20401001,20410930,20421001,20430929,20440929,20450929], 
+#            1,
+#            [0.00274, 0.00548, 0.25479, 0.506849, 0.756164, 1.00274, 1.512329, 2.00274, 3.00822, 4.00548, 5.00548, 6.00548, 7.008219, 8.013699, 9.010959, 10.00822, 12.01096, 15.0137, 20.01918, 25.02466, 30.02192],
+#            [0.027989, 0.027992, 0.028394, 0.027554, 0.026807, 0.02633, 0.025806, 0.025455, 0.025154, 0.025235, 0.025264, 0.025397, 0.025531, 0.025638, 0.025719, 0.025856, 0.026049, 0.025598, 0.024243, 0.022474, 0.021085],
+#            [DayPlus(20240102, i) for i in range(365)], 
+#            [0.0344]*365, 
+#            [DayPlus(20240102, i) for i in range(365)], 
+#            [0.0344]*365, 
+#            kappa = -0.0133,
+#            kappa2 = 0.01,
+#            HWVolTerm = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+#            HWVol = [0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368],
+#            HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
+#            HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2,
+#            LoggingFlag = 0)
+
 # %%
 # %%
 
 # %%
 
 #Generate_OptionDate(20190929, 20460929, 1, 20, -1, ModifiedFollow = 0)
-# %%
-def my_function(a,b) : 
-    a = int(a) if int(a) >= 19000101 else ExcelDateToYYYYMMDD(int(a))
-    b = int(b) if int(b) >= 19000101 else ExcelDateToYYYYMMDD(int(b))
-    return DayCountAtoB(a,b)    
-
-def make_variable_interface(frame, VariableName, textfont = 12, anchor = 'w', padx = 10, pady = 2, bold = False, titlelable = False, titleName = "", defaultflag = False, defaultvalue = None) : 
-    
-    myfont = ("맑은 고딕", textfont) if bold == False else ("맑은 고딕", textfont, 'bold')
-    if titlelable == True : 
-        tk.Label(frame, text = titleName, font = ("맑은 고딕", textfont, 'bold')).pack(anchor = anchor, padx = padx, pady = pady)    
-        
-    tk.Label(frame, text = VariableName, font = myfont).pack(anchor = anchor, padx = padx, pady = pady)    
-    entry = tk.Entry(frame)
-    if defaultflag == True : 
-        entry.insert(0, defaultvalue)
-    entry.pack(anchor = anchor, padx = padx, pady = pady)
-    return entry
-
-def make_listvariable_interface(frame, VariableName, MyList, listheight = 5,textfont = 12, anchor = 'w', padx = 10, pady = 2, bold = False, titlelable = False, titleName = "", defaultflag = False, defaultvalue = 0) : 
-    
-    myfont = ("맑은 고딕", textfont) if bold == False else ("맑은 고딕", textfont)
-    if titlelable == True : 
-        tk.Label(frame, text = titleName, font = ("맑은 고딕", textfont, 'bold')).pack(anchor = anchor, padx = padx, pady = pady)    
-    
-    tk.Label(frame, text = VariableName, font = myfont).pack(anchor = anchor, padx = padx, pady = pady)    
-    listbox = tk.Listbox(frame, height = listheight, exportselection = False)
-    for item in MyList : 
-        if "|" not in item : 
-            listbox.insert(tk.END, str(item))
-        else : 
-            mystr = item.split("|")
-            mystr1 = mystr[0]
-            mystr2 = mystr[1]
-            lenmystr1 = len(mystr1)
-            lenmystr2 = len(mystr2)
-            needstradd1 = max(0, 8 - lenmystr1)
-            needstradd2 = max(0, 8 - lenmystr2)
-            MyString1 = mystr1 + (" " * lenmystr1)
-            MyString2 = mystr2 + (" " * lenmystr2)
-            listbox.insert(tk.END, str(MyString1 + " | " + MyString2))            
-    
-    listbox.pack(anchor = anchor, padx = padx, pady = pady)
-    if defaultflag == True : 
-        listbox.selection_set(defaultvalue)
-    return listbox
-
-def termratestr(term, rate) : 
-    return [str(np.round(x,4)) + '|' + str(y) for x, y in zip(term, rate)]
-
-term1 = [0.00274, 0.00548, 0.25479, 0.506849, 0.756164, 1.00274, 1.512329, 2.00274, 3.00822, 4.00548, 5.00548, 6.00548, 7.008219, 8.013699, 9.010959, 10.00822, 12.01096, 15.0137, 20.01918, 25.02466, 30.02192]
-rate1 = [2.7989, 2.7992, 2.8394, 2.7554, 2.6807, 2.633, 2.5806, 2.5455, 2.5154, 2.5235, 2.5264, 2.5397, 2.5531, 2.5638, 2.5719, 2.5856, 2.6049, 2.5598, 2.4243, 2.2474, 2.1085]
-HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
-
-root = tk.Tk()
-root.title("Callable Swap Pricer(Single Phase)")
-root.geometry("1200x750+30+30")
-root.resizable(False, False)
-
-left_frame = tk.Frame(root)
-left_frame.pack(side = 'left', padx = 10, pady = 5, anchor = 'n')
-
-v_Nominal = make_variable_interface(left_frame, 'Nominal Amount', bold = False, textfont = 11, defaultflag = True, defaultvalue=10000)
-v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20200627)
-v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20300627)
-vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["0","1","2","4","6"], titlelable = True, titleName = "Leg1 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue=3)
-v_L1_FixedCpnRate_P1 = make_variable_interface(left_frame, 'Leg1 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.59)
-v_L1_RefSwapMaturity_T = make_variable_interface(left_frame, 'Leg1 변동금리 만기\n(3M-> 0.25, 5Y-> 5)', bold = False, titlelable = True, titleName = "변동금리 사용의 경우\n아래 데이터 입력", textfont = 11)
-vb_L1_RefSwapNCPNOneYear_P1 = make_listvariable_interface(left_frame, 'Leg1 변동금리의 \n연 쿠폰지급수', ["1","2","4","6"], listheight = 3, textfont = 11)
-v_L1_RefRateMultiple_P1 = make_variable_interface(left_frame, 'Leg1 변동금리Multiple', bold = False, textfont = 11)
-vb_L1_DayCount = make_listvariable_interface(left_frame, 'Leg1 DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360","5: Cmp ACT/365","6: Cmp ACT/360","7: Cmp ACT/ACT","8: Cmp 30/360"], listheight = 3, textfont = 11)
-
-center_frame = tk.Frame(root)
-center_frame.pack(side = 'left', padx = 10, pady = 5, anchor = 'n')
-v_PriceDate = make_variable_interface(center_frame, 'PriceDate', bold = False, textfont = 11, pady = 3)
-vb_Holiday = make_listvariable_interface(center_frame, 'HolidayFlag', ["KRW","USD","GBP","JPY"], listheight = 4, textfont = 11, pady = 2, defaultflag = True, defaultvalue = 0)
-
-vb_L2_NumCpnOneYear_P1 = make_listvariable_interface(center_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["0","1","2","4","6"], titlelable = True, titleName = "Leg2 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue = 3)
-v_L2_FixedCpnRate_P1 = make_variable_interface(center_frame, 'Leg2 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = 0, defaultvalue = 0)
-v_L2_RefSwapMaturity_T = make_variable_interface(center_frame, 'Leg2 변동금리 만기\n(3M-> 0.25, 5Y-> 5)', bold = False, titlelable = True, titleName = "변동금리 사용의 경우\n아래 데이터 입력", textfont = 11, defaultflag = True ,defaultvalue = 0.25)
-vb_L2_RefSwapNCPNOneYear_P1 = make_listvariable_interface(center_frame, 'Leg2 변동금리의 \n연 쿠폰지급수', ["1","2","4","6"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 2)
-v_L2_RefRateMultiple_P1 = make_variable_interface(center_frame, 'Leg2 변동금리Multiple', bold = False, textfont = 11, defaultflag = True, defaultvalue = 1.0)
-vb_L2_DayCount = make_listvariable_interface(center_frame, 'Leg2 DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360","5: Cmp ACT/365","6: Cmp ACT/360","7: Cmp ACT/ACT","8: Cmp 30/360"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0)
-
-right_frame = tk.Frame(root)
-right_frame.pack(side = 'left', padx = 10, pady = 5, anchor = 'n')
-vb_OptionHolder = make_listvariable_interface(right_frame, 'OptionHolder', ["0: Leg1 Hold Option","1: Leg2 Hold Option"], titleName = "Option Information", titlelable= True, listheight = 3, textfont = 11, defaultflag = True, defaultvalue= 1)
-v_FirstOptPayDate = make_variable_interface(right_frame, '첫 옵션행사일\n(지급일기준)', bold = False, textfont = 11, defaultflag = True, defaultvalue = 20210627)
-vb_NYearBetweenOptionPay = make_listvariable_interface(right_frame, '옵션행사간격', ["6M","12M","24M","36M","60M"], listheight = 5, textfont = 11, defaultflag = True, defaultvalue = 1)
-v_NBDateBetweenOptionFixToPay = make_variable_interface(right_frame, '옵션행사선언일과\n옵션지급일사이의\n영업일수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 20)
-v_MaxNumOpt = make_variable_interface(right_frame, '최대옵션개수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 0)
-v_L1FirstFixing = make_variable_interface(right_frame, 'Leg1)최근Fixing금리(%)\n(Fixing이후 평가시 입력)', bold = False, textfont = 11)
-v_L2FirstFixing = make_variable_interface(right_frame, 'Leg2)최근Fixing금리(%)\n(Fixing이후 평가시 입력)', bold = False, textfont = 11)
-vb_GreekFlag = make_listvariable_interface(right_frame, 'Greek산출', ["0: Pricing만","1: Delta,Gamma","2: Delta,Gamma,Vega"], listheight = 3, textfont = 11)
-
-rightright_frame = tk.Frame(root)
-rightright_frame.pack(side = 'left', padx = 10, pady = 5, anchor = 'n')
-vb_zerocurve = make_listvariable_interface(rightright_frame, 'ZeroCurve(자동Load)', termratestr(term1, rate1), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
-v_hwkappa = make_variable_interface(rightright_frame, 'HullWhite Kappa', bold = False, textfont = 11, titleName = "\nHull White Params", titlelable = True, defaultflag = True, defaultvalue = 0.01)
-v_hwvolterm = make_variable_interface(rightright_frame, 'HullWhite Vol Tenor\n[0.25, 0.5, 1.0, ...] 등의\n포멧으로 입력', bold = False, textfont = 11, defaultflag = True, defaultvalue = "0.25, 0.5, 1")
-v_hwvol = make_variable_interface(rightright_frame, 'HullWhite Volatility(%)\n[0.87, 0.88, 0.91, ...] 등의\n포멧으로 입력', bold = False, textfont = 11, defaultflag = True, defaultvalue = "0.01, 0.098, 0.089")
-
-Result_frame = tk.Frame(root)
-Result_frame.pack(side = 'left', padx = 10, pady = 5, anchor = 'n')
-vb_Logging = make_listvariable_interface(Result_frame, 'CSVLogging', ["0: Logging안함","1: CSVLogging"], listheight = 2, textfont = 11, titleName="Pricing Result",titlelable=True)
-
-def run_function() : 
-    Nominal = int(v_Nominal.get()) if len(str(v_Nominal.get())) > 0 else 10000
-    SwapEffectiveDate = int(v_SwapEffectiveDate.get()) if len(str(v_SwapEffectiveDate.get())) > 0 else 20200627
-    SwapMaturity = int(v_SwapMaturity.get()) if len(str(v_SwapMaturity.get())) > 0 else (SwapEffectiveDate + 100000)
-    L1_NumCpnOneYear_P1 = int(vb_L1_NumCpnOneYear_P1.get(vb_L1_NumCpnOneYear_P1.curselection())) if vb_L1_NumCpnOneYear_P1.curselection() else 4
-    if len(str(v_L1_FixedCpnRate_P1.get())) > 0 : 
-        if "%" in str(v_L1_FixedCpnRate_P1.get()) : 
-            L1_FixedCpnRate_P1 = float(v_L1_FixedCpnRate_P1.get())/100
-        else : 
-            L1_FixedCpnRate_P1 = float(str(v_L1_FixedCpnRate_P1.get()).replace("%",""))/100
-    else : 
-        L1_FixedCpnRate_P1 = 0
-    
-    L1_PowerSpreadFlag = 0
-    if len(str(v_L1_RefSwapMaturity_T.get())) > 0 :         
-        if '-' in str(v_L1_RefSwapMaturity_T.get()) : 
-            SplitedStr = str(v_L1_RefSwapMaturity_T.get()).split("-")
-            if 'm' in SplitedStr[0].lower() :
-                L1_RefSwapMaturity_T = float(SplitedStr[0].lower().split("m")[0])/12
-            elif 'y' in SplitedStr[0].lower() : 
-                L1_RefSwapMaturity_T = float(SplitedStr[0].lower().split("y")[0]) 
-            else : 
-                L1_RefSwapMaturity_T = float(SplitedStr[0]) 
-
-            if 'm' in SplitedStr[1].lower() :
-                L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("m")[0])/12
-            elif 'y' in SplitedStr[1].lower() : 
-                L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("y")[0]) 
-            else : 
-                L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1]) 
-            L1_PowerSpreadFlag = 1
-        else : 
-            if 'm' in str(v_L1_RefSwapMaturity_T.get()).lower() : 
-                L1_RefSwapMaturity_T = float(str(v_L1_RefSwapMaturity_T.get()).split('m')[0])/12
-            elif 'y' in str(v_L1_RefSwapMaturity_T.get()).lower() :
-                L1_RefSwapMaturity_T = float(str(v_L1_RefSwapMaturity_T.get()).split('y')[0])
-            else :
-                L1_RefSwapMaturity_T = float(v_L1_RefSwapMaturity_T.get()) 
-            L1_RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T
-    else : 
-        L1_RefSwapMaturity_T = 0.25
-        L1_RefSwapMaturity_T_PowerSpread = 0.25
-        
-    L1_RefSwapNCPNOneYear_P1 = int(vb_L1_RefSwapNCPNOneYear_P1.get(vb_L1_RefSwapNCPNOneYear_P1.curselection())) if vb_L1_RefSwapNCPNOneYear_P1.curselection() else 4
-    if L1_RefSwapMaturity_T == 0.25 : 
-        L1_RefSwapNCPNOneYear_P1 = 4
-
-    L1_RefRateMultiple_P1 = float(v_L1_RefRateMultiple_P1.get()) if len(str(v_L1_RefRateMultiple_P1.get())) > 0 else 0
-    L1_DayCount = int(str(vb_L1_DayCount.get(vb_L1_DayCount.curselection())).split(":")[0]) if vb_L1_DayCount.curselection() else (0 if L1_NumCpnOneYear_P1 != 0 else 3)
-
-    L2_NumCpnOneYear_P1 = int(vb_L2_NumCpnOneYear_P1.get(vb_L2_NumCpnOneYear_P1.curselection())) if vb_L2_NumCpnOneYear_P1.curselection() else 4
-    if len(str(v_L2_FixedCpnRate_P1.get())) > 0 : 
-        if "%" in str(v_L2_FixedCpnRate_P1.get()) : 
-            L2_FixedCpnRate_P1 = float(v_L2_FixedCpnRate_P1.get())/100
-        else : 
-            L2_FixedCpnRate_P1 = float(str(v_L2_FixedCpnRate_P1.get()).replace("%",""))/100
-    else : 
-        L2_FixedCpnRate_P1 = 0
-    
-    L2_PowerSpreadFlag = 0
-    if len(str(v_L2_RefSwapMaturity_T.get())) > 0 :         
-        if '-' in str(v_L2_RefSwapMaturity_T.get()) : 
-            SplitedStr = str(v_L2_RefSwapMaturity_T.get()).split("-")
-            if 'm' in SplitedStr[0].lower() :
-                L2_RefSwapMaturity_T = float(SplitedStr[0].lower().split("m")[0])/12
-            elif 'y' in SplitedStr[0].lower() : 
-                L2_RefSwapMaturity_T = float(SplitedStr[0].lower().split("y")[0]) 
-            else : 
-                L2_RefSwapMaturity_T = float(SplitedStr[0]) 
-
-            if 'm' in SplitedStr[1].lower() :
-                L2_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("m")[0])/12
-            elif 'y' in SplitedStr[1].lower() : 
-                L2_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("y")[0]) 
-            else : 
-                L2_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1]) 
-            L2_PowerSpreadFlag = 1
-        else : 
-            if 'm' in str(v_L2_RefSwapMaturity_T.get()).lower() : 
-                L2_RefSwapMaturity_T = float(str(v_L2_RefSwapMaturity_T.get()).split('m')[0])/12
-            elif 'y' in str(v_L2_RefSwapMaturity_T.get()).lower() :
-                L2_RefSwapMaturity_T = float(str(v_L2_RefSwapMaturity_T.get()).split('y')[0])
-            else :
-                L2_RefSwapMaturity_T = float(v_L2_RefSwapMaturity_T.get()) 
-            L2_RefSwapMaturity_T_PowerSpread = L2_RefSwapMaturity_T
-    else : 
-        L2_RefSwapMaturity_T = 0.25
-        L2_RefSwapMaturity_T_PowerSpread = 0.25
-        
-    L2_RefSwapNCPNOneYear_P1 = int(vb_L2_RefSwapNCPNOneYear_P1.get(vb_L2_RefSwapNCPNOneYear_P1.curselection())) if vb_L2_RefSwapNCPNOneYear_P1.curselection() else 4
-    if L2_RefSwapMaturity_T == 0.25 : 
-        L2_RefSwapNCPNOneYear_P1 = 4
-        
-    L2_RefRateMultiple_P1 = float(v_L2_RefRateMultiple_P1.get()) if len(str(v_L2_RefRateMultiple_P1.get())) > 0 else 0
-    L2_DayCount = int(str(vb_L2_DayCount.get(vb_L2_DayCount.curselection())).split(":")[0]) if vb_L2_DayCount.curselection() else (0 if L2_NumCpnOneYear_P1 != 0 else 3)
-
-    PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else 20240627
-    Holiday = str(vb_Holiday.get(vb_Holiday.curselection())).upper() if vb_Holiday.curselection() else "KRW"
-    OptionHolder = int(str(vb_OptionHolder.get(vb_OptionHolder.curselection())).split(":")[0]) if vb_OptionHolder.curselection() else 0    
-    FirstOptPayDate = int(v_FirstOptPayDate.get()) if len(str(v_FirstOptPayDate.get())) > 0 else SwapEffectiveDate + 10000
-    NYearBetweenOptionPay = float(str(vb_NYearBetweenOptionPay.get(vb_NYearBetweenOptionPay.curselection())).split("M")[0])/12 if vb_NYearBetweenOptionPay.curselection() else 1    
-    MaxNumOpt = int(v_MaxNumOpt.get()) if len(str(v_MaxNumOpt.get())) > 0 else -1
-    NBDateBetweenOptionFixToPay = int(v_NBDateBetweenOptionFixToPay.get()) if len(str(v_NBDateBetweenOptionFixToPay.get())) > 0 else 0
-    
-    GreekFlag = int(str(vb_GreekFlag.get(vb_GreekFlag.curselection())).split(":")[0]) if vb_GreekFlag.curselection() else 0
-    LoggingFlag = int(str(vb_Logging.get(vb_Logging.curselection())).split(":")[0]) if vb_Logging.curselection() else 0
-    
-    hwkappa = float(v_hwkappa.get()) if len(str(v_hwkappa.get())) > 0 else 0.001
-    if len(str(v_hwvolterm.get())) > 0 : 
-        if '(' in str(v_hwvolterm.get()) or ')' in str(v_hwvolterm.get()) : 
-            tenorstr = str(v_hwvolterm.get()).replace("(","").replace(")","").split(',')
-        elif '[' in str(v_hwvolterm.get()) or ']' in str(v_hwvolterm.get()) :
-            tenorstr = str(v_hwvolterm.get()).replace("[","").replace("]","").split(',')
-        else : 
-            tenorstr = str(v_hwvolterm.get()).split(',')
-        hwvolterm = list(np.vectorize(lambda x : float(x))(tenorstr))
-    else : 
-        hwvolterm = [1.0]
-
-    if len(str(v_hwvol.get())) > 0 : 
-        if '(' in str(v_hwvol.get()) or ')' in str(v_hwvol.get()) : 
-            volstr = str(v_hwvol.get()).replace("(","").replace(")","").split(',')
-        elif '[' in str(v_hwvol.get()) or ']' in str(v_hwvol.get()) :
-            volstr = str(v_hwvol.get()).replace("[","").replace("]","").split(',')
-        else : 
-            volstr = str(v_hwvol.get()).split(',')
-        hwvol = list(np.vectorize(lambda x : float(x))(volstr))
-    else : 
-        hwvol = [0.001]
-
-    L1FirstFixing = float(v_L1FirstFixing.get())/100 if str(v_L1FirstFixing.get()) else 0.0
-    L2FirstFixing = float(v_L2FirstFixing.get())/100 if str(v_L2FirstFixing.get()) else 0.0
-    
-    L1_FixingHistoryDate = [DayPlus(int(PriceDate) - 10000, i) for i in range(365)]
-    L1_FixingHistoryRate = [L1FirstFixing] * len(L1_FixingHistoryDate)    
-    L2_FixingHistoryDate = [DayPlus(int(PriceDate) - 10000, i) for i in range(366)] 
-    L2_FixingHistoryRate = [L2FirstFixing] * len(L2_FixingHistoryDate)    
-    OptionFixDate, OptionPayDate = Generate_OptionDate(FirstOptPayDate, SwapMaturity, NYearBetweenOptionPay, NBDateBetweenOptionFixToPay, MaxNumOpt, ModifiedFollow = 0)
-    if GreekFlag == 0 : 
-        resultdict = Pricing_IRCallableSwap_HWFDM(
-                Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, L1_NumCpnOneYear_P1,         
-                L1_RefRateMultiple_P1, L1_RefSwapMaturity_T, L1_RefSwapNCPNOneYear_P1, L1_FixedCpnRate_P1, L1_DayCount, 
-                L2_NumCpnOneYear_P1, L2_RefRateMultiple_P1, L2_RefSwapMaturity_T, L2_RefSwapNCPNOneYear_P1, L2_FixedCpnRate_P1, 
-                L2_DayCount, OptionFixDate,OptionPayDate,OptionHolder,
-                term1,rate1, L1_FixingHistoryDate, L1_FixingHistoryRate, L2_FixingHistoryDate, L2_FixingHistoryRate, 
-                hwkappa,
-                0.01,
-                hwvolterm, hwvol, HWVolTerm2 = [0.0001, 0.0849315, 0.2520548, 0.504109, 1, 2, 3.008219, 4.005479, 5.0027, 7.0055, 10.0082, 20.5205, 50.52],
-                HWVol2 = np.array([0.006323, 0.006323, 0.0059312, 0.005610373, 0.00526, 0.00516138, 0.004497, 0.0045619, 0.00432513, 0.004089, 0.003757, 0.003680, 0.00368])/2,
-                HWRho12Factor = -0.3, CpnRounding = 15, HW2FFlag = 0, LoggingFlag = LoggingFlag, 
-                LoggingDir = currdir, Leg1_DiscCurveName = "TempCurve", Leg1_EstCurveName = "TempCurve", Leg2_DiscCurveName = "TempCurve",
-                Leg2_EstCurveName = "TempCurve", KoreanAutoHolidayFlag = True, FixHolidays = Holiday, PayHolidays = Holiday,
-                Leg1_PowerSpreadFlag = L1_PowerSpreadFlag, Leg1_RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T_PowerSpread, Leg2_PowerSpreadFlag = L2_PowerSpreadFlag, Leg2_RefSwapMaturity_T_PowerSpread = L2_RefSwapMaturity_T_PowerSpread)
-        result = resultdict["ResultPrice"].iloc[0]
-    else : 
-        result = 0
-    output_label.config(text = f"결과: {result}\n선택한 값: {L1_NumCpnOneYear_P1}\n액면가: {Nominal}", font = ("맑은 고딕", 12))
-
-tk.Button(Result_frame, text = '실행', pady = 2, font = ("맑은 고딕",12), command = run_function).pack()
-output_label = tk.Label(Result_frame, text = "", anchor = "w")
-output_label.pack(padx = 10, pady = 2)
-root.mainloop()
-
 # %%
