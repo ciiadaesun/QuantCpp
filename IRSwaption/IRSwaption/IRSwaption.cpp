@@ -373,7 +373,7 @@ double V_t_T(
 
 double Calc_QVTerm(double kappa, double t, double s, double sigma)
 {
-	return 0.5 * (V_t_T(kappa, kappa, s, t, sigma, sigma) - V_t_T(kappa, kappa, 0, t, sigma, sigma) + V_t_T(kappa, kappa, 0, s, sigma, sigma));
+	return 0.5 * (V_t_T(kappa, kappa, s, t, sigma, sigma));
 }
 
 double BS_Swaption(
