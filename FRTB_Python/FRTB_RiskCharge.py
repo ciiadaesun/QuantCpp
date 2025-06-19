@@ -18,8 +18,8 @@ PrevTreeFlag = 0
 tree = None
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
-vers = "1.1.2"
-recentupdate = '20250615'
+vers = "1.1.4"
+recentupdate = '20250619'
 print("######################################\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Validation Quant\nMy FRTB Module \n"+vers+" (RecentUpdated :" +recentupdate + ")" + "\n######################################\n")
 GlobalFlag = 0
 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
@@ -7262,8 +7262,8 @@ def MainFunction2(currdir = os.getcwd()) :
     FXRNumberArray = []
     COMRNumberArray = []
     FRTBNumberArray = []
-    def run_function(GIRRNumberArray, CSRNumberArray, EQRNumberArray, FXRNumberArray, COMRNumberArray, FRTBNumberArray) :
-        global tree, PrevTreeFlag, scrollbar, scrollbar2
+    MyArray = [tree, PrevTreeFlag, scrollbar, scrollbar2]
+    def run_function(GIRRNumberArray, CSRNumberArray, EQRNumberArray, FXRNumberArray, COMRNumberArray, FRTBNumberArray,MyArray) :
         if len(FRTBTotalFiles) > 0 : 
             FRTBNumber = int(str(FRTBFileSelection.get(FRTBFileSelection.curselection())).split(".")[0]) if FRTBFileSelection.curselection() else 0
             FRTBNumberArray.append(FRTBNumber)
@@ -7279,7 +7279,7 @@ def MainFunction2(currdir = os.getcwd()) :
             COMRNumber = int(str(COMRFileSelection.get(COMRFileSelection.curselection())).split(".")[0]) if COMRFileSelection.curselection() else 0
             COMRNumberArray.append(COMRNumber)
         root.destroy()
-    temp_function = lambda : run_function(GIRRNumberArray, CSRNumberArray, EQRNumberArray, FXRNumberArray, COMRNumberArray, FRTBNumberArray)
+    temp_function = lambda : run_function(GIRRNumberArray, CSRNumberArray, EQRNumberArray, FXRNumberArray, COMRNumberArray, FRTBNumberArray, MyArray)
     tk.Button(left_frame, text = '실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = temp_function, width = 15).pack()
     root.mainloop()            
     if len(FRTBTotalFiles) > 0 : 
@@ -7310,7 +7310,7 @@ def ViewFRTB(Data) :
     PrevTreeFlag = insert_dataframe_to_treeview(tree, DataDF, width = 100)
     root.mainloop()    
 
-def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0) : 
+def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([])) : 
     root = tk.Tk()
     root.title(Title)
     root.geometry(size)
@@ -7318,14 +7318,25 @@ def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)
     left_frame = tk.Frame(root)
     left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
     if MultiSelection == False : 
-        FunctionSelection = make_listvariable_interface(left_frame, MyText, MyList, listheight = listheight, textfont = textfont, defaultflag = True, defaultvalue=defaultvalue, width = 95, titlelable= titlelable, titleName=titleName)
+        FunctionSelection = make_listvariable_interface(left_frame, MyText, MyList, listheight = listheight, textfont = textfont, defaultflag = True, defaultvalue=(len(MyList) - 1) if defaultvalue < 0 else defaultvalue, width = 95, titlelable= titlelable, titleName=titleName)
     else : 
         FunctionSelection = make_multilistvariable_interface(left_frame, MyText, MyList, listheight = listheight, textfont = textfont, width = 95, titlelable= titlelable, titleName=titleName, defaultflag = True, defaultvalue = defaultvalue)
     FunctionSelected = []
     PrevTreeFlag = 0
     tree, scrollbar, scrollabar2 = None, None, None
+    if addtreeflag == True : 
+        tree = ttk.Treeview(root)
+        treedata = treedata.reset_index().applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+        tree.pack(padx=5, pady=5, fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")    
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, treedata, width = 100)
+        
     def run_function(FunctionSelected) : 
-        global tree, PrevTreeFlag, scrollbar, scrollbar2
         if MultiSelection == False : 
             Number = int(str(FunctionSelection.get(FunctionSelection.curselection())).split(splitby)[0]) if FunctionSelection.curselection() else 1
             FunctionSelected.append(Number)
@@ -7339,11 +7350,33 @@ def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)
                 FunctionSelected.append(str(templst).replace("[","").replace("]",""))                
             else : 
                 FunctionSelected.append(0)
+        if tree : 
+            tree.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
         root.destroy()
     temp_function = lambda : run_function(FunctionSelected)
     tk.Button(left_frame, text = '실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = temp_function, width = 15).pack()
     root.mainloop()            
     return FunctionSelected[-1]    
+
+def MainViewer2(Title = "Viewer", MyText = "데이터인풋", size = "800x450+30+30", textfont = 13, defaultvalue = 0, bold = True) : 
+    root = tk.Tk()
+    root.title(Title)
+    root.geometry(size)
+    root.resizable(False, False)
+    left_frame = tk.Frame(root)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    Contents = make_variable_interface(left_frame, MyText, bold = bold, textfont = textfont, defaultflag = True, defaultvalue = defaultvalue)
+    FunctionSelected = []
+    def run_function(FunctionSelected) : 
+        Number = str(Contents.get()) if len(str(Contents.get())) else str(defaultvalue)
+        FunctionSelected.append(Number)
+        root.destroy()
+    temp_function = lambda : run_function(FunctionSelected)
+    tk.Button(left_frame, text = '실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = temp_function, width = 15).pack()
+    root.mainloop()            
+    return FunctionSelected[-1]        
 
 def CalcFXRateToKRW(FXData, Currency = "USD", BaseDate = "20250627") :    
     if "-" in str(FXData.index[0]) :
@@ -7567,7 +7600,7 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
     YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata', 
                                                                   namenotin = "vol",
                                                                   Comments = "채권 Pricing을 위한 커브 번호를 입력하시오.",
-                                                                  MultiSelection = False) 
+                                                                  MultiSelection = False, defaultvalue=-1) 
     curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
     print(curvename)    
     if len(MyMarketDataList) == 1 : 
@@ -7606,8 +7639,8 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
     v_Nominal = make_variable_interface(left_frame, 'Nominal Amount', bold = False, textfont = 11, defaultflag = True, defaultvalue=10000)
     v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20160929)
     v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20460929)
-    vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["0","1","2","4","6"], titlelable = True, titleName = "Leg1 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue=3)
-    v_SwapMaturityToPayDate = make_variable_interface(left_frame, 'MaturityToPayDate', bold = False, textfont = 11, defaultflag = True, defaultvalue = 2)
+    vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["1","2","4","6"], titlelable = True, titleName = "Leg1 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue=2)
+    v_SwapMaturityToPayDate = make_variable_interface(left_frame, '기말일TO지급일까지영업일수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 2)
     v_L1_FixedCpnRate_P1 = make_variable_interface(left_frame, 'Leg1 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.49)
     v_FloatFlag = make_variable_interface(left_frame, '변동금리채여부(0 or 1)', bold = False, textfont = 11, defaultflag = True, defaultvalue = 0)
     vb_L1_DayCount = make_listvariable_interface(left_frame, 'Leg1 DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360"], listheight = 3, textfont = 11)
@@ -7862,8 +7895,8 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
     left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
     v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20160929)
     v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20460929)
-    vb_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["0","1","2","4","6"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=3)
-    v_SwapMaturityToPayDate = make_variable_interface(left_frame, 'MaturityToPayDate', bold = False, textfont = 11, defaultflag = True, defaultvalue = 2)
+    vb_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["1","2","4","6"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=3)
+    v_SwapMaturityToPayDate = make_variable_interface(left_frame, '기말일TO지급일까지영업일수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 2)
     vb_FixedPayer = make_listvariable_interface(left_frame, '변동금리 수취여부', ["0: 고정수취, 변동지급","1: 변동수취, 고정지급"], listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 1)
     v_FixedCpnRate_P1 = make_variable_interface(left_frame, '고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.427565)
     if CMSUseFlag == True : 
@@ -8423,9 +8456,9 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
         N_DomesticEst_P1 = int(str(vb_DomesticEst_P1.get(vb_DomesticEst_P1.curselection())).split(".")[0]) if vb_DomesticEst_P1.curselection() else -1
         if N_DomesticEst_P1 >= 0 :
             DomesticEstCurveDirectory = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == N_DomesticEst_P1]["Directory"].iloc[0]
-            DomesticEstCurve = ReadCSV(DomesticEstCurveDirectory)
-            DomesticEstTerm = DomesticEstCurve["Term"]
-            DomesticEstRate = DomesticEstCurve["Rate"]
+            DomesticEstCurve = ReadCSV(DomesticEstCurveDirectory).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
+            DomesticEstTerm = DomesticEstCurve["Term"].astype(np.float64)
+            DomesticEstRate = DomesticEstCurve["Rate"].astype(np.float64)
         else : 
             DomesticEstTerm, DomesticEstRate = [], []
         
@@ -8442,9 +8475,9 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
         N_DomesticEst_P1 = int(str(vb_DomesticEst_P1.get(vb_DomesticEst_P1.curselection())).split(".")[0]) if vb_DomesticEst_P1.curselection() else -1
         if N_DomesticEst_P1 >= 0 :
             DomesticEstCurveDirectory = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == N_DomesticEst_P1]["Directory"].iloc[0]
-            DomesticEstCurve = ReadCSV(DomesticEstCurveDirectory)
-            DomesticEstTerm = DomesticEstCurve["Term"]
-            DomesticEstRate = DomesticEstCurve["Rate"]
+            DomesticEstCurve = ReadCSV(DomesticEstCurveDirectory).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
+            DomesticEstTerm = DomesticEstCurve["Term"].astype(np.float64)
+            DomesticEstRate = DomesticEstCurve["Rate"].astype(np.float64)
         else : 
             DomesticEstTerm, DomesticEstRate = [], []
 
@@ -8464,9 +8497,9 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
         N_Foreign_P1 = int(str(vb_Foreign_P1.get(vb_Foreign_P1.curselection())).split(".")[0]) if vb_Foreign_P1.curselection() else 0
         if N_Foreign_P1 >= 0 and ForeignCurveNeeded == 1:
             ForeignCurveDirectory = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == N_Foreign_P1]["Directory"].iloc[0]
-            ForeignCurve = ReadCSV(ForeignCurveDirectory)
-            ForeignTerm = ForeignCurve["Term"]
-            ForeignRate = ForeignCurve["Rate"]
+            ForeignCurve = ReadCSV(ForeignCurveDirectory).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
+            ForeignTerm = ForeignCurve["Term"].astype(np.float64)
+            ForeignRate = ForeignCurve["Rate"].astype(np.float64)
         else : 
             ForeignTerm, ForeignRate = [], []            
 
@@ -8701,13 +8734,13 @@ def PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayFile) :
         
         N_Curve_P1 = int(str(vb_SelectedCurve_P1.get(vb_SelectedCurve_P1.curselection())).split(".")[0]) if vb_SelectedCurve_P1.curselection() else 0
         CurveDirectory = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == N_Curve_P1]["Directory"].iloc[0]
-        MyData2 = ReadCSV(CurveDirectory)
+        MyData2 = ReadCSV(CurveDirectory).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
         PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else int(YYYYMMDD)            
         NCPN_Ann = int(vb_NumCpnOneYear_P1.get(vb_NumCpnOneYear_P1.curselection())) if vb_NumCpnOneYear_P1.curselection() else 4
         DayCountFlag = int(str(vb_DayCount.get(vb_DayCount.curselection())).split(":")[0]) if vb_DayCount.curselection() else 0
         VolFlag = int(str(vb_VolFlag.get(vb_VolFlag.curselection())).split(":")[0]) if vb_VolFlag.curselection() else 0
-        Term = MyData2["Term"].values
-        Rate = MyData2["Rate"].values
+        Term = MyData2["Term"].astype(np.float64).values
+        Rate = MyData2["Rate"].astype(np.float64).values
         Preprocessing_ZeroTermAndRate(Term, Rate, PriceDate)
         LoggingFlag = int(str(vb_Logging.get(vb_Logging.curselection())).split(":")[0]) if vb_Logging.curselection() else 0
         SaveName = str(v_SaveName.get()) if len(str(v_SaveName.get())) > 0 else "TempSwaptionVolCurve"
@@ -8796,15 +8829,19 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
     ResultAddData = pd.DataFrame([])
     try : 
         Bond = ReadCSV(currdir + '\\Book\\Bond\\Bond.csv')
+        Bond["ProductType"] = "Bond"
         IRS = ReadCSV(currdir + '\\Book\\IRS\\IRS.csv')
+        IRS["ProductType"] = "IRS"
+        concatdata = pd.concat([Bond, IRS],axis = 0)
+        concatdata.index = np.arange(len(concatdata))
         FXSpot = PreprocessingFXSpotData(currdir + "\\MarketData\\spot\\FXSpot.csv")                
         if RAWFORMAT == 1 : 
             PriceDate = RAWData["기준일자"].iloc[0]
             if len(Bond) + len(IRS) > 0 : 
                 #AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
-                AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
+                AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "1800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", addtreeflag=True, treedata = concatdata)
                 if AddBookedPosition == 1 :
-                    Depart = input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
+                    Depart = MainViewer2(Title = "Department Name",MyText = "부점명을 입력하시오",size = "800x450+30+30", textfont = 14, defaultvalue = "TempDepart")#input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
                     for i in range(len(Bond)) : 
                         cvname = Bond["DiscCurveName"].iloc[i].replace(".csv","")
                         girrcol = [s for s in Bond.columns if "girr_" in s.lower()]
@@ -8840,9 +8877,9 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData["뮤렉스 ID"] = 12345
                         TempData["버킷"] = Bond["Currency"].iloc[i]
                         
-                        TempData["리스크요소 1"] = cvname
-                        TempData["리스크요소 2"] = girrtenor
-                        TempData["리스크요소 3"] = "RATE"
+                        TempData["리스크요소1"] = cvname
+                        TempData["리스크요소2"] = girrtenor
+                        TempData["리스크요소3"] = "RATE"
                         TempData["베가민감도"] = 0
                         TempData["상향커버쳐"] = 0
                         TempData["하향커버쳐"] = 0
@@ -8865,9 +8902,9 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData2["포지션 ID"] = 12345
                         TempData2["뮤렉스 ID"] = 12345
                         TempData2["버킷"] = "[" + ('0' + str(Bond["Bucket"].iloc[i]))[-2:] + "]"
-                        TempData2["리스크요소 1"] = "TempIssuer" + str(Bond["Bucket"].iloc[i])
-                        TempData2["리스크요소 2"] = cvname
-                        TempData2["리스크요소 3"] = csrtenor
+                        TempData2["리스크요소1"] = "TempIssuer" + str(Bond["Bucket"].iloc[i])
+                        TempData2["리스크요소2"] = cvname
+                        TempData2["리스크요소3"] = csrtenor
                         TempData2["베가민감도"] = 0
                         TempData2["상향커버쳐"] = 0
                         TempData2["하향커버쳐"] = 0                        
@@ -8906,9 +8943,9 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData["포지션 ID"] = 12345
                         TempData["뮤렉스 ID"] = 12345
                         TempData["버킷"] = IRS["Currency"].iloc[i]
-                        TempData["리스크요소 1"] = cvname
-                        TempData["리스크요소 2"] = girrtenor
-                        TempData["리스크요소 3"] = "RATE"
+                        TempData["리스크요소1"] = cvname
+                        TempData["리스크요소2"] = girrtenor
+                        TempData["리스크요소3"] = "RATE"
                         TempData["베가민감도"] = 0
                         TempData["상향커버쳐"] = 0
                         TempData["하향커버쳐"] = 0                   
@@ -8918,7 +8955,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                 #AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
                 AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
                 if AddBookedPosition == 1 :
-                    Depart = input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
+                    Depart = MainViewer2(Title = "Department Name",MyText = "부점명을 입력하시오",size = "800x450+30+30", textfont = 14, defaultvalue = "TempDepart")#input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
                     for i in range(len(Bond)) : 
                         cvname = Bond["DiscCurveName"].iloc[i].replace(".csv","")
                         girrcol = [s for s in Bond.columns if "girr_" in s.lower()]
