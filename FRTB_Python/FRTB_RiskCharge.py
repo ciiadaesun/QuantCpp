@@ -2715,6 +2715,7 @@ def HullWhiteCalibration1Factor(PriceDate, OptionTenor_ByMonth, SwapTenor_ByMont
         if PrintMRSPE == True : 
             print('###   iters = ' + str(n))
             print('###   RMSPE = ' + str(np.round(MRSPE*100,7)) + "%")
+            print('###   HWPar = ' + str(Parameters.round(3)))
         
         if n <= 2 : 
             mu = firstmu
@@ -4092,6 +4093,170 @@ def Pricing_IRCallableSwap_HWFDM_Greek(
             ResultDict["VegaFRTB2"] = VegaArray2/0.0001 * np.array(HWVol2)
     return ResultDict    
 
+def HullWhiteCalibrationProgram(CurveDirectory, PriceDate, CurveTerm, CurveRate, HolidayDate) : 
+    Result = {"CalibrationFlag":False,"HWTerm":np.array([]),"HWVol":np.array([])}
+    ZeroCurveName = CurveDirectory.split("\\")[-1].replace(".csv","")  
+    Currency = CurveDirectory.split("\\")[-2]
+    Holidays = list(HolidayDate[Currency].dropna().unique())
+    Data = MarketDataFileListPrint(currdir + '\\MarketData\\outputdata', namein = 'vol').sort_values(by = "YYYYMMDD")[-50:]
+    Data = Data[Data['DirectoryPrint'].apply(lambda x : ('EQ' in str(x).upper() and 'VOL' in str(x).upper()) == False)] #Out EQ Vol 
+    GroupbyYYYYMMDD = Data[Data["YYYYMMDD"] == YYYYMMDD]
+    GroupbyYYYYMMDD["Currency"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split("\\")[-2])
+    GroupbyYYYYMMDD["ListName"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split(".")[0] + '. ' + x.split("\\")[-1].replace(".csv",""))            
+    if len(GroupbyYYYYMMDD) == 0 :
+        return Result
+     
+    root = tk.Tk()
+    root.title("Hull White Calibration")
+    root.geometry("1500x750+30+30")
+    root.resizable(False, False)
+
+    left_frame = tk.Frame(root)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_PriceDate = make_variable_interface(left_frame, 'PriceDate', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = int(PriceDate))
+    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=int(PriceDate) + 100000)
+    vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["1","2","4","6"], titlelable = True, titleName = "Swption Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue=2)
+    vb_L1_DayCount = make_listvariable_interface(left_frame, 'DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360"], listheight = 3, textfont = 11)
+    vb_VolFlag = make_listvariable_interface(left_frame, 'VolFlag', ["0: Black Vol","1: Normal Vol"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=1)
+    vb_FixedKappaFlag = make_listvariable_interface(left_frame, 'FixedKappaFlag', ["0: Kappa도 Calib","1: Kappa 고정"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue=0)
+    v_FixedKappa = make_variable_interface(left_frame, 'FixedKappa', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = 0.01)
+
+    right_frame = tk.Frame(root)
+    right_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    vb_zerocurve = make_listvariable_interface(right_frame, ZeroCurveName, termratestr(CurveTerm, CurveRate), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
+    vb_SelectedCurve_P1 = make_listvariable_interface(right_frame, 'Swaption Vol 선택', list(GroupbyYYYYMMDD["ListName"]), listheight = 5, textfont = 11, titlelable = True, titleName = "Swaption Info", defaultflag = True, defaultvalue = 0, width = 50)
+
+    Result_frame = tk.Frame(root)
+    Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+
+    PrevTreeFlag, tree, scrollbar, scrollbar2, tree2, tree3 = 0, None, None, None, None, None
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2, Result, tree2, tree3]
+    def run_function(MyArrays) :     
+
+        PrevTreeFlag = MyArrays[0] 
+        tree = MyArrays[1] 
+        scrollbar = MyArrays[2]
+        scrollbar2 = MyArrays[3]  
+        CalcResult = MyArrays[4] 
+        tree2 = MyArrays[5]     
+        tree3 = MyArrays[6]
+        SelectedNumber = int(str(vb_SelectedCurve_P1.get(vb_SelectedCurve_P1.curselection())).split(".")[0]) if vb_SelectedCurve_P1.curselection() else 1
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else int(PriceDate)
+        SwapMaturity = int(v_SwapMaturity.get()) if len(str(v_SwapMaturity.get())) > 0 else (int(PriceDate) + 100000)
+        L1_NumCpnOneYear_P1 = int(vb_L1_NumCpnOneYear_P1.get(vb_L1_NumCpnOneYear_P1.curselection())) if vb_L1_NumCpnOneYear_P1.curselection() else 4
+        SwapFreqByMonth = 12/L1_NumCpnOneYear_P1
+        DayCountFlag = int(str(vb_L1_DayCount.get(vb_L1_DayCount.curselection())).split(":")[0]) if vb_L1_DayCount.curselection() else 0    
+        BSVol0NormalVol1 = int(str(vb_VolFlag.get(vb_VolFlag.curselection())).split(":")[0]) if vb_VolFlag.curselection() else 1
+        FixedKappaFlag = int(str(vb_FixedKappaFlag.get(vb_FixedKappaFlag.curselection())).split(":")[0]) if vb_FixedKappaFlag.curselection() else 0
+        if FixedKappaFlag == 0 : 
+            FixedKappa = 0
+        else : 
+            FixedKappa = float(v_FixedKappa.get()) if len(str(v_PriceDate.get())) > 0 else 0
+            
+        VolRawData = ReadCSV(GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == SelectedNumber]['Directory'].iloc[0])
+        VolRawDataIndexSet = VolRawData.set_index(VolRawData.columns[0])
+        OptionTenor = VolRawDataIndexSet.columns.astype(np.float64)
+        SwapTenor = VolRawDataIndexSet.index.astype(np.float64)
+        OptionVolMatrix = VolRawDataIndexSet.values.astype(np.float64)
+        if OptionVolMatrix.max() > 0.25 :
+            OptionVolMatrix = OptionVolMatrix / 100 
+            
+        OptionTenor_ByMonth = []
+        SwapTenor_ByMonth = []
+        OptionVol = []
+        for i in range(len(SwapTenor)) : 
+            for j in range(len(OptionTenor)) : 
+                StartDate = EDate_YYYYMMDD(PriceDate, OptionTenor[j]) 
+                EndDate = EDate_YYYYMMDD(StartDate, SwapTenor[i])
+                if EndDate <= int(SwapMaturity) and EndDate >= int(SwapMaturity) - 10000 : 
+                    OptionTenor_ByMonth.append(OptionTenor[j])
+                    SwapTenor_ByMonth.append(SwapTenor[i])
+                    OptionVol.append(OptionVolMatrix[i][j])                
+        
+        if len(OptionVol) <= 4 : 
+            OptionTenor_ByMonth = []
+            SwapTenor_ByMonth = []
+            OptionVol = []
+            if DayCountAtoB(PriceDate, SwapMaturity)/365 > (SwapTenor[-1] + OptionTenor[-1])/12 - 1: 
+                for i in range(len(SwapTenor)) : 
+                    for j in range(len(OptionTenor)) : 
+                        if ((i == len(SwapTenor) - 1) or (j == len(OptionTenor) - 1)) : 
+                            StartDate = EDate_YYYYMMDD(PriceDate, OptionTenor[j]) 
+                            EndDate = EDate_YYYYMMDD(StartDate, SwapTenor[i])
+                            OptionTenor_ByMonth.append(OptionTenor[j])
+                            SwapTenor_ByMonth.append(SwapTenor[i])
+                            OptionVol.append(OptionVolMatrix[i][j])                                    
+            else :
+                for i in range(len(SwapTenor)) : 
+                    for j in range(len(OptionTenor)) : 
+                        StartDate = EDate_YYYYMMDD(PriceDate, OptionTenor[j]) 
+                        EndDate = EDate_YYYYMMDD(StartDate, SwapTenor[i])
+                        OptionTenor_ByMonth.append(OptionTenor[j])
+                        SwapTenor_ByMonth.append(SwapTenor[i])
+                        OptionVol.append(OptionVolMatrix[i][j])                
+                    
+        Preprocessing_ZeroTermAndRate(CurveTerm, CurveRate, int(PriceDate))
+        MyDict = HullWhiteCalibration1Factor(PriceDate, OptionTenor_ByMonth, SwapTenor_ByMonth, OptionVol, SwapFreqByMonth, BSVol0NormalVol1, CurveTerm, CurveRate, FixedKappa = FixedKappa, DayCountFlag = DayCountFlag, KoreanHolidayFlag = False, AdditionalHolidays = Holidays, initialkappa = 0.01, initialvol = 0.005 if BSVol0NormalVol1== 0 else np.array(OptionVol).mean(), PrintMRSPE=True)
+        if len(MyDict["Error"]) == int(np.abs(MyDict["Error"]).sum() + 0.00001) : 
+            print("Calibration 실패")
+            Calibration = False
+        else : 
+            Calibration = True
+        CalcResult["CalibrationFlag"] = Calibration
+        ResultHW = pd.concat([pd.Series(MyDict["HWVolTerm"]), pd.Series(MyDict["HWVol"])],axis = 1)
+        ResultHW.columns = ["HWTerm","HWVol"]
+        ResultHW = ResultHW.sort_values(by = "HWTerm")
+        ResultHW["HWKappa"] = MyDict["kappa"]
+        CalcResult["HWTerm"] = ResultHW["HWTerm"].round(8)
+        CalcResult["HWVol"] = ResultHW["HWVol"].round(8)
+        A = pd.Series(MyDict["SwapStartDate"], name = "SwapStartDate")
+        B = pd.Series(MyDict["SwapEndDate"], name = "SwapEndDate")
+        C = pd.Series(MyDict["BlackPrice"], name = "BlackPrice").round(4)
+        D = pd.Series(MyDict["HWPrice"], name = "HWPrice").round(4)
+        E = pd.concat([A,B,C,D],axis = 1)
+
+        if PrevTreeFlag == 0 : 
+            tree = ttk.Treeview(root)
+            tree2 = ttk.Treeview(root)
+            tree3 = ttk.Treeview(root)
+        else : 
+            tree.destroy()
+            tree2.destroy()
+            tree3.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
+            tree = ttk.Treeview(root)
+            tree2 = ttk.Treeview(root)
+            tree3 = ttk.Treeview(root)
+        ResultHW = ResultHW.applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+        InputVol = VolRawData.applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+        tree3.pack(padx=5, pady=5, fill="both", expand=False)
+        tree.pack(padx=5, pady=5, fill="both", expand=False)
+        scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")    
+        tree2.pack(padx=5, pady=5, fill="both", expand=False)
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, ResultHW, width = 90)
+        PrevTreeFlag2 = insert_dataframe_to_treeview(tree2, E, width = 90)
+        PrevTreeFlag3 = insert_dataframe_to_treeview(tree3, InputVol, width = 90)
+
+        MyArrays[0] = PrevTreeFlag
+        MyArrays[1] = tree 
+        MyArrays[2] = scrollbar
+        MyArrays[3] = scrollbar2  
+        MyArrays[4] = CalcResult  
+        MyArrays[5] = tree2
+        MyArrays[6] = tree3
+
+    temp_func = lambda : run_function(MyArrays)            
+    tk.Button(Result_frame, text = '실행', padx = 20, pady = 20, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+
+    root.mainloop()
+    return MyArrays[4]
+
 def PricingIRStructuredSwapProgram(HolidayData, currdir) : 
     YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
                                                                     namenotin = "vol",
@@ -4104,7 +4269,8 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
     Curr = Name[0].split("\\")[-2].upper()
     CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
     CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
-
+    CalibrationResult = HullWhiteCalibrationProgram(Name[0], int(YYYYMMDD), CurveTerm1, CurveRate1, HolidayData)
+    CalibrationFlag = CalibrationResult['CalibrationFlag']
     root = tk.Tk()
     root.title("Callable Swap Pricer(Single Phase)")
     root.geometry("1500x750+30+30")
@@ -4150,8 +4316,10 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
     rightright_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
     vb_zerocurve = make_listvariable_interface(rightright_frame, 'ZeroCurve(자동Load)', termratestr(CurveTerm1, CurveRate1), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
     v_hwkappa = make_variable_interface(rightright_frame, 'HullWhite Kappa', bold = False, textfont = 11, titleName = "\nHull White Params", titlelable = True, defaultflag = True, defaultvalue = 0.01)
-    v_hwvolterm = make_variable_interface(rightright_frame, 'HullWhite Vol Tenor\n[0.25, 0.5, 1.0, ...] 등의\n포멧으로 입력', bold = False, textfont = 11, defaultflag = True, defaultvalue = "0.25, 0.5, 1")
-    v_hwvol = make_variable_interface(rightright_frame, 'HullWhite Volatility(%)\n[0.87, 0.88, 0.91, ...] 등의\n포멧으로 입력', bold = False, textfont = 11, defaultflag = True, defaultvalue = "0.87, 0.98, 0.89")
+    defaulthwterm = "0.25, 0.5, 1" if CalibrationFlag == False else str(list(CalibrationResult["HWTerm"].round(5))).replace("[","").replace("]","")
+    defaulthwvol = "0.87, 0.98, 0.89" if CalibrationFlag == False else str(list(CalibrationResult["HWVol"])).replace("[","").replace("]","")
+    v_hwvolterm = make_variable_interface(rightright_frame, 'HullWhite Vol Tenor\n[0.25, 0.5, 1.0, ...] 등의\n포멧으로 입력', bold = False, textfont = 11, defaultflag = True, defaultvalue = defaulthwterm)
+    v_hwvol = make_variable_interface(rightright_frame, 'HullWhite Volatility(%)\n[0.87, 0.88, 0.91, ...] 등의\n포멧으로 입력', bold = False, textfont = 11, defaultflag = True, defaultvalue = defaulthwvol)
 
     Result_frame = tk.Frame(root)
     Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
@@ -9142,9 +9310,4 @@ while True :
 #            LoggingFlag = 0)
 
 # %%
-# %%
-
-# %%
-
-#Generate_OptionDate(20190929, 20460929, 1, 20, -1, ModifiedFollow = 0)
 # %%
