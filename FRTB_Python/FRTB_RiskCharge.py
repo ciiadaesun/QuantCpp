@@ -9095,7 +9095,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
         else : 
             if len(Bond) + len(IRS) > 0 : 
                 #AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
-                AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
+                AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "1800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", addtreeflag=True, treedata = concatdata)
                 if AddBookedPosition == 1 :
                     Depart = MainViewer2(Title = "Department Name",MyText = "부점명을 입력하시오",size = "800x450+30+30", textfont = 14, defaultvalue = "TempDepart")#input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
                     for i in range(len(Bond)) : 
