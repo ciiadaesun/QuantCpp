@@ -7868,7 +7868,6 @@ def BS_Swaption_Program(HolidayDate, currdir) :
         
         NMonthOpt = DayCountAtoB(PriceDate, SwapEffectiveDate)/365*12
         NMonthSwap = DayCountAtoB(SwapEffectiveDate, SwapMaturity)/365*12
-        SelectedNumber = 4
         SwaptionVolRaw = ReadCSV(GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == SelectedNumber]["Directory"].iloc[0])
         SwaptionVolRawSetIndex = SwaptionVolRaw.astype(np.float64).set_index(SwaptionVolRaw.columns[0])
         SwaptionVolRawSetIndex.columns = SwaptionVolRawSetIndex.columns.astype(np.float64)
@@ -8871,7 +8870,11 @@ def PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayFile) :
         N_Curve_P1 = int(str(vb_SelectedCurve_P1.get(vb_SelectedCurve_P1.curselection())).split(".")[0]) if vb_SelectedCurve_P1.curselection() else 0
         CurveDirectory = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == N_Curve_P1]["Directory"].iloc[0]
         MyData2 = ReadCSV(CurveDirectory).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
-        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else int(YYYYMMDD)            
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else int(YYYYMMDD)  
+        if PriceDate < 19000101 : 
+            PriceDate = ExcelDateToYYYYMMDD(PriceDate)          
+        elif PriceDate < 1 : 
+            raise ValueError("Check PriceDate")
         NCPN_Ann = int(vb_NumCpnOneYear_P1.get(vb_NumCpnOneYear_P1.curselection())) if vb_NumCpnOneYear_P1.curselection() else 4
         DayCountFlag = int(str(vb_DayCount.get(vb_DayCount.curselection())).split(":")[0]) if vb_DayCount.curselection() else 0
         VolFlag = int(str(vb_VolFlag.get(vb_VolFlag.curselection())).split(":")[0]) if vb_VolFlag.curselection() else 0
