@@ -3490,6 +3490,417 @@ def Calc_Value_FXSwap(Spot, T1, T2, DomesticTerm, DomesticRate, ForeignTerm, For
     VD = - D1 + D2 if long0short1 == 0 else D1 - D2
     P = VF * Spot - VD if long0short1 == 0 else VF * Spot - VD
     return P, VD, VF
+
+def BS_Cap(
+    NA,                # 액면금액
+    VolFlag,           # 0: Black Vol, 1: Normal Vol
+    Vol,               # 변동성
+    DF,                # 할인계수 리스트 (길이: nDates + 1)
+    StrikeRate,        # 행사금리
+    Dates,             # 각 지급일까지의 일수 리스트 (길이: nDates)
+    FirstStartDay,     # 첫 시작일
+    FirstFixingRate,   # 첫 추정금리
+    AverageFlag,       # 평균 계산 여부
+    deltat,            # 각 기간에 대한 델타 리스트
+    AllStrikeATMFlag,  # 1: F를 행사금리로 사용, 2: swaprate 사용
+    swaprate           # 스왑레이트
+):
+    PrevT = FirstStartDay / 365.0
+    value = 0.0
+    nDates = len(Dates)
+    
+    if AverageFlag == 0:
+        if VolFlag == 0:  # Black vol
+            
+            for i in range(nDates):
+                T = Dates[i] / 365.0
+                delta = T - PrevT
+
+                PrevDisc = DF[i]
+                Disc = DF[i + 1]
+
+                F = (PrevDisc / Disc - 1.0) / delta
+                if abs(FirstFixingRate) > 1e-6 and i == 0:
+                    F = FirstFixingRate
+
+                if i == 0:
+                    if PrevT <= 0.0:
+                        if F > StrikeRate:
+                            value = deltat[i] * Disc * (F - StrikeRate)
+                    else:
+                        if AllStrikeATMFlag == 1:
+                            StrikeRate = F
+                        elif AllStrikeATMFlag == 2:
+                            StrikeRate = swaprate
+                        d1 = (np.log(F / StrikeRate) + 0.5 * Vol ** 2 * PrevT) / (Vol * np.sqrt(PrevT))
+                        d2 = d1 - Vol * np.sqrt(PrevT)
+                        value += deltat[i] * Disc * (F * CDF_N(d1) - StrikeRate * CDF_N(d2))
+                else:
+                    if F > 0.0:
+                        if AllStrikeATMFlag == 1:
+                            StrikeRate = F
+                        elif AllStrikeATMFlag == 2:
+                            StrikeRate = swaprate
+                        d1 = (np.log(F / StrikeRate) + 0.5 * Vol ** 2 * PrevT) / (Vol * np.sqrt(PrevT))
+                        d2 = d1 - Vol * np.sqrt(PrevT)
+                        value += deltat[i] * Disc * (F * CDF_N(d1) - StrikeRate * CDF_N(d2))
+                    else:
+                        value += 1e-13
+                PrevT = T
+        else:  # Normal vol
+            for i in range(nDates):
+                T = Dates[i] / 365.0
+                delta = T - PrevT
+
+                PrevDisc = DF[i]
+                Disc = DF[i + 1]
+
+                F = (PrevDisc / Disc - 1.0) / delta
+                if abs(FirstFixingRate) > 1e-6 and i == 0:
+                    F = FirstFixingRate
+
+                if i == 0:
+                    if PrevT <= 0.0:
+                        if F > StrikeRate:
+                            value = deltat[i] * Disc * (F - StrikeRate)
+                    else:
+                        if AllStrikeATMFlag == 1:
+                            StrikeRate = F
+                        elif AllStrikeATMFlag == 2:
+                            StrikeRate = swaprate
+                        d1 = (F - StrikeRate) / (Vol * np.sqrt(PrevT))
+                        value += deltat[i] * Disc * (
+                            (F - StrikeRate) * CDF_N(d1) + Vol * np.sqrt(PrevT) * np.exp(-d1 ** 2 / 2) / 2.506628274631
+                        )
+                else:
+                    if AllStrikeATMFlag == 1:
+                        StrikeRate = F
+                    elif AllStrikeATMFlag == 2:
+                        StrikeRate = swaprate
+                    d1 = (F - StrikeRate) / (Vol * np.sqrt(PrevT))
+                    value += deltat[i] * Disc * (
+                        (F - StrikeRate) * CDF_N(d1) + Vol * np.sqrt(PrevT) * np.exp(-d1 ** 2 / 2) / 2.506628274631
+                    )
+
+                PrevT = T
+    else:
+        F_Avg = 0.0
+        for i in range(nDates):
+            T = Dates[i] / 365.0
+            delta = T - PrevT
+
+            PrevDisc = DF[i]
+            Disc = DF[i + 1]
+
+            F = (PrevDisc / Disc - 1.0) / delta
+            if abs(FirstFixingRate) > 1e-6 and i == 0:
+                F = FirstFixingRate
+
+            F_Avg += F / nDates
+            PrevT = T
+
+        PrevT = FirstStartDay / 365.0
+        for i in range(nDates):
+            T = Dates[i] / 365.0
+            delta = T - PrevT
+
+            PrevDisc = DF[i]
+            Disc = DF[i + 1]
+
+            if VolFlag == 0:
+                if i == 0:
+                    if PrevT <= 0.0 and F_Avg > StrikeRate:
+                        value = deltat[i] * Disc * (F_Avg - StrikeRate)
+                    else:
+                        d1 = (np.log(F_Avg / StrikeRate) + 0.5 * Vol ** 2 * PrevT) / (Vol * np.sqrt(PrevT))
+                        d2 = d1 - Vol * np.sqrt(PrevT)
+                        value += deltat[i] * Disc * (F_Avg * CDF_N(d1) - StrikeRate * CDF_N(d2))
+                else:
+                    if F_Avg > 0.0:
+                        d1 = (np.log(F_Avg / StrikeRate) + 0.5 * Vol ** 2 * PrevT) / (Vol * np.sqrt(PrevT))
+                        d2 = d1 - Vol * np.sqrt(PrevT)
+                        value += deltat[i] * Disc * (F_Avg * CDF_N(d1) - StrikeRate * CDF_N(d2))
+                    else:
+                        value += 1e-13
+            else:
+                if i == 0:
+                    if PrevT <= 0.0 and F_Avg > StrikeRate:
+                        value = deltat[i] * Disc * (F_Avg - StrikeRate)
+                    else:
+                        d1 = (F_Avg - StrikeRate) / (Vol * np.sqrt(PrevT))
+                        value += deltat[i] * Disc * (
+                            (F_Avg - StrikeRate) * CDF_N(d1) + Vol * np.sqrt(PrevT) * np.exp(-d1 ** 2 / 2) / 2.506628274631
+                        )
+                else:
+                    d1 = (F_Avg - StrikeRate) / (Vol * np.sqrt(PrevT))
+                    value += deltat[i] * Disc * (
+                        (F_Avg - StrikeRate) * CDF_N(d1) + Vol * np.sqrt(PrevT) * np.exp(-d1 ** 2 / 2) / 2.506628274631
+                    )
+            PrevT = T
+
+    return NA * value    
+    
+def BS_Floor(
+    NA,                  # 액면금액
+    VolFlag,             # 0: Black Vol, 1: Normal Vol
+    Vol,                 # 변동성
+    DF,                  # 할인계수 리스트 (nDates + 1)
+    StrikeRate,          # 행사금리
+    Dates,               # 각 지급일까지의 일수 리스트 (길이: nDates)
+    FirstStartDay,
+    FirstFixingRate,
+    AverageFlag,
+    deltat,              # 기간별 델타 리스트 (길이: nDates)
+    AllStrikeATMFlag,
+    swaprate
+):
+    PrevT = FirstStartDay / 365.0
+    value = 0.0
+    nDates = len(Dates)
+
+    if AverageFlag == 0:
+        if VolFlag == 0:  # Black vol
+            for i in range(nDates):
+                T = Dates[i] / 365.0
+                delta = T - PrevT
+
+                PrevDisc = DF[i]
+                Disc = DF[i + 1]
+
+                F = (PrevDisc / Disc - 1.0) / delta
+                if abs(FirstFixingRate) > 1e-6 and i == 0:
+                    F = FirstFixingRate
+
+                if i == 0:
+                    if PrevT <= 0.0:
+                        if F < StrikeRate:
+                            value = deltat[i] * Disc * (StrikeRate - F)
+                    else:
+                        if AllStrikeATMFlag == 1:
+                            StrikeRate = F
+                        elif AllStrikeATMFlag == 2:
+                            StrikeRate = swaprate
+                        d1 = (np.log(F / StrikeRate) + 0.5 * Vol ** 2 * PrevT) / (Vol * np.sqrt(PrevT))
+                        d2 = d1 - Vol * np.sqrt(PrevT)
+                        value += deltat[i] * Disc * (-F * CDF_N(-d1) + StrikeRate * CDF_N(-d2))
+                else:
+                    if F > 0.0:
+                        if AllStrikeATMFlag == 1:
+                            StrikeRate = F
+                        elif AllStrikeATMFlag == 2:
+                            StrikeRate = swaprate
+                        d1 = (np.log(F / StrikeRate) + 0.5 * Vol ** 2 * PrevT) / (Vol * np.sqrt(PrevT))
+                        d2 = d1 - Vol * np.sqrt(PrevT)
+                        value += deltat[i] * Disc * (-F * CDF_N(-d1) + StrikeRate * CDF_N(-d2))
+                    else:
+                        value += 1e-13
+
+                PrevT = T
+        else:  # Normal vol
+            for i in range(nDates):
+                T = Dates[i] / 365.0
+                delta = T - PrevT
+
+                PrevDisc = DF[i]
+                Disc = DF[i + 1]
+
+                F = (PrevDisc / Disc - 1.0) / delta
+                if abs(FirstFixingRate) > 1e-6 and i == 0:
+                    F = FirstFixingRate
+
+                if i == 0:
+                    if PrevT <= 0.0:
+                        if F < StrikeRate:
+                            value = deltat[i] * Disc * (StrikeRate - F)
+                    else:
+                        if AllStrikeATMFlag == 1:
+                            StrikeRate = F
+                        elif AllStrikeATMFlag == 2:
+                            StrikeRate = swaprate
+                        d1 = (F - StrikeRate) / (Vol * np.sqrt(PrevT))
+                        value += deltat[i] * Disc * (
+                            (StrikeRate - F) * CDF_N(-d1) +
+                            Vol * np.sqrt(PrevT) * np.exp(-d1 ** 2 / 2) / 2.506628274631
+                        )
+                else:
+                    if AllStrikeATMFlag == 1:
+                        StrikeRate = F
+                    elif AllStrikeATMFlag == 2:
+                        StrikeRate = swaprate
+                    d1 = (F - StrikeRate) / (Vol * np.sqrt(PrevT))
+                    value += deltat[i] * Disc * (
+                        (StrikeRate - F) * CDF_N(-d1) +
+                        Vol * np.sqrt(PrevT) * np.exp(-d1 ** 2 / 2) / 2.506628274631
+                    )
+
+                PrevT = T
+    else:
+        F_Avg = 0.0
+        for i in range(nDates):
+            T = Dates[i] / 365.0
+            delta = T - PrevT
+
+            PrevDisc = DF[i]
+            Disc = DF[i + 1]
+
+            F = (PrevDisc / Disc - 1.0) / delta
+            if abs(FirstFixingRate) > 1e-6 and i == 0:
+                F = FirstFixingRate
+
+            F_Avg += F / nDates
+            PrevT = T
+
+        PrevT = FirstStartDay / 365.0
+        if VolFlag == 0:
+            for i in range(nDates):
+                T = Dates[i] / 365.0
+                delta = T - PrevT
+
+                PrevDisc = DF[i]
+                Disc = DF[i + 1]
+
+                if i == 0:
+                    if PrevT <= 0.0:
+                        if F_Avg < StrikeRate:
+                            value = deltat[i] * Disc * (StrikeRate - F_Avg)
+                    else:
+                        d1 = (np.log(F_Avg / StrikeRate) + 0.5 * Vol ** 2 * PrevT) / (Vol * np.sqrt(PrevT))
+                        d2 = d1 - Vol * np.sqrt(PrevT)
+                        value += deltat[i] * Disc * (-F_Avg * CDF_N(-d1) + StrikeRate * CDF_N(-d2))
+                else:
+                    if F_Avg > 0.0:
+                        d1 = (np.log(F_Avg / StrikeRate) + 0.5 * Vol ** 2 * PrevT) / (Vol * np.sqrt(PrevT))
+                        d2 = d1 - Vol * np.sqrt(PrevT)
+                        value += deltat[i] * Disc * (-F_Avg * CDF_N(-d1) + StrikeRate * CDF_N(-d2))
+                    else:
+                        value += 1e-13
+
+                PrevT = T
+        else:  # Normal vol
+            for i in range(nDates):
+                T = Dates[i] / 365.0
+                delta = T - PrevT
+
+                PrevDisc = DF[i]
+                Disc = DF[i + 1]
+
+                if i == 0:
+                    if PrevT <= 0.0:
+                        if F_Avg < StrikeRate:
+                            value = deltat[i] * Disc * (StrikeRate - F_Avg)
+                    else:
+                        d1 = (F_Avg - StrikeRate) / (Vol * np.sqrt(PrevT))
+                        value += deltat[i] * Disc * (
+                            (StrikeRate - F_Avg) * CDF_N(-d1) +
+                            Vol * np.sqrt(PrevT) * np.exp(-d1 ** 2 / 2) / 2.506628274631
+                        )
+                else:
+                    d1 = (F_Avg - StrikeRate) / (Vol * np.sqrt(PrevT))
+                    value += deltat[i] * Disc * (
+                        (StrikeRate - F_Avg) * CDF_N(-d1) +
+                        Vol * np.sqrt(PrevT) * np.exp(-d1 ** 2 / 2) / 2.506628274631
+                    )
+
+                PrevT = T
+
+    return NA * value    
+
+def Pricing_CapFloor(
+    CapFloorFlag,            # 0: Cap, 1: Floor
+    PriceDate,
+    StartDate,
+    SwapMaturityDate,
+    AnnCpnOneYear,
+    NA,
+    Vol,
+    StrikePrice,
+    UseStrikeAsAverage,
+    Term,
+    Rate,
+    DayCountFracFlag,
+    VolFlag,
+    HolidayYYYYMMDD,
+    FirstFixingRate,
+    AverageFlag,
+    AllStrikeATMFlag,
+    ResultValue             # Output: length = 4 + NTerm (but only 2 values used)
+):
+    ResultCode = 0
+    NHoliday = len(HolidayYYYYMMDD)
+    if StrikePrice > 1 : 
+        StrikePrice = StrikePrice /100
+    if PriceDate < 19000000:
+        PriceDate = ExcelDateToYYYYMMDD(PriceDate)
+    if StartDate < 19000000:
+        StartDate = ExcelDateToYYYYMMDD(StartDate)
+    if SwapMaturityDate < 19000000:
+        SwapMaturityDate = ExcelDateToYYYYMMDD(SwapMaturityDate)
+    Temp = [20000101]
+    NBDayFromEndDate = NBusinessCountFromEndToPay(StartDate, SwapMaturityDate, HolidayYYYYMMDD,1, Temp)    
+    StartDate = ParseBusinessDateIfHoliday(StartDate, HolidayYYYYMMDD)
+    Preprocessing_ZeroTermAndRate(Term, Rate, PriceDate)
+    
+    EndYYYYMM = SwapMaturityDate // 100
+    EndDD = StartDate % 100
+    SwapMaturityDate = EndYYYYMM * 100 + EndDD
+
+    TempDate = StartDate
+    FixingDate, CpnDate, ResultPayDate, ResultNBD = MappingCouponDates(1,StartDate,SwapMaturityDate,NBDayFromEndDate,AnnCpnOneYear,1,HolidayYYYYMMDD,HolidayYYYYMMDD,1)
+    NCpnDate = len(CpnDate)
+    DaysCpnDate = [DayCountAtoB(PriceDate, d) for d in CpnDate]
+    FirstStartDay = DayCountAtoB(PriceDate, StartDate)
+
+    DF = [0.0] * (len(CpnDate) + 1)
+    deltat = [0.0] * len(CpnDate)
+    for i in range(len(CpnDate)):
+        if i == 0:
+            deltat[i] = DayCountFractionAtoB(StartDate, CpnDate[i], DayCountFracFlag)
+        else:
+            deltat[i] = DayCountFractionAtoB(CpnDate[i - 1], CpnDate[i], DayCountFracFlag)
+
+    t = DayCountAtoB(PriceDate, StartDate) / 365.0
+    r = Linterp(Term, Rate, t)
+    DF[0] = np.exp(-r * t)
+
+    for i in range(len(CpnDate)):
+        t = DayCountAtoB(PriceDate, CpnDate[i]) / 365.0
+        r = Linterp(Term, Rate, t)
+        DF[i + 1] = np.exp(-r * t)
+
+    if UseStrikeAsAverage > 0:
+        F_Avg = 0.0
+        PrevT = FirstStartDay / 365.0
+        for i in range(len(CpnDate)):
+            T = DaysCpnDate[i] / 365.0
+            delta = T - PrevT
+            PrevDisc = DF[i]
+            Disc = DF[i + 1]
+            F = (PrevDisc / Disc - 1.0) / delta
+            if abs(FirstFixingRate) > 1e-6:
+                F = FirstFixingRate
+            F_Avg += F / len(CpnDate)
+            PrevT = T
+        StrikePrice = F_Avg
+
+    swprate = FSR(PriceDate, StartDate, SwapMaturityDate, AnnCpnOneYear,DayCountFracFlag, HolidayYYYYMMDD, Term, Rate, Term, Rate )
+
+    if CapFloorFlag == 0:
+        swv = BS_Cap(NA, VolFlag, Vol, DF, StrikePrice,
+                     DaysCpnDate, FirstStartDay,
+                     FirstFixingRate, AverageFlag, deltat,
+                     AllStrikeATMFlag, swprate)
+    else:
+        swv = BS_Floor(NA, VolFlag, Vol, DF, StrikePrice,
+                       DaysCpnDate, FirstStartDay,
+                       FirstFixingRate, AverageFlag, deltat,
+                       AllStrikeATMFlag, swprate)
+
+    ResultValue[0] = swv
+    ResultValue[1] = swprate
+
+    return ResultValue
+
+
     
 def Pricing_IRCallableSwap_HWFDM(
     Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, NumCpnOneYear_Leg1_Phase1, 
@@ -8009,7 +8420,7 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
     v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20460929)
     vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["1","2","4","6"], titlelable = True, titleName = "Leg1 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue=2)
     v_SwapMaturityToPayDate = make_variable_interface(left_frame, '기말일TO지급일까지영업일수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 2)
-    v_L1_FixedCpnRate_P1 = make_variable_interface(left_frame, 'Leg1 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.49)
+    v_L1_FixedCpnRate_P1 = make_variable_interface(left_frame, 'Leg1 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.69)
     v_FloatFlag = make_variable_interface(left_frame, '변동금리채여부(0 or 1)', bold = False, textfont = 11, defaultflag = True, defaultvalue = 0)
     vb_L1_DayCount = make_listvariable_interface(left_frame, 'Leg1 DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360"], listheight = 3, textfont = 11)
 
@@ -8130,7 +8541,7 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
 def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) , ComplexIRSFlag = 0, CMSUseFlag = 0) : 
     YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
                                                                   namenotin = "vol",
-                                                                  Comments = "IRS Pricing을 위한 커브 번호를 입력하시오.\n(Estimation Curve와 Discount Curve가 다른 경우 1, 2 등 두개 입력)")     
+                                                                  Comments = "IRS Pricing을 위한 커브 번호를 입력하시오.\n(Estimation Curve와 Discount Curve가 다른 경우 1, 2 등 두개 입력)",DefaultStringList = ["IRS"])     
     curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
     print(curvename)  
     HolidaysForSwap = []
