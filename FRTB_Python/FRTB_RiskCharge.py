@@ -18,8 +18,8 @@ PrevTreeFlag = 0
 tree = None
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
-vers = "1.1.4"
-recentupdate = '20250619'
+vers = "1.1.5"
+recentupdate = '20250626'
 print("######################################\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Validation Quant\nMy FRTB Module \n"+vers+" (RecentUpdated :" +recentupdate + ")" + "\n######################################\n")
 GlobalFlag = 0
 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
@@ -4731,7 +4731,8 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
     YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
                                                                     namenotin = "vol",
                                                                     Comments = "IRS Pricing을 위한 커브 번호를 입력하시오.",
-                                                                    MultiSelection = False)     
+                                                                    MultiSelection = False,
+                                                                    DefaultStringList=["IRS"])     
     curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
     PriceDateDefault = int(YYYYMMDD)
     Curve = MyMarketDataList[0]
@@ -5356,7 +5357,41 @@ def Calc_ZeroRate_FromDiscFactor(PriceDate, StartDate, EndDate, MarketQuote, Day
         r = -365.0/(DayCountAtoB(PriceDate, EndDate)) * np.log(DF_0_To_EndDate)
     return r
 
-def ReadCSV(filedir) :    
+def MonthStringConvert(x) : 
+    if len(str(x)) == 9 and '-' in str(x): 
+        XX = str(x).lower()
+        DD = XX[:2]
+        YYYY = ('20' + XX[-2:])[-4:]
+        if '-jan-' in XX : 
+            return int(YYYY + '01' + DD)
+        elif '-feb-' in XX : 
+            return int(YYYY + '02' + DD)
+        elif '-mar-' in XX : 
+            return int(YYYY + '03' + DD)
+        elif '-apr-' in XX : 
+            return int(YYYY + '04' + DD)
+        elif '-may-' in XX : 
+            return int(YYYY + '05' + DD)
+        elif '-jun-' in XX : 
+            return int(YYYY + '06' + DD)
+        elif '-jul-' in XX : 
+            return int(YYYY + '07' + DD)
+        elif '-aug-' in XX : 
+            return int(YYYY + '08' + DD)
+        elif '-sep-' in XX : 
+            return int(YYYY + '09' + DD)
+        elif '-oct-' in XX : 
+            return int(YYYY + '10' + DD)
+        elif '-nov-' in XX : 
+            return int(YYYY + '11' + DD)
+        elif '-dec-' in XX : 
+            return int(YYYY + '12' + DD)
+        else : 
+            return x    
+    else : 
+        return x    
+
+def ReadCSV(filedir, ParseMonthStringToInteger = False) :    
     try : 
         chunk_list = pd.read_csv(filedir, chunksize = 5000, engine = 'python')
     except UnicodeDecodeError : 
@@ -5368,7 +5403,10 @@ def ReadCSV(filedir) :
     df = pd.DataFrame()
     for i in chunk_list : 
         df = pd.concat([df,i],axis = 0)
-    return df
+    if ParseMonthStringToInteger == True : 
+        return df.applymap(MonthStringConvert)
+    else : 
+        return df
 
 def PreProcessingKDBData(KDBData, dataformat = 'Combined') : 
     '''
@@ -7771,7 +7809,7 @@ def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING", namein =
     if len(DataMarketData) == 1 : 
         NumberList = DataMarketData.replace(" ","").split(",")
         idx = TargetFiles["Number"].astype(str).isin(NumberList)
-        MarketDataList.append(ReadCSV(TargetFiles["Directory"][idx].iloc[0]).dropna(how = 'all'))
+        MarketDataList.append(ReadCSV(TargetFiles["Directory"][idx].iloc[0], True).dropna(how = 'all'))
         MarketDataName.append(TargetFiles["Directory"][idx].iloc[0])
     else : 
         NumberList = DataMarketData.replace(" ","").split(",")
@@ -7781,7 +7819,7 @@ def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING", namein =
         #TargetFiles2 = TargetFiles[TargetFiles["Number"].astype(np.int64).isin(TargetList)]
         TargetFiles2 = TargetFiles[TargetFiles["Number"].astype(str).isin(NumberList)]
         for idx in range(len(TargetFiles2)) : 
-            MarketDataList.append(ReadCSV(TargetFiles2["Directory"].iloc[idx]))
+            MarketDataList.append(ReadCSV(TargetFiles2["Directory"].iloc[idx], True))
             MarketDataName.append(TargetFiles2["Directory"].iloc[idx])
     
     for i in range(len(MarketDataList)) : 
@@ -7981,7 +8019,7 @@ def ViewFRTB(Data) :
     PrevTreeFlag = insert_dataframe_to_treeview(tree, DataDF, width = 100)
     root.mainloop()    
 
-def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = []) : 
+def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation","5: Cap Floor Implied Vol Calibration"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = []) : 
     root = tk.Tk()
     root.title(Title)
     root.geometry(size)
@@ -8349,6 +8387,167 @@ def BS_CapFloor_Program(HolidayDate, currdir) :
     root.mainloop()     
     return 0,0,0,0
 
+def CapFloorCalibrationProgram(currdir) : 
+    YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + "\\MarketData\\inputdata",MultiSelection=False, Comments="제너레이터를 위한 Cap데이터", DefaultStringList= ["Cap"])
+    try : 
+        HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
+    except FileNotFoundError : 
+        HolidayDate = []
+    MyData = Data[0].astype(np.float64)
+    Tenor = MyData["Tenor"]
+    Quote = MyData["QuotePercent"].astype(np.float64)/100
+    ZeroCurveName = Name[0]
+    Data = MarketDataFileListPrint(currdir + '\\MarketData\\outputdata', namenotin = 'vol').sort_values(by = "YYYYMMDD")[-50:]
+    Data = Data[Data['DirectoryPrint'].apply(lambda x : ('EQ' in str(x).upper() and 'VOL' in str(x).upper()) == False)] #Out EQ Vol 
+    GroupbyYYYYMMDD = Data[Data["YYYYMMDD"] == YYYYMMDD]
+    GroupbyYYYYMMDD["Currency"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split("\\")[-2])
+    GroupbyYYYYMMDD["ListName"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split(".")[0] + '. ' + x.split("\\")[-1].replace(".csv",""))                 
+        
+    Currency = Name[0].split("\\")[-2]
+    ZeroCurveRawData = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Currency"] == Currency]
+
+    root = tk.Tk()
+    root.title("Swaption Pricer")
+    root.geometry("1500x750+30+30")
+    root.resizable(False, False)
+
+    left_frame = tk.Frame(root)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_PriceDate = make_variable_interface(left_frame, 'PriceDate', bold = False, textfont = 11, defaultflag = True, defaultvalue=int(YYYYMMDD))    
+    v_Nominal = make_variable_interface(left_frame, 'Nominal Amount', bold = False, textfont = 11, defaultflag = True, defaultvalue=100)    
+    vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["1","2","4","6"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=2)
+    vb_DayCount = make_listvariable_interface(left_frame, 'DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0)    
+    vb_CapFloorFlag = make_listvariable_interface(left_frame, 'CapFloorFlag', ["0: Cap","1: Floor"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0)
+    vb_Logging = make_listvariable_interface(left_frame, 'CSVLogging', ["0: Logging안함","1: CSVLogging"], listheight = 2, textfont = 11, pady = 10)
+    v_SaveName = make_variable_interface(left_frame, '저장할 커브볼 명\n(ex: KRW Cap Vol)', bold = True, textfont = 11, defaultflag = True, defaultvalue="")
+
+    center_frame = tk.Frame(root)
+    center_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    vb_SelectedCurve_P1 = make_listvariable_interface(center_frame, 'ZeroCurve 선택', list(GroupbyYYYYMMDD["ListName"]), listheight = 5, textfont = 11, titlelable = True, titleName = "MarketData Info", defaultflag = True, defaultvalue = 0, width = 50, DefaultStringList=["IRS"])
+    vb_VolFlag = make_listvariable_interface(center_frame, 'VolFlag', ["0: Black Vol","1: Normal Vol"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=1)
+    Result_frame = tk.Frame(root)
+    Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
+    Result = [0,0,0,0]
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2,Result]
+
+    def run_function(MyArrays) : 
+        PrevTreeFlag = MyArrays[0] 
+        tree = MyArrays[1] 
+        scrollbar = MyArrays[2]
+        scrollbar2 = MyArrays[3]        
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else int(YYYYMMDD)
+        NCPNOneYear = int(vb_L1_NumCpnOneYear_P1.get(vb_L1_NumCpnOneYear_P1.curselection())) if vb_L1_NumCpnOneYear_P1.curselection() else 4
+        DayCountFlag = int(str(vb_DayCount.get(vb_DayCount.curselection())).split(":")[0]) if vb_DayCount.curselection() else 0
+        CapFloorFlag = int(str(vb_CapFloorFlag.get(vb_CapFloorFlag.curselection())).split(":")[0]) if vb_CapFloorFlag.curselection() else 0
+        VolFlag = int(str(vb_VolFlag.get(vb_VolFlag.curselection())).split(":")[0]) if vb_VolFlag.curselection() else 0
+        StrikeFlag = 2
+        StrikePrice = 0
+        NSelectedCurve = int(str(vb_SelectedCurve_P1.get(vb_SelectedCurve_P1.curselection())).split(".")[0]) if vb_SelectedCurve_P1.curselection() else 1
+        Holidays = HolidayDate[Currency].dropna() if Currency in HolidayDate.columns else []
+        StartDate = NextNthBusinessDate(PriceDate, 1, Holidays)
+        TenorYYYYMMDD = Tenor.apply(lambda x : EDate_YYYYMMDD(StartDate, int(x)) if float(x) < 1200 else (ExcelDateToYYYYMMDD(x) if float(x) < 19000101 else float(x)))
+        CurveDirectory = ZeroCurveRawData[ZeroCurveRawData["Number"] == NSelectedCurve]["Directory"].iloc[0]
+        CurveInfo = ReadCSV(CurveDirectory, True)
+        ZeroTerm = CurveInfo["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        ZeroRate = CurveInfo["Rate"].astype(np.float64)
+        Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate)
+        NA = float(v_Nominal.get()) if len(str(v_Nominal.get())) > 0 else 100
+        LoggingFlag = int(str(vb_Logging.get(vb_Logging.curselection())).split(":")[0]) if vb_Logging.curselection() else 0
+        SaveName = str(v_SaveName.get()) if len(str(v_SaveName.get())) > 0 else "TempCapVol"
+        dblErrorRange = 0.00001
+        ResultCapFloorImvol = []
+        FwdSwpRate = []
+
+        Calibration = True
+        for i in range(len(TenorYYYYMMDD)) : 
+            SwapMaturityDate = TenorYYYYMMDD[i]
+            Price = float(Quote[i])
+            MaxVol = 1.0
+            MinVol = 0.000001
+            TargetVol = MaxVol
+            ResultValue = [0,0,0,0]
+            #print(CapFloorFlag, PriceDate, StartDate, SwapMaturityDate, NCPNOneYear, 
+            #                     NA, TargetVol, StrikePrice, 0, ZeroTerm, 
+            #                     ZeroRate, DayCountFlag, VolFlag, Holidays, 0,
+            #                     0, 2 if StrikePrice == 0 else 0, ResultValue)
+            for j in range(1000) : 
+                Pricing_CapFloor(CapFloorFlag, PriceDate, StartDate, SwapMaturityDate, NCPNOneYear, 
+                                 NA, TargetVol, StrikePrice, 0, ZeroTerm, 
+                                 ZeroRate, DayCountFlag, VolFlag, Holidays, 0,
+                                 0, 2 if StrikePrice == 0 else 0, ResultValue)
+                CalcRate = ResultValue[0]/NA - Price
+                if abs(CalcRate) < dblErrorRange : 
+                    break
+                if (CalcRate > 0) : 
+                    MaxVol = TargetVol
+                else : 
+                    MinVol = TargetVol
+                TargetVol = (MinVol + MaxVol) / 2
+                
+            if j == 1000 : 
+                print("VolCalibration Fail Tenor" + str(SwapMaturityDate))
+                Calibration = False
+            ResultCapFloorImvol.append(TargetVol)
+            FwdSwpRate.append(ResultValue[1])
+        ResultData = pd.DataFrame(ResultCapFloorImvol, index = TenorYYYYMMDD, columns = ["CapFloorVol"])
+        if PrevTreeFlag == 0 : 
+            tree = ttk.Treeview(root)
+        else : 
+            tree.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
+            tree = ttk.Treeview(root)
+        ResultData["FwdSwpRate"] = FwdSwpRate
+        ResultData = ResultData.applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+        tree.pack(padx=5, pady=5, fill="both", expand=False)
+        scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")    
+        
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, (ResultData*100).round(4).reset_index(), width = 80)
+        SaveYN, SaveDir = 0, ""
+        if LoggingFlag > 0 : 
+            if YYYYMMDD not in os.listdir(currdir + "\\MarketData\\outputdata") : 
+                os.system('mkdir ' + currdir + '\\MarketData\\outputdata\\' + str(PriceDate))
+                os.system('mkdir ' + currdir + '\\MarketData\\outputdata\\' + str(PriceDate) + "\\" + Currency)    
+                    
+            cvname = SaveName
+            targetdir = currdir + "\\MarketData\\outputdata\\" + str(PriceDate) + "\\" + str(Currency)
+            print("\n저장시도\n")
+            try : 
+                if cvname + ".csv" not in os.listdir(targetdir) : 
+                    TheName = targetdir + "\\" + cvname + ".csv"
+                    ResultData.to_csv(TheName, index = True, encoding = "cp949")
+                    SaveYN = 1
+                    SaveDir = TheName
+                    print("\n저장완료\n")
+            except FileNotFoundError : 
+                os.system('mkdir ' + currdir + '\\MarketData\\outputdata\\' + str(PriceDate) + "\\" + Currency)    
+                if cvname + ".csv" not in os.listdir(targetdir) : 
+                    TheName = targetdir + "\\" + cvname + ".csv"
+                    ResultData.to_csv(TheName, index = True, encoding = "cp949")
+                    SaveYN = 1
+                    SaveDir = TheName
+                    print("\n저장완료\n")
+
+        output_label.config(text = f"\n결과: {Calibration}\n저장:{SaveYN}\n저장경로:\n{SaveDir}", font = ("맑은 고딕", 12, 'bold'))
+        MyArrays[0] = PrevTreeFlag 
+        MyArrays[1] = tree 
+        MyArrays[2] = scrollbar
+        MyArrays[3] = scrollbar2        
+        MyArrays[4] = ResultCapFloorImvol
+    temp_func = lambda : run_function(MyArrays)            
+    tk.Button(Result_frame, text = '실행', padx = 20, pady = 20, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+    output_label = tk.Label(Result_frame, text = "", anchor = "n")
+    output_label.pack(padx = 5, pady = 2)
+
+    root.mainloop()     
+    return 0,0,0,0        
+
 def BS_Swaption_Program(HolidayDate, currdir) : 
     YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + "\\MarketData\\outputdata",MultiSelection=False, namenotin = "Vol", Comments="Pricing을 위한 ZeroCurve", DefaultStringList= ["IRS"])
     ZeroCurve = Data[0]
@@ -8380,7 +8579,7 @@ def BS_Swaption_Program(HolidayDate, currdir) :
 
     center_frame = tk.Frame(root)
     center_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
-    vb_SelectedCurve_P1 = make_listvariable_interface(center_frame, 'Swaption Vol 선택', list(GroupbyYYYYMMDD["ListName"]), listheight = 5, textfont = 11, titlelable = True, titleName = "Swaption Info", defaultflag = True, defaultvalue = 0, width = 50)
+    vb_SelectedCurve_P1 = make_listvariable_interface(center_frame, 'Swaption Vol 선택', list(GroupbyYYYYMMDD["ListName"]), listheight = 5, textfont = 11, titlelable = True, titleName = "Swaption Info", defaultflag = True, defaultvalue = 0, width = 50, DefaultStringList=["Vol"])
     vb_DayCount = make_listvariable_interface(center_frame, 'DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0)
     vb_FixedPayer0Receiver1 = make_listvariable_interface(center_frame, 'FixedPayer:0,Receiver:1', ["0: Fixed Payer Swaption","1: Fixed Receive Swaption"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0)
     v_StrikePrice = make_variable_interface(center_frame, 'Strike Rate(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue=2.56)
@@ -8411,7 +8610,7 @@ def BS_Swaption_Program(HolidayDate, currdir) :
         
         NMonthOpt = DayCountAtoB(PriceDate, SwapEffectiveDate)/365*12
         NMonthSwap = DayCountAtoB(SwapEffectiveDate, SwapMaturity)/365*12
-        SwaptionVolRaw = ReadCSV(GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == SelectedNumber]["Directory"].iloc[0])
+        SwaptionVolRaw = ReadCSV(GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == SelectedNumber]["Directory"].iloc[0], True)
         SwaptionVolRawSetIndex = SwaptionVolRaw.astype(np.float64).set_index(SwaptionVolRaw.columns[0])
         SwaptionVolRawSetIndex.columns = SwaptionVolRawSetIndex.columns.astype(np.float64)
         SwaptionVolArray = SwaptionVolRawSetIndex.values.astype(np.float64)
@@ -9160,13 +9359,13 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
     
     left_frame = tk.Frame(root)
     left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
-    vb_DomesticEst_P1 = make_listvariable_interface(left_frame, 'Domestic Estimation Curve \n(-1: Fix - Flo Swap의 경우)', ["-1. Domestic Estimation 필요없음"] + list(DomesticCurveData["ListName"]), listheight = 4, textfont = 11, titlelable = True, titleName = "Domestic Leg INFO", defaultflag = True, defaultvalue = 0, pady = 10)
+    vb_DomesticEst_P1 = make_listvariable_interface(left_frame, 'Domestic Estimation Curve \n(-1: Fix - Flo Swap의 경우)', ["-1. Domestic Estimation 필요없음"] + list(DomesticCurveData["ListName"]), listheight = 4, textfont = 11, titlelable = True, titleName = "Domestic Leg INFO", defaultflag = True, defaultvalue = 0, pady = 10, width = 30)
     vb_LDHoliday = make_listvariable_interface(left_frame, 'HolidayFlag', ["KRW","USD","GBP","JPY"], listheight = 3, textfont = 11, pady = 2, defaultflag = True, defaultvalue = (1 if c1 == 'USD' else 0))
     vb_LD_DayCount = make_listvariable_interface(left_frame, 'Domestic DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360","5: Cmp ACT/365","6: Cmp ACT/360","7: Cmp ACT/ACT","8: Cmp 30/360"], listheight = 3, textfont = 11, defaultflag=True, defaultvalue=1 if c1 == "USD" else 0)
 
     right_frame = tk.Frame(root)
     right_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
-    vb_Foreign_P1 = make_listvariable_interface(right_frame, 'Foreign Estimation Curve \n', list(ForeignCurveData["ListName"]) if ForeignCurveNeeded else ["-1: 미사용"], listheight = 4, textfont = 11, titlelable = True, titleName = "Foreign Leg INFO", defaultflag = True, defaultvalue = 1 if len(ForeignCurveData) >= 2 else 0, pady = 10)
+    vb_Foreign_P1 = make_listvariable_interface(right_frame, 'Foreign Estimation Curve \n', list(ForeignCurveData["ListName"]) if ForeignCurveNeeded else ["-1. 미사용"], listheight = 4, textfont = 11, titlelable = True, titleName = "Foreign Leg INFO", defaultflag = True, defaultvalue = 1 if len(ForeignCurveData) >= 2 else 0, pady = 10)
     vb_LFHoliday = make_listvariable_interface(right_frame, 'HolidayFlag', ["KRW","USD","GBP","JPY"] if ForeignCurveNeeded else ["-1: 미사용"], listheight = 3, textfont = 11, pady = 2, defaultflag = True, defaultvalue = (1 if c2 == 'USD' else 0))
     vb_LF_DayCount = make_listvariable_interface(right_frame, 'Foreign DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360","5: Cmp ACT/365","6: Cmp ACT/360","7: Cmp ACT/ACT","8: Cmp 30/360"] if ForeignCurveNeeded else ["-1: 미사용"], listheight = 3, textfont = 11, defaultflag=True, defaultvalue=1 if c2 == "USD" else 0)
 
@@ -9194,7 +9393,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
         N_DomesticEst_P1 = int(str(vb_DomesticEst_P1.get(vb_DomesticEst_P1.curselection())).split(".")[0]) if vb_DomesticEst_P1.curselection() else -1
         if N_DomesticEst_P1 >= 0 :
             DomesticEstCurveDirectory = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == N_DomesticEst_P1]["Directory"].iloc[0]
-            DomesticEstCurve = ReadCSV(DomesticEstCurveDirectory).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
+            DomesticEstCurve = ReadCSV(DomesticEstCurveDirectory, True).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
             DomesticEstTerm = DomesticEstCurve["Term"].astype(np.float64)
             DomesticEstRate = DomesticEstCurve["Rate"].astype(np.float64)
         else : 
@@ -9213,7 +9412,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
         N_DomesticEst_P1 = int(str(vb_DomesticEst_P1.get(vb_DomesticEst_P1.curselection())).split(".")[0]) if vb_DomesticEst_P1.curselection() else -1
         if N_DomesticEst_P1 >= 0 :
             DomesticEstCurveDirectory = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == N_DomesticEst_P1]["Directory"].iloc[0]
-            DomesticEstCurve = ReadCSV(DomesticEstCurveDirectory).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
+            DomesticEstCurve = ReadCSV(DomesticEstCurveDirectory, True).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
             DomesticEstTerm = DomesticEstCurve["Term"].astype(np.float64)
             DomesticEstRate = DomesticEstCurve["Rate"].astype(np.float64)
         else : 
@@ -9235,7 +9434,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
         N_Foreign_P1 = int(str(vb_Foreign_P1.get(vb_Foreign_P1.curselection())).split(".")[0]) if vb_Foreign_P1.curselection() else 0
         if N_Foreign_P1 >= 0 and ForeignCurveNeeded == 1:
             ForeignCurveDirectory = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == N_Foreign_P1]["Directory"].iloc[0]
-            ForeignCurve = ReadCSV(ForeignCurveDirectory).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
+            ForeignCurve = ReadCSV(ForeignCurveDirectory, True).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
             ForeignTerm = ForeignCurve["Term"].astype(np.float64)
             ForeignRate = ForeignCurve["Rate"].astype(np.float64)
         else : 
@@ -9447,7 +9646,7 @@ def PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayFile) :
     
     left_frame = tk.Frame(root)
     left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
-    vb_SelectedCurve_P1 = make_listvariable_interface(left_frame, 'ZeroCurve', list(GroupbyYYYYMMDD["ListName"]), listheight = 5, textfont = 11, titlelable = True, titleName = "ZeroCurve INFO", defaultflag = True, defaultvalue = 0, pady = 10)
+    vb_SelectedCurve_P1 = make_listvariable_interface(left_frame, 'ZeroCurve', list(GroupbyYYYYMMDD["ListName"]), listheight = 5, textfont = 11, titlelable = True, titleName = "ZeroCurve INFO", defaultflag = True, defaultvalue = 0, pady = 10, DefaultStringList=["IRS"])
     v_PriceDate = make_variable_interface(left_frame, 'PriceDate', bold = True, textfont = 11, defaultflag = True, defaultvalue=int(YYYYMMDD))
     vb_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["1","2","4","6"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0 if Currency == "USD" else 2)
     vb_DayCount = make_listvariable_interface(left_frame, 'DayCountFlag', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360"], listheight = 4, textfont = 11, defaultflag=True, defaultvalue=1 if Currency == "USD" else 0)
@@ -9461,18 +9660,19 @@ def PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayFile) :
     newtree = ttk.Treeview(root, height = 30)
     newtree.pack(side = 'left', padx=5, pady=10, expand=False, anchor = 'n')        
     NewTreeFlag = insert_dataframe_to_treeview(newtree, (MyData*100).round(2).reset_index(), width = 50)       
-    PrevTreeFlag, tree, scrollbar, scrollbar2, ResultDF = 0, None, None, None, pd.DataFrame([])
-    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2, ResultDF]    
+    PrevTreeFlag, tree, tree2, scrollbar, scrollbar2, ResultDF = 0, None, None, None, None, pd.DataFrame([])
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2, ResultDF, tree2]    
     def run_function(MyArrays) : 
         PrevTreeFlag = MyArrays[0] 
         tree = MyArrays[1] 
         scrollbar = MyArrays[2]
         scrollbar2 = MyArrays[3]  
         ResultDF = MyArrays[4]
+        tree2 = MyArrays[5]
         
         N_Curve_P1 = int(str(vb_SelectedCurve_P1.get(vb_SelectedCurve_P1.curselection())).split(".")[0]) if vb_SelectedCurve_P1.curselection() else 0
         CurveDirectory = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == N_Curve_P1]["Directory"].iloc[0]
-        MyData2 = ReadCSV(CurveDirectory).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
+        MyData2 = ReadCSV(CurveDirectory, True).applymap(lambda x : str(x).replace("-","") if "-" in str(x) else x)
         PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else int(YYYYMMDD)  
         if PriceDate < 19000101 : 
             PriceDate = ExcelDateToYYYYMMDD(PriceDate)          
@@ -9499,6 +9699,7 @@ def PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayFile) :
                 ResultValues2[i][j] = v["ForwardSwapRate"]
         SaveYN, SaveDir = 0, ""
         ResultDF = pd.DataFrame(ResultValues, index = MyData.index, columns = MyData.columns)
+        ResultDF2 = pd.DataFrame(ResultValues2, index = MyData.index, columns = MyData.columns)
         if LoggingFlag > 0 : 
             if YYYYMMDD not in os.listdir(currdir + "\\MarketData\\outputdata") : 
                 os.system('mkdir ' + currdir + '\\MarketData\\outputdata\\' + str(YYYYMMDD))
@@ -9525,14 +9726,18 @@ def PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayFile) :
         
         if PrevTreeFlag == 0 : 
             tree = ttk.Treeview(root)
+            tree2 = ttk.Treeview(root)
         else : 
             tree.destroy()
+            tree2.destroy()
             scrollbar.destroy()
             scrollbar2.destroy()
             tree = ttk.Treeview(root)
+            tree2 = ttk.Treeview(root)
 
         ResultDF = ResultDF.applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
-        tree.pack(padx=5, pady=5, fill="both", expand=True)
+        tree.pack(padx=5, pady=5, fill="both", expand=False)
+        tree2.pack(padx=5, pady=5, fill="both", expand=False)
         scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
         scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
         tree.configure(yscrollcommand=scrollbar.set)
@@ -9540,7 +9745,8 @@ def PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayFile) :
         scrollbar.pack(side="right", fill="y")    
         scrollbar2.pack(side="bottom", fill="x")    
         
-        PrevTreeFlag = insert_dataframe_to_treeview(tree, (ResultDF*100).round(2).reset_index(), width = 50)          
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, (ResultDF*100).round(4).reset_index(), width = 50)
+        PrevTreeFlag2 = insert_dataframe_to_treeview(tree2, (ResultDF2*100).round(4).reset_index(), width = 50)          
         output_label.config(text = f"저장: \n{SaveYN}\n저장위치:\n{SaveDir}", font = ("맑은 고딕", 12, 'bold'))
 
         MyArrays[0] = PrevTreeFlag 
@@ -9548,6 +9754,7 @@ def PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayFile) :
         MyArrays[2] = scrollbar
         MyArrays[3] = scrollbar2 
         MyArrays[4] = ResultDF 
+        MyArrays[5] = tree2
                
     temp_func = lambda : run_function(MyArrays)
     tk.Button(Result_frame, text = '실행', padx = 10, pady = 10, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 10).pack()
@@ -9862,7 +10069,12 @@ while True :
         if MainFlag2 == 0:
             print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
             break        
-        
+    elif MainFlag in [5, '5'] : 
+        CapFloorCalibrationProgram(currdir)
+        MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+50+50", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
+        if MainFlag2 == 0:
+            print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
+            break        
 
 # %%
 
@@ -9891,44 +10103,6 @@ while True :
 
 # %%
 
+# %%a
+
 # %%
-#YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + "\\MarketData\\inputdata",MultiSelection=False, namenotin = "ption", defaultvalue=0, DefaultStringList = ["Cap"])
-#MyData = Data[0].astype(np.float64)
-#Tenor = MyData["Tenor"]
-#Quote = MyData["QuotePercent"]/100
-#ZeroCurveName = Name[0]
-#Data = MarketDataFileListPrint(currdir + '\\MarketData\\outputdata', namenotin = 'vol').sort_values(by = "YYYYMMDD")[-50:]
-#GroupbyYYYYMMDD = Data[Data["YYYYMMDD"] == YYYYMMDD]
-#GroupbyYYYYMMDD["Currency"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split("\\")[-2])
-#GroupbyYYYYMMDD["ListName"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split(".")[0] + '. ' + x.split("\\")[-1].replace(".csv",""))
-#Currency = ZeroCurveName.split("\\")[-2]
-#ZeroCurveRawData = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Currency"] == Currency]
-#NSelectedCurve = 3
-#CapFloorFlag = 0
-#PriceDate = int(YYYYMMDD)
-#lambda x : if (x < 1200) 
-#ZeroCurveRawData[ZeroCurveRawData["Number"] == NSelectedCurve]["Directory"].iloc[0]
-#for i in range(len(Tenor)) : 
-#    if (Tenor[i] < 100) : 
-#        
-#    
-#Pricing_CapFloor(CapFloorFlag,PriceDate,
-#    StartDate,
-#    SwapMaturityDate,
-#    AnnCpnOneYear,
-#    NA,
-#    Vol,
-#    StrikePrice,
-#    UseStrikeAsAverage,
-#    ZeroTerm,
-#    ZeroRate,
-#    DayCountFracFlag,
-#    VolFlag,
-#    HolidayYYYYMMDD,
-#    FirstFixingRate,
-#    AverageFlag,
-#    AllStrikeATMFlag,
-#    ResultValue             # Output: length = 4 + NTerm (but only 2 values used)
-#)
-## %%
-#
