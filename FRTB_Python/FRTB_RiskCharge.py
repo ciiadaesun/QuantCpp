@@ -2065,6 +2065,93 @@ def BS_Option(PriceDate, MaturityDate, S0, X, TermDisc,
         LogData.to_csv(LoggingDir + "\\LoggingFilesOption.csv",encoding = "cp949", index = False)
     return Price, Delta, Gamma, Vega, Theta, Rho, v
 
+def BSDigitalOption(TypeFlag, PriceDate, Maturity, PayDate, S0, X, DiscTerm, DiscRate, RefTerm, RefRate, DivTerm, DivRate, VolTerm, VolParity, Vols2D, QuantoCorr, FXVolTerm, FXVol, DivType, ForwardPrice = 0, LoggingFlag = 0, LoggingDir = os.getcwd()) : 
+    T = max(0.00001, DayCountAtoB(PriceDate, Maturity)/365)
+    TEnd = T
+    TPay = DayCountAtoB(PriceDate, PayDate)/365
+    TPay = max(T, TPay)
+    Preprocessing_ZeroTermAndRate(DiscTerm, DiscRate, PriceDate)
+    Preprocessing_ZeroTermAndRate(RefTerm, RefRate, PriceDate)
+    Preprocessing_Term(DivTerm, PriceDate)
+    df_tmat_to_pay = Calc_ForwardDiscount_Factor(DiscTerm,DiscRate, T, TPay) if T != TPay else 1
+    if (DivType == 0) : 
+        dvd = DivRate[0] if ForwardPrice <= 0 else 0
+    elif (DivType == 1) : 
+        dvd = np.interp(TEnd, DivTerm, DivRate) if ForwardPrice <= 0 else 0
+    else : 
+        td = np.array(DivTerm)
+        dr = np.array(DivRate)
+        idx = td <= TEnd
+        dvd = 1/TEnd * dr[idx].sum() / S0 if ForwardPrice <= 0 else 0
+        
+    if isinstance(Vols2D, float) : 
+        vol = Vols2D
+    else : 
+        vol = Linterp2D(VolTerm, VolParity, Vols2D, TEnd, X/S0 if np.array(VolParity).max() < 2.0 else S0)
+    
+    fxv = np.interp(TEnd, FXVolTerm, FXVol) if len(FXVolTerm) > 0 else 0
+    rd = np.interp(TEnd, DiscTerm, DiscRate)
+    if ForwardPrice > 0 : 
+        rf = 1/TEnd * np.log(ForwardPrice/S0)
+    else : 
+        if len(RefTerm) > 0 :
+            rf = np.interp(TEnd, RefTerm, RefRate)
+        else : 
+            rf = rd
+
+    DiscreteDivFlag = 0 if DivType != 2 else 1  
+    if DiscreteDivFlag == 1 : 
+        S0 = S0 - dvd * np.exp(-rd * T)
+        dvd = 0
+
+    Rf_Quanto = rf - fxv * vol * QuantoCorr  
+    d1 = (np.log(S0 / X) + (Rf_Quanto - dvd + 0.5 * vol * vol) * T) / (vol * np.sqrt(T)) 
+    d2 = d1 - vol * np.sqrt(T)
+    theta_d2 = -(Rf_Quanto - dvd - 0.5 * vol * vol) / (vol * np.sqrt(T)) + 0.5 * d2 / T
+    PDF_ND2 = np.exp(-d2 * d2/2.0) / np.sqrt(2.0 * np.pi)
+    if (TypeFlag == 1) : 
+        if (X <= 0.0) : 
+            Price = np.exp(-rd * T)
+            Delta = 0.0
+            Gamma = 0.0
+            Vega = 0.0
+            Theta = dvd * S0 * np.exp(-dvd * T) - rd * X * np.exp(-rd * T)
+            Rho = X * T * np.exp(-r * T)
+        else : 
+            Price = np.exp(-rd * T) * CDF_N(d2) 
+            Delta = np.exp(-rd * T) * PDF_ND2 / (vol * np.sqrt(T) * S0)
+            Gamma = -np.exp(-rd * T) * PDF_ND2 / (vol * vol * (T)*S0 * S0) * (d2 + (vol * np.sqrt(T)))
+            Vega = -np.exp(-rd * T) * PDF_ND2 * (np.sqrt(T) + d2 / vol)
+            Theta = np.exp(-rd * T) * (Rf_Quanto * CDF_N(d2) + PDF_ND2 * theta_d2)
+            Rho = -np.exp(-rd * T) * (T * CDF_N(d2) - PDF_ND2 * np.sqrt(T) / vol)
+    else : 
+        if X <= 0.0 : 
+            Price = 0.0
+            Delta = 0.0
+            Gamma = 0.0
+            Vega = 0.0
+            Theta = 0.0
+            Rho = 0.0         
+        else :
+            Price = np.exp(-rd * T) * CDF_N(-d2)
+            Delta = -np.exp(-rd * T) * PDF_ND2 / (vol * np.sqrt(T) * S0)
+            Gamma = np.exp(-rd * T) * PDF_ND2 / (vol * vol * (T)*S0 * S0) * (d2 + (vol * np.sqrt(T)))
+            Vega = np.exp(-rd * T)* PDF_ND2* (np.sqrt(T) + d2 / vol)
+            Theta = np.exp(-rd * T) * (Rf_Quanto * CDF_N(-d2) - PDF_ND2 * theta_d2)
+            Rho = -((np.exp(-rd * T) * (PDF_ND2 * np.sqrt(T) / vol - T * CDF_N(-1.0 * d2))))
+    Price *= df_tmat_to_pay
+    Delta *= df_tmat_to_pay
+    Gamma *= df_tmat_to_pay
+    Vega *= df_tmat_to_pay
+    Theta *= df_tmat_to_pay
+    Rho *= df_tmat_to_pay
+    if LoggingFlag > 0 : 
+        LogData = pd.DataFrame([[T, S0, X, rd, Rf_Quanto,ForwardPrice, vol, d1, d2, Price, Delta, Gamma, Vega, Theta, Rho]], 
+                               columns = ["TimeToMaturity", "S0", "X", "r_disc","r_est","ForwardPrice", "Volatility", "d1", "d2", "Price", "Delta", "Gamma", "Vega", "Theta", "Rho"])
+        LogData.to_csv(LoggingDir + "\\LoggingFilesOption.csv",encoding = "cp949", index = False)
+
+    return Price, Delta, Gamma, Vega, Theta, Rho, vol
+
 def BS_Swaption(PriceDate, StartDate, SwapTenorT, NCpnOneYear, Notional, Vol, StrikePrice, Term, Rate, DayCountFracFlag = 0, VolFlag = 0, HolidaysFixing = [], HolidaysPay = [], NBDayFromEndDateToPay = 0, FixedPayer0Receiver1 = 0) : 
     FixedPayerFlag = FixedPayer0Receiver1
     if StrikePrice > 1.0 : 
@@ -2140,6 +2227,280 @@ def BS_Swaption(PriceDate, StartDate, SwapTenorT, NCpnOneYear, Notional, Vol, St
     ExerciseValue = (ForwardSwapRate - StrikePrice) * annuity
     MyDict = {"Price":Notional * value,"Value":Notional*(value - value_atm), "ForwardSwapRate":ForwardSwapRate,"ExerciseValue":ExerciseValue}
     return MyDict
+
+def calc_mu(b, sigma):
+    return (b - 0.5 * sigma ** 2) / (sigma ** 2)
+
+def calc_lambda(mu, r, sigma):
+    return np.sqrt(mu ** 2 + 2.0 * r / (sigma ** 2))
+
+def calc_z(H, K, sigma, T, Lambda):
+    return np.log(H / K) / (sigma * np.sqrt(T)) + Lambda * sigma * np.sqrt(T)
+
+def calc_x1(S, K, sigma, T, mu):
+    return np.log(S / K) / (sigma * np.sqrt(T)) + (1.0 + mu) * sigma * np.sqrt(T)
+
+def calc_x2(S, H, sigma, T, mu):
+    return np.log(S / H) / (sigma * np.sqrt(T)) + (1.0 + mu) * sigma * np.sqrt(T)
+
+def calc_y1(S, H, K, sigma, T, mu):
+    return np.log(H * H / (S * K)) / (sigma * np.sqrt(T)) + (1.0 + mu) * sigma * np.sqrt(T)
+
+def calc_y2(S, H, sigma, T, mu):
+    return np.log(H / S) / (sigma * np.sqrt(T)) + (1.0 + mu) * sigma * np.sqrt(T)
+
+def calc_A(phi, S, b, T, x1, X, r, sigma):
+    return phi * S * np.exp(-(b - r) * T) * CDF_N(phi * x1) - phi * X * np.exp(-r * T) * CDF_N(phi * x1 - phi * sigma * np.sqrt(T))
+
+def calc_B(phi, S, b, T, x2, K, r, sigma):
+    return phi * S * np.exp(-(b - r) * T) * CDF_N(phi * x2) - phi * K * np.exp(-r * T) * CDF_N(phi * x2 - phi * sigma * np.sqrt(T))
+
+def calc_C(phi, S, b, T, H, mu, n, y1, K, r, sigma):
+    return phi * S * np.exp(-(b - r) * T) * (H / S) ** (2 * (mu + 1.0)) * CDF_N(n * y1) - phi * K * np.exp(-r * T) * (H / S) ** (2 * mu) * CDF_N(n * y1 - n * sigma * np.sqrt(T))
+
+def calc_D(phi, S, b, T, H, mu, n, y2, K, r, sigma):
+    return phi * S * np.exp(-(b - r) * T) * (H / S) ** (2 * (mu + 1.0)) * CDF_N(n * y2) - phi * K * np.exp(-r * T) * (H / S) ** (2 * mu) * CDF_N(n * y2 - n * sigma * np.sqrt(T))
+
+def calc_E(Reb, r, T, n, x2, sigma, H, S, mu, y2):
+    return Reb * np.exp(-r * T) * (CDF_N(n * x2 - n * sigma * np.sqrt(T)) - (H / S) ** (2.0 * mu) * CDF_N(n * y2 - n * np.sqrt(T)))
+
+def calc_F(Reb, H, S, mu, Lambda, n, z, sigma, T):
+    return Reb * ((H / S) ** (mu + Lambda) * CDF_N(n * z) + (H / S) ** (mu - Lambda) * CDF_N(n * z - 2.0 * n * Lambda * sigma * np.sqrt(T)))
+
+def C_out(n, x1, x2, y1, y2, A, B, C, D, S, X, H):
+    if n == 1:
+        return A - C if X > H else B - D
+    else:
+        return 0.0 if X > H else A - B + C - D
+
+def P_out(n, x1, x2, y1, y2, A, B, C, D, S, X, H):
+    if n == 1:
+        return A - B + C - D if X > H else 0.0
+    else:
+        return B - D if X > H else A - C
+
+def SimpleBSCall(S, K, b, T, q, r, sigma):
+    d1 = (np.log(S / K) + (b + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    return S * np.exp((b - r - q) * T) * CDF_N(d1) - K * np.exp(-r * T) * CDF_N(d2)
+
+def SimpleBSPut(S, K, b, T, q, r, sigma):
+    d1 = (np.log(S / K) + (b + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    return K * np.exp(-r * T) * CDF_N(-d2) - S * np.exp((b - r - q) * T) * CDF_N(-d1)
+
+def Call_Down(in0out1flag, S, X, H, T, r_disc, r_ref, rho_fx, fxvol, DiscreteDivFlag, div, sig, Reb = 0, LoggingFlag = 0, LoggingDir = ''):
+    Sigma, r, phi, n = sig, r_disc, 1, 1
+    b = r_ref - rho_fx * fxvol * sig - (0 if DiscreteDivFlag == 1 else div)
+    if DiscreteDivFlag == 1:
+        S -= div
+
+    mu = calc_mu(b, Sigma)
+    lambda_ = calc_lambda(mu, r, Sigma)
+    z = calc_z(H, X, Sigma, T, lambda_)
+    x1, x2 = calc_x1(S, X, Sigma, T, mu), calc_x2(S, H, Sigma, T, mu)
+    y1, y2 = calc_y1(S, H, X, Sigma, T, mu), calc_y2(S, H, Sigma, T, mu)
+
+    A = calc_A(phi, S, b, T, x1, X, r, Sigma)
+    B = calc_B(phi, S, b, T, x2, X, r, Sigma)
+    C = calc_C(phi, S, b, T, H, mu, n, y1, X, r, Sigma)
+    D = calc_D(phi, S, b, T, H, mu, n, y2, X, r, Sigma)
+    E = calc_E(Reb, r, T, n, x2, Sigma, H, S, mu, y2) if Reb != 0 else 0
+    F = calc_F(Reb, H, S, mu, lambda_, n, z, Sigma, T) if Reb != 0 else 0
+
+    c_do = A - C + F if X > H else B - D + F
+    c_di = SimpleBSCall(S, X, b, T, div if DiscreteDivFlag == 0 else 0, r, Sigma) - c_do
+    Price = c_di if in0out1flag == 0 else c_do 
+    if LoggingFlag > 0 : 
+        LogData = pd.DataFrame([[Price, T, S, X, b, sig, A,B,C,D,E,F]], 
+                               columns = ["Price","T", "S", "X", "b", "sig", "A","B","C","D","E","F"])
+        LogData.to_csv(LoggingDir + "\\LoggingFilesOption.csv",encoding = "cp949", index = False)
+
+    return c_di if in0out1flag == 0 else c_do
+
+def Put_Down(in0out1flag, S, X, H, T, r_disc, r_ref, rho_fx, fxvol, DiscreteDivFlag, div, sig, Reb = 0, LoggingFlag = 0, LoggingDir = ''):
+    Sigma, r, phi, n = sig, r_disc, -1, 1
+    b = r_ref - rho_fx * fxvol * sig - (0 if DiscreteDivFlag == 1 else div)
+    if DiscreteDivFlag == 1:
+        S -= div
+
+    mu = calc_mu(b, Sigma)
+    lambda_ = calc_lambda(mu, r, Sigma)
+    z = calc_z(H, X, Sigma, T, lambda_)
+    x1, x2 = calc_x1(S, X, Sigma, T, mu), calc_x2(S, H, Sigma, T, mu)
+    y1, y2 = calc_y1(S, H, X, Sigma, T, mu), calc_y2(S, H, Sigma, T, mu)
+
+    A = calc_A(phi, S, b, T, x1, X, r, Sigma)
+    B = calc_B(phi, S, b, T, x2, X, r, Sigma)
+    C = calc_C(phi, S, b, T, H, mu, n, y1, X, r, Sigma)
+    D = calc_D(phi, S, b, T, H, mu, n, y2, X, r, Sigma)
+    E = calc_E(Reb, r, T, n, x2, Sigma, H, S, mu, y2) if Reb != 0 else 0
+    F = calc_F(Reb, H, S, mu, lambda_, n, z, Sigma, T) if Reb != 0 else 0
+
+    p_do = A - B + C - D + F if X > H else F
+    p_di = SimpleBSPut(S, X, b, T, div if DiscreteDivFlag == 0 else 0, r, Sigma) - p_do
+    Price = p_di if in0out1flag == 0 else p_do
+    if LoggingFlag > 0 : 
+        LogData = pd.DataFrame([[Price, T, S, X, b, sig, A,B,C,D,E,F]], 
+                               columns = ["Price","T", "S", "X", "b", "sig", "A","B","C","D","E","F"])
+        LogData.to_csv(LoggingDir + "\\LoggingFilesOption.csv",encoding = "cp949", index = False)
+
+    return p_di if in0out1flag == 0 else p_do
+
+def Call_Up(in0out1flag, S, X, H, T, r_disc, r_ref, rho_fx, fxvol, DiscreteDivFlag, div, sig, Reb = 0, LoggingFlag = 0, LoggingDir = ''):
+    Sigma, r, phi, n = sig, r_disc, 1, -1
+    b = r_ref - rho_fx * fxvol * sig - (0 if DiscreteDivFlag == 1 else div)
+    if DiscreteDivFlag == 1:
+        S -= div
+
+    mu = calc_mu(b, Sigma)
+    lambda_ = calc_lambda(mu, r, Sigma)
+    z = calc_z(H, X, Sigma, T, lambda_)
+    x1, x2 = calc_x1(S, X, Sigma, T, mu), calc_x2(S, H, Sigma, T, mu)
+    y1, y2 = calc_y1(S, H, X, Sigma, T, mu), calc_y2(S, H, Sigma, T, mu)
+
+    A = calc_A(phi, S, b, T, x1, X, r, Sigma)
+    B = calc_B(phi, S, b, T, x2, X, r, Sigma)
+    C = calc_C(phi, S, b, T, H, mu, n, y1, X, r, Sigma)
+    D = calc_D(phi, S, b, T, H, mu, n, y2, X, r, Sigma)
+    E = calc_E(Reb, r, T, n, x2, Sigma, H, S, mu, y2) if Reb != 0 else 0
+    F = calc_F(Reb, H, S, mu, lambda_, n, z, Sigma, T) if Reb != 0 else 0
+
+    c_uo = F if X > H else A - B + C - D + F
+    c_ui = SimpleBSCall(S, X, b, T, div if DiscreteDivFlag == 0 else 0, r, Sigma) - c_uo
+    Price = c_ui if in0out1flag == 0 else c_uo
+    if LoggingFlag > 0 : 
+        LogData = pd.DataFrame([[Price, T, S, X, b, sig, A,B,C,D,E,F]], 
+                               columns = ["Price","T", "S", "X", "b", "sig", "A","B","C","D","E","F"])
+        LogData.to_csv(LoggingDir + "\\LoggingFilesOption.csv",encoding = "cp949", index = False)
+    
+    return c_ui if in0out1flag == 0 else c_uo
+
+def Put_Up(in0out1flag, S, X, H, T, r_disc, r_ref, rho_fx, fxvol, DiscreteDivFlag, div, sig, Reb = 0, LoggingFlag = 0, LoggingDir = ''):
+    Sigma, r, phi, n = sig, r_disc, -1, -1
+    b = r_ref - rho_fx * fxvol * sig - (0 if DiscreteDivFlag == 1 else div)
+    if DiscreteDivFlag == 1:
+        S -= div
+
+    mu = calc_mu(b, Sigma)
+    lambda_ = calc_lambda(mu, r, Sigma)
+    z = calc_z(H, X, Sigma, T, lambda_)
+    x1, x2 = calc_x1(S, X, Sigma, T, mu), calc_x2(S, H, Sigma, T, mu)
+    y1, y2 = calc_y1(S, H, X, Sigma, T, mu), calc_y2(S, H, Sigma, T, mu)
+
+    A = calc_A(phi, S, b, T, x1, X, r, Sigma)
+    B = calc_B(phi, S, b, T, x2, X, r, Sigma)
+    C = calc_C(phi, S, b, T, H, mu, n, y1, X, r, Sigma)
+    D = calc_D(phi, S, b, T, H, mu, n, y2, X, r, Sigma)
+    E = calc_E(Reb, r, T, n, x2, Sigma, H, S, mu, y2) if Reb != 0 else 0
+    F = calc_F(Reb, H, S, mu, lambda_, n, z, Sigma, T) if Reb != 0 else 0
+
+    p_uo = B - D + F if X > H else A - C + F
+    p_ui = SimpleBSPut(S, X, b, T, div if DiscreteDivFlag == 0 else 0, r, Sigma) - p_uo
+    Price = p_ui if in0out1flag == 0 else p_uo
+    if LoggingFlag > 0 : 
+        LogData = pd.DataFrame([[Price, T, S, X, b, sig, A,B,C,D,E,F]], 
+                               columns = ["Price","T", "S", "X", "b", "sig", "A","B","C","D","E","F"])
+        LogData.to_csv(LoggingDir + "\\LoggingFilesOption.csv",encoding = "cp949", index = False)
+    
+    return p_ui if in0out1flag == 0 else p_uo
+
+def BarrierOptionGreek(
+    in0out1flag, S, X, H, T, r_disc, r_ref, rho_fx, fxvol,
+    DiscreteDivFlag, div, sig, Reb, pricing_function
+):
+    Su = S * 1.01
+    Sd = S * 0.99
+    dS = S * 0.01
+
+    Pu = pricing_function(in0out1flag, Su, X, H, T, r_disc, r_ref,
+                          rho_fx, fxvol, DiscreteDivFlag, div, sig, Reb)
+    Pd = pricing_function(in0out1flag, Sd, X, H, T, r_disc, r_ref,
+                          rho_fx, fxvol, DiscreteDivFlag, div, sig, Reb)
+    P = pricing_function(in0out1flag, S, X, H, T, r_disc, r_ref,
+                          rho_fx, fxvol, DiscreteDivFlag, div, sig, Reb)
+    sigu = sig + 0.01
+    sigd = max(sig - 0.01,0.00001)
+    Delta = (Pu - Pd) / (2.0 * dS) 
+    Gamma = (Pu + Pd -2.0 * P) / (dS * dS)
+    Pvu = pricing_function(in0out1flag, S, X, H, T, r_disc, r_ref,
+                          rho_fx, fxvol, DiscreteDivFlag, div, sigu, Reb)
+    Pvd = pricing_function(in0out1flag, S, X, H, T, r_disc, r_ref,
+                          rho_fx, fxvol, DiscreteDivFlag, div, sigd, Reb)
+    Vega = (Pvu - Pvd) / ((sigu-sigd))
+    Pru = pricing_function(in0out1flag, S, X, H, T, r_disc+0.0001, r_ref+0.0001,
+                          rho_fx, fxvol, DiscreteDivFlag, div, sig, Reb)
+    Prd = pricing_function(in0out1flag, S, X, H, T, r_disc-0.0001, r_ref-0.0001,
+                          rho_fx, fxvol, DiscreteDivFlag, div, sig, Reb)
+    Rho = (Pru - Prd) / (0.0001 * 2)
+    T_u = T + 1.0 / 365.0
+    T_d = max(T - 1.0 / 365.0,0.00001)
+    Ptu = pricing_function(in0out1flag, S, X, H, T_u, r_disc, r_ref,
+                          rho_fx, fxvol, DiscreteDivFlag, div, sig, Reb)
+    Ptd = pricing_function(in0out1flag, S, X, H, T_d, r_disc, r_ref,
+                          rho_fx, fxvol, DiscreteDivFlag, div, sig, Reb)
+    Theta = (Ptu - Ptd) / (T_u-T_d)
+    return Delta, Gamma, Vega, Theta, Rho
+
+def BSBarrierOption(PriceDate, Call1Put2, S0, X, H, ZeroDiscTerm, 
+                    ZeroDiscRate, ZeroRefTerm, ZeroRefRate, DivTerm, DivRate, 
+                    QuantoCorr, FXVolTerm, FXVol, VolTerm, VolParity, 
+                    Vols2D, DivType, Maturity, PayDate, Down0Up1Flag, In0Out1Flag, Reb = 0, ForwardPrice = 0, LoggingFlag = 0, LoggingDir = os.getcwd()) : 
+    Preprocessing_ZeroTermAndRate(ZeroDiscTerm, ZeroDiscRate, PriceDate)
+    if isinstance(Vols2D, float) == False : 
+        if len(np.array(Vols2D).shape) == 2 : 
+            Preprocessing_EQVol(VolParity, VolTerm, Vols2D, PriceDate, S0)
+        else : 
+            Vols1D = np.array(Vols2D).reshape(-1)
+            Preprocessing_ZeroTermAndRate(VolTerm, Vols1D, PriceDate, 6)
+            Vols2D = Vols1D.reshape(1,-1)
+            VolParity = [1]
+    TEnd = DayCountAtoB(PriceDate, Maturity)/365
+    TPay = max(TEnd, DayCountAtoB(PriceDate, PayDate)/365)
+    
+    TEnd = max(0.00001, TEnd)
+    TPay = max(0.00001, TPay)
+    fdf = Calc_ForwardDiscount_Factor(ZeroDiscTerm, ZeroDiscRate, TEnd, TPay) if TEnd != TPay else 1
+    if (DivType == 0) : 
+        dvd = DivRate[0] if ForwardPrice <= 0 else 0
+    elif (DivType == 1) : 
+        dvd = np.interp(TEnd, DivTerm, DivRate) if ForwardPrice <= 0 else 0
+    else : 
+        td = np.array(DivTerm)
+        dr = np.array(DivRate)
+        idx = td <= TEnd
+        dvd = 1/TEnd * dr[idx].sum() / S0 if ForwardPrice <= 0 else 0
+        
+    if isinstance(Vols2D, float) : 
+        vol = Vols2D
+    else : 
+        vol = Linterp2D(VolTerm, VolParity, Vols2D, TEnd, X/S0 if np.array(VolParity).max() < 2.0 else S0)
+    
+    fxv = np.interp(TEnd, FXVolTerm, FXVol) if len(FXVolTerm) > 0 else 0
+    rd = np.interp(TEnd, ZeroDiscTerm, ZeroDiscRate)
+    if ForwardPrice > 0 : 
+        rf = 1/TEnd * np.log(ForwardPrice/S0)
+    else : 
+        if len(ZeroRefTerm) > 0 :
+            rf = np.interp(TEnd, ZeroRefTerm, ZeroRefRate)
+        else : 
+            rf = rd
+
+    DiscreteDivFlag = 0 if DivType != 2 else 1
+    if Call1Put2 == 1 : 
+        if Down0Up1Flag == 0 : 
+            PricingFunction = Call_Down
+        else : 
+            PricingFunction = Call_Up                        
+    else : 
+        if Down0Up1Flag == 0 : 
+            PricingFunction = Put_Down            
+        else : 
+            PricingFunction = Put_Up            
+    P = PricingFunction(In0Out1Flag, S0, X, H, TEnd, rd, rf, QuantoCorr, fxv, DiscreteDivFlag, dvd, vol, Reb,LoggingFlag, LoggingDir)                        
+    Delta, Gamma, Vega, Theta, Rho = BarrierOptionGreek(In0Out1Flag, S0, X, H, TEnd, rd, rf, QuantoCorr, fxv, DiscreteDivFlag, dvd, vol, Reb, PricingFunction)
+
+    return P*fdf, Delta*fdf, Gamma*fdf, Vega*fdf, Theta*fdf, Rho*fdf, vol
 
 def HW_Integral_ShortRate_Vol(t, A, kappa, tVol, Vol) : 
     '''
@@ -2352,7 +2713,7 @@ def SimulateParRateMC(PriceDate, SimulatedXt2D, SimulationDateList, RefSwapMatur
         ConvAdjAmt = t1 * 0
     return SwapRate, SwapRateForwardMeasure, ConvAdjAmt
 
-def ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, RefSwapMaturity_T, RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag = 0) :
+def ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, RefSwapMaturity_T, RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag = 0, HWRho12Factor = 0) :
     EachSwapMaturityInSimulation = np.vectorize(EDate_YYYYMMDD)(SimulationDateList, int(RefSwapMaturity_T * 12 + 0.0001))
     CpnDateListInSimul = []
     for i in range(len(SimulationDateList)) : 
@@ -4162,17 +4523,17 @@ def Pricing_IRCallableSwap_HWFDM(
     xt_greed = xt.reshape(1,-1) * np.ones(len(SimulationDateList)).reshape(-1,1)
     yt_greed = yt.reshape(1,-1) * np.ones(len(SimulationDateList)).reshape(-1,1)
 
-    Leg1SwapRate, Leg1SwapRateForwardMeasure, Leg1ConvAdj = ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag)
+    Leg1SwapRate, Leg1SwapRateForwardMeasure, Leg1ConvAdj = ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag, HWRho12Factor = HWRho12Factor)
     if Leg1_PowerSpreadFlag == 0 : 
         Leg1SwapRate_PowerSpread, Leg1SwapRateForwardMeasure_PowerSpread, Leg1ConvAdj_PowerSpread = Leg1SwapRate, Leg1SwapRateForwardMeasure, Leg1ConvAdj
     else : 
-        Leg1SwapRate_PowerSpread, Leg1SwapRateForwardMeasure_PowerSpread, Leg1ConvAdj_PowerSpread = ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, Leg1_RefSwapMaturity_T_PowerSpread, Leg1_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag)
+        Leg1SwapRate_PowerSpread, Leg1SwapRateForwardMeasure_PowerSpread, Leg1ConvAdj_PowerSpread = ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, Leg1_RefSwapMaturity_T_PowerSpread, Leg1_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag, HWRho12Factor = HWRho12Factor)
         
-    Leg2SwapRate, Leg2SwapRateForwardMeasure, Leg2ConvAdj = ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag)
+    Leg2SwapRate, Leg2SwapRateForwardMeasure, Leg2ConvAdj = ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, Leg2_RefSwapMaturity_T, Leg2_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag, HWRho12Factor = HWRho12Factor)
     if Leg2_PowerSpreadFlag == 0 : 
         Leg2SwapRate_PowerSpread, Leg2SwapRateForwardMeasure_PowerSpread, Leg2ConvAdj_PowerSpread = Leg2SwapRate, Leg2SwapRateForwardMeasure, Leg2ConvAdj
     else : 
-        Leg2SwapRate_PowerSpread, Leg2SwapRateForwardMeasure_PowerSpread, Leg2ConvAdj_PowerSpread = ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, Leg2_RefSwapMaturity_T_PowerSpread, Leg2_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag)
+        Leg2SwapRate_PowerSpread, Leg2SwapRateForwardMeasure_PowerSpread, Leg2ConvAdj_PowerSpread = ParRateForFDMGreed(PriceDate, xt_greed, yt_greed, SimulationDateList, Leg2_RefSwapMaturity_T_PowerSpread, Leg2_RefSwapNCPNOneYear, kappa, HWVolTerm, HWVol, kappa2, HWVolTerm2, HWVol2, ZeroTerm, ZeroRate, HW2FFlag, HWRho12Factor = HWRho12Factor)
 
     IdxSimul = np.array([i for i in range(len(SimulationDateList)) if SimulationDateList[i] in Leg1ForwardStart])
     Leg1RefRateOnFixingDate = Leg1SwapRate[IdxSimul]
@@ -5239,27 +5600,6 @@ def insert_dataframe_to_treeview(treeview, dataframe, width = 50):
 ########################################### 여기부터 FRTB Module ##############################################  
 ##############################################################################################################
 
-def GreekToGIRRRawData(PV01, col = "PV01Term", bpv = "PV01", curvetype = "IRS", swapflag = "Rate", bucket = "KRW") : 
-    GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
-    GIRR_DeltaRfCorr = np.array([[1.000,0.970,0.914,0.811,0.719,0.566,0.400,0.400,0.400,0.400 ],
-                                [0.970,1.000,0.970,0.914,0.861,0.763,0.566,0.419,0.400,0.400 ],
-                                [0.914,0.970,1.000,0.970,0.942,0.887,0.763,0.657,0.566,0.419 ],
-                                [0.811,0.914,0.970,1.000,0.985,0.956,0.887,0.823,0.763,0.657 ],
-                                [0.719,0.861,0.942,0.985,1.000,0.980,0.932,0.887,0.844,0.763 ],
-                                [0.566,0.763,0.887,0.956,0.980,1.000,0.970,0.942,0.914,0.861 ],
-                                [0.400,0.566,0.763,0.887,0.932,0.970,1.000,0.985,0.970,0.942 ],
-                                [0.400,0.419,0.657,0.823,0.887,0.942,0.985,1.000,0.990,0.970 ],
-                                [0.400,0.400,0.566,0.763,0.844,0.914,0.970,0.990,1.000,0.985 ],
-                                [0.400,0.400,0.419,0.657,0.763,0.861,0.942,0.970,0.985,1.000 ]])    
-    Data = MapGIRRDeltaGreeks(PV01.set_index(col)[bpv], GIRR_DeltaRiskFactor).reset_index()
-    Data.columns = ["Tenor","Delta_Sensi"]
-    Data["Delta_Sensi"] = Data["Delta_Sensi"] * 10000
-    Data["Risk_Class"] = "GIRR"
-    Data["Risk_Type"] = "Delta"
-    Data["Curve"] = curvetype
-    Data["Type"] = swapflag
-    Data["Bucket"] = bucket
-    return Data
 
 def Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01 ,col = "PV01Term", bpv = "PV01") : 
     GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
@@ -7859,72 +8199,7 @@ def LoggingUsedFileNames(MyFiles, MyClass = 'FRTB') :
     else : 
         return PrintStr
     
-def MainFunction(currdir) : 
-    MyFiles = FileListPrint(currdir)
-    IndividualFlag = 0
-    for i in range(len(MyFiles["Directory"])) : 
-        if ("csr_" in str(MyFiles["Directory"].iloc[i]).lower() or "girr_" in str(MyFiles["Directory"].iloc[i]).lower()) : 
-            IndividualFlag = 1
-            break
-    if IndividualFlag > 0 : 
-        mynum = 1
-    else :
-        print("\n 전체 리스크 클래스가 포함된 RAW 파일의 경우 숫자 0을 입력하시오.(ex 파일명 : FRTB_RAW.csv)\n 리스크 클래스별 RAW 파일로 각각 입력할경우 숫자 1을 입력하시오.(ex 파일명 : GIRR_RAW.csv, CSR_RAW.csv,...)\n")
-        mynum = int(input("입력 -> "))
-    if mynum == 0 : 
-        PrintStr = LoggingUsedFileNames(MyFiles, MyClass = 'FRTB')
-        print(PrintStr)
-        Num = int(input('입력 ->'))
-        Data = ReadCSV(MyFiles[MyFiles["Number"] == Num]["Directory"].iloc[0])
-    else : 
-        PrintStr1 = LoggingUsedFileNames(MyFiles, MyClass = 'GIRR')
-        if PrintStr1 == '' : 
-            print("현재 GIRR 파일이 존재하지 않거나 .pia상태입니다.")
-            Data1 = pd.DataFrame([])
-        else : 
-            print(PrintStr1)
-            GIRRFileNum = int(input('입력 ->'))
-            Data1 = ReadCSV(MyFiles[MyFiles["Number"] == GIRRFileNum]["Directory"].iloc[0])
-
-        PrintStr2 = LoggingUsedFileNames(MyFiles, MyClass = 'CSR')
-        if PrintStr2 == '' : 
-            print("현재 CSR 파일이 존재하지 않거나 .pia상태입니다.")
-            Data2 = pd.DataFrame([])
-        else : 
-            print(PrintStr2)
-            CSRFileNum = int(input('입력 ->'))
-            Data2 = ReadCSV(MyFiles[MyFiles["Number"] == CSRFileNum]["Directory"].iloc[0])
-
-        PrintStr3 = LoggingUsedFileNames(MyFiles, MyClass = 'FXR')
-        if PrintStr3 == '' : 
-            print("현재 FXR 파일이 존재하지 않거나 .pia상태입니다.")
-            Data3 = pd.DataFrame([])
-        else : 
-            print(PrintStr3)
-            FXRFileNum = int(input('입력 ->'))
-            Data3 = ReadCSV(MyFiles[MyFiles["Number"] == FXRFileNum]["Directory"].iloc[0])
-
-        PrintStr4 = LoggingUsedFileNames(MyFiles, MyClass = 'EQR')
-        if PrintStr4 == '' : 
-            print("현재 EQR 파일이 존재하지 않거나 .pia상태입니다.")
-            Data4 = pd.DataFrame([])
-        else : 
-            print(PrintStr4)
-            EQRFileNum = int(input('입력 ->'))
-            Data4 = ReadCSV(MyFiles[MyFiles["Number"] == EQRFileNum]["Directory"].iloc[0])
-
-        PrintStr5 = LoggingUsedFileNames(MyFiles, MyClass = 'COMR')
-        if PrintStr5 == '' : 
-            print("현재 COMR 파일이 존재하지 않거나 .pia상태입니다.")
-            Data5 = pd.DataFrame([])
-        else : 
-            print(PrintStr5)
-            COMRFileNum = int(input('입력 ->'))
-            Data5 = ReadCSV(MyFiles[MyFiles["Number"] == COMRFileNum]["Directory"].iloc[0])
-        Data = pd.concat([Data1, Data2, Data3, Data4, Data5],axis = 0)
-    return Data    
-
-def MainFunction2(currdir = os.getcwd()) : 
+def MainFunction(currdir = os.getcwd()) : 
     MyFiles = FileListPrint(currdir)
     MyFiles["RiskClass"] = MyFiles["DirectoryPrint"].apply(lambda x : 'girr' if 'girr' in x.lower() else (
                                                             'csr' if 'csr' in x.lower() else (
@@ -8224,6 +8499,13 @@ def PricingEquityOptionProgram(currdir = os.getcwd()) :
     v_SelfVol = make_variable_interface(center_frame, '자체입력Vol(%)', bold = True, textfont = 11, defaultflag = True, defaultvalue = 20)
     vb_zerocurve = make_listvariable_interface(center_frame, 'ZeroCurve(자동Load)', termratestr(DiscTerm, DiscRate), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
     
+    Right_frame = tk.Frame(root)
+    Right_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_Plain0Barrier1Digital2 = make_listvariable_interface(Right_frame, '배리어옵션여부', ["0: 배리어사용X","1: 배리어옵션","2: 디지털옵션"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0, titlelable=True, titleName="배리어사용시입력")
+    v_H = make_variable_interface(Right_frame, '배리어', bold = False, textfont = 11, defaultflag = True, defaultvalue=250)
+    vb_Down0Up1Flag = make_listvariable_interface(Right_frame, 'Down0Up1Flag', ["0: Down","1: Up"], listheight = 2, textfont = 11,defaultflag = 0, defaultvalue = 0)
+    vb_In0Out1Flag = make_listvariable_interface(Right_frame, 'In0Out1Flag', ["0: In","1: Out"], listheight = 2, textfont = 11,defaultflag = 0, defaultvalue = 0)
+
     Result_frame = tk.Frame(root)
     Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
     vb_Logging = make_listvariable_interface(Result_frame, 'CSVLogging', ["0: Logging안함","1: CSVLogging"], listheight = 2, textfont = 11, titleName="Pricing Result",titlelable=True, pady = 10)
@@ -8247,6 +8529,7 @@ def PricingEquityOptionProgram(currdir = os.getcwd()) :
             ForwardPrice = float(v_F.get()) if len(str(v_F.get())) > 0 else 0 
         S = float(v_S.get())
         X = float(v_X.get())
+        H = float(v_H.get()) if len(str(v_H.get())) > 0 else 0.0001
         Maturity = float(v_Maturity.get()) if len(str(v_Maturity.get())) > 0 else (int(YYYYMMDD) + 10000)
         DivTerm = [0]
         if ForwardPrice > 0 : 
@@ -8270,11 +8553,29 @@ def PricingEquityOptionProgram(currdir = os.getcwd()) :
             TypeFlag = 'c'
         else :
             TypeFlag = 'p'    
+        BarrierCall1Put2 = 1 if c_or_p == "C" else 2 
+        Plain0Barrier1 = int(str(v_Plain0Barrier1Digital2.get(v_Plain0Barrier1Digital2.curselection())).split(":")[0]) if v_Plain0Barrier1Digital2.curselection() else 0
+        Down0Up1Flag = int(str(vb_Down0Up1Flag.get(vb_Down0Up1Flag.curselection())).split(":")[0]) if vb_Down0Up1Flag.curselection() else 0
+        In0Out1Flag = int(str(vb_In0Out1Flag.get(vb_In0Out1Flag.curselection())).split(":")[0]) if vb_In0Out1Flag.curselection() else 0
+
         LoggingFlag = int(str(vb_Logging.get(vb_Logging.curselection())).split(":")[0]) if vb_Logging.curselection() else 0
-        Price, Delta, Gamma, Vega, Theta, Rho, v = BS_Option(int(PriceDate), int(Maturity), S, X, DiscTerm, 
-                DiscRate, DivTerm, DivRate, Vols2D if ATMVolFlag != 2 else SelfVol, QuantoCorr = QuantoCorr, 
-                FXVolTerm = [0], FXVol = [FX_Vol], DivFlag = 0, EstTerm = EstTerm, EstRate = EstRate, 
-                ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir, VolTerm = TermVol, VolParity = ParityVol,TypeFlag = TypeFlag, ATMVolFlag = ATMVolFlag, ATMVol = VolsATM)
+        if Plain0Barrier1 == 0 : 
+            Price, Delta, Gamma, Vega, Theta, Rho, v = BS_Option(int(PriceDate), int(Maturity), S, X, DiscTerm, 
+                    DiscRate, DivTerm, DivRate, Vols2D if ATMVolFlag != 2 else SelfVol, QuantoCorr = QuantoCorr, 
+                    FXVolTerm = [0], FXVol = [FX_Vol], DivFlag = 0, EstTerm = EstTerm, EstRate = EstRate, 
+                    ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir, VolTerm = TermVol, VolParity = ParityVol,TypeFlag = TypeFlag, ATMVolFlag = ATMVolFlag, ATMVol = VolsATM)
+        elif Plain0Barrier1 == 1 : 
+            Price, Delta, Gamma, Vega, Theta, Rho, v = BSBarrierOption(int(PriceDate), BarrierCall1Put2, S, X, H, DiscTerm, 
+                                DiscRate, DiscTerm, DiscRate, DivTerm, DivRate, 
+                                QuantoCorr, [0], [FX_Vol], TermVol, ParityVol, 
+                                Vols2D if ATMVolFlag != 1 else (VolsATM if ATMVolFlag != 2 else SelfVol), 0, int(Maturity), int(Maturity), 
+                                Down0Up1Flag, In0Out1Flag, Reb = 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)
+        else : 
+            Price, Delta, Gamma, Vega, Theta, Rho, v = BSDigitalOption(BarrierCall1Put2, int(PriceDate), int(Maturity), int(Maturity), S,
+                                                                       X, DiscTerm, DiscRate, DiscTerm, DiscRate, 
+                                                                       DivTerm, DivRate, TermVol, ParityVol, Vols2D if ATMVolFlag != 1 else (VolsATM if ATMVolFlag != 2 else SelfVol), 
+                                                                       QuantoCorr, [0], [FX_Vol], 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)            
+            
         if PrevTreeFlag == 0 : 
             tree = ttk.Treeview(root)
         else : 
@@ -9980,7 +10281,7 @@ while True :
         break
     elif MainFlag in [2,'2'] :         
         RAWFORMAT = 0#int(input("자체데이터 RAWData 엑셀 포멧이면 0을 KDB RAW Data 포멧의 경우 1을 입력하시오\n-> "))
-        RAWData = MainFunction2(currdir)#MainFunction(currdir)
+        RAWData = MainFunction(currdir)
         AddedData = AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT)
         if len(AddedData) > 0 : 
             RAWData = pd.concat([RAWData, AddedData],axis = 0)
@@ -10104,5 +10405,7 @@ while True :
 # %%
 
 # %%a
+
+# %%
 
 # %%

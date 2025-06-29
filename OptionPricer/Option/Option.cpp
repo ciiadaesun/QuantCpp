@@ -354,7 +354,7 @@ double Call_Up(
 	else b = r_ref - rho_fx * fxvol * sig - div;
 	double phi, n;
 	phi = 1; // Call 1 Put -1
-	n = 1;	 // Down 1 Up -1
+	n = -1;	 // Down 1 Up -1
 
 	double x1, x2, y1, y2, z, mu, lambda;
 	double Sigma = sig;
@@ -420,8 +420,8 @@ double Put_Up(
 	if (DiscreteDivFlag == 1) b = r_ref - rho_fx * fxvol * sig;
 	else b = r_ref - rho_fx * fxvol * sig - div;
 	double phi, n;
-	phi = 1; // Call 1 Put -1
-	n = 1;	 // Down 1 Up -1
+	phi = -1; // Call 1 Put -1
+	n = -1;	 // Down 1 Up -1
 
 	double x1, x2, y1, y2, z, mu, lambda;
 	double Sigma = sig;
@@ -489,7 +489,7 @@ double Put_Down(
 	if (DiscreteDivFlag == 1) b = r_ref - rho_fx * fxvol * sig;
 	else b = r_ref - rho_fx * fxvol * sig - div;
 	double phi, n;
-	phi = 1; // Call 1 Put -1
+	phi = -1; // Call 1 Put -1
 	n = 1;	 // Down 1 Up -1
 
 	double x1, x2, y1, y2, z, mu, lambda;
