@@ -1869,11 +1869,11 @@ long Arithmetic_Asian_Opt_Pricing_Preprocessing(
 		}
 		else
 		{
-			Forward[i] = S * exp((r_ref - d - QuantoCorr * FXVolCurve->Interpolated_Rate(Time[i]) * VolMat->Calc_Implied_Volatility(Time[i], S / K)) * Time[i]);
+			Forward[i] = S * exp((r_ref - d - QuantoCorr * FXVolCurve->Interpolated_Rate(Time[i]) * VolMat->Calc_Implied_Volatility(Time[i], K / S)) * Time[i]);
 		}
 		Weight[i] = w;
 		VolTerm[i] = Time[i];
-		Vol[i] = max(0.000001,VolMat->Calc_Implied_Volatility(Time[i], S / K));
+		Vol[i] = max(0.000001,VolMat->Calc_Implied_Volatility(Time[i], K/ S));
 	}
 	double delta = 0., vega= 0.;
 	price = Arithmetic_Asian_Opt_Pricing(NForward, Forward, Weight, Time, NVol, VolTerm, Vol, PrevCummulativeWeight, K, PrevAverage, Call0Put1, T_Option, DiscCurve->nterm(), DiscCurve->Term, DiscCurve->Rate, delta, vega);

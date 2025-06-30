@@ -2152,6 +2152,188 @@ def BSDigitalOption(TypeFlag, PriceDate, Maturity, PayDate, S0, X, DiscTerm, Dis
 
     return Price, Delta, Gamma, Vega, Theta, Rho, vol
 
+def Sumation_Beta(StartIDX, EndIDX, ForwardArray, WeightArray) : 
+    return (ForwardArray[StartIDX:EndIDX+1] * WeightArray[StartIDX:EndIDX+1]).sum()
+
+def Arithmetic_Asian_Opt_m1(N, WeightArray, ForwardArray) : 
+    return Sumation_Beta(0, N-1, ForwardArray, WeightArray)
+
+def Arithmetic_Asian_Opt_m2(n, Forward, Weight, T, TermVol, Vol):
+    TauAry = T[:n]
+    SigAry = np.interp(TauAry, TermVol, Vol)
+    eAry = np.exp(SigAry * SigAry * TauAry)
+    BetaAry = Forward[:n] * Weight[:n]
+    SumBetaFunc = np.vectorize(lambda i : Sumation_Beta(i, n - 1, Forward[:n], Weight[:n]))
+    SumBetaAry = SumBetaFunc(np.arange(0,n))
+    value1 = 2.0 * (BetaAry * eAry * SumBetaAry).sum()
+
+    value2 = (BetaAry * BetaAry * eAry).sum()
+    m2 = value1 - value2
+    return m2
+
+def Arithmetic_Asian_Opt_m3(n, Forward, Weight, T, TermVol, Vol):
+    m3 = 0.0
+    TauAry = T[:n]
+    SigAry = np.interp(TauAry, TermVol, Vol)
+    eAry = np.exp(SigAry * SigAry * TauAry)
+    BetaAry = Forward[:n] * Weight[:n]
+    SumBetaFunc = np.vectorize(lambda i : Sumation_Beta(i, n - 1, Forward[:n], Weight[:n]))
+    SumBetaAry = SumBetaFunc(np.arange(0,n))
+    V1Ary = (BetaAry * BetaAry * eAry)
+    V2Ary = 3.0 * (BetaAry * eAry * SumBetaAry)
+    for i in range(n):
+        e_i = eAry[i]
+        b_i = BetaAry[i]
+        V1 = V1Ary[i]
+        V2 = V2Ary[i]
+        j_ary = np.arange(i, n)
+        V3 = 3.0 * (BetaAry[j_ary] * BetaAry[j_ary] * eAry[j_ary]).sum()
+        SumBetaAry2 = SumBetaFunc(j_ary)
+        V4 = 6.0 * (BetaAry[j_ary] * eAry[j_ary] * SumBetaAry2).sum()        
+        m3 += 2.0 * b_i * e_i * e_i * (V1 - V2 - V3 + V4)
+
+    return m3
+
+def Arithmetic_Asian_Option_Delta(n, Forward, Weight, T, TermVol, Vol, r, y1, y11, d1):
+    delta = 0.0
+    PDF_ND1 = np.exp(-d1 * d1/2.0) / np.sqrt(2.0 * np.pi)
+    for i in range(n):
+        sumaFe = 0.0
+        for k in range(i) :
+            v = np.interp(T[k], TermVol, Vol)
+            sumaFe += Weight[k] * Forward[k] * np.exp(v * v * T[k])
+
+        v = np.interp(T[i], TermVol, Vol)
+        sumaF = 0.0
+        for k in range(i, n):
+            sumaF += Weight[k] * Forward[k] * np.exp(v * v * T[i])
+
+        sqrt_log_term = np.sqrt(np.log(y11 / (y1 * y1)))
+        delta_i = Weight[i] * np.exp(-r * T[n - 1]) * (CDF_N(d1) + y1 * PDF_ND1 * y1 * y1 / (sqrt_log_term * y11) * ((sumaFe + sumaF) / y11 - 1.0 / y1))
+        delta += delta_i
+    return delta
+
+def Arithmetic_Asian_Option_Vega(n, Forward, Weight, T, TermVol, Vol, r, y1, y11, d1):
+    vega = 0.0
+    PDF_ND1 = np.exp(-d1 * d1/2.0) / np.sqrt(2.0 * np.pi)
+    for i in range(n):
+        sumaF = 0.0
+        for j in range(i + 1, n):
+            sumaF += 2.0 * Weight[j] * Forward[j]
+
+        aF_i = Weight[i] * Forward[i]
+        v = np.interp(T[i], TermVol, Vol) 
+        sqrt_log_term = np.sqrt(np.log(y11 / (y1 * y1)))
+        vega_i = ((sumaF + aF_i) * Weight[i] * Forward[i] * np.exp(v * v * T[i]) * v * T[i]* np.exp(-r * T[n - 1]) * (PDF_ND1 / ((y11 / y1) * sqrt_log_term)))
+        vega += vega_i
+    return vega
+
+def Arithmetic_Asian_Opt_Pricing(
+    n, Forward, Weight, T, TermVol, Vol,
+    PrevCummulative_Weight, Strike, PrevAverage,
+    Call0Put1, T_Option, TermRate, Rate
+):
+    m1 = Arithmetic_Asian_Opt_m1(n, Weight, Forward)
+    m2 = Arithmetic_Asian_Opt_m2(n, Forward, Weight, T, TermVol, Vol)
+    m3 = Arithmetic_Asian_Opt_m3(n, Forward, Weight, T, TermVol, Vol)
+    print(m1, m2, m3)
+    mu1 = m1
+    mu2 = m2 - mu1 * mu1
+    mu3 = m3 - 3.0 * mu1 * mu2 - mu1 ** 3
+
+    z = (0.5 * mu3 + 0.5 * np.sqrt(mu3 * mu3 + 4.0 * mu2 ** 3)) ** (1.0 / 3.0)
+    y1 = mu1  # original comment: mu2 / (z - mu2 / z)
+    y11 = mu2 + y1 * y1
+    E = mu1 - y1
+
+    r_disc = np.interp(T_Option, TermRate, Rate)
+    intrinsic = Strike - PrevCummulative_Weight * PrevAverage - E
+    print(Strike, PrevCummulative_Weight, PrevAverage, E)
+
+    if intrinsic <= 0:
+        print(intrinsic <= 0, "본질가치 안나옴")
+        if Call0Put1 == 0:  # Call
+            value = np.exp(-r_disc * T_Option) * (y1 - intrinsic)
+        else:  # Put
+            value = 0.0
+    else:
+        d1 = np.log(np.sqrt(y11) / intrinsic) / np.sqrt(np.log(y11 / (y1 * y1)))
+        d2 = d1 - np.sqrt(np.log(y11 / (y1 * y1)))
+
+        if Call0Put1 == 0:  # Call
+            value = np.exp(-r_disc * T_Option) * (y1 * CDF_N(d1) - intrinsic * CDF_N(d2))
+        else:  # Put
+            value = np.exp(-r_disc * T_Option) * (intrinsic * CDF_N(-d2) - y1 * CDF_N(-d1))
+
+    delta = Arithmetic_Asian_Option_Delta(n, Forward, Weight, T, TermVol, Vol, r_disc, y1, y11, d1)
+    vega = Arithmetic_Asian_Option_Vega(n, Forward, Weight, T, TermVol, Vol, r_disc, y1, y11, d1)
+
+    return value, delta, vega
+
+def Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1, Call0Put1, PriceDate, AverageStartDate, AverageEndDate, OptionMaturityDate, S, K, PrevAverage, DiscTerm, DiscRate, DivTerm, DivRate, QuantoCorr, FXVolTerm, FXVol, VolTerm, VolParity, Vols2D, DivTypeFlag, Holidays) : 
+    T_Opt = DayCountAtoB(PriceDate, OptionMaturityDate)/365
+    PrevCummulativeWeight = 0
+    NDays = DayCountAtoB(AverageStartDate, AverageEndDate) + 1
+    StartDateExcel = YYYYMMDDToExcelDate(AverageStartDate)
+    N_BD_Avg = 0
+    for i in range(NDays) : 
+        MOD7 = (StartDateExcel + i) % 7
+        YYYYMMDD = ExcelDateToYYYYMMDD(StartDateExcel + i)
+        isHolidayFlag = YYYYMMDD in Holidays
+        if ((MOD7 == 1 or MOD7 == 0) or isHolidayFlag == 1) :
+            SaturSundayFlag = 1
+        else : 
+            SaturSundayFlag = 0
+        
+        if SaturSundayFlag != 1 : 
+            N_BD_Avg += 1
+    
+    AvgDate = np.zeros(max(1, NDays))
+    j = 0
+    for i in range(NDays) : 
+        MOD7 = (StartDateExcel + i) % 7
+        YYYYMMDD = ExcelDateToYYYYMMDD(StartDateExcel + i)
+        isHolidayFlag = YYYYMMDD in Holidays
+        if ((MOD7 == 1 or MOD7 == 0) or isHolidayFlag == 1) :
+            SaturSundayFlag = 1
+        else : 
+            SaturSundayFlag = 0
+        
+        if SaturSundayFlag != 1 : 
+            AvgDate[j] = YYYYMMDD
+            j += 1
+            
+    NPrev, NForward = 0, 0
+    for i in range(N_BD_Avg) : 
+        if AvgDate[i] <= PriceDate : 
+            NPrev += 1
+        else : 
+            NForward += 1
+    
+    ForwardDate = np.zeros(max(1, NForward))
+    j = 0
+    for i in range(N_BD_Avg) : 
+        if AvgDate[i] > PriceDate : 
+            ForwardDate[j] = AvgDate[i]
+            j += 1    
+    
+    w = 1/NForward
+    Weight = np.array([w] * NForward)
+    PrevCummulativeWeight = NPrev/N_BD_Avg
+    TimeAry = np.vectorize(DayCountAtoB)([PriceDate],ForwardDate)/365
+    R_Ref = np.interp(TimeAry, DiscTerm, DiscRate)
+    DivAry = np.interp(TimeAry, DivTerm, DivRate)
+    FXVolAry = np.interp(TimeAry, FXVolTerm, FXVol) if len(FXVolTerm) > 0 else 0
+
+    if isinstance(Vols2D, float) :
+        Vol = np.array([Vols2D] * NForward)
+    else : 
+        TempFunc = np.vectorie(lambda Times : Linterp2D(VolTerm, VolParity, Vols2D, Times, K/S))
+        Vol = TempFunc(TimeAry)
+    Forward = S * np.exp(R_Ref - DivAry - (abs(QuantoCorr) > 0.0001) * QuantoCorr * FXVolAry * Vol)
+    price, delta, vega = Arithmetic_Asian_Opt_Pricing(NForward, Forward, Weight, TimeAry, TimeAry, Vol, PrevCummulativeWeight, K, PrevAverage, Call0Put1, T_Opt, DiscTerm, DiscRate)
+    return price, delta, vega        
+
 def BS_Swaption(PriceDate, StartDate, SwapTenorT, NCpnOneYear, Notional, Vol, StrikePrice, Term, Rate, DayCountFracFlag = 0, VolFlag = 0, HolidaysFixing = [], HolidaysPay = [], NBDayFromEndDateToPay = 0, FixedPayer0Receiver1 = 0) : 
     FixedPayerFlag = FixedPayer0Receiver1
     if StrikePrice > 1.0 : 
@@ -8568,12 +8750,12 @@ def PricingEquityOptionProgram(currdir = os.getcwd()) :
             Price, Delta, Gamma, Vega, Theta, Rho, v = BSBarrierOption(int(PriceDate), BarrierCall1Put2, S, X, H, DiscTerm, 
                                 DiscRate, DiscTerm, DiscRate, DivTerm, DivRate, 
                                 QuantoCorr, [0], [FX_Vol], TermVol, ParityVol, 
-                                Vols2D if ATMVolFlag != 1 else (VolsATM if ATMVolFlag != 2 else SelfVol), 0, int(Maturity), int(Maturity), 
+                                Vols2D if ATMVolFlag == 0 else (VolsATM if ATMVolFlag != 2 else SelfVol), 0, int(Maturity), int(Maturity), 
                                 Down0Up1Flag, In0Out1Flag, Reb = 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)
         else : 
             Price, Delta, Gamma, Vega, Theta, Rho, v = BSDigitalOption(BarrierCall1Put2, int(PriceDate), int(Maturity), int(Maturity), S,
                                                                        X, DiscTerm, DiscRate, DiscTerm, DiscRate, 
-                                                                       DivTerm, DivRate, TermVol, ParityVol, Vols2D if ATMVolFlag != 1 else (VolsATM if ATMVolFlag != 2 else SelfVol), 
+                                                                       DivTerm, DivRate, TermVol, ParityVol, Vols2D if ATMVolFlag == 0 else (VolsATM if ATMVolFlag != 2 else SelfVol), 
                                                                        QuantoCorr, [0], [FX_Vol], 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)            
             
         if PrevTreeFlag == 0 : 
@@ -9142,6 +9324,10 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
     else : 
         Curve, Curve2 = MyMarketDataList[0], MyMarketDataList[1]
         UsedCurveName1, UsedCurveName2 = Name[0], Name[1]
+        if "STD" not in Name[0].upper() and "IRS" not in Name[0].upper() and "OIS" not in Name[0].upper() :
+            Curve, Curve2 = MyMarketDataList[1], MyMarketDataList[0]
+            UsedCurveName1, UsedCurveName2 = Name[1], Name[0]
+             
         Curr = Name[0].split("\\")[-2].lower()
         if 'krw' in Curr : 
             HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
@@ -9159,7 +9345,7 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
         YYYYMMDD2, Name2, MyMarketDataList2 = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
                                                                         namein = "tion",
                                                                         Comments = "Convexity Adjustment를 위한 Swaption Vol Curve를 선택하시오\n->",
-                                                                        MainComments = "\nCMS, CMT Pricing을 위해 Volatility 마켓데이터를 선택해야합니다.")     
+                                                                        MainComments = "\nCMS, CMT Pricing을 위해 Volatility 마켓데이터를 선택해야합니다.",MultiSelection=False,DefaultStringList=["Vol"])     
     else : 
         YYYYMMDD2, Name2, MyMarketDataList2 = YYYYMMDD, Name, MyMarketDataList                    
 
@@ -10036,7 +10222,7 @@ def PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayFile) :
             tree = ttk.Treeview(root)
             tree2 = ttk.Treeview(root)
 
-        ResultDF = ResultDF.applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+        ResultDF = ResultDF.applymap(lambda x : np.round(x, 6) if isinstance(x, float) else x)
         tree.pack(padx=5, pady=5, fill="both", expand=False)
         tree2.pack(padx=5, pady=5, fill="both", expand=False)
         scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
@@ -10408,4 +10594,6 @@ while True :
 
 # %%
 
+# %%
+Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1 = 0, Call0Put1 = 0, PriceDate = 20240627, AverageStartDate = 20240601, AverageEndDate = 20240927, OptionMaturityDate = 20240927, S = 100, K = 95, PrevAverage = 98, DiscTerm = [1, 2, 3], DiscRate = [0.03, 0.03, 0.03], DivTerm = [1], DivRate = [0.02], QuantoCorr = 0, FXVolTerm = [1], FXVol = [0], VolTerm = [0], VolParity = [0], Vols2D = 0.3, DivTypeFlag = 0, Holidays = KoreaHolidaysFromStartToEnd(2020,2040))
 # %%
