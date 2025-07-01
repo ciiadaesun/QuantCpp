@@ -2166,7 +2166,6 @@ def Arithmetic_Asian_Opt_m2(n, Forward, Weight, T, TermVol, Vol):
     SumBetaFunc = np.vectorize(lambda i : Sumation_Beta(i, n - 1, Forward[:n], Weight[:n]))
     SumBetaAry = SumBetaFunc(np.arange(0,n))
     value1 = 2.0 * (BetaAry * eAry * SumBetaAry).sum()
-
     value2 = (BetaAry * BetaAry * eAry).sum()
     m2 = value1 - value2
     return m2
@@ -2236,7 +2235,7 @@ def Arithmetic_Asian_Opt_Pricing(
     m1 = Arithmetic_Asian_Opt_m1(n, Weight, Forward)
     m2 = Arithmetic_Asian_Opt_m2(n, Forward, Weight, T, TermVol, Vol)
     m3 = Arithmetic_Asian_Opt_m3(n, Forward, Weight, T, TermVol, Vol)
-    print(m1, m2, m3)
+
     mu1 = m1
     mu2 = m2 - mu1 * mu1
     mu3 = m3 - 3.0 * mu1 * mu2 - mu1 ** 3
@@ -2248,10 +2247,8 @@ def Arithmetic_Asian_Opt_Pricing(
 
     r_disc = np.interp(T_Option, TermRate, Rate)
     intrinsic = Strike - PrevCummulative_Weight * PrevAverage - E
-    print(Strike, PrevCummulative_Weight, PrevAverage, E)
 
     if intrinsic <= 0:
-        print(intrinsic <= 0, "본질가치 안나옴")
         if Call0Put1 == 0:  # Call
             value = np.exp(-r_disc * T_Option) * (y1 - intrinsic)
         else:  # Put
@@ -2267,10 +2264,12 @@ def Arithmetic_Asian_Opt_Pricing(
 
     delta = Arithmetic_Asian_Option_Delta(n, Forward, Weight, T, TermVol, Vol, r_disc, y1, y11, d1)
     vega = Arithmetic_Asian_Option_Vega(n, Forward, Weight, T, TermVol, Vol, r_disc, y1, y11, d1)
+    deltaUp = Arithmetic_Asian_Option_Delta(n, np.array(Forward) * 1.01, Weight, T, TermVol, Vol, r_disc, y1, y11, d1)
+    dS = (np.array(Forward) * 0.01).mean()
+    gamma = (deltaUp - delta)/dS
+    return value, delta, gamma, vega
 
-    return value, delta, vega
-
-def Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1, Call0Put1, PriceDate, AverageStartDate, AverageEndDate, OptionMaturityDate, S, K, PrevAverage, DiscTerm, DiscRate, DivTerm, DivRate, QuantoCorr, FXVolTerm, FXVol, VolTerm, VolParity, Vols2D, DivTypeFlag, Holidays) : 
+def Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1, Call0Put1, PriceDate, AverageStartDate, AverageEndDate, OptionMaturityDate, S, K, PrevAverage, DiscTerm, DiscRate, DivTerm, DivRate, QuantoCorr, FXVolTerm, FXVol, VolTerm, VolParity, Vols2D, DivTypeFlag, Holidays, ForwardTerm = [], ForwardPrice = []) : 
     T_Opt = DayCountAtoB(PriceDate, OptionMaturityDate)/365
     PrevCummulativeWeight = 0
     NDays = DayCountAtoB(AverageStartDate, AverageEndDate) + 1
@@ -2321,19 +2320,29 @@ def Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1, Call0Put1, PriceDate
     Weight = np.array([w] * NForward)
     PrevCummulativeWeight = NPrev/N_BD_Avg
     TimeAry = np.vectorize(DayCountAtoB)([PriceDate],ForwardDate)/365
-    R_Ref = np.interp(TimeAry, DiscTerm, DiscRate)
+    if len(ForwardTerm) == 0 : 
+        R_Ref = np.interp(TimeAry, DiscTerm, DiscRate)
+    else : 
+        Preprocessing_Term(ForwardTerm, PriceDate)
+        RefTerm = ForwardTerm
+        RefRate = (TimeAry[i] > 0) * np.log(np.array(ForwardPrice)/S)/ForwardTerm 
+        R_Ref = np.interp(TimeAry, RefTerm, RefRate)       
+         
     DivAry = np.interp(TimeAry, DivTerm, DivRate)
     FXVolAry = np.interp(TimeAry, FXVolTerm, FXVol) if len(FXVolTerm) > 0 else 0
 
     if isinstance(Vols2D, float) :
         Vol = np.array([Vols2D] * NForward)
     else : 
-        TempFunc = np.vectorie(lambda Times : Linterp2D(VolTerm, VolParity, Vols2D, Times, K/S))
+        TempFunc = np.vectorize(lambda Times : Linterp2D(VolTerm, VolParity, Vols2D, Times, K/S))
         Vol = TempFunc(TimeAry)
-    Forward = S * np.exp(R_Ref - DivAry - (abs(QuantoCorr) > 0.0001) * QuantoCorr * FXVolAry * Vol)
-    price, delta, vega = Arithmetic_Asian_Opt_Pricing(NForward, Forward, Weight, TimeAry, TimeAry, Vol, PrevCummulativeWeight, K, PrevAverage, Call0Put1, T_Opt, DiscTerm, DiscRate)
-    return price, delta, vega        
-
+    Forward = S * np.exp((R_Ref - DivAry - (abs(QuantoCorr) > 0.0001) * QuantoCorr * FXVolAry * Vol) * TimeAry)
+    price, delta, gamma, vega = Arithmetic_Asian_Opt_Pricing(NForward, Forward, Weight, TimeAry, TimeAry, Vol, PrevCummulativeWeight, K, PrevAverage, Call0Put1, T_Opt, DiscTerm, DiscRate)
+    if Long0Short1 == 0 : 
+        return price, delta, gamma, vega, 0, 0, Vol.mean()        
+    else : 
+        return -price, -delta, -gamma, -vega, 0, 0, Vol.mean()        
+        
 def BS_Swaption(PriceDate, StartDate, SwapTenorT, NCpnOneYear, Notional, Vol, StrikePrice, Term, Rate, DayCountFracFlag = 0, VolFlag = 0, HolidaysFixing = [], HolidaysPay = [], NBDayFromEndDateToPay = 0, FixedPayer0Receiver1 = 0) : 
     FixedPayerFlag = FixedPayer0Receiver1
     if StrikePrice > 1.0 : 
@@ -8611,12 +8620,14 @@ def PrintingMarketDataInformation(YYYYMMDD, NameList, MyMarketDataList) :
     PrintingContents = curvename
     return PrintingContents    
 
-def PricingEquityOptionProgram(currdir = os.getcwd()) : 
+def PricingEquityOptionProgram(currdir = os.getcwd(), HolidayDate = pd.DataFrame([])) : 
     YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata', 
                                                                   namenotin = "waption",
                                                                   Comments = "옵션 Pricing을 위한 Zero 커브 번호 및 Volatility 번호를 입력하시오.\n  (반드시 ZeroCurve, Vol Data 2개 선택)\n ex : 1, 2",
                                                                   DefaultStringList= ["IRS","Vol"]) 
     curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
+    Currency = Name[0].split("\\")[-2]
+    Holidays = list(HolidayDate[Currency].dropna().unique()) if Currency in HolidayDate.columns else []
     print(curvename)    
     MyMarketDataList_ExceptVol = []
     NameList_ExceptVol = []
@@ -8671,6 +8682,9 @@ def PricingEquityOptionProgram(currdir = os.getcwd()) :
     v_Maturity = make_variable_interface(left_frame, '옵션만기(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=int(YYYYMMDD)+10000)
     v_QuantoCorr = make_variable_interface(left_frame, 'QuantoCorr', bold = False, textfont = 11, titlelable= True, titleName = "QuantoInfo", defaultflag = True, defaultvalue=0)
     v_FXVol = make_variable_interface(left_frame, 'FXVol', bold = False, textfont = 11, defaultflag = True, defaultvalue=0)
+    v_AvgStartDate = make_variable_interface(left_frame, '평균시작일\n(아시안옵션의경우입력)', bold = False, textfont = 11, defaultflag = True,titleName = "아시안옵션평가시입력", titlelable=True,defaultvalue=int(YYYYMMDD))
+    v_AvgEndDate = make_variable_interface(left_frame, '평균종료일\n(아시안옵션의경우입력)', bold = False, textfont = 11, defaultflag = True,defaultvalue=int(YYYYMMDD)+10000)
+    v_MeanPrice = make_variable_interface(left_frame, 'Fixed과거평균가격\n(아시안옵션의경우입력)', bold = False, textfont = 11, defaultflag = True, defaultvalue=250)
     
     center_frame = tk.Frame(root)
     center_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
@@ -8683,7 +8697,7 @@ def PricingEquityOptionProgram(currdir = os.getcwd()) :
     
     Right_frame = tk.Frame(root)
     Right_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
-    v_Plain0Barrier1Digital2 = make_listvariable_interface(Right_frame, '배리어옵션여부', ["0: 배리어사용X","1: 배리어옵션","2: 디지털옵션"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0, titlelable=True, titleName="배리어사용시입력")
+    v_Plain0Barrier1Digital2 = make_listvariable_interface(Right_frame, '배리어옵션여부', ["0: 배리어사용X","1: 배리어옵션","2: 디지털옵션","3: AsianOption"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0, titlelable=True, titleName="배리어사용시입력")
     v_H = make_variable_interface(Right_frame, '배리어', bold = False, textfont = 11, defaultflag = True, defaultvalue=250)
     vb_Down0Up1Flag = make_listvariable_interface(Right_frame, 'Down0Up1Flag', ["0: Down","1: Up"], listheight = 2, textfont = 11,defaultflag = 0, defaultvalue = 0)
     vb_In0Out1Flag = make_listvariable_interface(Right_frame, 'In0Out1Flag', ["0: In","1: Out"], listheight = 2, textfont = 11,defaultflag = 0, defaultvalue = 0)
@@ -8702,13 +8716,17 @@ def PricingEquityOptionProgram(currdir = os.getcwd()) :
         scrollbar = MyArrays[2]
         scrollbar2 = MyArrays[3]   
 
-        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else 20240627
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else int(YYYYMMDD)
         SelfVol = float(v_SelfVol.get())/100 if len(str(v_SelfVol.get())) > 0 else 0.2
         ForwardUseFlag = int(str(v_StockOrForward.get(v_StockOrForward.curselection())).split(":")[0]) if v_StockOrForward.curselection() else 0
         if ForwardUseFlag == 0 : 
             ForwardPrice = 0
         else : 
             ForwardPrice = float(v_F.get()) if len(str(v_F.get())) > 0 else 0 
+        MeanPrice = float(v_MeanPrice.get()) if len(str(v_MeanPrice.get())) > 0 else 0
+        AvgStartDate = int(v_AvgStartDate.get()) if len(str(v_AvgStartDate.get())) > 0 else int(YYYYMMDD)
+        AvgEndDate = int(v_AvgEndDate.get()) if len(str(v_AvgEndDate.get())) > 0 else int(YYYYMMDD)+10000        
+        
         S = float(v_S.get())
         X = float(v_X.get())
         H = float(v_H.get()) if len(str(v_H.get())) > 0 else 0.0001
@@ -8752,11 +8770,18 @@ def PricingEquityOptionProgram(currdir = os.getcwd()) :
                                 QuantoCorr, [0], [FX_Vol], TermVol, ParityVol, 
                                 Vols2D if ATMVolFlag == 0 else (VolsATM if ATMVolFlag != 2 else SelfVol), 0, int(Maturity), int(Maturity), 
                                 Down0Up1Flag, In0Out1Flag, Reb = 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)
-        else : 
+        elif Plain0Barrier1 == 2 : 
             Price, Delta, Gamma, Vega, Theta, Rho, v = BSDigitalOption(BarrierCall1Put2, int(PriceDate), int(Maturity), int(Maturity), S,
                                                                        X, DiscTerm, DiscRate, DiscTerm, DiscRate, 
                                                                        DivTerm, DivRate, TermVol, ParityVol, Vols2D if ATMVolFlag == 0 else (VolsATM if ATMVolFlag != 2 else SelfVol), 
                                                                        QuantoCorr, [0], [FX_Vol], 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)            
+        else : 
+            Price, Delta, Gamma, Vega, Theta, Rho, v = Arithmetic_Asian_Opt_Pricing_Preprocessing(0, 0 if TypeFlag == 'c' else 1, int(PriceDate), AvgStartDate, AvgEndDate, 
+                                                                                                  int(Maturity), S, X, MeanPrice, DiscTerm, 
+                                                                                                  DiscRate, DivTerm, DivRate, QuantoCorr, [0], 
+                                                                                                  [FX_Vol], TermVol, ParityVol, Vols2D, 0, 
+                                                                                                  Holidays = Holidays, ForwardTerm = [] if ForwardPrice == 0 else [1], ForwardPrice = [ForwardPrice])            
+            
             
         if PrevTreeFlag == 0 : 
             tree = ttk.Treeview(root)
@@ -10519,7 +10544,7 @@ while True :
         elif int(n) == 4 or n == "CRS" or str(n).lower() == "crs" : 
             MainFlag2, Value, PV01, TempPV01, TempPV01Est, TempPV01Est2 = PricingCRSProgram(HolidayDate, FXSpot)
         elif int(n) == 5 or n == "옵션" or str(n).lower() == "option" :
-            MainFlag2, Value, PV01, TempPV01 = PricingEquityOptionProgram(currdir)
+            MainFlag2, Value, PV01, TempPV01 = PricingEquityOptionProgram(currdir, HolidayDate)
         elif int(n) == 6 :
             MainFlag2, Value, PV01, TempPV01 = PricingIRStructuredSwapProgram(HolidayDate, currdir)             
         elif int(n) == 7 : 
@@ -10596,4 +10621,6 @@ while True :
 
 # %%
 Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1 = 0, Call0Put1 = 0, PriceDate = 20240627, AverageStartDate = 20240601, AverageEndDate = 20240927, OptionMaturityDate = 20240927, S = 100, K = 95, PrevAverage = 98, DiscTerm = [1, 2, 3], DiscRate = [0.03, 0.03, 0.03], DivTerm = [1], DivRate = [0.02], QuantoCorr = 0, FXVolTerm = [1], FXVol = [0], VolTerm = [0], VolParity = [0], Vols2D = 0.3, DivTypeFlag = 0, Holidays = KoreaHolidaysFromStartToEnd(2020,2040))
+# %%
+
 # %%
