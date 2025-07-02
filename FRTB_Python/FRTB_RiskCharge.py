@@ -2264,10 +2264,7 @@ def Arithmetic_Asian_Opt_Pricing(
 
     delta = Arithmetic_Asian_Option_Delta(n, Forward, Weight, T, TermVol, Vol, r_disc, y1, y11, d1)
     vega = Arithmetic_Asian_Option_Vega(n, Forward, Weight, T, TermVol, Vol, r_disc, y1, y11, d1)
-    deltaUp = Arithmetic_Asian_Option_Delta(n, np.array(Forward) * 1.01, Weight, T, TermVol, Vol, r_disc, y1, y11, d1)
-    dS = (np.array(Forward) * 0.01).mean()
-    gamma = (deltaUp - delta)/dS
-    return value, delta, gamma, vega
+    return value, delta, vega
 
 def Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1, Call0Put1, PriceDate, AverageStartDate, AverageEndDate, OptionMaturityDate, S, K, PrevAverage, DiscTerm, DiscRate, DivTerm, DivRate, QuantoCorr, FXVolTerm, FXVol, VolTerm, VolParity, Vols2D, DivTypeFlag, Holidays, ForwardTerm = [], ForwardPrice = []) : 
     T_Opt = DayCountAtoB(PriceDate, OptionMaturityDate)/365
@@ -2337,7 +2334,9 @@ def Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1, Call0Put1, PriceDate
         TempFunc = np.vectorize(lambda Times : Linterp2D(VolTerm, VolParity, Vols2D, Times, K/S))
         Vol = TempFunc(TimeAry)
     Forward = S * np.exp((R_Ref - DivAry - (abs(QuantoCorr) > 0.0001) * QuantoCorr * FXVolAry * Vol) * TimeAry)
-    price, delta, gamma, vega = Arithmetic_Asian_Opt_Pricing(NForward, Forward, Weight, TimeAry, TimeAry, Vol, PrevCummulativeWeight, K, PrevAverage, Call0Put1, T_Opt, DiscTerm, DiscRate)
+    price, delta, vega = Arithmetic_Asian_Opt_Pricing(NForward, Forward, Weight, TimeAry, TimeAry, Vol, PrevCummulativeWeight, K, PrevAverage, Call0Put1, T_Opt, DiscTerm, DiscRate)
+    priceu, deltau, vegau = Arithmetic_Asian_Opt_Pricing(NForward, Forward * 1.01, Weight, TimeAry, TimeAry, Vol, PrevCummulativeWeight, K, PrevAverage, Call0Put1, T_Opt, DiscTerm, DiscRate)
+    gamma = (deltau - delta) / (S * 0.01)
     if Long0Short1 == 0 : 
         return price, delta, gamma, vega, 0, 0, Vol.mean()        
     else : 
@@ -5177,9 +5176,18 @@ def HullWhiteCalibrationProgram(CurveDirectory, PriceDate, CurveTerm, CurveRate,
             
         VolRawData = ReadCSV(GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == SelectedNumber]['Directory'].iloc[0])
         VolRawDataIndexSet = VolRawData.set_index(VolRawData.columns[0])
-        OptionTenor = VolRawDataIndexSet.columns.astype(np.float64)
-        SwapTenor = VolRawDataIndexSet.index.astype(np.float64)
-        OptionVolMatrix = VolRawDataIndexSet.values.astype(np.float64)
+        XCol = VolRawDataIndexSet.columns.astype(np.float64)
+        YInd = VolRawDataIndexSet.index.astype(np.float64)
+        Values = VolRawDataIndexSet.values.astype(np.float64)
+        tf = np.vectorize(lambda x, y : Linterp2D(XCol, YInd, Values, x, y))
+        x = np.r_[np.array([3,6,9]) , np.arange(12,132, 12)].reshape(1,-1)
+        y = np.r_[np.array([3,6,9]) , np.arange(12,132, 12)].reshape(-1,1)
+        InterpolatedVols = tf(x, y)
+        SwaptionVolData = pd.DataFrame(InterpolatedVols, columns = x.reshape(-1), index = y.reshape(-1))        
+
+        OptionTenor = SwaptionVolData.columns.astype(np.float64)
+        SwapTenor = SwaptionVolData.index.astype(np.float64)
+        OptionVolMatrix = SwaptionVolData.values.astype(np.float64)
         if OptionVolMatrix.max() > 0.25 :
             OptionVolMatrix = OptionVolMatrix / 100 
             
@@ -5190,7 +5198,7 @@ def HullWhiteCalibrationProgram(CurveDirectory, PriceDate, CurveTerm, CurveRate,
             for j in range(len(OptionTenor)) : 
                 StartDate = EDate_YYYYMMDD(PriceDate, OptionTenor[j]) 
                 EndDate = EDate_YYYYMMDD(StartDate, SwapTenor[i])
-                if EndDate <= int(SwapMaturity) and EndDate >= int(SwapMaturity) - 10000 : 
+                if EndDate < EDate_YYYYMMDD(int(SwapMaturity),3) and EndDate >= int(SwapMaturity) : 
                     OptionTenor_ByMonth.append(OptionTenor[j])
                     SwapTenor_ByMonth.append(SwapTenor[i])
                     OptionVol.append(OptionVolMatrix[i][j])                
@@ -5294,6 +5302,7 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
     CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
     CalibrationResult = HullWhiteCalibrationProgram(Name[0], int(YYYYMMDD), CurveTerm1, CurveRate1, HolidayData)
     CalibrationFlag = CalibrationResult['CalibrationFlag']
+    YYYY = int(YYYYMMDD) // 10000
     root = tk.Tk()
     root.title("Callable Swap Pricer(Single Phase)")
     root.geometry("1500x750+30+30")
@@ -5303,8 +5312,8 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
     left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
 
     v_Nominal = make_variable_interface(left_frame, 'Nominal Amount', bold = False, textfont = 11, defaultflag = True, defaultvalue=10000)
-    v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20160929)
-    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20460929)
+    v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=(YYYY-9) * 10000 + 929)
+    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=(YYYY+21) * 10000 + 929)
     vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["0","1","2","4","6"], titlelable = True, titleName = "Leg1 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue=3)
     v_L1_FixedCpnRate_P1 = make_variable_interface(left_frame, 'Leg1 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.19)
     v_L1_RefSwapMaturity_T = make_variable_interface(left_frame, 'Leg1 변동금리 만기\n(3M-> 0.25, 5Y-> 5)', bold = False, titlelable = True, titleName = "변동금리 사용의 경우\n아래 데이터 입력", textfont = 11)
@@ -5327,7 +5336,7 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
     right_frame = tk.Frame(root)
     right_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
     vb_OptionHolder = make_listvariable_interface(right_frame, 'OptionHolder', ["0: Leg1 Hold Option","1: Leg2 Hold Option"], titleName = "Option Information", titlelable= True, listheight = 3, textfont = 11, defaultflag = True, defaultvalue= 0)
-    v_FirstOptPayDate = make_variable_interface(right_frame, '첫 옵션행사일\n(지급일기준)', bold = False, textfont = 11, defaultflag = True, defaultvalue = 20190929)
+    v_FirstOptPayDate = make_variable_interface(right_frame, '첫 옵션행사일\n(지급일기준)', bold = False, textfont = 11, defaultflag = True, defaultvalue = (YYYY-6) * 10000 + 929)
     vb_NYearBetweenOptionPay = make_listvariable_interface(right_frame, '옵션행사간격', ["6M","12M","24M","36M","60M"], listheight = 5, textfont = 11, defaultflag = True, defaultvalue = 1)
     v_NBDateBetweenOptionFixToPay = make_variable_interface(right_frame, '옵션행사선언일과\n옵션지급일사이의\n영업일수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 20)
     v_MaxNumOpt = make_variable_interface(right_frame, '최대옵션개수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 0)
@@ -8669,7 +8678,7 @@ def PricingEquityOptionProgram(currdir = os.getcwd(), HolidayDate = pd.DataFrame
     Preprocessing_ZeroTermAndRate(EstTerm, EstRate, int(YYYYMMDD))
     
     root = tk.Tk()
-    root.title("Bond Pricer(Single Phase)")
+    root.title("Equity Option Pricer")
     root.geometry("1500x750+30+30")
     root.resizable(False, False)
     
@@ -8753,6 +8762,9 @@ def PricingEquityOptionProgram(currdir = os.getcwd(), HolidayDate = pd.DataFrame
             TypeFlag = 'c'
         else :
             TypeFlag = 'p'    
+        VolsATMAry = np.array(VolsATM).reshape(1,-1)
+        VolsATMParity = [1]    
+        
         BarrierCall1Put2 = 1 if c_or_p == "C" else 2 
         Plain0Barrier1 = int(str(v_Plain0Barrier1Digital2.get(v_Plain0Barrier1Digital2.curselection())).split(":")[0]) if v_Plain0Barrier1Digital2.curselection() else 0
         Down0Up1Flag = int(str(vb_Down0Up1Flag.get(vb_Down0Up1Flag.curselection())).split(":")[0]) if vb_Down0Up1Flag.curselection() else 0
@@ -8767,19 +8779,19 @@ def PricingEquityOptionProgram(currdir = os.getcwd(), HolidayDate = pd.DataFrame
         elif Plain0Barrier1 == 1 : 
             Price, Delta, Gamma, Vega, Theta, Rho, v = BSBarrierOption(int(PriceDate), BarrierCall1Put2, S, X, H, DiscTerm, 
                                 DiscRate, DiscTerm, DiscRate, DivTerm, DivRate, 
-                                QuantoCorr, [0], [FX_Vol], TermVol, ParityVol, 
-                                Vols2D if ATMVolFlag == 0 else (VolsATM if ATMVolFlag != 2 else SelfVol), 0, int(Maturity), int(Maturity), 
+                                QuantoCorr, [0], [FX_Vol], TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, 
+                                Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 0, int(Maturity), int(Maturity), 
                                 Down0Up1Flag, In0Out1Flag, Reb = 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)
         elif Plain0Barrier1 == 2 : 
             Price, Delta, Gamma, Vega, Theta, Rho, v = BSDigitalOption(BarrierCall1Put2, int(PriceDate), int(Maturity), int(Maturity), S,
                                                                        X, DiscTerm, DiscRate, DiscTerm, DiscRate, 
-                                                                       DivTerm, DivRate, TermVol, ParityVol, Vols2D if ATMVolFlag == 0 else (VolsATM if ATMVolFlag != 2 else SelfVol), 
+                                                                       DivTerm, DivRate, TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 
                                                                        QuantoCorr, [0], [FX_Vol], 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)            
         else : 
             Price, Delta, Gamma, Vega, Theta, Rho, v = Arithmetic_Asian_Opt_Pricing_Preprocessing(0, 0 if TypeFlag == 'c' else 1, int(PriceDate), AvgStartDate, AvgEndDate, 
                                                                                                   int(Maturity), S, X, MeanPrice, DiscTerm, 
                                                                                                   DiscRate, DivTerm, DivRate, QuantoCorr, [0], 
-                                                                                                  [FX_Vol], TermVol, ParityVol, Vols2D, 0, 
+                                                                                                  [FX_Vol], TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 0, 
                                                                                                   Holidays = Holidays, ForwardTerm = [] if ForwardPrice == 0 else [1], ForwardPrice = [ForwardPrice])            
             
             
@@ -8826,7 +8838,7 @@ def BS_CapFloor_Program(HolidayDate, currdir) :
     Currency = Name[0].split("\\")[-2]
     Holidays = list(HolidayDate[Currency].dropna().unique()) if Currency in HolidayDate.columns else []
     root = tk.Tk()
-    root.title("Swaption Pricer")
+    root.title("Cap Floor Pricer")
     root.geometry("1500x750+30+30")
     root.resizable(False, False)
 
@@ -9182,10 +9194,11 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
         UsedCurveName = Name[n-1]
     Curr = UsedCurveName.split("\\")[-2].lower()
     HolidaysForSwap = []
+    YYYY = int(YYYYMMDD) // 10000
     if 'krw' in Curr : 
-        HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+        HolidaysForSwap = KoreaHolidaysFromStartToEnd(YYYY-1, YYYY + 60)
     elif "usd" in Curr : 
-        HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)            
+        HolidaysForSwap = USHolidaysFromStartToEnd(YYYY-1, YYYY + 60)            
     else : 
         if Curr.upper() in HolidayDate.columns : 
             HolidaysForSwap = list(HolidayDate[Curr.upper()].values)
@@ -9203,8 +9216,8 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
     left_frame = tk.Frame(root)
     left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
     v_Nominal = make_variable_interface(left_frame, 'Nominal Amount', bold = False, textfont = 11, defaultflag = True, defaultvalue=10000)
-    v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20160929)
-    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20460929)
+    v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=(YYYY-1) * 10000 + 929)
+    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=(YYYY+19) * 10000 + 929)
     vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["1","2","4","6"], titlelable = True, titleName = "Leg1 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue=2)
     v_SwapMaturityToPayDate = make_variable_interface(left_frame, '기말일TO지급일까지영업일수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 2)
     v_L1_FixedCpnRate_P1 = make_variable_interface(left_frame, 'Leg1 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.69)
@@ -9333,15 +9346,15 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
     print(curvename)  
     HolidaysForSwap = []
     Curr, UsedCurveName1 = "", ""
-
+    YYYY = int(YYYYMMDD) // 10000
     if len(MyMarketDataList) == 1 : 
         Curve = MyMarketDataList[0]
         UsedCurveName1 = Name[0]
         Curr = Name[0].split("\\")[-2].lower()
         if 'krw' in Curr : 
-            HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+            HolidaysForSwap = KoreaHolidaysFromStartToEnd(YYYY-1, YYYY + 60)
         elif "usd" in Curr : 
-            HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+            HolidaysForSwap = USHolidaysFromStartToEnd(YYYY-1, YYYY + 60)
         CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
         CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
         CurveTerm2, CurveRate2 = CurveTerm1, CurveRate1     
@@ -9355,9 +9368,9 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
              
         Curr = Name[0].split("\\")[-2].lower()
         if 'krw' in Curr : 
-            HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+            HolidaysForSwap = KoreaHolidaysFromStartToEnd(YYYY-1, YYYY + 60)
         elif "usd" in Curr : 
-            HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+            HolidaysForSwap = USHolidaysFromStartToEnd(YYYY-1, YYYY + 60)
         CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
         CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
         CurveTerm2 = list(Curve2["Term" if "Term" in Curve2.columns else "term"]) 
@@ -9381,8 +9394,8 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
     
     left_frame = tk.Frame(root)
     left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
-    v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20160929)
-    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20460929)
+    v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=(YYYY-1)*10000+929)
+    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=(YYYY+19)*10000+929)
     vb_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["1","2","4","6"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=2)
     v_SwapMaturityToPayDate = make_variable_interface(left_frame, '기말일TO지급일까지영업일수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 2)
     vb_FixedPayer = make_listvariable_interface(left_frame, '변동금리 수취여부', ["0: 고정수취, 변동지급","1: 변동수취, 고정지급"], listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 1)
@@ -9657,6 +9670,7 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
     CurveNameShort = np.vectorize(lambda x : x.split("\\")[-1].replace(".csv",""))(Name)
     CurveNameShortList = [str(n) + ": " + i for n, i in enumerate(CurveNameShort)]       
     Curr = np.vectorize(lambda x : x.split("\\")[-2].replace(".csv","") + "/" + "KRW")(Name)
+    YYYY = int(YYYYMMDD) // 10000
     Spotidx = list(SpotData.index).index(YYYYMMDD) if YYYYMMDD in SpotData.index else -1
     fx1temp = SpotData[Curr[0]].iloc[Spotidx] if Curr[0] in SpotData.columns else 1
     fx2temp = SpotData[Curr[-1]].iloc[Spotidx] if Curr[-1] in SpotData.columns else 1
@@ -9671,8 +9685,8 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
     v_Nominal2 = make_variable_interface(left_frame, 'Leg2 Nominal Amount', bold = True, textfont = 11, defaultflag = True, defaultvalue=10000/1400)
     v_PriceDate = make_variable_interface(left_frame, 'PriceDate', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = int(YYYYMMDD))
 
-    v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20160929)
-    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=20460929)
+    v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=(YYYY-1) * 10000 + 929)
+    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=(YYYY+19) * 10000 + 929)
     v_SwapMaturityToPayDate = make_variable_interface(left_frame, '기말일TO지급일까지\n영업일수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 2)
     vb_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["0","1","2","4","6"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=3)
     vb_FixedPayer = make_listvariable_interface(left_frame, 'Fixed PayerFlag', ["0: Leg1 수취 \nLeg2 지급","1: Leg1 지급 \nLeg2 수취"], listheight = 2, textfont = 11, defaultflag = True, defaultvalue=0, width = 20)
@@ -10620,7 +10634,8 @@ while True :
 # %%
 
 # %%
-Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1 = 0, Call0Put1 = 0, PriceDate = 20240627, AverageStartDate = 20240601, AverageEndDate = 20240927, OptionMaturityDate = 20240927, S = 100, K = 95, PrevAverage = 98, DiscTerm = [1, 2, 3], DiscRate = [0.03, 0.03, 0.03], DivTerm = [1], DivRate = [0.02], QuantoCorr = 0, FXVolTerm = [1], FXVol = [0], VolTerm = [0], VolParity = [0], Vols2D = 0.3, DivTypeFlag = 0, Holidays = KoreaHolidaysFromStartToEnd(2020,2040))
+#Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1 = 0, Call0Put1 = 0, PriceDate = 20240627, AverageStartDate = 20240601, AverageEndDate = 20240927, OptionMaturityDate = 20240927, S = 100, K = 95, PrevAverage = 98, DiscTerm = [1, 2, 3], DiscRate = [0.03, 0.03, 0.03], DivTerm = [1], DivRate = [0.02], QuantoCorr = 0, FXVolTerm = [1], FXVol = [0], VolTerm = [0], VolParity = [0], Vols2D = 0.3, DivTypeFlag = 0, Holidays = KoreaHolidaysFromStartToEnd(2020,2040))
+
 # %%
 
 # %%
