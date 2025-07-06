@@ -291,7 +291,8 @@ double V_t_T(
     double vol2
 )
 {
-    return vol * vol2 / (kappa * kappa2) * (T - t + (exp(-kappa * (T - t)) - 1.0) / kappa + (exp(-kappa2 * (T - t)) - 1.0) / kappa2 - (exp(-(kappa + kappa2) * (T - t)) - 1.0) / (kappa + kappa2));
+    return vol * vol2 / (kappa * kappa2) * (T - t + (exp(-kappa * (T - t)) - 1.0) /
+        kappa + (exp(-kappa2 * (T - t)) - 1.0) / kappa2 - (exp(-(kappa + kappa2) * (T - t)) - 1.0) / (kappa + kappa2));
 }
 
 double V_t_T(double k1, double k2, double t, double T,
@@ -332,8 +333,8 @@ double HullWhiteQVTerm(
     {
         vol = Interpolate_Linear(HWVolTerm, HWVol, NHWVol, (t+T)/2.);
         V_1 = V_t_T(kappa, kappa, t, T, vol, vol);
-        V_2 = V_t_T(kappa, kappa, 0, T, vol, vol);
-        V_3 = V_t_T(kappa, kappa, 0, t, vol, vol);
+        //V_2 = V_t_T(kappa, kappa, 0, T, vol, vol);
+        //V_3 = V_t_T(kappa, kappa, 0, t, vol, vol);
         RHS = 0.5 * (V_1);
     }
     else

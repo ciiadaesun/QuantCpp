@@ -5120,7 +5120,7 @@ def HullWhiteCalibrationProgram(CurveDirectory, PriceDate, CurveTerm, CurveRate,
     Currency = CurveDirectory.split("\\")[-2]
     Holidays = list(HolidayDate[Currency].dropna().unique())
     Data = MarketDataFileListPrint(currdir + '\\MarketData\\outputdata', namein = 'vol').sort_values(by = "YYYYMMDD")[-50:]
-    Data = Data[Data['DirectoryPrint'].apply(lambda x : ('EQ' in str(x).upper() and 'VOL' in str(x).upper()) == False)] #Out EQ Vol 
+    Data = Data[Data['DirectoryPrint'].apply(lambda x : ('KOSPI' in str(x).upper() or ('EQ' in str(x).upper() and 'VOL' in str(x).upper()) == False))] #Out EQ Vol 
     GroupbyYYYYMMDD = Data[Data["YYYYMMDD"] == str(PriceDate)]
     GroupbyYYYYMMDD["Currency"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split("\\")[-2])
     GroupbyYYYYMMDD["ListName"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split(".")[0] + '. ' + x.split("\\")[-1].replace(".csv",""))            
@@ -5237,6 +5237,7 @@ def HullWhiteCalibrationProgram(CurveDirectory, PriceDate, CurveTerm, CurveRate,
         ResultHW.columns = ["HWTerm","HWVol"]
         ResultHW = ResultHW.sort_values(by = "HWTerm")
         ResultHW["HWKappa"] = MyDict["kappa"]
+        CalcResult["kappa"] = MyDict["kappa"]
         CalcResult["HWTerm"] = ResultHW["HWTerm"].round(8)
         CalcResult["HWVol"] = ResultHW["HWVol"].round(8)
         A = pd.Series(MyDict["SwapStartDate"], name = "SwapStartDate")
@@ -5302,6 +5303,10 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
     CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
     CalibrationResult = HullWhiteCalibrationProgram(Name[0], int(YYYYMMDD), CurveTerm1, CurveRate1, HolidayData)
     CalibrationFlag = CalibrationResult['CalibrationFlag']
+    defaultkappa = 0.01
+    if CalibrationFlag == True : 
+        defaultkappa = CalibrationResult['kappa']
+
     YYYY = int(YYYYMMDD) // 10000
     root = tk.Tk()
     root.title("Callable Swap Pricer(Single Phase)")
@@ -5347,7 +5352,7 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
     rightright_frame = tk.Frame(root)
     rightright_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
     vb_zerocurve = make_listvariable_interface(rightright_frame, 'ZeroCurve(자동Load)', termratestr(CurveTerm1, CurveRate1), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
-    v_hwkappa = make_variable_interface(rightright_frame, 'HullWhite Kappa', bold = False, textfont = 11, titleName = "\nHull White Params", titlelable = True, defaultflag = True, defaultvalue = 0.01)
+    v_hwkappa = make_variable_interface(rightright_frame, 'HullWhite Kappa', bold = False, textfont = 11, titleName = "\nHull White Params", titlelable = True, defaultflag = True, defaultvalue = defaultkappa)
     defaulthwterm = "0.25, 0.5, 1" if CalibrationFlag == False else str(list(CalibrationResult["HWTerm"].round(5))).replace("[","").replace("]","")
     defaulthwvol = "0.87, 0.98, 0.89" if CalibrationFlag == False else str(list(CalibrationResult["HWVol"])).replace("[","").replace("]","")
     v_hwvolterm = make_variable_interface(rightright_frame, 'HullWhite Vol Tenor\n[0.25, 0.5, 1.0, ...] 등의\n포멧으로 입력', bold = False, textfont = 11, defaultflag = True, defaultvalue = defaulthwterm)
