@@ -2440,16 +2440,16 @@ def calc_y2(S, H, sigma, T, mu):
     return np.log(H / S) / (sigma * np.sqrt(T)) + (1.0 + mu) * sigma * np.sqrt(T)
 
 def calc_A(phi, S, b, T, x1, X, r, sigma):
-    return phi * S * np.exp(-(b - r) * T) * CDF_N(phi * x1) - phi * X * np.exp(-r * T) * CDF_N(phi * x1 - phi * sigma * np.sqrt(T))
+    return phi * S * np.exp((b - r) * T) * CDF_N(phi * x1) - phi * X * np.exp(-r * T) * CDF_N(phi * x1 - phi * sigma * np.sqrt(T))
 
 def calc_B(phi, S, b, T, x2, K, r, sigma):
-    return phi * S * np.exp(-(b - r) * T) * CDF_N(phi * x2) - phi * K * np.exp(-r * T) * CDF_N(phi * x2 - phi * sigma * np.sqrt(T))
+    return phi * S * np.exp((b - r) * T) * CDF_N(phi * x2) - phi * K * np.exp(-r * T) * CDF_N(phi * x2 - phi * sigma * np.sqrt(T))
 
 def calc_C(phi, S, b, T, H, mu, n, y1, K, r, sigma):
-    return phi * S * np.exp(-(b - r) * T) * (H / S) ** (2 * (mu + 1.0)) * CDF_N(n * y1) - phi * K * np.exp(-r * T) * (H / S) ** (2 * mu) * CDF_N(n * y1 - n * sigma * np.sqrt(T))
+    return phi * S * np.exp((b - r) * T) * (H / S) ** (2 * (mu + 1.0)) * CDF_N(n * y1) - phi * K * np.exp(-r * T) * (H / S) ** (2 * mu) * CDF_N(n * y1 - n * sigma * np.sqrt(T))
 
 def calc_D(phi, S, b, T, H, mu, n, y2, K, r, sigma):
-    return phi * S * np.exp(-(b - r) * T) * (H / S) ** (2 * (mu + 1.0)) * CDF_N(n * y2) - phi * K * np.exp(-r * T) * (H / S) ** (2 * mu) * CDF_N(n * y2 - n * sigma * np.sqrt(T))
+    return phi * S * np.exp((b - r) * T) * (H / S) ** (2 * (mu + 1.0)) * CDF_N(n * y2) - phi * K * np.exp(-r * T) * (H / S) ** (2 * mu) * CDF_N(n * y2 - n * sigma * np.sqrt(T))
 
 def calc_E(Reb, r, T, n, x2, sigma, H, S, mu, y2):
     return Reb * np.exp(-r * T) * (CDF_N(n * x2 - n * sigma * np.sqrt(T)) - (H / S) ** (2.0 * mu) * CDF_N(n * y2 - n * np.sqrt(T)))
@@ -10640,6 +10640,82 @@ while True :
 
 # %%
 #Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1 = 0, Call0Put1 = 0, PriceDate = 20240627, AverageStartDate = 20240601, AverageEndDate = 20240927, OptionMaturityDate = 20240927, S = 100, K = 95, PrevAverage = 98, DiscTerm = [1, 2, 3], DiscRate = [0.03, 0.03, 0.03], DivTerm = [1], DivRate = [0.02], QuantoCorr = 0, FXVolTerm = [1], FXVol = [0], VolTerm = [0], VolParity = [0], Vols2D = 0.3, DivTypeFlag = 0, Holidays = KoreaHolidaysFromStartToEnd(2020,2040))
+
+
+# %%
+#kappa = 0.01
+#swaptionvol = 0.01
+#PriceDate = 20240625
+#SwapStart = 20240627
+#SwapMat = 20340627
+#NumCpnOneYear = 4
+#DayCountFlag = 0
+#Holidays = KoreaHolidaysFromStartToEnd(SwapStart//10000, SwapMat//10000)
+#ZeroTerm = [1, 2, 3]
+#ZeroRate = [0.034, 0.035, 0.036]
+#ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD = MappingCouponDates(1,SwapStart,SwapMat,0,NumCpnOneYear,1,Holidays,Holidays,1)
+def Calc_dSdx(t, PriceDate, SwapStart, ResultForwardEnd, ZeroTerm, ZeroRate, DayCountFlag, kappa) : 
+    T0 = DayCountAtoB(PriceDate, SwapStart)/365
+    T_i = np.vectorize(DayCountAtoB)([PriceDate], ResultForwardEnd)/365
+    T = np.r_[[T0],T_i]
+    FwdDscFunc = np.vectorize(lambda Time : Calc_ForwardDiscount_Factor(ZeroTerm, ZeroRate, t, Time))
+    DF = FwdDscFunc(T)
+    DateList = np.r_[[SwapStart],ResultForwardEnd]
+    Deltat = np.vectorize(DayCountFractionAtoB)(DateList[:-1],DateList[1:], [DayCountFlag])
+    Annuity = DF[1:] * Deltat
+    ForwardSwapRate = (DF[0] - DF[-1])/(Annuity.sum())
+    BtT = np.vectorize(lambda t1, t2: B_s_to_t(t1, t2, kappa))([t],T)
+    dSdx = -1/(Annuity.sum()) * (DF[0] * BtT[0] - DF[-1] * BtT[-1]) + ForwardSwapRate / (Annuity.sum()) * (Annuity * BtT[1:]).sum()
+    return dSdx
+
+def Calc_SwaptionNormalVolatilityAnalytic(kappa, swaptionvol, PriceDate, SwapStart, SwapMat, ZeroTerm, ZeroRate, NumCpnOneYear = 4, DayCountFlag = 0, Holidays = []) : 
+    ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD = MappingCouponDates(1,SwapStart,SwapMat,0,NumCpnOneYear,1,Holidays,Holidays,1)
+    t = 0
+    f = np.vectorize(lambda t : Calc_dSdx(t, PriceDate, SwapStart, ResultForwardEnd, ZeroTerm, ZeroRate, DayCountFlag, kappa))
+    tstart = DayCountAtoB(PriceDate, SwapStart)/365
+    tarray = np.linspace(0, tstart, 10)
+    dtarray = tarray[1:] - tarray[:-1]
+    dSdXArray = f(tarray[1:]) 
+    normalv = np.sqrt(1/tstart * (dSdXArray * dSdXArray * swaptionvol * swaptionvol * dtarray).sum())
+    return normalv
+
+def ErrorVolatilityRatio(kappa, PriceDate, SwapStartArray, SwapMaturity1Array, SwapMaturity2Array, SwaptionVol1Array, SwaptionVol2Array, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, KoreanHolidayFlag = True, AddHolidays = []) : 
+    if KoreanHolidayFlag == True : 
+        Holidays = KoreaHolidaysFromStartToEnd(SwapStartArray[0]//10000, SwapMaturity2Array[-1]//10000)
+    else : 
+        Holidays = AddHolidays
+    f = np.vectorize(lambda k, Start, Mat, v: Calc_SwaptionNormalVolatilityAnalytic(k, v, PriceDate, Start, Mat, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, Holidays))
+    v1model = f([kappa], SwapStartArray, SwapMaturity1Array, SwaptionVol1Array)
+    v2model = f([kappa], SwapStartArray, SwapMaturity2Array, SwaptionVol2Array)
+    VRatioModel = v2model/v1model
+    vRatioMarket = np.array(SwaptionVol2Array)/np.array(SwaptionVol1Array)
+    ErrSquare = ((VRatioModel - vRatioMarket)**2).sum()
+    return np.maximum(0.00001,np.minimum(1000000000,ErrSquare))
+
+def CalibrationKappaFromSwapRatio(PriceDate, SwapStartArray, SwapMaturity1Array, SwapMaturity2Array, SwaptionVol1Array, SwaptionVol2Array, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, KoreanHolidayFlag = False, AddHolidays = []) : 
+    if KoreanHolidayFlag == True : 
+        Holidays = KoreaHolidaysFromStartToEnd(SwapStartArray[0]//10000, SwapMaturity2Array[-1]//10000)
+    else : 
+        Holidays = AddHolidays
+    kappamin = -0.05
+    kappamax = 0.15
+    kappas = np.linspace(kappamin, kappamax, 41)
+    f = np.vectorize(lambda k : ErrorVolatilityRatio(k, PriceDate, SwapStartArray, SwapMaturity1Array, SwapMaturity2Array, SwaptionVol1Array, SwaptionVol2Array, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, KoreanHolidayFlag = False, AddHolidays = Holidays))
+    errs = f(kappas)
+    kappamin = kappas[errs.argmin()] - 0.02
+    kappamax = kappas[errs.argmin()] + 0.02
+    kappas = np.linspace(kappamin, kappamax, 21)
+    errs = f(kappas)
+    calibratedkappa = kappas[errs.argmin()]
+    f = np.vectorize(lambda k, Start, Mat, v: Calc_SwaptionNormalVolatilityAnalytic(k, v, PriceDate, Start, Mat, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, Holidays))
+    v1model = f([calibratedkappa], SwapStartArray, SwapMaturity1Array, SwaptionVol1Array)
+    v2model = f([calibratedkappa], SwapStartArray, SwapMaturity2Array, SwaptionVol2Array)
+    VRatioModel = v2model/v1model
+    vRatioMarket = np.array(SwaptionVol2Array)/np.array(SwaptionVol1Array)
+    ErrSquare = ((VRatioModel - vRatioMarket)**2).sum()    
+    return {'kappa':calibratedkappa, 'v1model':v1model, 'v2model':v2model, 'VRatioModel':VRatioModel,'vRatioMarket':vRatioMarket, 'ErrSquare':ErrSquare}
+
+CalibrationKappaFromSwapRatio(20240625, [20250627, 20300627], [20300627, 20350627], [20350627, 20400627], [0.01, 0.01], [0.0095, 0.0095], [1, 2, 3], [0.034, 0.035, 0.036], 4, 0, KoreanHolidayFlag = False, AddHolidays = [])
 
 # %%
 

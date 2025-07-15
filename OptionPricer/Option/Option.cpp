@@ -203,22 +203,22 @@ double CalcY2(double S, double H, double Sigma, double T, double Mu)
 
 double CalcA(double phi, double S, double b, double T, double x1, double X, double r, double Sigma)
 {
-	return phi * S * exp(-(b-r) * T) * CDF_N(phi * x1) - phi * X * exp(-r * T) * CDF_N(phi * x1 - phi * Sigma * sqrt(T));
+	return phi * S * exp((b-r) * T) * CDF_N(phi * x1) - phi * X * exp(-r * T) * CDF_N(phi * x1 - phi * Sigma * sqrt(T));
 }
 
 double CalcB(double phi, double S, double b, double T, double x2, double K, double r, double Sigma)
 {
-	return phi * S * exp(-(b-r) * T) * CDF_N(phi * x2) - phi * K * exp(-r * T) * CDF_N(phi * x2 - phi * Sigma * sqrt(T));
+	return phi * S * exp((b-r) * T) * CDF_N(phi * x2) - phi * K * exp(-r * T) * CDF_N(phi * x2 - phi * Sigma * sqrt(T));
 }
 
 double CalcC(double phi, double S, double b, double T, double H, double mu, double n, double y1, double K, double r, double Sigma)
 {
-	return phi * S * exp(-(b-r) * T) * pow(H / S, 2 * (mu + 1.0)) * CDF_N(n * y1) - phi * K * exp(-r * T) * pow(H / S, 2.0 * mu) * CDF_N(n * y1 - n * Sigma * sqrt(T));
+	return phi * S * exp((b-r) * T) * pow(H / S, 2 * (mu + 1.0)) * CDF_N(n * y1) - phi * K * exp(-r * T) * pow(H / S, 2.0 * mu) * CDF_N(n * y1 - n * Sigma * sqrt(T));
 }
 
 double CalcD(double phi, double S, double b, double T, double H, double mu, double n, double y2, double K, double r, double Sigma)
 {
-	return phi * S * exp(-(b-r) * T) * pow(H / S, 2 * (mu + 1.0)) * CDF_N(n * y2) - phi * K * exp(-r * T) * pow(H / S, 2.0 * mu) * CDF_N(n * y2 - n * Sigma * sqrt(T));
+	return phi * S * exp((b-r) * T) * pow(H / S, 2 * (mu + 1.0)) * CDF_N(n * y2) - phi * K * exp(-r * T) * pow(H / S, 2.0 * mu) * CDF_N(n * y2 - n * Sigma * sqrt(T));
 }
 
 double CalcE(double Reb, double r, double T, double n, double x2, double Sigma, double H, double S, double mu, double y2)
