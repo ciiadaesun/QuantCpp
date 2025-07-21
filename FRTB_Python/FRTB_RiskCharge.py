@@ -3381,31 +3381,12 @@ def FindSwaptionImpliedVolatility(PriceDate, SwapStartDate, SwapEndDate, NCpnAnn
         raise ValueError("Check The Price")
     return {"ImpliedVol" : TargetVol, "ForwardSwapRate" : StrikePrice}
         
-
-Nominal = 10000
-NominalFlag = 0
-FloatFlag = 2
-FirstFloatFixRate = 0.034        
-EffectiveDateYYYYMMDD = 20160929
-PriceDateYYYYMMDD = 20250304
-MaturityYYYYMMDD = 20460929
-CpnRate = 0
-ZeroCurveTerm = [1, 2, 3, 4, 5]
-ZeroCurveRate = [0.034, 0.035, 0.036, 0.037, 0.038]
-NumCpnOneYear = 4
-DayCountFlag = 0
-KoreanHoliday = True
-MaturityToPayDate = 2
-EstZeroCurveTerm = ZeroCurveTerm
-EstZeroCurveRate = ZeroCurveRate
-LookBackDays = 2
-AdditionalPayHolidayList = []
 def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
               PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroCurveRate, 
               NumCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [],
               EstZeroCurveRate = [], FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
               LoggingFlag = 0, LoggingDir = '', ModifiedFollow = 1, OverNightRateDateHistory = [], OverNightRateHistory = [], 
-              LookBackDays = 0, ObservShift = False, DiscCurveName = "", EstCurveName = "", CMSFlag = 0, RefSwapMaturity_T = 0.25, RefSwapNCPNAnn = 4, TermVol = [], Vol = []) :
+              LookBackDays = 0, ObservShift = False, DiscCurveName = "", EstCurveName = "", CMSFlag = 0, RefSwapMaturity_T = 0.25, RefSwapNCPNAnn = 4, TermVol = [], Vol = [], YTMPricing = False) :
     
     LoggingStart = []
     LoggingEnd = []
@@ -3421,10 +3402,10 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
     LoggingDF = []
     rawcpn = 0
     BondFlag = 0 
-    if DayCountFlag >= 6 : 
+    if DayCountFlag >= 5 : 
         BondFlag = 1
         DayCountFlag = DayCountFlag - 5
-
+        
     ModifiedFollow = 1
     PriceDateYYYY, MaturityYYYY = int(PriceDateYYYYMMDD // 10000), int(MaturityYYYYMMDD // 10000)
     if len(AdditionalPayHolidayList) == 0 : 
@@ -3444,6 +3425,28 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
             Generated_CpnDate, firstcpndate = malloc_cpn_date_holiday(EffectiveDateYYYYMMDD, MaturityYYYYMMDD, NumCpnOneYear, FixingHolidayYYYYMMDD, ModifiedFollow)
         else : 
             Generated_Fixing, Generated_CpnDate, Generated_Pay, NBD = MappingCouponDates(1,EffectiveDateYYYYMMDD,MaturityYYYYMMDD,0,NumCpnOneYear,1,FixingHolidayYYYYMMDD,HolidayYYYYMMDD,1)
+
+    AccruedT, AI = 0, 0
+    BondCompStart = EffectiveDateYYYYMMDD
+    if PriceDateYYYYMMDD == EffectiveDateYYYYMMDD or PriceDateYYYYMMDD in Generated_CpnDate : 
+        AccruedT = 0
+    else : 
+        if BondFlag == 1 : 
+            if PriceDateYYYYMMDD > EffectiveDateYYYYMMDD and PriceDateYYYYMMDD < Generated_CpnDate[0] : 
+                AccruedT = DayCountAtoB(BondCompStart, PriceDateYYYYMMDD)/DayCountAtoB(BondCompStart, Generated_CpnDate[0])/NumCpnOneYear
+                AI = AccruedT * CpnRate * Nominal
+            else : 
+                for i in range(len(Generated_CpnDate) - 1) : 
+                    if PriceDateYYYYMMDD >= Generated_CpnDate[i] and PriceDateYYYYMMDD < Generated_CpnDate[i+1] : 
+                        BondCompStart = Generated_CpnDate[i]
+                        AccruedT = DayCountAtoB(BondCompStart, PriceDateYYYYMMDD)/DayCountAtoB(BondCompStart, Generated_CpnDate[i+1])/NumCpnOneYear
+                        AI = AccruedT * CpnRate * Nominal
+                        break
+    YTMRate = 0
+    if YTMPricing == True :     
+        t = DayCountAtoB(PriceDateYYYYMMDD, MaturityYYYYMMDD)/365
+        YTMRate = np.interp(t, ZeroCurveTerm, ZeroCurveRate)
+
     BDate = []  
     DayCountBDate = []
     if FloatFlag == 2 : 
@@ -3537,50 +3540,52 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
                     f = 1.0 / deltat * (np.exp(-r1 * tstart)/np.exp(-r2 * tend) - 1.0)                    
             
         r = Linterp(ZeroCurveTerm, ZeroCurveRate, tpay)
+        DF = np.exp(-r * tpay)
         if tpay > 0 : 
-            if DayCountFlag != 3 : 
+            if DayCountFlag != 3 and BondFlag == 0 : 
                 rawcpn = (f * (FloatFlag > 0) + CpnRate) * Nominal * deltat
-                cpn = rawcpn * np.exp(-r * tpay)
+                cpn = rawcpn * DF
             elif BondFlag == 0 : 
                 if (NumCpnOneYear == 1) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * Nominal
-                    cpn = rawcpn * np.exp(-r * tpay) 
+                    cpn = rawcpn * DF 
                 elif (NumCpnOneYear == 2) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * 0.5 * Nominal
-                    cpn = rawcpn * np.exp(-r * tpay) 
+                    cpn = rawcpn * DF 
                 elif (NumCpnOneYear == 3) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * 0.3333333333 * Nominal
-                    cpn = rawcpn * np.exp(-r * tpay) 
+                    cpn = rawcpn * DF 
                 elif (NumCpnOneYear == 4) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * 0.25 * Nominal
-                    cpn = rawcpn * np.exp(-r * tpay) 
+                    cpn = rawcpn * DF 
                 elif (NumCpnOneYear == 6) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * 0.166666666667 * Nominal
-                    cpn = rawcpn * np.exp(-r * tpay) 
+                    cpn = rawcpn * DF 
                 elif (NumCpnOneYear == 12) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * 0.083333333333 * Nominal
-                    cpn = rawcpn * np.exp(-r * tpay) 
+                    cpn = rawcpn * DF 
                 else : 
                     raise ValueError("Check AnnCpnNum")
             else : 
+                DF = 1/((1.0+YTMRate/NumCpnOneYear)**(NumCpnOneYear * DayCountFractionAtoB(BondCompStart, YYYYMMDDofNextDate,DayCountFlag) - AccruedT ))
                 if (NumCpnOneYear == 1) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * Nominal
-                    cpn = rawcpn /((1.0+r/NumCpnOneYear)**(NumCpnOneYear * DayCountFractionAtoB(PriceDateYYYY, YYYYMMDDofNextDate,DayCountFlag)))
+                    cpn = rawcpn * DF
                 elif (NumCpnOneYear == 2) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * 0.5 * Nominal
-                    cpn = rawcpn /((1.0+r/NumCpnOneYear)**(NumCpnOneYear * DayCountFractionAtoB(PriceDateYYYY, YYYYMMDDofNextDate,DayCountFlag)))
+                    cpn = rawcpn * DF
                 elif (NumCpnOneYear == 3) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * 0.3333333333 * Nominal
-                    cpn = rawcpn /((1.0+r/NumCpnOneYear)**(NumCpnOneYear * DayCountFractionAtoB(PriceDateYYYY, YYYYMMDDofNextDate,DayCountFlag)))
+                    cpn = rawcpn * DF
                 elif (NumCpnOneYear == 4) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * 0.25 * Nominal
-                    cpn = rawcpn /((1.0+r/NumCpnOneYear)**(NumCpnOneYear * DayCountFractionAtoB(PriceDateYYYY, YYYYMMDDofNextDate,DayCountFlag)))
+                    cpn = rawcpn * DF
                 elif (NumCpnOneYear == 6) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * 0.166666666667 * Nominal
-                    cpn = rawcpn /((1.0+r/NumCpnOneYear)**(NumCpnOneYear * DayCountFractionAtoB(PriceDateYYYY, YYYYMMDDofNextDate,DayCountFlag)))
+                    cpn = rawcpn * DF
                 elif (NumCpnOneYear == 12) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * 0.083333333333 * Nominal
-                    cpn = rawcpn /((1.0+r/NumCpnOneYear)**(NumCpnOneYear * DayCountFractionAtoB(PriceDateYYYY, YYYYMMDDofNextDate,DayCountFlag)))
+                    cpn = rawcpn * DF
                 else : 
                     raise ValueError("Check AnnCpnNum")                
         else : 
@@ -3601,7 +3606,7 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
                 LoggingCpnFix.append(CpnRate)
                 LoggingCpnRate.append(cpn)
                 LoggingRawCpn.append(rawcpn)
-                LoggingDF.append(np.exp(-r * tpay))
+                LoggingDF.append(DF)                    
             else : 
                 LoggingForwardRate.append(0)
                 LoggingCpnFix.append(0)
@@ -3613,7 +3618,7 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
         if NominalDateIsNominalPayDate == True : 
             tpay = DayCountAtoB(PriceDateYYYYMMDD, Generated_CpnDate[-1])/365
             r = Linterp(ZeroCurveTerm, ZeroCurveRate, tpay)
-        s += Nominal * np.exp(-r * tpay)
+        s += Nominal * DF
         if (LoggingFlag > 0) : 
             LoggingAdj.append(0)
             LoggingStart.append(EffectiveDateYYYYMMDD)
@@ -3624,16 +3629,18 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
             LoggingFraction.append(tpay)
             LoggingForwardRate.append(r)
             LoggingCpnFix.append(CpnRate)
-            LoggingCpnRate.append(Nominal* np.exp(-r * tpay))
+            LoggingCpnRate.append(Nominal* DF)
             LoggingRawCpn.append(Nominal)
-            LoggingDF.append(np.exp(-r * tpay))             
+            LoggingDF.append(DF)             
     
     if LoggingFlag == 1 : 
         LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingEstStart,LoggingEstEnd,LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingAdj, LoggingCpnFix, LoggingCpnRate, LoggingRawCpn, LoggingDF], index = ["Start","End","EstStart","EstEnd","Pay","Frac","ForwardRate","ConvAdj","CpnFixed","Cpn","RawCpn","DF"]).T               
         if (len(DiscCurveName) > 0) : 
             LoggingDF["DiscCurve"] = DiscCurveName
             LoggingDF["EstCurve"] = DiscCurveName if len(EstZeroCurveTerm) == 0 else EstCurveName
-        
+        LoggingDF["AccruedT"] = AccruedT
+        LoggingDF["AI"] = AI
+            
         LoggingDF["Price"] = s
         LoggingDF.to_csv(LoggingDir + "\\LoggingFilesBond.csv", index = False, encoding = "cp949")
     elif LoggingFlag == 2 : 
@@ -3644,6 +3651,8 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
         if (len(DiscCurveName) > 0) : 
             LoggingDF["DiscCurve"] = DiscCurveName
             LoggingDF["EstCurve"] = DiscCurveName if len(EstZeroCurveTerm) == 0 else EstCurveName
+        LoggingDF["AccruedT"] = AccruedT
+        LoggingDF["AI"] = AI
 
         LoggingDF["Price"] = s
         ColList2 = ["Leg2_" + str(s) for s in LoggingDF.columns]
@@ -3657,14 +3666,14 @@ def Calc_Bond_PV01(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, Effective
                     NumCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [],
                     EstZeroCurveRate = [], FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
                     LoggingFlag = 0, LoggingDir = '', ModifiedFollow = 1, OverNightRateDateHistory = [], OverNightRateHistory = [], 
-                    LookBackDays = 0, ObservShift = False, DiscCurveName= "", EstCurveName = "") :
+                    LookBackDays = 0, ObservShift = False, DiscCurveName= "", EstCurveName = "", YTMPricing = False) :
     MaturityToPayDate = max(0, MaturityToPayDate)    
     Preprocessing_ZeroTermAndRate(ZeroCurveTerm, ZeroCurveRate, int(PriceDateYYYYMMDD))
     P = Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
             PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroCurveRate, 
             NumCpnOneYear, DayCountFlag, KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm ,
             EstZeroCurveRate , FixingHolidayList , AdditionalPayHolidayList , NominalDateIsNominalPayDate ,
-            LoggingFlag, LoggingDir, ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift, DiscCurveName, EstCurveName)
+            LoggingFlag, LoggingDir, ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift, DiscCurveName, EstCurveName, YTMPricing = YTMPricing)
 
     ResultArray = np.zeros(len(ZeroCurveRate))
     for i in range(len(ZeroCurveTerm)) : 
@@ -3674,7 +3683,7 @@ def Calc_Bond_PV01(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, Effective
                 PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroUp, 
                 NumCpnOneYear, DayCountFlag, KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm ,
                 EstZeroCurveRate , FixingHolidayList , AdditionalPayHolidayList , NominalDateIsNominalPayDate ,
-                0, '', ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift )
+                0, '', ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift , YTMPricing = YTMPricing)
 
         ResultArray[i] = Pu - P
         
@@ -3688,7 +3697,7 @@ def Calc_Bond_PV01(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, Effective
                     PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroCurveRate, 
                     NumCpnOneYear, DayCountFlag, KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm ,
                     ZeroUp , FixingHolidayList , AdditionalPayHolidayList , NominalDateIsNominalPayDate ,
-                    0, '', ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift )
+                    0, '', ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift , YTMPricing = YTMPricing)
             ResultArray2[i] = Pu - P
 
         df2 = pd.Series(ResultArray, index = ZeroCurveTerm).reset_index()
@@ -9225,7 +9234,7 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
     v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=(YYYY+19) * 10000 + 929)
     vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["1","2","4","6"], titlelable = True, titleName = "Leg1 Information", listheight = 4, textfont = 11, defaultflag = True, defaultvalue=2)
     v_SwapMaturityToPayDate = make_variable_interface(left_frame, '기말일TO지급일까지영업일수', bold = False, textfont = 11, defaultflag = True, defaultvalue = 2)
-    v_L1_FixedCpnRate_P1 = make_variable_interface(left_frame, 'Leg1 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.69)
+    v_L1_FixedCpnRate_P1 = make_variable_interface(left_frame, 'Leg1 고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =2.79)
     v_FloatFlag = make_variable_interface(left_frame, '변동금리채여부(0 or 1)', bold = False, textfont = 11, defaultflag = True, defaultvalue = 0)
     vb_L1_DayCount = make_listvariable_interface(left_frame, 'Leg1 DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360"], listheight = 3, textfont = 11)
 
@@ -9234,6 +9243,7 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
     v_PriceDate = make_variable_interface(center_frame, 'PriceDate', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = int(YYYYMMDD))
     v_L1FirstFixing = make_variable_interface(center_frame, 'Leg1)최근Fixing금리(%)\n(Fixing이후 평가시 입력)', bold = False, textfont = 11)
     vb_zerocurve = make_listvariable_interface(center_frame, 'ZeroCurve(자동Load)', termratestr(CurveTerm, CurveRate), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
+    v_YTMRate = make_variable_interface(center_frame, 'YTM금리(%)\n(YTM평가시 입력)', bold = False, textfont = 11)
 
     Result_frame = tk.Frame(root)
     Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
@@ -9275,15 +9285,18 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
         BookFlag = int(str(vb_Book.get(vb_Book.curselection())).split(":")[0]) if vb_Book.curselection() else 0
         Bucket= int(str(vb_CSRBucket.get(vb_CSRBucket.curselection())).split(":")[0]) if vb_CSRBucket.curselection() else 1
         L1FirstFixing = float(v_L1FirstFixing.get())/100 if str(v_L1FirstFixing.get()) else 0.0
+        YTMRate = float(v_YTMRate.get())/100 if str(v_YTMRate.get()) else 0.0
+        YTMFlag = YTMRate > 0
+        T = DayCountFractionAtoB(int(PriceDate),SwapMaturity, L1_DayCount)
         ErrorFlag, ErrorString = Calc_Schedule_ErrorCheck(Nominal, SwapEffectiveDate, int(PriceDate), SwapMaturity, CurveTerm, 
                               CurveRate, L1_NumCpnOneYear_P1, L1_DayCount)
         
         if ErrorFlag == 0 : 
             Value, PV01, TempPV01 = Calc_Bond_PV01(Nominal, 1, FloatFlag, L1FirstFixing, SwapEffectiveDate, 
-                    int(PriceDate), SwapMaturity, L1_FixedCpnRate_P1, CurveTerm, CurveRate, 
-                    L1_NumCpnOneYear_P1, L1_DayCount, KoreanHoliday = False, MaturityToPayDate = SwapMaturityToPayDate, EstZeroCurveTerm = [],
+                    int(PriceDate), SwapMaturity, L1_FixedCpnRate_P1, CurveTerm if YTMFlag == 0 else [T], CurveRate if YTMFlag == 0 else [YTMRate], 
+                    L1_NumCpnOneYear_P1, L1_DayCount+5, KoreanHoliday = False, MaturityToPayDate = SwapMaturityToPayDate, EstZeroCurveTerm = [],
                     EstZeroCurveRate = [], FixingHolidayList = HolidaysForSwap, AdditionalPayHolidayList  = HolidaysForSwap, NominalDateIsNominalPayDate = False,
-                    LoggingFlag = LoggingFlag, LoggingDir = currdir, ModifiedFollow = 1, DiscCurveName = UsedCurveName)         
+                    LoggingFlag = LoggingFlag, LoggingDir = currdir, ModifiedFollow = 1, DiscCurveName = UsedCurveName, YTMPricing=YTMFlag)         
             GIRRRisk = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 2 if Value > 10000 else 4)
             CSRRisk, BKT = Calc_CSRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01", Bucket)
             CSRRisk = np.round(CSRRisk, 2 if Value > 10000 else 4)
@@ -10670,7 +10683,6 @@ def Calc_dSdx(t, PriceDate, SwapStart, ResultForwardEnd, ZeroTerm, ZeroRate, Day
 
 def Calc_SwaptionNormalVolatilityAnalytic(kappa, swaptionvol, PriceDate, SwapStart, SwapMat, ZeroTerm, ZeroRate, NumCpnOneYear = 4, DayCountFlag = 0, Holidays = []) : 
     ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD = MappingCouponDates(1,SwapStart,SwapMat,0,NumCpnOneYear,1,Holidays,Holidays,1)
-    t = 0
     f = np.vectorize(lambda t : Calc_dSdx(t, PriceDate, SwapStart, ResultForwardEnd, ZeroTerm, ZeroRate, DayCountFlag, kappa))
     tstart = DayCountAtoB(PriceDate, SwapStart)/365
     tarray = np.linspace(0, tstart, 10)
