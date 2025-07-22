@@ -8508,7 +8508,7 @@ def ViewFRTB(Data) :
     PrevTreeFlag = insert_dataframe_to_treeview(tree, DataDF, width = 100)
     root.mainloop()    
 
-def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation","5: Cap Floor Implied Vol Calibration"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = []) : 
+def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation","5: Cap Floor Implied Vol Calibration",'6: HW Kappa1F Calibration'], size = "800x450+30+30", splitby = ":", listheight = 7, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = []) : 
     root = tk.Tk()
     root.title(Title)
     root.geometry(size)
@@ -10307,6 +10307,189 @@ def PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayFile) :
     root.mainloop()    
     return 1    
     
+def Calc_dSdx(t, PriceDate, SwapStart, ResultForwardEnd, ZeroTerm, ZeroRate, DayCountFlag, kappa) : 
+    T0 = DayCountAtoB(PriceDate, SwapStart)/365
+    T_i = np.vectorize(DayCountAtoB)([PriceDate], ResultForwardEnd)/365
+    T = np.r_[[T0],T_i]
+    FwdDscFunc = np.vectorize(lambda Time : Calc_ForwardDiscount_Factor(ZeroTerm, ZeroRate, t, Time))
+    DF = FwdDscFunc(T)
+    DateList = np.r_[[SwapStart],ResultForwardEnd]
+    Deltat = np.vectorize(DayCountFractionAtoB)(DateList[:-1],DateList[1:], [DayCountFlag])
+    Annuity = DF[1:] * Deltat
+    ForwardSwapRate = (DF[0] - DF[-1])/(Annuity.sum())
+    BtT = np.vectorize(lambda t1, t2: B_s_to_t(t1, t2, kappa))([t],T)
+    dSdx = -1/(Annuity.sum()) * (DF[0] * BtT[0] - DF[-1] * BtT[-1]) + ForwardSwapRate / (Annuity.sum()) * (Annuity * BtT[1:]).sum()
+    return dSdx
+
+def Calc_SwaptionNormalVolatilityAnalytic(kappa, swaptionvol, PriceDate, SwapStart, SwapMat, ZeroTerm, ZeroRate, NumCpnOneYear = 4, DayCountFlag = 0, Holidays = []) : 
+    ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD = MappingCouponDates(1,SwapStart,SwapMat,0,NumCpnOneYear,1,Holidays,Holidays,1)
+    f = np.vectorize(lambda t : Calc_dSdx(t, PriceDate, SwapStart, ResultForwardEnd, ZeroTerm, ZeroRate, DayCountFlag, kappa))
+    tstart = DayCountAtoB(PriceDate, SwapStart)/365
+    tarray = np.linspace(0, tstart, 5)
+    dtarray = tarray[1:] - tarray[:-1]
+    dSdXArray = f(tarray[1:]) 
+    normalv = np.sqrt(1/tstart * (dSdXArray * dSdXArray * swaptionvol * swaptionvol * dtarray).sum())
+    return normalv
+
+def ErrorVolatilityRatio(kappa, PriceDate, SwapStartArray, SwapMaturity1Array, SwapMaturity2Array, SwaptionVol1Array, SwaptionVol2Array, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, KoreanHolidayFlag = True, AddHolidays = []) : 
+    if KoreanHolidayFlag == True : 
+        Holidays = KoreaHolidaysFromStartToEnd(SwapStartArray[0]//10000, SwapMaturity2Array[-1]//10000)
+    else : 
+        Holidays = AddHolidays
+    f = np.vectorize(lambda k, Start, Mat, v: Calc_SwaptionNormalVolatilityAnalytic(k, v, PriceDate, Start, Mat, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, Holidays))
+    v1model = f([kappa], SwapStartArray, SwapMaturity1Array, SwaptionVol1Array)
+    v2model = f([kappa], SwapStartArray, SwapMaturity2Array, SwaptionVol2Array)
+    VRatioModel = v2model/v1model
+    vRatioMarket = np.array(SwaptionVol2Array)/np.array(SwaptionVol1Array)
+    ErrSquare = ((VRatioModel - vRatioMarket)**2).sum()
+    return np.maximum(0.00001,np.minimum(1000000000,ErrSquare))
+
+def CalibrationKappaFromSwapRatio(PriceDate, SwapStartArray, SwapMaturity1Array, SwapMaturity2Array, SwaptionVol1Array, SwaptionVol2Array, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, KoreanHolidayFlag = False, AddHolidays = [], KAPPAMIN = -0.05, KAPPAMAX = 0.15) : 
+    if KoreanHolidayFlag == True : 
+        Holidays = KoreaHolidaysFromStartToEnd(SwapStartArray[0]//10000, SwapMaturity2Array[-1]//10000)
+    else : 
+        Holidays = AddHolidays
+    kappamin = min(KAPPAMIN, KAPPAMAX)    
+    kappamax = max(KAPPAMIN, KAPPAMAX)
+    kappas = np.linspace(kappamin, kappamax, 41)
+    kappas = kappas[kappas != 0]
+    f = np.vectorize(lambda k : ErrorVolatilityRatio(k, PriceDate, SwapStartArray, SwapMaturity1Array, SwapMaturity2Array, SwaptionVol1Array, SwaptionVol2Array, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, KoreanHolidayFlag = False, AddHolidays = Holidays))
+    errs = f(kappas)
+    kappamin = kappas[errs.argmin()] - 0.02
+    kappamax = kappas[errs.argmin()] + 0.02
+    kappas = np.linspace(kappamin, kappamax, 21)
+    kappas = kappas[kappas != 0]
+    errs = f(kappas)
+    calibratedkappa = kappas[errs.argmin()]
+    f = np.vectorize(lambda k, Start, Mat, v: Calc_SwaptionNormalVolatilityAnalytic(k, v, PriceDate, Start, Mat, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, Holidays))
+    v1model = f([calibratedkappa], SwapStartArray, SwapMaturity1Array, SwaptionVol1Array)
+    v2model = f([calibratedkappa], SwapStartArray, SwapMaturity2Array, SwaptionVol2Array)
+    VRatioModel = v2model/v1model
+    vRatioMarket = np.array(SwaptionVol2Array)/np.array(SwaptionVol1Array)
+    ErrSquare = ((VRatioModel - vRatioMarket)**2).sum()    
+    Err = VRatioModel - vRatioMarket
+    return {'kappa':calibratedkappa, 'v1market':SwaptionVol1Array,'v2market':SwaptionVol2Array,'v1model':v1model, 'v2model':v2model, 'VRatioModel':VRatioModel,'vRatioMarket':vRatioMarket, 'ErrSquare':ErrSquare, 'Err': Err}
+
+def KappaCalibration(HolidayDate, currdir = os.getcwd()) : 
+    YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + "\\MarketData\\outputdata",MultiSelection=False, namenotin = "Vol", Comments="Pricing을 위한 ZeroCurve", DefaultStringList= ["IRS"])
+    ZeroCurve = Data[0]
+    ZeroTerm = ZeroCurve["Term"].astype(np.float64)
+    ZeroRate = ZeroCurve["Rate"].astype(np.float64)
+    ZeroCurveName = Name[0].split("\\")[-1].replace(".csv","")  
+    Currency = Name[0].split("\\")[-2]
+    Holidays = list(HolidayDate[Currency].dropna().unique()) if Currency in HolidayDate.columns else []
+    Data = MarketDataFileListPrint(currdir + '\\MarketData\\outputdata', namein = 'vol').sort_values(by = "YYYYMMDD")[-50:]
+    Data = Data[Data['DirectoryPrint'].apply(lambda x : ('EQ' in str(x).upper() and 'VOL' in str(x).upper()) == False)] #Out EQ Vol 
+    GroupbyYYYYMMDD = Data[Data["YYYYMMDD"] == YYYYMMDD]
+    GroupbyYYYYMMDD["Currency"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split("\\")[-2])
+    GroupbyYYYYMMDD["ListName"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split(".")[0] + '. ' + x.split("\\")[-1].replace(".csv",""))            
+
+    root = tk.Tk()
+    root.title("Kappa Calibration")
+    root.geometry("1500x750+30+30")
+    root.resizable(False, False)
+
+    left_frame = tk.Frame(root)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    vb_zerocurve = make_listvariable_interface(left_frame, 'ZeroCurve(자동Load)', termratestr(ZeroTerm, ZeroRate), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
+    vb_SelectedCurve_P1 = make_listvariable_interface(left_frame, 'Swaption Vol 선택', list(GroupbyYYYYMMDD["ListName"]), listheight = 5, textfont = 11, titlelable = True, titleName = "Swaption Info", defaultflag = True, defaultvalue = 0, width = 40, DefaultStringList=["Vol"])
+    vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["1","2","4","6"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=2)
+    vb_DayCount = make_listvariable_interface(left_frame, 'DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0)
+
+    Result_frame = tk.Frame(root)
+    Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+
+    Result = {'CalibrationTrue':False}
+    PrevTreeFlag, tree, scrollbar, scrollbar2, tree2, tree3 = 0, None, None, None, None, None
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2, Result, tree2, tree3]
+    def run_function(MyArrays) :     
+
+        PrevTreeFlag = MyArrays[0] 
+        tree = MyArrays[1] 
+        scrollbar = MyArrays[2]
+        scrollbar2 = MyArrays[3]  
+        CalcResult = MyArrays[4] 
+        tree2 = MyArrays[5]     
+        tree3 = MyArrays[6]
+        PriceDate = int(YYYYMMDD)
+        L1_NumCpnOneYear_P1 = int(vb_L1_NumCpnOneYear_P1.get(vb_L1_NumCpnOneYear_P1.curselection())) if vb_L1_NumCpnOneYear_P1.curselection() else 4
+        DayCount = int(str(vb_DayCount.get(vb_DayCount.curselection())).split(":")[0]) if vb_DayCount.curselection() else (0 if L1_NumCpnOneYear_P1 != 0 else 3)
+        SelectedNumber = int(str(vb_SelectedCurve_P1.get(vb_SelectedCurve_P1.curselection())).split(".")[0]) if vb_SelectedCurve_P1.curselection() else 1
+        VolRawData = ReadCSV(GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == SelectedNumber]['Directory'].iloc[0])
+        voldf = VolRawData.set_index(VolRawData.columns[0])
+        SwapStartList = []
+        SwapMaturity1List = []
+        SwapMaturity2List = []
+        v1List = []
+        v2List = []
+        i = 0
+        j1 = 0
+        j2 = -1
+        for i in range(len(voldf.columns)) : 
+            SwapStartDate = EDate_YYYYMMDD(PriceDate, int(voldf.columns[i]))
+            SwapMaturityDate1 = EDate_YYYYMMDD(SwapStartDate, int(voldf.index[j1]))
+            SwapMaturityDate2 = EDate_YYYYMMDD(SwapStartDate, int(voldf.index[j2]))
+            v1 = voldf[voldf.columns[i]].iloc[j1]
+            v2 = voldf[voldf.columns[i]].iloc[j2]
+            SwapStartList.append(SwapStartDate)
+            SwapMaturity1List.append(SwapMaturityDate1)
+            SwapMaturity2List.append(SwapMaturityDate2)
+            v1List.append(v1)
+            v2List.append(v2)    
+        Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate)
+        CalibResult = CalibrationKappaFromSwapRatio(PriceDate, SwapStartList, SwapMaturity1List, SwapMaturity2List, v1List, v2List, ZeroTerm, ZeroRate, L1_NumCpnOneYear_P1, DayCount, KoreanHolidayFlag = False, AddHolidays = Holidays)
+        CalcResult['CalibrationTrue'] = True
+        CalcResult['kappa'] = CalibResult['kappa']
+        CalcResult['v1market'] = CalibResult['v1market']
+        CalcResult['v2market'] = CalibResult['v2market']    
+        CalcResult['v1model'] = CalibResult['v1model']
+        CalcResult['v2model'] = CalibResult['v2model']
+        CalcResult['VRatioModel'] = CalibResult['VRatioModel']
+        CalcResult['vRatioMarket'] = CalibResult['vRatioMarket']
+        CalcResult['ErrSquare'] = CalibResult['ErrSquare']
+        CalcResult['Err'] = CalibResult['Err']
+        
+        v1mar = pd.Series(CalibResult["v1market"], name = "v1market") * 100
+        v2mar = pd.Series(CalibResult["v2market"], name = "v2market") * 100
+        v1mod = pd.Series(CalibResult["v1model"], name = "v1model") * 100
+        v2mod = pd.Series(CalibResult["v2model"], name = "v2model") * 100
+        VRatioModel = pd.Series(CalibResult["VRatioModel"], name = "VRatioModel")
+        vRatioMarket = pd.Series(CalibResult["vRatioMarket"], name = "vRatioMarket")
+        resultdf = pd.concat([v1mar, v2mar, v1mod, v2mod, VRatioModel, vRatioMarket],axis = 1)
+        resultdf['kappa'] = CalibResult['kappa']
+        resultdf['ErrSquareSum'] = CalibResult['ErrSquare']
+        resultdf['Err'] = CalibResult['Err']
+        
+        if PrevTreeFlag == 0 : 
+            tree = ttk.Treeview(root)
+        else : 
+            tree.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
+            tree = ttk.Treeview(root)
+        tree.pack(padx=5, pady=5, fill="both", expand=False)
+        scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")    
+        
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, resultdf.round(6), width = 80)
+
+        output_label.config(text = f"\n결과: \nkappa ={np.round(float(resultdf['kappa'].iloc[0]),6)}", font = ("맑은 고딕", 12, 'bold'))
+        MyArrays[0] = PrevTreeFlag 
+        MyArrays[1] = tree 
+        MyArrays[2] = scrollbar
+        MyArrays[3] = scrollbar2        
+    temp_func = lambda : run_function(MyArrays)            
+    tk.Button(Result_frame, text = '실행', padx = 20, pady = 20, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+    output_label = tk.Label(Result_frame, text = "", anchor = "n")
+    output_label.pack(padx = 5, pady = 2)
+
+    root.mainloop()      
+    return 0, 0, 0, 0    
+    
 def PreprocessingFXSpotData(DataDirectory) :     
     try : 
         FXSpot = ReadCSV(DataDirectory).dropna(how = 'all').fillna(method = 'ffill').applymap(lambda x : str(x).replace(",","").replace("-","")).astype(np.float64)
@@ -10519,7 +10702,7 @@ while True :
     if len(str(MainFlag)) == 0 : 
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break
-    elif MainFlag not in [1,2,3,4,5,'1','2','3','4','5'] : 
+    elif MainFlag not in [1,2,3,4,5,6,'1','2','3','4','5','6'] : 
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break
     elif MainFlag in [2,'2'] :         
@@ -10619,7 +10802,13 @@ while True :
         if MainFlag2 == 0:
             print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
             break        
-
+    elif MainFlag in [6, '6'] : 
+        HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
+        KappaCalibration(HolidayDate, currdir)
+        MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+50+50", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
+        if MainFlag2 == 0:
+            print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
+            break        
 # %%
 
 #x, y = Generate_OptionDate(20190929, 20460929, 1, 20, -1, ModifiedFollow = 0)
@@ -10656,79 +10845,5 @@ while True :
 
 
 # %%
-#kappa = 0.01
-#swaptionvol = 0.01
-#PriceDate = 20240625
-#SwapStart = 20240627
-#SwapMat = 20340627
-#NumCpnOneYear = 4
-#DayCountFlag = 0
-#Holidays = KoreaHolidaysFromStartToEnd(SwapStart//10000, SwapMat//10000)
-#ZeroTerm = [1, 2, 3]
-#ZeroRate = [0.034, 0.035, 0.036]
-#ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD = MappingCouponDates(1,SwapStart,SwapMat,0,NumCpnOneYear,1,Holidays,Holidays,1)
-def Calc_dSdx(t, PriceDate, SwapStart, ResultForwardEnd, ZeroTerm, ZeroRate, DayCountFlag, kappa) : 
-    T0 = DayCountAtoB(PriceDate, SwapStart)/365
-    T_i = np.vectorize(DayCountAtoB)([PriceDate], ResultForwardEnd)/365
-    T = np.r_[[T0],T_i]
-    FwdDscFunc = np.vectorize(lambda Time : Calc_ForwardDiscount_Factor(ZeroTerm, ZeroRate, t, Time))
-    DF = FwdDscFunc(T)
-    DateList = np.r_[[SwapStart],ResultForwardEnd]
-    Deltat = np.vectorize(DayCountFractionAtoB)(DateList[:-1],DateList[1:], [DayCountFlag])
-    Annuity = DF[1:] * Deltat
-    ForwardSwapRate = (DF[0] - DF[-1])/(Annuity.sum())
-    BtT = np.vectorize(lambda t1, t2: B_s_to_t(t1, t2, kappa))([t],T)
-    dSdx = -1/(Annuity.sum()) * (DF[0] * BtT[0] - DF[-1] * BtT[-1]) + ForwardSwapRate / (Annuity.sum()) * (Annuity * BtT[1:]).sum()
-    return dSdx
 
-def Calc_SwaptionNormalVolatilityAnalytic(kappa, swaptionvol, PriceDate, SwapStart, SwapMat, ZeroTerm, ZeroRate, NumCpnOneYear = 4, DayCountFlag = 0, Holidays = []) : 
-    ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD = MappingCouponDates(1,SwapStart,SwapMat,0,NumCpnOneYear,1,Holidays,Holidays,1)
-    f = np.vectorize(lambda t : Calc_dSdx(t, PriceDate, SwapStart, ResultForwardEnd, ZeroTerm, ZeroRate, DayCountFlag, kappa))
-    tstart = DayCountAtoB(PriceDate, SwapStart)/365
-    tarray = np.linspace(0, tstart, 10)
-    dtarray = tarray[1:] - tarray[:-1]
-    dSdXArray = f(tarray[1:]) 
-    normalv = np.sqrt(1/tstart * (dSdXArray * dSdXArray * swaptionvol * swaptionvol * dtarray).sum())
-    return normalv
-
-def ErrorVolatilityRatio(kappa, PriceDate, SwapStartArray, SwapMaturity1Array, SwapMaturity2Array, SwaptionVol1Array, SwaptionVol2Array, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, KoreanHolidayFlag = True, AddHolidays = []) : 
-    if KoreanHolidayFlag == True : 
-        Holidays = KoreaHolidaysFromStartToEnd(SwapStartArray[0]//10000, SwapMaturity2Array[-1]//10000)
-    else : 
-        Holidays = AddHolidays
-    f = np.vectorize(lambda k, Start, Mat, v: Calc_SwaptionNormalVolatilityAnalytic(k, v, PriceDate, Start, Mat, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, Holidays))
-    v1model = f([kappa], SwapStartArray, SwapMaturity1Array, SwaptionVol1Array)
-    v2model = f([kappa], SwapStartArray, SwapMaturity2Array, SwaptionVol2Array)
-    VRatioModel = v2model/v1model
-    vRatioMarket = np.array(SwaptionVol2Array)/np.array(SwaptionVol1Array)
-    ErrSquare = ((VRatioModel - vRatioMarket)**2).sum()
-    return np.maximum(0.00001,np.minimum(1000000000,ErrSquare))
-
-def CalibrationKappaFromSwapRatio(PriceDate, SwapStartArray, SwapMaturity1Array, SwapMaturity2Array, SwaptionVol1Array, SwaptionVol2Array, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, KoreanHolidayFlag = False, AddHolidays = []) : 
-    if KoreanHolidayFlag == True : 
-        Holidays = KoreaHolidaysFromStartToEnd(SwapStartArray[0]//10000, SwapMaturity2Array[-1]//10000)
-    else : 
-        Holidays = AddHolidays
-    kappamin = -0.05
-    kappamax = 0.15
-    kappas = np.linspace(kappamin, kappamax, 41)
-    f = np.vectorize(lambda k : ErrorVolatilityRatio(k, PriceDate, SwapStartArray, SwapMaturity1Array, SwapMaturity2Array, SwaptionVol1Array, SwaptionVol2Array, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, KoreanHolidayFlag = False, AddHolidays = Holidays))
-    errs = f(kappas)
-    kappamin = kappas[errs.argmin()] - 0.02
-    kappamax = kappas[errs.argmin()] + 0.02
-    kappas = np.linspace(kappamin, kappamax, 21)
-    errs = f(kappas)
-    calibratedkappa = kappas[errs.argmin()]
-    f = np.vectorize(lambda k, Start, Mat, v: Calc_SwaptionNormalVolatilityAnalytic(k, v, PriceDate, Start, Mat, ZeroTerm, ZeroRate, NumCpnOneYear, DayCountFlag, Holidays))
-    v1model = f([calibratedkappa], SwapStartArray, SwapMaturity1Array, SwaptionVol1Array)
-    v2model = f([calibratedkappa], SwapStartArray, SwapMaturity2Array, SwaptionVol2Array)
-    VRatioModel = v2model/v1model
-    vRatioMarket = np.array(SwaptionVol2Array)/np.array(SwaptionVol1Array)
-    ErrSquare = ((VRatioModel - vRatioMarket)**2).sum()    
-    return {'kappa':calibratedkappa, 'v1model':v1model, 'v2model':v2model, 'VRatioModel':VRatioModel,'vRatioMarket':vRatioMarket, 'ErrSquare':ErrSquare}
-
-CalibrationKappaFromSwapRatio(20240625, [20250627, 20300627], [20300627, 20350627], [20350627, 20400627], [0.01, 0.01], [0.0095, 0.0095], [1, 2, 3], [0.034, 0.035, 0.036], 4, 0, KoreanHolidayFlag = False, AddHolidays = [])
-
-# %%
-
-# %%
+#CalResult = CalibrationKappaFromSwapRatio(20240625, [20250627, 20300627], [20300627, 20350627], [20350627, 20400627], [0.01, 0.01], [0.0095, 0.0095], [1, 2, 3], [0.034, 0.035, 0.036], 4, 0, KoreanHolidayFlag = False, AddHolidays = [])
