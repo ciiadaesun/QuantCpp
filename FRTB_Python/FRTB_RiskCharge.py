@@ -3,7 +3,7 @@
 Created By Daesun Lim (CIIA(R), FRM(R))
 Bank Risk Quant
 My FRTB Module 
-v1.1.1
+v1.1.6
 """
 import numpy as np
 import pandas as pd
@@ -18,8 +18,8 @@ PrevTreeFlag = 0
 tree = None
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
-vers = "1.1.5"
-recentupdate = '20250626'
+vers = "1.1.6"
+recentupdate = '20250723'
 print("######################################\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Validation Quant\nMy FRTB Module \n"+vers+" (RecentUpdated :" +recentupdate + ")" + "\n######################################\n")
 GlobalFlag = 0
 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
@@ -3386,7 +3386,7 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
               NumCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [],
               EstZeroCurveRate = [], FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
               LoggingFlag = 0, LoggingDir = '', ModifiedFollow = 1, OverNightRateDateHistory = [], OverNightRateHistory = [], 
-              LookBackDays = 0, ObservShift = False, DiscCurveName = "", EstCurveName = "", CMSFlag = 0, RefSwapMaturity_T = 0.25, RefSwapNCPNAnn = 4, TermVol = [], Vol = [], YTMPricing = False) :
+              LookBackDays = 0, ObservShift = False, DiscCurveName = "", EstCurveName = "", CMSFlag = 0, RefSwapMaturity_T = 0.25, RefSwapNCPNAnn = 4, TermVol = [], Vol = [], YTMPricing = False, AIList = [0]) :
     
     LoggingStart = []
     LoggingEnd = []
@@ -3446,7 +3446,7 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
     if YTMPricing == True :     
         t = DayCountAtoB(PriceDateYYYYMMDD, MaturityYYYYMMDD)/365
         YTMRate = np.interp(t, ZeroCurveTerm, ZeroCurveRate)
-
+        
     BDate = []  
     DayCountBDate = []
     if FloatFlag == 2 : 
@@ -3567,7 +3567,9 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
                 else : 
                     raise ValueError("Check AnnCpnNum")
             else : 
-                DF = 1/((1.0+YTMRate/NumCpnOneYear)**(NumCpnOneYear * DayCountFractionAtoB(BondCompStart, YYYYMMDDofNextDate,DayCountFlag) - AccruedT ))
+                if YTMPricing == True : 
+                    DF = 1/((1.0+YTMRate/NumCpnOneYear)**(NumCpnOneYear * DayCountFractionAtoB(BondCompStart, YYYYMMDDofNextDate,DayCountFlag) - AccruedT ))
+                
                 if (NumCpnOneYear == 1) : 
                     rawcpn = (f * (FloatFlag > 0) + CpnRate) * Nominal
                     cpn = rawcpn * DF
@@ -3658,7 +3660,7 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
         ColList2 = ["Leg2_" + str(s) for s in LoggingDF.columns]
         LoggingDF.columns = ColList2
         pd.concat([df, LoggingDF],axis = 1).to_csv(LoggingDir + "\\LoggingFilesIRS.csv", index = False, encoding = "cp949")
-    
+    AIList[0] = AI
     return s                               
 
 def Calc_Bond_PV01(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
@@ -3666,14 +3668,14 @@ def Calc_Bond_PV01(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, Effective
                     NumCpnOneYear, DayCountFlag, KoreanHoliday = True, MaturityToPayDate = 0, EstZeroCurveTerm = [],
                     EstZeroCurveRate = [], FixingHolidayList = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = False,
                     LoggingFlag = 0, LoggingDir = '', ModifiedFollow = 1, OverNightRateDateHistory = [], OverNightRateHistory = [], 
-                    LookBackDays = 0, ObservShift = False, DiscCurveName= "", EstCurveName = "", YTMPricing = False) :
+                    LookBackDays = 0, ObservShift = False, DiscCurveName= "", EstCurveName = "", YTMPricing = False, AIList = [0]) :
     MaturityToPayDate = max(0, MaturityToPayDate)    
     Preprocessing_ZeroTermAndRate(ZeroCurveTerm, ZeroCurveRate, int(PriceDateYYYYMMDD))
     P = Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateYYYYMMDD, 
             PriceDateYYYYMMDD, MaturityYYYYMMDD, CpnRate, ZeroCurveTerm, ZeroCurveRate, 
             NumCpnOneYear, DayCountFlag, KoreanHoliday , MaturityToPayDate , EstZeroCurveTerm ,
             EstZeroCurveRate , FixingHolidayList , AdditionalPayHolidayList , NominalDateIsNominalPayDate ,
-            LoggingFlag, LoggingDir, ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift, DiscCurveName, EstCurveName, YTMPricing = YTMPricing)
+            LoggingFlag, LoggingDir, ModifiedFollow , OverNightRateDateHistory, OverNightRateHistory , LookBackDays , ObservShift, DiscCurveName, EstCurveName, YTMPricing = YTMPricing, AIList = AIList)
 
     ResultArray = np.zeros(len(ZeroCurveRate))
     for i in range(len(ZeroCurveTerm)) : 
@@ -9290,13 +9292,13 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
         T = DayCountFractionAtoB(int(PriceDate),SwapMaturity, L1_DayCount)
         ErrorFlag, ErrorString = Calc_Schedule_ErrorCheck(Nominal, SwapEffectiveDate, int(PriceDate), SwapMaturity, CurveTerm, 
                               CurveRate, L1_NumCpnOneYear_P1, L1_DayCount)
-        
+        AIList = [0]
         if ErrorFlag == 0 : 
             Value, PV01, TempPV01 = Calc_Bond_PV01(Nominal, 1, FloatFlag, L1FirstFixing, SwapEffectiveDate, 
                     int(PriceDate), SwapMaturity, L1_FixedCpnRate_P1, CurveTerm if YTMFlag == 0 else [T], CurveRate if YTMFlag == 0 else [YTMRate], 
                     L1_NumCpnOneYear_P1, L1_DayCount+5, KoreanHoliday = False, MaturityToPayDate = SwapMaturityToPayDate, EstZeroCurveTerm = [],
                     EstZeroCurveRate = [], FixingHolidayList = HolidaysForSwap, AdditionalPayHolidayList  = HolidaysForSwap, NominalDateIsNominalPayDate = False,
-                    LoggingFlag = LoggingFlag, LoggingDir = currdir, ModifiedFollow = 1, DiscCurveName = UsedCurveName, YTMPricing=YTMFlag)         
+                    LoggingFlag = LoggingFlag, LoggingDir = currdir, ModifiedFollow = 1, DiscCurveName = UsedCurveName, YTMPricing=YTMFlag, AIList = AIList)         
             GIRRRisk = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01"), 2 if Value > 10000 else 4)
             CSRRisk, BKT = Calc_CSRDeltaNotCorrelated_FromGreeks(PV01, "PV01Term","PV01", Bucket)
             CSRRisk = np.round(CSRRisk, 2 if Value > 10000 else 4)
@@ -9339,7 +9341,7 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
                 df = pd.concat([df_pre, data2],axis = 0)
                 df.index = np.arange(len(df))
                 df.to_csv(currdir + "\\Book\\Bond\\Bond.csv", index = False, encoding = "cp949")            
-            output_label.config(text = f"\n결과: {np.round(Value,4)}\n\nLeg1 Payoff: \n{L1ResultPayoff}\n\nGIRR: \n{GIRRRisk}\n\nCSR: \n{CSRRisk}\n\nBooking = {bool(BookFlag)}", font = ("맑은 고딕", 12, 'bold'))
+            output_label.config(text = f"\n결과: {np.round(Value,4)}\nAccrued Interest: \n{np.round(AIList[0],4)}\nLeg1 Payoff: \n{L1ResultPayoff}\nGIRR: \n{GIRRRisk}\nCSR: \n{CSRRisk}\nBooking = {bool(BookFlag)}", font = ("맑은 고딕", 12, 'bold'))
         else : 
             output_label.config(text = f"\n결과: \n{ErrorString}", font = ("맑은 고딕", 12, 'bold'))
             
@@ -10729,13 +10731,16 @@ while True :
         ResultData3.to_excel(writer, sheet_name = 'ByPortfolio')
         writer.save()
         writer.close()
-        ViewerFRTBFlag = MainViewer(Title = 'Continue', MyText = '산출완료되었습니다.\n 확인할 뷰어를 선택하시오.', MyList = ["0: 버킷별", "1: 부서별","2: 포트별"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
-        if ViewerFRTBFlag == 0 : 
-            ViewFRTB(ResultData1)
-        elif ViewerFRTBFlag == 1 : 
-            ViewFRTB(ResultData2)
-        else : 
-            ViewFRTB(ResultData3)
+        for i in range(10) : 
+            ViewerFRTBFlag = MainViewer(Title = 'Continue', MyText = '산출완료되었습니다.\n 확인할 뷰어를 선택하시오.', MyList = ["0: 버킷별", "1: 부서별","2: 포트별","3: 종료"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
+            if ViewerFRTBFlag == 0 : 
+                ViewFRTB(ResultData1)
+            elif ViewerFRTBFlag == 1 : 
+                ViewFRTB(ResultData2)
+            elif ViewerFRTBFlag == 2 : 
+                ViewFRTB(ResultData3)
+            else : 
+                break
             
         print("#################\n####산출완료#####\n#################\n")
         MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
