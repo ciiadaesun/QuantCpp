@@ -3,7 +3,7 @@
 Created By Daesun Lim (CIIA(R), FRM(R))
 Bank Risk Quant
 My FRTB Module 
-v1.1.6
+v1.1.8
 """
 import numpy as np
 import pandas as pd
@@ -18,8 +18,8 @@ PrevTreeFlag = 0
 tree = None
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
-vers = "1.1.6"
-recentupdate = '20250723'
+vers = "1.1.8"
+recentupdate = '20250730'
 print("######################################\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Validation Quant\nMy FRTB Module \n"+vers+" (RecentUpdated :" +recentupdate + ")" + "\n######################################\n")
 GlobalFlag = 0
 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
@@ -11962,7 +11962,8 @@ while True :
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break
     elif MainFlag in [2,'2'] :         
-        RAWFORMAT = 0#int(input("자체데이터 RAWData 엑셀 포멧이면 0을 KDB RAW Data 포멧의 경우 1을 입력하시오\n-> "))
+        #RAWFORMAT = 0#int(input("자체데이터 RAWData 엑셀 포멧이면 0을 KDB RAW Data 포멧의 경우 1을 입력하시오\n-> "))
+        RAWFORMAT = MainViewer(Title = 'Continue', MyText = 'RawData 포멧을 선택하시오', MyList = ["0: My Raw Data", "1: KDB Raw Data"], defaultvalue=0, size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
         RAWData = MainFunction(currdir)
         AddedData = AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT)
         if len(AddedData) > 0 : 
