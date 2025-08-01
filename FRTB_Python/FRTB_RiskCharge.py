@@ -4984,8 +4984,16 @@ def Pricing_IRCallableSwap_HWFDM(
             
     if HW2FFlag == 0 : 
         ResultPrice = np.interp(0, xt, FDMValue)
+        ResultPriceXu = np.interp(0.01, xt, FDMValue)
+        ResultPriceXd = np.interp(-0.01, xt, FDMValue)
+        dPdx = (ResultPriceXu - ResultPriceXd)/(2.0 * 0.01)
+        dPdy = 0
     else : 
         ResultPrice = Linterp2D(xt, yt, FDMValue, 0, 0)
+        ResultPriceXu = Linterp2D(xt, yt, FDMValue, 0.01, 0)
+        ResultPriceYu = Linterp2D(xt, yt, FDMValue, 0, 0.01)
+        dPdx = (ResultPriceXu - ResultPrice)/(0.01)
+        dPdy = (ResultPriceYu - ResultPrice)/(0.01)
 
     OptionExerciseDeclare = ["OptionExerciseDeclare" if i in OptionFixDate else '' for i in SimulationDateList] 
     OptionExercisePayment = ["OptionExercisePayment" if i in OptionPayDate else '' for i in SimulationDateList] 
@@ -5012,7 +5020,18 @@ def Pricing_IRCallableSwap_HWFDM(
     Result["Leg2_EstCurveName"] = Leg2_EstCurveName
     Result["OptionDeclare"] = OptionExerciseDeclare
     Result["OptionPayment"] = OptionExercisePayment
-
+    Result["dPdx"] = dPdx
+    Result["dPdy"] = dPdy
+    GreekListXt = []
+    T = DayCountAtoB(PriceDate, SwapMaturity)/365
+    for i in range(len(ZeroTerm)) : 
+        t = ZeroTerm[i]
+        if t <= T : 
+            dVdr_t = dPdx * ZeroTerm[i] / (-B_s_to_t(t, T, kappa))
+            GreekListXt.append(dVdr_t)
+    Result["PV01TermAnalytic"] = list(ZeroTerm) + [np.nan] * (len(Result) - len(ZeroTerm))
+    Result["PV01Analytic"] = list(GreekListXt) + [np.nan] * (len(Result) - len(GreekListXt))
+            
     if LoggingFlag > 0 :                                 
         Result.to_csv(LoggingDir + "\\LoggingIRStructuredSwap.csv", index = True, encoding = "cp949")
 
@@ -5607,6 +5626,8 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
             
             DeltaGreek = pd.Series(Result["PV01"], index = CurveTerm1).reset_index()
             DeltaGreek.columns = ["PV01Term","PV01"]
+            resultframe["PV01Term"] = list(DeltaGreek["PV01Term"]) + [np.nan] * (len(resultframe) - len(DeltaGreek))
+            resultframe["PV01"] = list(DeltaGreek["PV01"]) + [np.nan] * (len(resultframe) - len(DeltaGreek))            
             GIRRDelta = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(DeltaGreek, "PV01Term","PV01"), 4)
             Cvup = list(np.array(CurveRate1) + 0.012)
             Pu = Pricing_IRCallableSwap_HWFDM(
@@ -6037,6 +6058,8 @@ def PricingIRStructuredSwapProgramDoublePhase(HolidayData, currdir) :
             
             DeltaGreek = pd.Series(Result["PV01"], index = CurveTerm1).reset_index()
             DeltaGreek.columns = ["PV01Term","PV01"]
+            resultframe["PV01Term"] = list(DeltaGreek["PV01Term"]) + [np.nan] * (len(resultframe) - len(DeltaGreek))
+            resultframe["PV01"] = list(DeltaGreek["PV01"]) + [np.nan] * (len(resultframe) - len(DeltaGreek))                        
             GIRRDelta = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(DeltaGreek, "PV01Term","PV01"), 4)
             Cvup = list(np.array(CurveRate1) + 0.012)
             Pu = Pricing_IRCallableSwap_HWFDM(
@@ -6419,6 +6442,8 @@ def PricingIRStructuredSwapProgram2F(HolidayData, currdir) :
             
             DeltaGreek = pd.Series(Result["PV01"], index = CurveTerm1).reset_index()
             DeltaGreek.columns = ["PV01Term","PV01"]
+            resultframe["PV01Term"] = list(DeltaGreek["PV01Term"]) + [np.nan] * (len(resultframe) - len(DeltaGreek))
+            resultframe["PV01"] = list(DeltaGreek["PV01"]) + [np.nan] * (len(resultframe) - len(DeltaGreek))                        
             GIRRDelta = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(DeltaGreek, "PV01Term","PV01"), 4)
             Cvup = list(np.array(CurveRate1) + 0.012)
             Pu = Pricing_IRCallableSwap_HWFDM(
@@ -6843,6 +6868,8 @@ def PricingIRStructuredSwapProgram2FDoublePhase(HolidayData, currdir) :
             
             DeltaGreek = pd.Series(Result["PV01"], index = CurveTerm1).reset_index()
             DeltaGreek.columns = ["PV01Term","PV01"]
+            resultframe["PV01Term"] = list(DeltaGreek["PV01Term"]) + [np.nan] * (len(resultframe) - len(DeltaGreek))
+            resultframe["PV01"] = list(DeltaGreek["PV01"]) + [np.nan] * (len(resultframe) - len(DeltaGreek))                        
             GIRRDelta = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(DeltaGreek, "PV01Term","PV01"), 4)
             Cvup = list(np.array(CurveRate1) + 0.012)
             Pu = Pricing_IRCallableSwap_HWFDM(
@@ -7218,7 +7245,7 @@ def ReadCSV(filedir, ParseMonthStringToInteger = False) :
     else : 
         return df
 
-def PreProcessingKDBData(KDBData, dataformat = 'Combined') : 
+def PreProcessingBankData(KDBData, dataformat = 'Combined') : 
     '''
     Description : Preprocessing KDB FRTB Raw csvfile
     설명 : KDB FRTB 포지션별 개별 민감도 조회화면 csv 전처리
@@ -10577,16 +10604,16 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
                 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
                 Data_GIRR = MapGIRRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
                 Data_GIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
-                GIRR = pd.DataFrame([list(Data_GIRR["GIRR_Delta_Sensi"])], columns = list(Data_GIRR["GIRR_Tenor"].apply(lambda x : "GIRR_" + str(x))))
+                GIRR = pd.DataFrame([list(Data_GIRR["GIRR_Delta_Sensi"])], columns = list(Data_GIRR["GIRR_Tenor"].apply(lambda x : "GIRR1_" + str(x))))
                 CSR_RiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
                 Data_CSR = MapCSRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], CSR_RiskFactor).reset_index()
                 Data_CSR.columns = ["CSR_Tenor","CSR_Delta_Sensi"]
-                CSR = pd.DataFrame([list(Data_CSR["CSR_Delta_Sensi"])], columns = list(Data_CSR["CSR_Tenor"].apply(lambda x : "CSR_" + str(x))))
+                CSR = pd.DataFrame([list(Data_CSR["CSR_Delta_Sensi"])], columns = list(Data_CSR["CSR_Tenor"].apply(lambda x : "CSR1_" + str(x))))
                 
                 df_pre = ReadCSV(currdir + "\\Book\\Bond\\Bond.csv")
                 MyCol = ["Nominal","FloatFlag","FixingRate","EffectiveDate","EndDate",
                         "NBDFromEndDateToPayDate","CpnRate","NumCpnOneYear","DayCountFlag","ModifiedFollowing",
-                        "DiscCurveName","EstCurveName","Currency","Holiday","MTM","PriceDate","Bucket"]
+                        "DiscCurveName","EstCurveName","Currency","Holiday","MTM","PriceDate","CsrBucket"]
                 Contents = [Nominal, FloatFlag, L1FirstFixing, SwapEffectiveDate, SwapMaturity, 
                             SwapMaturityToPayDate, L1_FixedCpnRate_P1, L1_NumCpnOneYear_P1, L1_DayCount, 1, 
                             UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-1], UsedCurveName.split("\\")[-2], UsedCurveName.split("\\")[-2], Value, YYYYMMDD, str(BKT)]
@@ -10799,7 +10826,7 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
                 scrollbar.destroy()
                 scrollbar2.destroy()
                 tree = ttk.Treeview(root)
-            PV01 = PV01.applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+            PV01 = pd.concat([PV01, TempPV01],axis = 1).applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
             tree.pack(padx=5, pady=5, fill="both", expand=True)
             scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
             scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
@@ -10813,18 +10840,21 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
             if BookFlag in ["y","Y","1",1] : 
                 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
                 Data_GIRR = MapGIRRDeltaGreeks(PV01.set_index("PV01Term")["PV01"], GIRR_DeltaRiskFactor).reset_index()
+                Data_GIRR2 = MapGIRRDeltaGreeks(TempPV01.set_index("PV01TermEst")["PVEst01"], GIRR_DeltaRiskFactor).reset_index()
                 Data_GIRR.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
-                GIRR = pd.DataFrame([list(Data_GIRR["GIRR_Delta_Sensi"])], columns = list(Data_GIRR["GIRR_Tenor"].apply(lambda x : "GIRR_" + str(x))))
-                
+                Data_GIRR2.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
+                GIRR = pd.DataFrame([list(Data_GIRR["GIRR_Delta_Sensi"])], columns = list(Data_GIRR["GIRR_Tenor"].apply(lambda x : "GIRR1_" + str(x))))
+                GIRR2 = pd.DataFrame([list(Data_GIRR2["GIRR_Delta_Sensi"])], columns = list(Data_GIRR2["GIRR_Tenor"].apply(lambda x : "GIRR2_" + str(x))))
+                GIRR = pd.concat([GIRR, GIRR2],axis = 1)
                 df_pre = ReadCSV(currdir + "\\Book\\IRS\\IRS.csv")
                 MyCol = ["Nominal","FixingRate","EffectiveDate","EndDate",
                         "NBDFromEndDateToPayDate","CpnRate","NumCpnOneYear","DayCountFlag","ModifiedFollowing",
                         "DiscCurveNameLeg1","EstCurveNameLeg1","DiscCurveNameLeg2","EstCurveNameLeg2",
-                        "Currency","Holiday","MTM","PriceDate"]
+                        "Currency","Holiday","MTM","PriceDate","GirrBucket"]
                 Contents = [Nominal, L1FirstFixing, SwapEffectiveDate, SwapMaturity, 
                             SwapMaturityToPayDate, FixedCpnRate_P1, NumCpnOneYear_P1, DayCount, 1, 
                             UsedCurveName1.split("\\")[-1], UsedCurveName2.split("\\")[-1], UsedCurveName1.split("\\")[-1], UsedCurveName2.split("\\")[-1],
-                            UsedCurveName1.split("\\")[-2], UsedCurveName1.split("\\")[-2], Value , YYYYMMDD]
+                            UsedCurveName1.split("\\")[-2], UsedCurveName1.split("\\")[-2], Value , YYYYMMDD, Curr.upper()]
                 data2 = pd.DataFrame([Contents], columns = MyCol)
                 data2 = pd.concat([data2, GIRR],axis = 1)
                 df = pd.concat([df_pre, data2],axis = 0)
@@ -11779,10 +11809,16 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                     Depart = MainViewer2(Title = "Department Name",MyText = "부점명을 입력하시오",size = "800x450+30+30", textfont = 14, defaultvalue = "TempDepart")#input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
                     for i in range(len(Bond)) : 
                         cvname = Bond["DiscCurveName"].iloc[i].replace(".csv","")
-                        girrcol = [s for s in Bond.columns if "girr_" in s.lower()]
-                        girrtenor = [float(s.replace("GIRR_","")) for s in girrcol]
-                        csrcol = [s for s in Bond.columns if "csr_" in s.lower()]
-                        csrtenor = [float(s.replace("CSR_","")) for s in csrcol]
+                        girrcol1 = [s for s in Bond.columns if "girr1_" in s.lower()]
+                        girrcol2 = [s for s in Bond.columns if "girr2_" in s.lower()]
+                        girrcol3 = [s for s in Bond.columns if "girr3_" in s.lower()]
+                        girrcol = girrcol1 + girrcol2 + girrcol3
+                        girrtenor1 = [float(s.replace("GIRR1_","")) for s in girrcol1]
+                        girrtenor2 = [float(s.replace("GIRR2_","")) for s in girrcol2]
+                        girrtenor3 = [float(s.replace("GIRR3_","")) for s in girrcol3]
+                        girrtenor = girrtenor1 + girrtenor2 + girrtenor3
+                        csrcol = [s for s in Bond.columns if "csr1_" in s.lower()]
+                        csrtenor = [float(s.replace("CSR1_","")) for s in csrcol]
                         if "ZeroCurve" in cvname : 
                             cvname = cvname.replace("ZeroCurve","")
                         elif "Zero" in cvname : 
@@ -11792,10 +11828,10 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                             cvname = cvname.replace("IRS",":Std")
                         elif "CRS" in cvname : 
                             cvname = cvname.replace("CRS","FX")
-                        
-                        TempData = pd.DataFrame(Bond[girrcol].iloc[i].values, columns = ["델타민감도"])
+
+                        TempData = pd.DataFrame(Bond[girrcol].iloc[i].values, columns = ["델타민감도"]).fillna(0)
                         fxrate = CalcFXRateToKRW(FXSpot, Bond["Currency"].iloc[i], PriceDate)
-                        TempData["델타민감도"] = TempData["델타민감도"].astype(np.float64) * fxrate
+                        TempData["델타민감도"] = TempData["델타민감도"].astype(np.float64) * fxrate * 10000
                         TempData["기준일자"] = PriceDate
                         TempData["계정구분코드"] = 10
                         TempData["계정명"] = "은행"
@@ -11818,9 +11854,10 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData["베가민감도"] = 0
                         TempData["상향커버쳐"] = 0
                         TempData["하향커버쳐"] = 0
+                        TempData = TempData[TempData["델타민감도"] != 0]
 
-                        TempData2 = pd.DataFrame(Bond[csrcol].iloc[i].values, columns = ["델타민감도"])
-                        TempData2["델타민감도"] = TempData2["델타민감도"].astype(np.float64) * fxrate
+                        TempData2 = pd.DataFrame(Bond[csrcol].iloc[i].values, columns = ["델타민감도"]).fillna(0)
+                        TempData2["델타민감도"] = TempData2["델타민감도"].astype(np.float64) * fxrate* 10000
                         
                         TempData2["기준일자"] = PriceDate
                         TempData2["계정구분코드"] = 10
@@ -11836,8 +11873,8 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData2["민감도유형"] = "델타"
                         TempData2["포지션 ID"] = 12345
                         TempData2["뮤렉스 ID"] = 12345
-                        TempData2["버킷"] = "[" + ('0' + str(Bond["Bucket"].iloc[i]))[-2:] + "]"
-                        TempData2["리스크요소1"] = "TempIssuer" + str(Bond["Bucket"].iloc[i])
+                        TempData2["버킷"] = "[" + ('0' + str(Bond["CsrBucket"].iloc[i]))[-2:] + "]"
+                        TempData2["리스크요소1"] = "TempIssuer" + str(Bond["CsrBucket"].iloc[i])
                         TempData2["리스크요소2"] = cvname
                         TempData2["리스크요소3"] = csrtenor
                         TempData2["베가민감도"] = 0
@@ -11847,8 +11884,14 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
 
                     for i in range(len(IRS)) : 
                         cvname = IRS["DiscCurveNameLeg1"].iloc[i].replace(".csv","")
-                        girrcol = [s for s in IRS.columns if "girr_" in s.lower()]
-                        girrtenor = [float(s.replace("GIRR_","")) for s in girrcol]
+                        girrcol1 = [s for s in IRS.columns if "girr1_" in s.lower()]
+                        girrcol2 = [s for s in IRS.columns if "girr2_" in s.lower()]
+                        girrcol3 = [s for s in IRS.columns if "girr3_" in s.lower()]
+                        girrcol = girrcol1 + girrcol2 + girrcol3
+                        girrtenor1 = [float(s.replace("GIRR1_","")) for s in girrcol1]
+                        girrtenor2 = [float(s.replace("GIRR2_","")) for s in girrcol2]
+                        girrtenor3 = [float(s.replace("GIRR3_","")) for s in girrcol3]
+                        girrtenor = girrtenor1 + girrtenor2 + girrtenor3                        
                         if "ZeroCurve" in cvname : 
                             cvname = cvname.replace("ZeroCurve","")
                         elif "Zero" in cvname : 
@@ -11859,9 +11902,9 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         elif "CRS" in cvname : 
                             cvname = cvname.replace("CRS","FX")
                         
-                        TempData = pd.DataFrame(IRS[girrcol].iloc[i].values, columns = ["델타민감도"])
+                        TempData = pd.DataFrame(IRS[girrcol].iloc[i].values, columns = ["델타민감도"]).fillna(0)
                         fxrate = CalcFXRateToKRW(FXSpot, IRS["Currency"].iloc[i], PriceDate)
-                        TempData["델타민감도"] = TempData["델타민감도"].astype(np.float64) * fxrate
+                        TempData["델타민감도"] = TempData["델타민감도"].astype(np.float64) * fxrate* 10000
                                                 
                         TempData["기준일자"] = PriceDate
                         TempData["계정구분코드"] = 10
@@ -11877,13 +11920,15 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData["민감도유형"] = "델타"
                         TempData["포지션 ID"] = 12345
                         TempData["뮤렉스 ID"] = 12345
-                        TempData["버킷"] = IRS["Currency"].iloc[i]
+                        TempData["버킷"] = IRS["GirrBucket"].iloc[i]
                         TempData["리스크요소1"] = cvname
                         TempData["리스크요소2"] = girrtenor
                         TempData["리스크요소3"] = "RATE"
                         TempData["베가민감도"] = 0
                         TempData["상향커버쳐"] = 0
-                        TempData["하향커버쳐"] = 0                   
+                        TempData["하향커버쳐"] = 0            
+                        TempData = TempData[TempData["델타민감도"] != 0]
+                               
                         ResultAddData = pd.concat([ResultAddData, TempData],axis = 0)
         else : 
             if len(Bond) + len(IRS) > 0 : 
@@ -11893,10 +11938,16 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                     Depart = MainViewer2(Title = "Department Name",MyText = "부점명을 입력하시오",size = "800x450+30+30", textfont = 14, defaultvalue = "TempDepart")#input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
                     for i in range(len(Bond)) : 
                         cvname = Bond["DiscCurveName"].iloc[i].replace(".csv","")
-                        girrcol = [s for s in Bond.columns if "girr_" in s.lower()]
-                        girrtenor = [float(s.replace("GIRR_","")) for s in girrcol]
-                        csrcol = [s for s in Bond.columns if "csr_" in s.lower()]
-                        csrtenor = [float(s.replace("CSR_","")) for s in csrcol]
+                        girrcol1 = [s for s in Bond.columns if "girr1_" in s.lower()]
+                        girrcol2 = [s for s in Bond.columns if "girr2_" in s.lower()]
+                        girrcol3 = [s for s in Bond.columns if "girr3_" in s.lower()]
+                        girrcol = girrcol1 + girrcol2 + girrcol3
+                        girrtenor1 = [float(s.replace("GIRR1_","")) for s in girrcol1]
+                        girrtenor2 = [float(s.replace("GIRR2_","")) for s in girrcol2]
+                        girrtenor3 = [float(s.replace("GIRR3_","")) for s in girrcol3]
+                        girrtenor = girrtenor1 + girrtenor2 + girrtenor3                        
+                        csrcol = [s for s in Bond.columns if "csr1_" in s.lower()]
+                        csrtenor = [float(s.replace("CSR1_","")) for s in csrcol]
                         TempData = pd.DataFrame(Bond[girrcol].iloc[i].values, columns = ["Delta_Sensi"])
                         fxrate = CalcFXRateToKRW(FXSpot, Bond["Currency"].iloc[i], Bond["PriceDate"].iloc[i])
                         TempData["Delta_Sensi"] = TempData["Delta_Sensi"].astype(np.float64) * fxrate
@@ -11911,18 +11962,19 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData["Vega_Sensi"] = 0
                         TempData["CVR_Plus"] = 0
                         TempData["CVR_Minus"] = 0                        
+                        TempData = TempData[TempData["Delta_Sensi"] != 0]
 
-                        TempData2 = pd.DataFrame(Bond[csrcol].iloc[i].values, columns = ["Delta_Sensi"])
+                        TempData2 = pd.DataFrame(Bond[csrcol].iloc[i].values, columns = ["Delta_Sensi"]).fillna(0)
                         TempData2["Delta_Sensi"] = TempData2["Delta_Sensi"].astype(np.float64) * fxrate
 
                         TempData2["Depart"] = Depart
                         TempData2["Risk_Class"] = "CSR"
                         TempData2["Risk_Type"] = "Delta"
                         TempData2["Portfolio"] = "TempPort"
-                        TempData2["Bucket"] = str(Bond["Bucket"].iloc[i])
+                        TempData2["Bucket"] = str(Bond["CsrBucket"].iloc[i])
                         TempData2["RiskFactor1"] = cvname
                         TempData2["RiskFactor2"] = csrtenor
-                        TempData2["RiskFactor3"] = "TempIssuer" + str(Bond["Bucket"].iloc[i])
+                        TempData2["RiskFactor3"] = "TempIssuer" + str(Bond["CsrBucket"].iloc[i])
                         TempData2["Vega_Sensi"] = 0
                         TempData2["CVR_Plus"] = 0
                         TempData2["CVR_Minus"] = 0   
@@ -11930,8 +11982,14 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                                              
                     for i in range(len(IRS)) : 
                         cvname = IRS["DiscCurveNameLeg1"].iloc[i].replace(".csv","")
-                        girrcol = [s for s in IRS.columns if "girr_" in s.lower()]
-                        girrtenor = [float(s.replace("GIRR_","")) for s in girrcol]
+                        girrcol1 = [s for s in IRS.columns if "girr1_" in s.lower()]
+                        girrcol2 = [s for s in IRS.columns if "girr2_" in s.lower()]
+                        girrcol3 = [s for s in IRS.columns if "girr3_" in s.lower()]
+                        girrcol = girrcol1 + girrcol2 + girrcol3
+                        girrtenor1 = [float(s.replace("GIRR1_","")) for s in girrcol1]
+                        girrtenor2 = [float(s.replace("GIRR2_","")) for s in girrcol2]
+                        girrtenor3 = [float(s.replace("GIRR3_","")) for s in girrcol3]
+                        girrtenor = girrtenor1 + girrtenor2 + girrtenor3    
                         TempData = pd.DataFrame(IRS[girrcol].iloc[i].values, columns = ["Delta_Sensi"])
                         fxrate = CalcFXRateToKRW(FXSpot, IRS["Currency"].iloc[i], IRS["PriceDate"].iloc[i])
                         TempData["Delta_Sensi"] = TempData["Delta_Sensi"].astype(np.float64) * fxrate
@@ -11940,7 +11998,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData["Risk_Class"] = "GIRR"
                         TempData["Risk_Type"] = "Delta"
                         TempData["Portfolio"] = "TempPort"
-                        TempData["Bucket"] = IRS["Currency"].iloc[i]
+                        TempData["Bucket"] = IRS["GirrBucket"].iloc[i]
                         TempData["RiskFactor1"] = cvname
                         TempData["RiskFactor2"] = girrtenor
                         TempData["RiskFactor3"] = "Rate"
@@ -11953,17 +12011,22 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
         None
     return ResultAddData
 
+
+################
+# Main Program #
+################
+MainFlag2 = 0
+
 while True : 
-    MainFlag = MainViewer(size = "800x450+50+50")#input("사용하실 기능은?(번호입력) \n 1: Pricing 및 CSR, GIRR 간이 시뮬레이션 \n 2: FRTB SA Risk Calculation \n 3: CurveGenerator \n 4: IR Swaption ImpliedVol Calculation \n-> ")
-    if len(str(MainFlag)) == 0 : 
-        print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
-        break
-    elif MainFlag not in [1,2,3,4,5,6,'1','2','3','4','5','6'] : 
+    MainFlag = MainViewer(size = "800x450+50+50")
+    if len(str(MainFlag)) == 0 or (MainFlag not in [1,2,3,4,5,6,'1','2','3','4','5','6']) : 
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break
     elif MainFlag in [2,'2'] :         
-        #RAWFORMAT = 0#int(input("자체데이터 RAWData 엑셀 포멧이면 0을 KDB RAW Data 포멧의 경우 1을 입력하시오\n-> "))
-        RAWFORMAT = MainViewer(Title = 'Continue', MyText = 'RawData 포멧을 선택하시오', MyList = ["0: My Raw Data", "1: KDB Raw Data"], defaultvalue=0, size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
+        RAWFORMAT = MainViewer(Title = 'Continue', MyText = 'RawData 포멧을 선택하시오', 
+                               MyList = ["0: My Raw Data", "1: KDB Raw Data"], defaultvalue=0, 
+                               size = "800x450+30+30", splitby = ":", 
+                               listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
         RAWData = MainFunction(currdir)
         AddedData = AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT)
         if len(AddedData) > 0 : 
@@ -11971,7 +12034,7 @@ while True :
         if RAWFORMAT == 0 : 
             CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR, DRC, RRAO = PreProcessingMyData(RAWData)
         else : 
-            CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR = PreProcessingKDBData(RAWData, dataformat = 'splited') 
+            CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR = PreProcessingBankData(RAWData, dataformat = 'splited') 
             DRC = pd.DataFrame([])
             RRAO = pd.DataFrame([])
         print("\n####################\n######산출중########\n####################\n")
@@ -11980,16 +12043,11 @@ while True :
         ResultData2 = AggregatedFRTB_RiskCharge(CSR, GIRR, FXR, EQR, COMR, CSR_SecuritizedNonCTP, CSR_CTP, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 1, DRC = DRC, RRAO= RRAO)
         print("\n####################\n####산출중(66%)#####\n####################\n")
         ResultData3 = AggregatedFRTB_RiskCharge(CSR, GIRR, FXR, EQR, COMR, CSR_SecuritizedNonCTP, CSR_CTP, DeltaSensiName = "Delta_Sensi",VegaSensiName = "Vega_Sensi", GroupbyFlag = 2, DRC = DRC, RRAO= RRAO)
-        writer = pd.ExcelWriter('ResultFRTB.xlsx', engine='xlsxwriter') # pylint: disable=abstract-class-instantiated
-        ResultData1.to_excel(writer, sheet_name = 'ByBucket')
-        ResultData2.to_excel(writer, sheet_name = 'ByDepart')
-        ResultData3.to_excel(writer, sheet_name = 'ByPortfolio')
-        writer.save()
-        writer.close()
+        print("#################\n####산출완료#####\n#################\n")
         for i in range(10) : 
             ViewerFRTBFlag = MainViewer(Title = 'Continue', MyText = '산출완료되었습니다.\n 확인할 뷰어를 선택하시오.', MyList = ["0: 버킷별", "1: 부서별","2: 포트별","3: 종료"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
             if ViewerFRTBFlag == 0 : 
-                ViewFRTB(ResultData1)
+                ViewFRTB(ResultData1) 
             elif ViewerFRTBFlag == 1 : 
                 ViewFRTB(ResultData2)
             elif ViewerFRTBFlag == 2 : 
@@ -11997,11 +12055,15 @@ while True :
             else : 
                 break
             
-        print("#################\n####산출완료#####\n#################\n")
-        MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
-        if MainFlag2 == 0:
-            print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
-            break
+        SaveFlag = MainViewer(Title = 'Continue', MyText = 'FRTB Result 저장하시겠습니까(아래위치)\n' + currdir, MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13)
+        if SaveFlag == 1 : 
+            writer = pd.ExcelWriter('ResultFRTB.xlsx', engine='xlsxwriter') # pylint: disable=abstract-class-instantiated
+            ResultData1.to_excel(writer, sheet_name = 'ByBucket')
+            ResultData2.to_excel(writer, sheet_name = 'ByDepart')
+            ResultData3.to_excel(writer, sheet_name = 'ByPortfolio')
+            writer.save()
+            writer.close()
+            
     elif MainFlag in [1,'1'] :                     
         HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
         try : 
@@ -12035,14 +12097,6 @@ while True :
         elif int(n) == 12 :
             MainFlag2, Value, PV01, TempPV01 = PricingIRStructuredSwapProgram2FDoublePhase(HolidayDate, currdir)             
         
-        MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+50+50", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
-        if MainFlag2 == 0:
-            print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
-            break
-
-        if str(MainFlag2).lower() == 'y' or len(str(MainFlag2)) == 0:
-            print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
-            break
     elif MainFlag in [3,'3'] : 
         HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
         FXSpot = PreprocessingFXSpotData(currdir + "\\MarketData\\spot\\FXSpot.csv")        
@@ -12050,32 +12104,23 @@ while True :
         MyData = Data[0]
         ZeroCurveName = Name[0]
         ResultDF = ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, ZeroCurveName)
-        MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+50+50", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
-        if MainFlag2 == 0:
-            print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
-            break
 
     elif MainFlag in [4,'4'] : 
         HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
         YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + "\\MarketData\\inputdata", namein = 'sw')
         PriceToSwaptionVolProgram(YYYYMMDD, Name, Data, currdir, HolidayDate)
-        MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+50+50", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
-        if MainFlag2 == 0:
-            print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
-            break        
+  
     elif MainFlag in [5, '5'] : 
         CapFloorCalibrationProgram(currdir)
-        MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+50+50", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
-        if MainFlag2 == 0:
-            print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
-            break        
+    
     elif MainFlag in [6, '6'] : 
         HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
         KappaCalibration(HolidayDate, currdir)
-        MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+50+50", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
-        if MainFlag2 == 0:
-            print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
-            break        
+
+    MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13)
+    if MainFlag2 == 0:
+        print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
+        break    
 # %%
 
 #x, y = Generate_OptionDate(20190929, 20460929, 1, 20, -1, ModifiedFollow = 0)
