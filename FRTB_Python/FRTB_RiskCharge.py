@@ -11831,7 +11831,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
 
                         TempData = pd.DataFrame(Bond[girrcol].iloc[i].values, columns = ["델타민감도"]).fillna(0)
                         fxrate = CalcFXRateToKRW(FXSpot, Bond["Currency"].iloc[i], PriceDate)
-                        TempData["델타민감도"] = TempData["델타민감도"].astype(np.float64) * fxrate * 10000
+                        TempData["델타민감도"] = TempData["델타민감도"].astype(np.float64) * fxrate 
                         TempData["기준일자"] = PriceDate
                         TempData["계정구분코드"] = 10
                         TempData["계정명"] = "은행"
@@ -11857,7 +11857,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData = TempData[TempData["델타민감도"] != 0]
 
                         TempData2 = pd.DataFrame(Bond[csrcol].iloc[i].values, columns = ["델타민감도"]).fillna(0)
-                        TempData2["델타민감도"] = TempData2["델타민감도"].astype(np.float64) * fxrate* 10000
+                        TempData2["델타민감도"] = TempData2["델타민감도"].astype(np.float64) * fxrate
                         
                         TempData2["기준일자"] = PriceDate
                         TempData2["계정구분코드"] = 10
@@ -11904,7 +11904,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         
                         TempData = pd.DataFrame(IRS[girrcol].iloc[i].values, columns = ["델타민감도"]).fillna(0)
                         fxrate = CalcFXRateToKRW(FXSpot, IRS["Currency"].iloc[i], PriceDate)
-                        TempData["델타민감도"] = TempData["델타민감도"].astype(np.float64) * fxrate* 10000
+                        TempData["델타민감도"] = TempData["델타민감도"].astype(np.float64) * fxrate
                                                 
                         TempData["기준일자"] = PriceDate
                         TempData["계정구분코드"] = 10
@@ -11950,7 +11950,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         csrtenor = [float(s.replace("CSR1_","")) for s in csrcol]
                         TempData = pd.DataFrame(Bond[girrcol].iloc[i].values, columns = ["Delta_Sensi"])
                         fxrate = CalcFXRateToKRW(FXSpot, Bond["Currency"].iloc[i], Bond["PriceDate"].iloc[i])
-                        TempData["Delta_Sensi"] = TempData["Delta_Sensi"].astype(np.float64) * fxrate
+                        TempData["Delta_Sensi"] = TempData["Delta_Sensi"].astype(np.float64) * fxrate * 10000
                         TempData["Depart"] = Depart
                         TempData["Risk_Class"] = "GIRR"
                         TempData["Risk_Type"] = "Delta"
@@ -11965,7 +11965,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData = TempData[TempData["Delta_Sensi"] != 0]
 
                         TempData2 = pd.DataFrame(Bond[csrcol].iloc[i].values, columns = ["Delta_Sensi"]).fillna(0)
-                        TempData2["Delta_Sensi"] = TempData2["Delta_Sensi"].astype(np.float64) * fxrate
+                        TempData2["Delta_Sensi"] = TempData2["Delta_Sensi"].astype(np.float64) * fxrate * 10000
 
                         TempData2["Depart"] = Depart
                         TempData2["Risk_Class"] = "CSR"
@@ -11992,7 +11992,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         girrtenor = girrtenor1 + girrtenor2 + girrtenor3    
                         TempData = pd.DataFrame(IRS[girrcol].iloc[i].values, columns = ["Delta_Sensi"])
                         fxrate = CalcFXRateToKRW(FXSpot, IRS["Currency"].iloc[i], IRS["PriceDate"].iloc[i])
-                        TempData["Delta_Sensi"] = TempData["Delta_Sensi"].astype(np.float64) * fxrate
+                        TempData["Delta_Sensi"] = TempData["Delta_Sensi"].astype(np.float64) * fxrate * 10000
                         
                         TempData["Depart"] = Depart
                         TempData["Risk_Class"] = "GIRR"
