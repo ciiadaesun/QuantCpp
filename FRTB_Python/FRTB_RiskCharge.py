@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import tkinter as tk
 from tkinter import ttk
+from tkinter import messagebox
 # JIT은 쓰지말자
 #from numba import jit
 import warnings
@@ -3639,7 +3640,8 @@ def Calc_Bond(Nominal, NominalFlag, FloatFlag, FirstFloatFixRate, EffectiveDateY
         LoggingDF = pd.DataFrame([LoggingStart,LoggingEnd,LoggingEstStart,LoggingEstEnd,LoggingPayDate,LoggingFraction, LoggingForwardRate, LoggingAdj, LoggingCpnFix, LoggingCpnRate, LoggingRawCpn, LoggingDF], index = ["Start","End","EstStart","EstEnd","Pay","Frac","ForwardRate","ConvAdj","CpnFixed","Cpn","RawCpn","DF"]).T               
         if (len(DiscCurveName) > 0) : 
             LoggingDF["DiscCurve"] = DiscCurveName
-            LoggingDF["EstCurve"] = DiscCurveName if len(EstZeroCurveTerm) == 0 else EstCurveName
+            LoggingDF["EstCurve"] = "none" if FloatFlag == 0 else (DiscCurveName if FloatFlag != 0 and len(EstZeroCurveTerm) == 0 else EstCurveName)                
+
         LoggingDF["AccruedT"] = AccruedT
         LoggingDF["AI"] = AI
             
@@ -10621,7 +10623,8 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
                 data2 = pd.concat([data2, GIRR, CSR],axis = 1)
                 df = pd.concat([df_pre, data2],axis = 0)
                 df.index = np.arange(len(df))
-                df.to_csv(currdir + "\\Book\\Bond\\Bond.csv", index = False, encoding = "cp949")            
+                df.to_csv(currdir + "\\Book\\Bond\\Bond.csv", index = False, encoding = "cp949")    
+                messagebox.showinfo("알림","Booking 완료!!")        
             output_label.config(text = f"\n결과: {np.round(Value,4)}\nAccrued Interest: \n{np.round(AIList[0],4)}\nLeg1 Payoff: \n{L1ResultPayoff}\nGIRR: \n{GIRRRisk}\nCSR: \n{CSRRisk}\nBooking = {bool(BookFlag)}", font = ("맑은 고딕", 12, 'bold'))
         else : 
             output_label.config(text = f"\n결과: \n{ErrorString}", font = ("맑은 고딕", 12, 'bold'))
@@ -10659,7 +10662,7 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
         CurveTerm1 = list(Curve["Term" if "Term" in Curve.columns else "term"])
         CurveRate1 = list(Curve["Rate" if "Rate" in Curve.columns else "rate"])
         CurveTerm2, CurveRate2 = CurveTerm1, CurveRate1     
-        UsedCurveName2 = ""
+        UsedCurveName2 = UsedCurveName1
     else : 
         Curve, Curve2 = MyMarketDataList[0], MyMarketDataList[1]
         UsedCurveName1, UsedCurveName2 = Name[0], Name[1]
@@ -10850,16 +10853,18 @@ def PricingIRSProgram(HolidayData = pd.DataFrame([]), FXData = pd.DataFrame([]) 
                 MyCol = ["Nominal","FixingRate","EffectiveDate","EndDate",
                         "NBDFromEndDateToPayDate","CpnRate","NumCpnOneYear","DayCountFlag","ModifiedFollowing",
                         "DiscCurveNameLeg1","EstCurveNameLeg1","DiscCurveNameLeg2","EstCurveNameLeg2",
-                        "Currency","Holiday","MTM","PriceDate","GirrBucket"]
+                        "Currency","Holiday","MTM","PriceDate","GirrBucket", "FixedPayer"]
+                
                 Contents = [Nominal, L1FirstFixing, SwapEffectiveDate, SwapMaturity, 
                             SwapMaturityToPayDate, FixedCpnRate_P1, NumCpnOneYear_P1, DayCount, 1, 
                             UsedCurveName1.split("\\")[-1], UsedCurveName2.split("\\")[-1], UsedCurveName1.split("\\")[-1], UsedCurveName2.split("\\")[-1],
-                            UsedCurveName1.split("\\")[-2], UsedCurveName1.split("\\")[-2], Value , YYYYMMDD, Curr.upper()]
+                            UsedCurveName1.split("\\")[-2], UsedCurveName1.split("\\")[-2], Value , YYYYMMDD, Curr.upper(), FixedPayer]
                 data2 = pd.DataFrame([Contents], columns = MyCol)
                 data2 = pd.concat([data2, GIRR],axis = 1)
                 df = pd.concat([df_pre, data2],axis = 0)
                 df.index = np.arange(len(df))
                 df.to_csv(currdir + "\\Book\\IRS\\IRS.csv", index = False, encoding = "cp949")
+                messagebox.showinfo("알림","Booking 완료!!")        
 
             output_label.config(text = f"\n결과: {np.round(Value,4)}\nPayoff: \n{ResultPayoff}\n\nGIRR: {GIRRRisk}\n\nBooking = {bool(BookFlag)}\n\nVolSearch ={bool(VolSearch)}", font = ("맑은 고딕", 12, 'bold'))
         else : 
@@ -11060,15 +11065,16 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
         if DomeEstNum == -1 : 
             DomeEstTerm = []
             DomeEstRate = []
+            DomeEstName = Name[DomeDiscNum]
         else : 
             DomeEstTerm = MyMarketDataList[DomeEstNum]["Term"]
             DomeEstRate = MyMarketDataList[DomeEstNum]["Rate"]
+            DomeEstName = Name[DomeEstNum]
         DomeDiscName = Name[DomeDiscNum]
-        DomeEstName = Name[DomeEstNum]
         
         LD_DayCount = int(str(vb_LD_DayCount.get(vb_LD_DayCount.curselection())).split(":")[0]) if vb_LD_DayCount.curselection() else 0
         LDFirstFixing = float(v_LDFirstFixing.get())/100 if len(str(v_LDFirstFixing.get())) > 0 else 0.0              
-        LDPricingFXRate = float(v_LDPricingFXRate.get())/100 if len(str(v_LDPricingFXRate.get())) > 0 else 0.0              
+        LDPricingFXRate = float(v_LDPricingFXRate.get()) if len(str(v_LDPricingFXRate.get())) > 0 else 0.0              
         LD_LookBackDays = int(v_LD_LookBackDays.get()) if len(str(v_LD_LookBackDays.get())) > 0 else 0
         LD_Holiday_Curr = vb_LDHoliday.get(vb_LDHoliday.curselection()) if vb_LDHoliday.curselection() else "KRW"
         if LD_Holiday_Curr.upper() in HolidayData.columns : 
@@ -11095,7 +11101,7 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
              
         LF_DayCount = int(str(vb_LF_DayCount.get(vb_LF_DayCount.curselection())).split(":")[0]) if vb_LF_DayCount.curselection() else 0
         LFFirstFixing = float(v_LFFirstFixing.get())/100 if len(str(v_LFFirstFixing.get())) > 0 else 0.0              
-        LFPricingFXRate = float(v_LFPricingFXRate.get())/100 if len(str(v_LFPricingFXRate.get())) > 0 else 0.0              
+        LFPricingFXRate = float(v_LFPricingFXRate.get()) if len(str(v_LFPricingFXRate.get())) > 0 else 0.0              
         LF_LookBackDays = int(v_LF_LookBackDays.get()) if len(str(v_LF_LookBackDays.get())) > 0 else 0
         LF_Holiday_Curr = vb_LFHoliday.get(vb_LFHoliday.curselection()) if vb_LFHoliday.curselection() else "KRW"
         if LF_Holiday_Curr.upper() in HolidayData.columns : 
@@ -11112,7 +11118,8 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
         ErrorFlag, ErrorString = Calc_Schedule_ErrorCheck(Nominal1*Nominal2, SwapEffectiveDate, int(PriceDate), SwapMaturity, DomeDiscTerm, 
                         DomeDiscRate, NumCpnOneYear_P1, LD_DayCount)
         if ErrorFlag == 0 : 
-            Value, PV01DomesticDisc, PV01ForeignDisc, PV01DomesticEst, PV01ForeignEst = CalC_CRS_PV01(Nominal1, Nominal2, LDFirstFixing, SwapEffectiveDate, int(PriceDate), SwapMaturity, 
+            Value, PV01DomesticDisc, PV01ForeignDisc, PV01DomesticEst, PV01ForeignEst = CalC_CRS_PV01(
+                    Nominal1, Nominal2, LDFirstFixing, SwapEffectiveDate, int(PriceDate), SwapMaturity, 
                     FixedCpnRate_P1, DomeDiscTerm, DomeDiscRate, NumCpnOneYear_P1, LD_DayCount, 
                     LF_DayCount, KoreanHoliday = False, MaturityToPayDate = SwapMaturityToPayDate, EstZeroCurveTermDomestic = DomeEstTerm, EstZeroCurveRateDomestic = DomeEstRate, 
                     EstZeroCurveTermForeign = ForeEstTerm, EstZeroCurveRateForeign = ForeEstRate, ZeroCurveTermForeign = ForeDiscTerm, ZeroCurveRateForeign = ForeDiscRate, FixingHolidayListDomestic = LD_HolidaysForSwap, 
@@ -11125,7 +11132,7 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
             GIRRRisk2 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01DomesticEst.fillna(0), "PV01TermDomesticEst","PV01DomesticEst"), 4 if Value > 10000 else 2)
             GIRRRisk3 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01ForeignDisc.fillna(0), "PV01TermForeignDisc","PV01ForeignDisc"), 4 if Value > 10000 else 2)
             GIRRRisk4 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01ForeignEst.fillna(0), "PV01TermForeignEst","PV01ForeignEst"), 4 if Value > 10000 else 2)
-            GIRRRisk = np.round(GIRRRisk1 + GIRRRisk2 + GIRRRisk3 + GIRRRisk4, 4)
+            GIRRRisk = np.round(np.abs(GIRRRisk1 + GIRRRisk2 - GIRRRisk3 - GIRRRisk4), 4)
 
             if PrevTreeFlag == 0 : 
                 tree = ttk.Treeview(root)
@@ -11145,6 +11152,42 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
             scrollbar2.pack(side="bottom", fill="x")    
             
             PrevTreeFlag = insert_dataframe_to_treeview(tree, PV01.reset_index(), width = 100)    
+            if BookFlag in ["y","Y","1",1] : 
+                GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
+                Data_GIRR1 = MapGIRRDeltaGreeks(PV01DomesticDisc.fillna(0).set_index("PV01TermDomesticDisc")["PV01DomesticDisc"], GIRR_DeltaRiskFactor).reset_index()
+                Data_GIRR2 = MapGIRRDeltaGreeks(PV01DomesticEst.fillna(0).set_index("PV01TermDomesticEst")["PV01DomesticEst"], GIRR_DeltaRiskFactor).reset_index()
+                Data_GIRR3 = MapGIRRDeltaGreeks(PV01ForeignDisc.fillna(0).set_index("PV01TermForeignDisc")["PV01ForeignDisc"], GIRR_DeltaRiskFactor).reset_index()
+                Data_GIRR4 = MapGIRRDeltaGreeks(PV01ForeignEst.fillna(0).set_index("PV01TermForeignEst")["PV01ForeignEst"], GIRR_DeltaRiskFactor).reset_index()
+                Data_GIRR1.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
+                Data_GIRR2.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
+                Data_GIRR3.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
+                Data_GIRR4.columns = ["GIRR_Tenor","GIRR_Delta_Sensi"]
+                GIRR1 = pd.DataFrame([list(Data_GIRR1["GIRR_Delta_Sensi"])], columns = list(Data_GIRR1["GIRR_Tenor"].apply(lambda x : "GIRR1_" + str(x))))
+                GIRR2 = pd.DataFrame([list(Data_GIRR2["GIRR_Delta_Sensi"])], columns = list(Data_GIRR2["GIRR_Tenor"].apply(lambda x : "GIRR2_" + str(x))))            
+                GIRR3 = pd.DataFrame([list(Data_GIRR3["GIRR_Delta_Sensi"])], columns = list(Data_GIRR3["GIRR_Tenor"].apply(lambda x : "GIRR3_" + str(x))))            
+                GIRR4 = pd.DataFrame([list(Data_GIRR4["GIRR_Delta_Sensi"])], columns = list(Data_GIRR4["GIRR_Tenor"].apply(lambda x : "GIRR4_" + str(x))))            
+                GIRR = pd.concat([GIRR1, GIRR2, GIRR3, GIRR4],axis = 1)
+                df_pre = ReadCSV(currdir + "\\Book\\IRS\\CRS.csv")
+                MyCol = ["Nominal1","Nominal2","LDFixingRate","LFFixingRate","EffectiveDate",
+                         "SwapMaturity","LDFixedCpnRate","LFFixedCpnRate","LDNumCpnOneYear_P1","LFNumCpnOneYear_P1",
+                         "LD_DayCount","LF_DayCount","KoreanHoliday","MaturityToPayDate","NominalDateIsNominalPayDate",
+                         "ModifiedFollow","LD_LookBackDays","LF_LookBackDays","LDPayer","LDPricingFXRate",
+                         "LFPricingFXRate","DiscCurveNameLeg1","EstCurveNameLeg1","DiscCurveNameLeg2","EstCurveNameLeg2",
+                         "Currency1","Currency2","Holiday","MTM","PriceDate","GirrBucket1","GirrBucket2"]
+                
+                Contents = [Nominal1, Nominal2, LDFirstFixing, LFFirstFixing, SwapEffectiveDate, 
+                            SwapMaturity, FixedCpnRate_P1, 0, NumCpnOneYear_P1, NumCpnOneYear_P1, 
+                            LD_DayCount, LF_DayCount, 0, SwapMaturityToPayDate, 1, 
+                            1, LD_LookBackDays, LF_LookBackDays, FixedPayer, LDPricingFXRate,
+                            LFPricingFXRate, DomeDiscName, DomeEstName, ForeDiscName, ForeEstName,
+                            LD_Holiday_Curr, LF_Holiday_Curr, LD_Holiday_Curr+LF_Holiday_Curr,Value,int(PriceDate), LD_Holiday_Curr, LF_Holiday_Curr]  
+                data2 = pd.DataFrame([Contents], columns = MyCol)
+                data2 = pd.concat([data2, GIRR],axis = 1)
+                df = pd.concat([df_pre, data2],axis = 0)
+                df.index = np.arange(len(df))
+                df.to_csv(currdir + "\\Book\\IRS\\CRS.csv", index = False, encoding = "cp949")
+                messagebox.showinfo("알림","Booking 완료!!")                                  
+                
             output_label.config(text = f"Payoff: \n{ResultPayoff}\n\n결과: {np.round(Value,4)}\n\nGIRR: {GIRRRisk}\n\nBooking = {bool(BookFlag)}", font = ("맑은 고딕", 12, 'bold'))
         else : 
             output_label.config(text = f"Payoff: \n{ErrorString}", font = ("맑은 고딕", 12, 'bold'))
@@ -11790,8 +11833,23 @@ def PreprocessingFXSpotData(DataDirectory) :
         FXSpot = pd.DataFrame([])
     return FXSpot    
 
+def CurveNamePreprocessingBankStyle(cvname) : 
+    if "ZeroCurve" in cvname : 
+        cvname = cvname.replace("ZeroCurve","")
+    elif "Zero" in cvname : 
+        cvname = cvname.replace("Zero","")
+    
+    if "IRS" in cvname : 
+        cvname = cvname.replace("IRS",":Std")
+    elif "CRS" in cvname : 
+        cvname = cvname.replace("CRS","FX")        
+    return cvname
+
+VectorizedCurveNamePreprocessing = np.vectorize(CurveNamePreprocessingBankStyle)
+
 def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) : 
-    ResultAddData = pd.DataFrame([])
+    ResultAddData = pd.DataFrame([])    
+    
     try : 
         Bond = ReadCSV(currdir + '\\Book\\Bond\\Bond.csv')
         Bond["ProductType"] = "Bond"
@@ -11804,31 +11862,18 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
             PriceDate = RAWData["기준일자"].iloc[0]
             if len(Bond) + len(IRS) > 0 : 
                 #AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
-                AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "1800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", addtreeflag=True, treedata = concatdata)
+                AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "1800x450+10+10", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", addtreeflag=True, treedata = concatdata)
                 if AddBookedPosition == 1 :
                     Depart = MainViewer2(Title = "Department Name",MyText = "부점명을 입력하시오",size = "800x450+30+30", textfont = 14, defaultvalue = "TempDepart")#input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
                     for i in range(len(Bond)) : 
                         cvname = Bond["DiscCurveName"].iloc[i].replace(".csv","")
-                        girrcol1 = [s for s in Bond.columns if "girr1_" in s.lower()]
-                        girrcol2 = [s for s in Bond.columns if "girr2_" in s.lower()]
-                        girrcol3 = [s for s in Bond.columns if "girr3_" in s.lower()]
-                        girrcol = girrcol1 + girrcol2 + girrcol3
-                        girrtenor1 = [float(s.replace("GIRR1_","")) for s in girrcol1]
-                        girrtenor2 = [float(s.replace("GIRR2_","")) for s in girrcol2]
-                        girrtenor3 = [float(s.replace("GIRR3_","")) for s in girrcol3]
-                        girrtenor = girrtenor1 + girrtenor2 + girrtenor3
+                        girrcol = [s for s in Bond.columns if "girr1_" in s.lower()]                    
+                        girrtenor = [float(s.replace("GIRR1_","")) for s in girrcol]
                         csrcol = [s for s in Bond.columns if "csr1_" in s.lower()]
                         csrtenor = [float(s.replace("CSR1_","")) for s in csrcol]
-                        if "ZeroCurve" in cvname : 
-                            cvname = cvname.replace("ZeroCurve","")
-                        elif "Zero" in cvname : 
-                            cvname = cvname.replace("Zero","")
-                        
-                        if "IRS" in cvname : 
-                            cvname = cvname.replace("IRS",":Std")
-                        elif "CRS" in cvname : 
-                            cvname = cvname.replace("CRS","FX")
+                        cvname = CurveNamePreprocessingBankStyle(cvname)
 
+                        # GIRR Mapping
                         TempData = pd.DataFrame(Bond[girrcol].iloc[i].values, columns = ["델타민감도"]).fillna(0)
                         fxrate = CalcFXRateToKRW(FXSpot, Bond["Currency"].iloc[i], PriceDate)
                         TempData["델타민감도"] = TempData["델타민감도"].astype(np.float64) * fxrate 
@@ -11856,6 +11901,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData["하향커버쳐"] = 0
                         TempData = TempData[TempData["델타민감도"] != 0]
 
+                        # CSR Mapping
                         TempData2 = pd.DataFrame(Bond[csrcol].iloc[i].values, columns = ["델타민감도"]).fillna(0)
                         TempData2["델타민감도"] = TempData2["델타민감도"].astype(np.float64) * fxrate
                         
@@ -11883,24 +11929,22 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         ResultAddData = pd.concat([ResultAddData, TempData, TempData2],axis = 0)
 
                     for i in range(len(IRS)) : 
-                        cvname = IRS["DiscCurveNameLeg1"].iloc[i].replace(".csv","")
+                        cvnamedsc1 = str(IRS["DiscCurveNameLeg1"].iloc[i]).replace(".csv","")
+                        cvnameest1 = str(IRS["EstCurveNameLeg1"].iloc[i]).replace(".csv","")
+                        cvnamedsc2 = str(IRS["DiscCurveNameLeg2"].iloc[i]).replace(".csv","")
+                        cvnameest2 = str(IRS["EstCurveNameLeg2"].iloc[i]).replace(".csv","")                        
                         girrcol1 = [s for s in IRS.columns if "girr1_" in s.lower()]
                         girrcol2 = [s for s in IRS.columns if "girr2_" in s.lower()]
                         girrcol3 = [s for s in IRS.columns if "girr3_" in s.lower()]
-                        girrcol = girrcol1 + girrcol2 + girrcol3
+                        girrcol4 = [s for s in IRS.columns if "girr4_" in s.lower()]
+                        girrcol = girrcol1 + girrcol2 + girrcol3 + girrcol4
+                        cvnamelist = [cvnamedsc1] * len(girrcol1) + [cvnameest1] * len(girrcol2) + [cvnamedsc2] * len(girrcol3) + [cvnameest2] * len(girrcol4)
+                        cvname = VectorizedCurveNamePreprocessing(cvnamelist)
                         girrtenor1 = [float(s.replace("GIRR1_","")) for s in girrcol1]
                         girrtenor2 = [float(s.replace("GIRR2_","")) for s in girrcol2]
                         girrtenor3 = [float(s.replace("GIRR3_","")) for s in girrcol3]
-                        girrtenor = girrtenor1 + girrtenor2 + girrtenor3                        
-                        if "ZeroCurve" in cvname : 
-                            cvname = cvname.replace("ZeroCurve","")
-                        elif "Zero" in cvname : 
-                            cvname = cvname.replace("Zero","")
-                        
-                        if "IRS" in cvname : 
-                            cvname = cvname.replace("IRS",":Std")
-                        elif "CRS" in cvname : 
-                            cvname = cvname.replace("CRS","FX")
+                        girrtenor4 = [float(s.replace("GIRR4_","")) for s in girrcol4]
+                        girrtenor = girrtenor1 + girrtenor2 + girrtenor3 + girrtenor4                        
                         
                         TempData = pd.DataFrame(IRS[girrcol].iloc[i].values, columns = ["델타민감도"]).fillna(0)
                         fxrate = CalcFXRateToKRW(FXSpot, IRS["Currency"].iloc[i], PriceDate)
@@ -11938,16 +11982,12 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                     Depart = MainViewer2(Title = "Department Name",MyText = "부점명을 입력하시오",size = "800x450+30+30", textfont = 14, defaultvalue = "TempDepart")#input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
                     for i in range(len(Bond)) : 
                         cvname = Bond["DiscCurveName"].iloc[i].replace(".csv","")
-                        girrcol1 = [s for s in Bond.columns if "girr1_" in s.lower()]
-                        girrcol2 = [s for s in Bond.columns if "girr2_" in s.lower()]
-                        girrcol3 = [s for s in Bond.columns if "girr3_" in s.lower()]
-                        girrcol = girrcol1 + girrcol2 + girrcol3
-                        girrtenor1 = [float(s.replace("GIRR1_","")) for s in girrcol1]
-                        girrtenor2 = [float(s.replace("GIRR2_","")) for s in girrcol2]
-                        girrtenor3 = [float(s.replace("GIRR3_","")) for s in girrcol3]
-                        girrtenor = girrtenor1 + girrtenor2 + girrtenor3                        
+                        girrcol = [s for s in Bond.columns if "girr1_" in s.lower()]
+                        girrtenor = [float(s.replace("GIRR1_","")) for s in girrcol]
                         csrcol = [s for s in Bond.columns if "csr1_" in s.lower()]
                         csrtenor = [float(s.replace("CSR1_","")) for s in csrcol]
+                        
+                        #GIRR Mapping
                         TempData = pd.DataFrame(Bond[girrcol].iloc[i].values, columns = ["Delta_Sensi"])
                         fxrate = CalcFXRateToKRW(FXSpot, Bond["Currency"].iloc[i], Bond["PriceDate"].iloc[i])
                         TempData["Delta_Sensi"] = TempData["Delta_Sensi"].astype(np.float64) * fxrate * 10000
@@ -11964,9 +12004,9 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData["CVR_Minus"] = 0                        
                         TempData = TempData[TempData["Delta_Sensi"] != 0]
 
+                        #CSR Mapping
                         TempData2 = pd.DataFrame(Bond[csrcol].iloc[i].values, columns = ["Delta_Sensi"]).fillna(0)
                         TempData2["Delta_Sensi"] = TempData2["Delta_Sensi"].astype(np.float64) * fxrate * 10000
-
                         TempData2["Depart"] = Depart
                         TempData2["Risk_Class"] = "CSR"
                         TempData2["Risk_Type"] = "Delta"
@@ -11977,19 +12017,26 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData2["RiskFactor3"] = "TempIssuer" + str(Bond["CsrBucket"].iloc[i])
                         TempData2["Vega_Sensi"] = 0
                         TempData2["CVR_Plus"] = 0
-                        TempData2["CVR_Minus"] = 0   
+                        TempData2["CVR_Minus"] = 0 
+                        TempData2 = TempData2[TempData2["Delta_Sensi"] != 0]                          
                         ResultAddData = pd.concat([ResultAddData, TempData, TempData2],axis = 0)
                                              
                     for i in range(len(IRS)) : 
-                        cvname = IRS["DiscCurveNameLeg1"].iloc[i].replace(".csv","")
+                        cvnamedsc1 = str(IRS["DiscCurveNameLeg1"].iloc[i]).replace(".csv","")
+                        cvnameest1 = str(IRS["EstCurveNameLeg1"].iloc[i]).replace(".csv","")
+                        cvnamedsc2 = str(IRS["DiscCurveNameLeg2"].iloc[i]).replace(".csv","")
+                        cvnameest2 = str(IRS["EstCurveNameLeg2"].iloc[i]).replace(".csv","")                             
                         girrcol1 = [s for s in IRS.columns if "girr1_" in s.lower()]
                         girrcol2 = [s for s in IRS.columns if "girr2_" in s.lower()]
                         girrcol3 = [s for s in IRS.columns if "girr3_" in s.lower()]
-                        girrcol = girrcol1 + girrcol2 + girrcol3
+                        girrcol4 = [s for s in IRS.columns if "girr4_" in s.lower()]                        
+                        girrcol = girrcol1 + girrcol2 + girrcol3 + girrcol4
+                        cvname = [cvnamedsc1] * len(girrcol1) + [cvnameest1] * len(girrcol2) + [cvnamedsc2] * len(girrcol3) + [cvnameest2] * len(girrcol4)
                         girrtenor1 = [float(s.replace("GIRR1_","")) for s in girrcol1]
                         girrtenor2 = [float(s.replace("GIRR2_","")) for s in girrcol2]
                         girrtenor3 = [float(s.replace("GIRR3_","")) for s in girrcol3]
-                        girrtenor = girrtenor1 + girrtenor2 + girrtenor3    
+                        girrtenor4 = [float(s.replace("GIRR4_","")) for s in girrcol4]
+                        girrtenor = girrtenor1 + girrtenor2 + girrtenor3 + girrtenor4
                         TempData = pd.DataFrame(IRS[girrcol].iloc[i].values, columns = ["Delta_Sensi"])
                         fxrate = CalcFXRateToKRW(FXSpot, IRS["Currency"].iloc[i], IRS["PriceDate"].iloc[i])
                         TempData["Delta_Sensi"] = TempData["Delta_Sensi"].astype(np.float64) * fxrate * 10000
@@ -12005,6 +12052,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData["Vega_Sensi"] = 0
                         TempData["CVR_Plus"] = 0
                         TempData["CVR_Minus"] = 0                        
+                        TempData = TempData[(TempData["Delta_Sensi"] >= 1e-10) | (TempData["Delta_Sensi"] <= -1e-10)]
                         ResultAddData = pd.concat([ResultAddData, TempData],axis = 0)
             
     except FileNotFoundError : 
@@ -12055,14 +12103,16 @@ while True :
             else : 
                 break
             
-        SaveFlag = MainViewer(Title = 'Continue', MyText = 'FRTB Result 저장하시겠습니까(아래위치)\n' + currdir, MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13)
-        if SaveFlag == 1 : 
+        SaveFlag = MainViewer(Title = 'Continue', MyText = 'FRTB Result 저장하시겠습니까(아래위치)\n' + currdir, MyList = ["0: FRTB Result 저장X", "1: FRTB Result 저장O", "2: FRTB Result 저장 및 RAWFILE저장"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13)
+        if SaveFlag >= 1 : 
             writer = pd.ExcelWriter('ResultFRTB.xlsx', engine='xlsxwriter') # pylint: disable=abstract-class-instantiated
             ResultData1.to_excel(writer, sheet_name = 'ByBucket')
             ResultData2.to_excel(writer, sheet_name = 'ByDepart')
             ResultData3.to_excel(writer, sheet_name = 'ByPortfolio')
             writer.save()
             writer.close()
+            if SaveFlag >= 2 : 
+                RAWData.to_csv(currdir + "\\FRTB_RAW_INCLUDE_BOOK.csv", index = False)                
             
     elif MainFlag in [1,'1'] :                     
         HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
