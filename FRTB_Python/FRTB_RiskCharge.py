@@ -3933,7 +3933,7 @@ def CalC_CRS_PV01(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveD
              EstZeroCurveTermForeign = [], EstZeroCurveRateForeign = [], ZeroCurveTermForeign = [], ZeroCurveRateForeign = [], FixingHolidayListDomestic = [], 
              FixingHolidayListForeign = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = True, LoggingFlag = 0, LoggingDir = '', 
              ModifiedFollow = 1,LookBackDaysDomestic = 0, LookBackDaysForeign = 0, ObservShift = False, DomesticPayerFlag = 0, 
-             DiscCurveName = "", EstCurveName = "", ValuationDomesticFX = 1.0, ValuationForeignFX = 1.0, SOFRFlag = False, FixFixFlag = False, FirstFloatFixRateForeign = 0, DiscCurveNameForeign = "", EstCurveNameForeign = "") : 
+             DiscCurveName = "", EstCurveName = "", ValuationDomesticFX = 1.0, ValuationForeignFX = 1.0, SOFRFlag = False, FixFixFlag = False, FirstFloatFixRateForeign = 0, DiscCurveNameForeign = "", EstCurveNameForeign = "", DomesticParallelUp = False, ForeignParallelUp = False) : 
     
     P = Calc_CRS(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
                 CpnRate, ZeroCurveTermDomestic, ZeroCurveRateDomestic, NumCpnOneYear, DayCountFlagDomestic, 
@@ -3944,9 +3944,22 @@ def CalC_CRS_PV01(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveD
                 DiscCurveName, EstCurveName , ValuationDomesticFX, ValuationForeignFX, SOFRFlag, FixFixFlag, FirstFloatFixRateForeign, DiscCurveNameForeign, EstCurveNameForeign )
 
     ResultArray = np.zeros(len(ZeroCurveTermDomestic))
-    for i in range(len(ZeroCurveTermDomestic)) : 
+    if DomesticParallelUp == False : 
+        for i in range(len(ZeroCurveTermDomestic)) : 
+            ZeroUp = np.array(ZeroCurveRateDomestic).copy()
+            ZeroUp[i] += 0.0001
+            Pu = Calc_CRS(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
+                    CpnRate, ZeroCurveTermDomestic, ZeroUp, NumCpnOneYear, DayCountFlagDomestic, 
+                    DayCountFlagForeign, KoreanHoliday, MaturityToPayDate, EstZeroCurveTermDomestic , EstZeroCurveRateDomestic, 
+                    EstZeroCurveTermForeign, EstZeroCurveRateForeign, ZeroCurveTermForeign, ZeroCurveRateForeign, FixingHolidayListDomestic, 
+                    FixingHolidayListForeign, AdditionalPayHolidayList, NominalDateIsNominalPayDate, LoggingFlag, LoggingDir, 
+                    ModifiedFollow,LookBackDaysDomestic, LookBackDaysForeign, ObservShift, DomesticPayerFlag, 
+                    DiscCurveName, EstCurveName , ValuationDomesticFX, ValuationForeignFX, SOFRFlag, FixFixFlag, FirstFloatFixRateForeign, DiscCurveNameForeign, EstCurveNameForeign)
+
+            ResultArray[i] = Pu - P
+    else : 
         ZeroUp = np.array(ZeroCurveRateDomestic).copy()
-        ZeroUp[i] += 0.0001
+        ZeroUp = ZeroUp + 0.0001
         Pu = Calc_CRS(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
                 CpnRate, ZeroCurveTermDomestic, ZeroUp, NumCpnOneYear, DayCountFlagDomestic, 
                 DayCountFlagForeign, KoreanHoliday, MaturityToPayDate, EstZeroCurveTermDomestic , EstZeroCurveRateDomestic, 
@@ -3955,12 +3968,25 @@ def CalC_CRS_PV01(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveD
                 ModifiedFollow,LookBackDaysDomestic, LookBackDaysForeign, ObservShift, DomesticPayerFlag, 
                 DiscCurveName, EstCurveName , ValuationDomesticFX, ValuationForeignFX, SOFRFlag, FixFixFlag, FirstFloatFixRateForeign, DiscCurveNameForeign, EstCurveNameForeign)
 
-        ResultArray[i] = Pu - P
+        ResultArray[0] = Pu - P
 
     ResultArray2 = np.zeros(len(ZeroCurveTermForeign))
-    for i in range(len(ZeroCurveTermForeign)) : 
+    if ForeignParallelUp == False : 
+        for i in range(len(ZeroCurveTermForeign)) : 
+            ZeroUp = np.array(ZeroCurveRateForeign).copy()
+            ZeroUp[i] += 0.0001
+            Pu = Calc_CRS(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
+                    CpnRate, ZeroCurveTermDomestic, ZeroCurveRateDomestic, NumCpnOneYear, DayCountFlagDomestic, 
+                    DayCountFlagForeign, KoreanHoliday, MaturityToPayDate, EstZeroCurveTermDomestic , EstZeroCurveRateDomestic, 
+                    EstZeroCurveTermForeign, EstZeroCurveRateForeign, ZeroCurveTermForeign, ZeroUp, FixingHolidayListDomestic, 
+                    FixingHolidayListForeign, AdditionalPayHolidayList, NominalDateIsNominalPayDate, LoggingFlag, LoggingDir, 
+                    ModifiedFollow,LookBackDaysDomestic, LookBackDaysForeign, ObservShift, DomesticPayerFlag, 
+                    DiscCurveName, EstCurveName , ValuationDomesticFX, ValuationForeignFX, SOFRFlag, FixFixFlag, FirstFloatFixRateForeign, DiscCurveNameForeign, EstCurveNameForeign)
+
+            ResultArray2[i] = Pu - P
+    else : 
         ZeroUp = np.array(ZeroCurveRateForeign).copy()
-        ZeroUp[i] += 0.0001
+        ZeroUp = ZeroUp + 0.0001
         Pu = Calc_CRS(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
                 CpnRate, ZeroCurveTermDomestic, ZeroCurveRateDomestic, NumCpnOneYear, DayCountFlagDomestic, 
                 DayCountFlagForeign, KoreanHoliday, MaturityToPayDate, EstZeroCurveTermDomestic , EstZeroCurveRateDomestic, 
@@ -3969,8 +3995,8 @@ def CalC_CRS_PV01(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveD
                 ModifiedFollow,LookBackDaysDomestic, LookBackDaysForeign, ObservShift, DomesticPayerFlag, 
                 DiscCurveName, EstCurveName , ValuationDomesticFX, ValuationForeignFX, SOFRFlag, FixFixFlag, FirstFloatFixRateForeign, DiscCurveNameForeign, EstCurveNameForeign)
 
-        ResultArray2[i] = Pu - P
-    
+        ResultArray2[0] = Pu - P
+
     ResultArray3 = np.zeros(len(EstZeroCurveTermDomestic))
     if len(EstZeroCurveTermDomestic) > 0 :
         for i in range(len(EstZeroCurveTermDomestic)) : 
@@ -11118,6 +11144,8 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
         ErrorFlag, ErrorString = Calc_Schedule_ErrorCheck(Nominal1*Nominal2, SwapEffectiveDate, int(PriceDate), SwapMaturity, DomeDiscTerm, 
                         DomeDiscRate, NumCpnOneYear_P1, LD_DayCount)
         if ErrorFlag == 0 : 
+            CRSFlagDomestic = ('FX' in DomeDiscName.upper()) or ('BASIS' in DomeDiscName.upper()) or ('CRS' in DomeDiscName.upper())
+            CRSFlagForeign = ('FX' in ForeDiscName.upper()) or ('BASIS' in ForeDiscName.upper()) or ('CRS' in ForeDiscName.upper())
             Value, PV01DomesticDisc, PV01ForeignDisc, PV01DomesticEst, PV01ForeignEst = CalC_CRS_PV01(
                     Nominal1, Nominal2, LDFirstFixing, SwapEffectiveDate, int(PriceDate), SwapMaturity, 
                     FixedCpnRate_P1, DomeDiscTerm, DomeDiscRate, NumCpnOneYear_P1, LD_DayCount, 
@@ -11126,8 +11154,8 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
                     FixingHolidayListForeign = LF_HolidaysForSwap, AdditionalPayHolidayList = HolidaysForSwap, NominalDateIsNominalPayDate = True, LoggingFlag = LoggingFlag, LoggingDir = currdir, 
                     ModifiedFollow = 1,LookBackDaysDomestic = LD_LookBackDays, LookBackDaysForeign = LF_LookBackDays, ObservShift = False, DomesticPayerFlag = FixedPayer, 
                     DiscCurveName = DomeDiscName, EstCurveName = DomeEstName, ValuationDomesticFX = LDPricingFXRate, ValuationForeignFX = LFPricingFXRate, SOFRFlag = False, 
-                    FixFixFlag = False, FirstFloatFixRateForeign= LFFirstFixing, DiscCurveNameForeign = ForeDiscName, EstCurveNameForeign = ForeEstName)    
-            
+                    FixFixFlag = False, FirstFloatFixRateForeign= LFFirstFixing, DiscCurveNameForeign = ForeDiscName, EstCurveNameForeign = ForeEstName, DomesticParallelUp = CRSFlagDomestic, ForeignParallelUp= CRSFlagForeign)    
+
             GIRRRisk1 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01DomesticDisc.fillna(0), "PV01TermDomesticDisc","PV01DomesticDisc"), 4 if Value > 10000 else 2)
             GIRRRisk2 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01DomesticEst.fillna(0), "PV01TermDomesticEst","PV01DomesticEst"), 4 if Value > 10000 else 2)
             GIRRRisk3 = np.round(Calc_GIRRDeltaNotCorrelated_FromGreeks(PV01ForeignDisc.fillna(0), "PV01TermForeignDisc","PV01ForeignDisc"), 4 if Value > 10000 else 2)
@@ -11174,12 +11202,15 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
                          "ModifiedFollow","LD_LookBackDays","LF_LookBackDays","LDPayer","LDPricingFXRate",
                          "LFPricingFXRate","DiscCurveNameLeg1","EstCurveNameLeg1","DiscCurveNameLeg2","EstCurveNameLeg2",
                          "Currency1","Currency2","Holiday","MTM","PriceDate","GirrBucket1","GirrBucket2"]
-                
+                cname1 = DomeDiscName.split("\\")[-1].replace(".csv","")
+                cname2 = DomeEstName.split("\\")[-1].replace(".csv","")
+                cname3 = ForeDiscName.split("\\")[-1].replace(".csv","")
+                cname4 = ForeEstName.split("\\")[-1].replace(".csv","")
                 Contents = [Nominal1, Nominal2, LDFirstFixing, LFFirstFixing, SwapEffectiveDate, 
                             SwapMaturity, FixedCpnRate_P1, 0, NumCpnOneYear_P1, NumCpnOneYear_P1, 
                             LD_DayCount, LF_DayCount, 0, SwapMaturityToPayDate, 1, 
                             1, LD_LookBackDays, LF_LookBackDays, FixedPayer, LDPricingFXRate,
-                            LFPricingFXRate, DomeDiscName, DomeEstName, ForeDiscName, ForeEstName,
+                            LFPricingFXRate, cname1, cname2, cname3, cname4,
                             LD_Holiday_Curr, LF_Holiday_Curr, LD_Holiday_Curr+LF_Holiday_Curr,Value,int(PriceDate), LD_Holiday_Curr, LF_Holiday_Curr]  
                 data2 = pd.DataFrame([Contents], columns = MyCol)
                 data2 = pd.concat([data2, GIRR],axis = 1)
@@ -11855,12 +11886,19 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
         Bond["ProductType"] = "Bond"
         IRS = ReadCSV(currdir + '\\Book\\IRS\\IRS.csv')
         IRS["ProductType"] = "IRS"
-        concatdata = pd.concat([Bond, IRS],axis = 0)
+        if 'CRS.csv' in os.listdir(currdir + '\\Book\\IRS') : 
+            CRS = ReadCSV(currdir + '\\Book\\IRS\\CRS.csv')
+            CRS["Nominal"] = CRS["Nominal1"]
+            CRS["EndDate"] = CRS["SwapMaturity"]
+            CRS["CpnRate"] = CRS["LDFixedCpnRate"]
+        else : 
+            CRS = pd.DataFrame([])
+        concatdata = pd.concat([Bond, IRS, CRS],axis = 0)
         concatdata.index = np.arange(len(concatdata))
         FXSpot = PreprocessingFXSpotData(currdir + "\\MarketData\\spot\\FXSpot.csv")                
         if RAWFORMAT == 1 : 
             PriceDate = RAWData["기준일자"].iloc[0]
-            if len(Bond) + len(IRS) > 0 : 
+            if len(Bond) + len(IRS) + len(CRS)> 0 : 
                 #AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
                 AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "1800x450+10+10", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", addtreeflag=True, treedata = concatdata)
                 if AddBookedPosition == 1 :
@@ -11974,8 +12012,60 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData = TempData[TempData["델타민감도"] != 0]
                                
                         ResultAddData = pd.concat([ResultAddData, TempData],axis = 0)
+                                             
+                    for i in range(len(CRS)) : 
+                        cvnamedsc1 = str(CRS["DiscCurveNameLeg1"].iloc[i]).replace(".csv","")
+                        cvnameest1 = str(CRS["EstCurveNameLeg1"].iloc[i]).replace(".csv","")
+                        crsdomeflag = ('FX' in cvnamedsc1.upper()) or ('BASIS' in cvnamedsc1.upper()) or ('CRS' in cvnamedsc1.upper())
+                        cvnamedsc2 = str(CRS["DiscCurveNameLeg2"].iloc[i]).replace(".csv","")
+                        cvnameest2 = str(CRS["EstCurveNameLeg2"].iloc[i]).replace(".csv","")                             
+                        crsforeflag = ('FX' in cvnamedsc2.upper()) or ('BASIS' in cvnamedsc2.upper()) or ('CRS' in cvnamedsc2.upper())
+                        girrcol1 = [s for s in CRS.columns if "girr1_" in s.lower()]
+                        girrcol2 = [s for s in CRS.columns if "girr2_" in s.lower()]
+                        girrcol3 = [s for s in CRS.columns if "girr3_" in s.lower()]
+                        girrcol4 = [s for s in CRS.columns if "girr4_" in s.lower()]                        
+                        girrcol = girrcol1 + girrcol2 + girrcol3 + girrcol4
+                        TypeD = ['XCCY' if crsdomeflag else 'Rate'] * (len(girrcol1) + len(girrcol2))
+                        TypeF = ['XCCY' if crsforeflag else 'Rate'] * (len(girrcol3) + len(girrcol4))
+                        Type = TypeD + TypeF
+                        cvname = [cvnamedsc1] * len(girrcol1) + [cvnameest1] * len(girrcol2) + [cvnamedsc2] * len(girrcol3) + [cvnameest2] * len(girrcol4)
+                        girrtenor1 = [float(s.replace("GIRR1_","")) for s in girrcol1]
+                        girrtenor2 = [float(s.replace("GIRR2_","")) for s in girrcol2]
+                        girrtenor3 = [float(s.replace("GIRR3_","")) for s in girrcol3]
+                        girrtenor4 = [float(s.replace("GIRR4_","")) for s in girrcol4]
+                        girrtenor = girrtenor1 + girrtenor2 + girrtenor3 + girrtenor4
+                        TempData = pd.DataFrame(CRS[girrcol].iloc[i].values, columns = ["델타민감도"])
+                        fxrate1 = CalcFXRateToKRW(FXSpot, CRS["Currency1"].iloc[i], CRS["PriceDate"].iloc[i])
+                        fxrate2 = CalcFXRateToKRW(FXSpot, CRS["Currency2"].iloc[i], CRS["PriceDate"].iloc[i])
+                        FXRate = np.array([fxrate1] * (len(girrcol1) + len(girrcol2)) + [fxrate2] * (len(girrcol3) + len(girrcol4)))
+                        TempData["델타민감도"] = TempData["델타민감도"].values.astype(np.float64) * FXRate
+
+                        TempData["기준일자"] = PriceDate
+                        TempData["계정구분코드"] = 10
+                        TempData["계정명"] = "은행"
+                        TempData["부점코드"] = 12345
+                        TempData["부점명"] = Depart
+                        TempData["팀코드"] = 12345
+                        TempData["팀명"] = "TempTeam"
+                        TempData["데스크코드"] = 12345
+                        TempData["데스크명"] = "TempDesk"
+                        TempData["포트폴리오"] = "TempPort"
+                        TempData["리스크군"] = "일반금리(GIRR)"
+                        TempData["민감도유형"] = "델타"
+                        TempData["포지션 ID"] = 12345
+                        TempData["뮤렉스 ID"] = 12345
+                        TempData["버킷"] = np.array([CRS["GirrBucket1"].iloc[i]] * (len(girrcol1) + len(girrcol2)) + [CRS["GirrBucket2"].iloc[i]] * (len(girrcol3) + len(girrcol4)))
+                        TempData["리스크요소1"] = cvname
+                        TempData["리스크요소2"] = girrtenor
+                        TempData["리스크요소3"] = Type
+                        TempData["베가민감도"] = 0
+                        TempData["상향커버쳐"] = 0
+                        TempData["하향커버쳐"] = 0                                  
+                        TempData = TempData[(TempData["델타민감도"] >= 1e-10) | (TempData["델타민감도"] <= -1e-10)]
+                        ResultAddData = pd.concat([ResultAddData, TempData],axis = 0)
+
         else : 
-            if len(Bond) + len(IRS) > 0 : 
+            if len(Bond) + len(IRS) + len(CRS) > 0 : 
                 #AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
                 AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "1800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", addtreeflag=True, treedata = concatdata)
                 if AddBookedPosition == 1 :
@@ -12054,7 +12144,48 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
                         TempData["CVR_Minus"] = 0                        
                         TempData = TempData[(TempData["Delta_Sensi"] >= 1e-10) | (TempData["Delta_Sensi"] <= -1e-10)]
                         ResultAddData = pd.concat([ResultAddData, TempData],axis = 0)
-            
+                                             
+                    for i in range(len(CRS)) : 
+                        cvnamedsc1 = str(CRS["DiscCurveNameLeg1"].iloc[i]).replace(".csv","")
+                        cvnameest1 = str(CRS["EstCurveNameLeg1"].iloc[i]).replace(".csv","")
+                        crsdomeflag = ('FX' in cvnamedsc1.upper()) or ('BASIS' in cvnamedsc1.upper()) or ('CRS' in cvnamedsc1.upper())
+                        cvnamedsc2 = str(CRS["DiscCurveNameLeg2"].iloc[i]).replace(".csv","")
+                        cvnameest2 = str(CRS["EstCurveNameLeg2"].iloc[i]).replace(".csv","")                             
+                        crsforeflag = ('FX' in cvnamedsc2.upper()) or ('BASIS' in cvnamedsc2.upper()) or ('CRS' in cvnamedsc2.upper())
+                        girrcol1 = [s for s in CRS.columns if "girr1_" in s.lower()]
+                        girrcol2 = [s for s in CRS.columns if "girr2_" in s.lower()]
+                        girrcol3 = [s for s in CRS.columns if "girr3_" in s.lower()]
+                        girrcol4 = [s for s in CRS.columns if "girr4_" in s.lower()]                        
+                        girrcol = girrcol1 + girrcol2 + girrcol3 + girrcol4
+                        TypeD = ['XCCY' if crsdomeflag else 'Rate'] * (len(girrcol1) + len(girrcol2))
+                        TypeF = ['XCCY' if crsforeflag else 'Rate'] * (len(girrcol3) + len(girrcol4))
+                        Type = TypeD + TypeF
+                        cvname = [cvnamedsc1] * len(girrcol1) + [cvnameest1] * len(girrcol2) + [cvnamedsc2] * len(girrcol3) + [cvnameest2] * len(girrcol4)
+                        girrtenor1 = [float(s.replace("GIRR1_","")) for s in girrcol1]
+                        girrtenor2 = [float(s.replace("GIRR2_","")) for s in girrcol2]
+                        girrtenor3 = [float(s.replace("GIRR3_","")) for s in girrcol3]
+                        girrtenor4 = [float(s.replace("GIRR4_","")) for s in girrcol4]
+                        girrtenor = girrtenor1 + girrtenor2 + girrtenor3 + girrtenor4
+                        TempData = pd.DataFrame(CRS[girrcol].iloc[i].values, columns = ["Delta_Sensi"])
+                        fxrate1 = CalcFXRateToKRW(FXSpot, CRS["Currency1"].iloc[i], CRS["PriceDate"].iloc[i])
+                        fxrate2 = CalcFXRateToKRW(FXSpot, CRS["Currency2"].iloc[i], CRS["PriceDate"].iloc[i])
+                        FXRate = np.array([fxrate1] * (len(girrcol1) + len(girrcol2)) + [fxrate2] * (len(girrcol3) + len(girrcol4)))
+                        TempData["Delta_Sensi"] = TempData["Delta_Sensi"].values.astype(np.float64) * FXRate * 10000
+
+                        TempData["Depart"] = Depart
+                        TempData["Risk_Class"] = "GIRR"
+                        TempData["Risk_Type"] = "Delta"
+                        TempData["Portfolio"] = "TempPort"
+                        TempData["Bucket"] = np.array([CRS["GirrBucket1"].iloc[i]] * (len(girrcol1) + len(girrcol2)) + [CRS["GirrBucket2"].iloc[i]] * (len(girrcol3) + len(girrcol4)))
+                        TempData["RiskFactor1"] = cvname
+                        TempData["RiskFactor2"] = girrtenor
+                        TempData["RiskFactor3"] = Type
+                        TempData["Vega_Sensi"] = 0
+                        TempData["CVR_Plus"] = 0
+                        TempData["CVR_Minus"] = 0                        
+                        TempData = TempData[(TempData["Delta_Sensi"] >= 1e-10) | (TempData["Delta_Sensi"] <= -1e-10)]
+                        ResultAddData = pd.concat([ResultAddData, TempData],axis = 0)
+
     except FileNotFoundError : 
         None
     return ResultAddData
