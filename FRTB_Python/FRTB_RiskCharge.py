@@ -3,7 +3,7 @@
 Created By Daesun Lim (CIIA(R), FRM(R))
 Bank Risk Quant
 My FRTB Module 
-v1.1.8
+v1.1.9
 """
 import numpy as np
 import pandas as pd
@@ -19,60 +19,10 @@ PrevTreeFlag = 0
 tree = None
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
-vers = "1.1.8"
-recentupdate = '20250730'
+vers = "1.1.9"
+recentupdate = '20250807'
 print("######################################\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Validation Quant\nMy FRTB Module \n"+vers+" (RecentUpdated :" +recentupdate + ")" + "\n######################################\n")
 GlobalFlag = 0
-GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
-GIRR_VegaRiskFactor1 = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
-GIRR_VegaRiskFactor2 = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
-GIRR_DeltaRfCorr = np.array([[1.000,0.970,0.914,0.811,0.719,0.566,0.400,0.400,0.400,0.400 ],
-                             [0.970,1.000,0.970,0.914,0.861,0.763,0.566,0.419,0.400,0.400 ],
-                             [0.914,0.970,1.000,0.970,0.942,0.887,0.763,0.657,0.566,0.419 ],
-                             [0.811,0.914,0.970,1.000,0.985,0.956,0.887,0.823,0.763,0.657 ],
-                             [0.719,0.861,0.942,0.985,1.000,0.980,0.932,0.887,0.844,0.763 ],
-                             [0.566,0.763,0.887,0.956,0.980,1.000,0.970,0.942,0.914,0.861 ],
-                             [0.400,0.566,0.763,0.887,0.932,0.970,1.000,0.985,0.970,0.942 ],
-                             [0.400,0.419,0.657,0.823,0.887,0.942,0.985,1.000,0.990,0.970 ],
-                             [0.400,0.400,0.566,0.763,0.844,0.914,0.970,0.990,1.000,0.985 ],
-                             [0.400,0.400,0.419,0.657,0.763,0.861,0.942,0.970,0.985,1.000 ]])
-CSR_RiskFactorRate = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
-CSR_DeltaNonSecuritizedBucketCorr = np.array([[1.000,0.750,0.100,0.200,0.250,0.200,0.150,0.100,0.000,0.450,0.450],
-                                        [0.750,1.000,0.050,0.150,0.200,0.150,0.100,0.100,0.000,0.450,0.450 ],
-                                        [0.100,0.050,1.000,0.050,0.150,0.200,0.050,0.200,0.000,0.450,0.450 ],
-                                        [0.200,0.150,0.050,1.000,0.200,0.250,0.050,0.050,0.000,0.450,0.450 ],
-                                        [0.250,0.200,0.150,0.200,1.000,0.250,0.050,0.150,0.000,0.450,0.450 ],
-                                        [0.200,0.150,0.200,0.250,0.250,1.000,0.050,0.200,0.000,0.450,0.450 ],
-                                        [0.150,0.100,0.050,0.050,0.050,0.050,1.000,0.050,0.000,0.450,0.450 ],
-                                        [0.100,0.100,0.200,0.050,0.150,0.200,0.050,1.000,0.000,0.450,0.450 ],
-                                        [0.000,0.000,0.000,0.000,0.000,0.000,0.000,0.000,1.000,0.000,0.000 ],
-                                        [0.450,0.450,0.450,0.450,0.450,0.450,0.450,0.450,0.000,1.000,0.750 ],
-                                        [0.450,0.450,0.450,0.450,0.450,0.450,0.450,0.450,0.000,0.750,1.000 ]])
-CSR_DeltaNonSecurCorrDf = pd.DataFrame(CSR_DeltaNonSecuritizedBucketCorr, 
-                                       index = pd.Index([(1,9),(2,10),(3,11),(4,12),(5,13),(6,14),(7,15),8,16,17,18]), 
-                                       columns = pd.Index([(1,9),(2,10),(3,11),(4,12),(5,13),(6,14),(7,15),8,16,17,18]))
-CSR_SecuritizedNonCTPDelta_RiskFactor = [0.5, 1, 3, 5, 10]
-CSR_SecuritizedNonCTPDelta_RW = pd.Series([0.009,0.015,0.02,0.02,0.008,0.012,0.012,0.014,
-                                           0.01125,0.01875,0.025,0.025,0.01,0.015,0.015,0.0175,
-                                           0.01575,0.02625,0.035,0.035,0.014,0.021,0.021,0.0245,0.035 ], 
-                                              [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25])
-CSR_CTP_RW = pd.Series([0.040,0.040,0.080,0.050,0.040,0.030,0.020,0.060,0.130,0.130,
-                            0.160,0.100,0.120,0.120,0.120,0.130 ],[1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16])
-CSR_SecuritizedCTPDelta_RiskFactor = [0.5, 1, 3, 5, 10]
-EQ_VegaRiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
-FX_VegaRiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
-HighLiquidCurrency = ["USD","EUR","JPY","GBP","AUD",
-                      "CAD","CHF","MXN","CNY","NZD",
-                      "RUB","HKD","SGD","TRY","KRW",
-                      "SEK","ZAR","INR","NOK","BRL"]
-COMM_DeltaRiskFactor = pd.Series([0, 0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
-COMM_VegaRiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
-EQBucketIndex = [1,2,3,4,5,6,7,8,9,10,11,12,13]
-EQSpotRW = [0.5500 ,0.6000 ,0.4500 ,0.5500 ,0.3000 ,0.3500 ,0.4000 ,0.5000 ,0.7000 ,0.5000 ,0.7000 ,0.1500 ,0.2500 ]
-EQRepoRW = [0.0055 ,0.0060 ,0.0045 ,0.0055 ,0.0030 ,0.0035 ,0.0040 ,0.0050 ,0.0070 ,0.0050 ,0.0070 ,0.0015 ,0.0025]
-EQDeltaRWMappingDF = pd.DataFrame([EQSpotRW,EQRepoRW], columns = EQBucketIndex, index = ["SpotRW","RepoRW"]).T
-COMM_Delta_RWMapping = pd.Series([0.3,0.35,0.6,0.8,0.4,0.45,0.2,0.35,0.25,0.35,0.5],index = np.arange(1,12))
-
 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
 GIRR_VegaRiskFactor1 = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
 GIRR_VegaRiskFactor2 = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)
@@ -4491,8 +4441,253 @@ def Pricing_CapFloor(
 
     return ResultValue
 
+def price_digital_forward(
+    F,                  # forward rate
+    K,                  # strike
+    vol,                # volatility (Black vol or Normal vol)
+    tau,                # time to maturity in years
+    df,                 # discount factor P(t,T)
+    notional,           # notional
+    alpha = 1.0,        # day-count fraction
+    option_type = "call",
+    model = "black"
+) -> float:
+    """
+    Price of a cash-or-nothing digital option on a forward rate under Black or Bachelier model.
 
-    
+    Payoff at T:
+      call: notional * alpha * 1_{F_T >= K}
+      put : notional * alpha * 1_{F_T <= K}
+
+    Returns present value at t.
+    """
+    # sanity checks
+    if tau < 0:
+        raise ValueError("tau (time to maturity) must be >= 0")
+    if df <= 0:
+        raise ValueError("df (discount factor) must be > 0")
+    if model not in ("black", "normal"):
+        raise ValueError("model must be 'black' or 'normal'")
+    if option_type not in ("call", "put"):
+        raise ValueError("option_type must be 'call' or 'put'")
+
+    # immediate expiry
+    if tau == 0 or vol == 0:
+        # deterministic forward at maturity:
+        # tie-breaking at F==K -> 0.5 (continuous limit)
+        if option_type == "call":
+            ind = 1.0 if F > K else (0.0 if F < K else 0.5)
+        else:
+            ind = 1.0 if F < K else (0.0 if F > K else 0.5)
+        return notional * alpha * df * ind
+
+    if model == "black":
+        if F <= 0 or K <= 0:
+            raise ValueError("Black model requires positive F and K.")
+        d1 = (np.log(F / K) + 0.5 * vol * vol * tau) / (vol * np.sqrt(tau))
+        d2 = d1 - vol * np.sqrt(tau)
+        prob = CDF_N(d2) if option_type == "call" else CDF_N(-d2)
+
+    else:  # model == "normal" (Bachelier)
+        d = (F - K) / (vol * np.sqrt(tau))
+        prob = CDF_N(d) if option_type == "call" else CDF_N(-d)
+
+    return notional * alpha * df * prob
+
+def price_digital_rangeforward(
+    F,                  # forward rate
+    K1,                 # strike1
+    K2,                 # strike2
+    vol,                # volatility (Black vol or Normal vol)
+    tau,                # time to maturity in years
+    df,                 # discount factor P(t,T)
+    notional,           # notional
+    alpha = 1.0,        # day-count fraction
+    model = "black"
+) -> float:
+    """
+    Price of a cash-or-nothing digital range option on a forward rate under Black or Bachelier model.
+
+    Payoff at T:
+      notional * alpha * 1_{K2 >= F_T >= K1}
+
+    Returns present value at t.
+    """
+    if K1 >= K2 : 
+        raise ValueError("K2 must bigger than K1")
+
+    c1 = price_digital_forward(F,K1,vol,tau,df,notional,alpha,option_type = "call", model = model)
+    c2 = -price_digital_forward(F,K2,vol,tau,df,notional,alpha,option_type = "call", model = model)
+    return c1 + c2
+
+def Gauss_Hermite_Normal(mu = 0, sigma = 1) : 
+    x = np.zeros(20)    
+    w = np.zeros(20)
+    x[0] = 5.3874808900112328
+    x[1] = 4.6036824495507442
+    x[2] = 3.9447640401156252
+    x[3] = 3.3478545673832163
+    x[4] = 2.7888060584281305
+    x[5] = 2.2549740020892757
+    x[6] = 1.7385377121165861
+    x[7] = 1.2340762153953231
+    x[8] = 0.73747372854539428
+    x[9] = 0.24534070830090124
+    x[10] = -0.24534070830090124
+    x[11] = -0.73747372854539428
+    x[12] = -1.2340762153953231
+    x[13] = -1.7385377121165861
+    x[14] = -2.2549740020892757
+    x[15] = -2.7888060584281305
+    x[16] = -3.3478545673832163
+    x[17] = -3.9447640401156252
+    x[18] = -4.6036824495507442
+    x[19] = -5.3874808900112328
+
+    w[0] = 2.2293936455341523e-13
+    w[1] = 4.3993409922731799e-10
+    w[2] = 1.0860693707692815e-07
+    w[3] = 7.8025564785320666e-06
+    w[4] = 0.00022833863601635264
+    w[5] = 0.0032437733422378528
+    w[6] = 0.024810520887463626
+    w[7] = 0.10901720602002152
+    w[8] = 0.28667550536283404
+    w[9] = 0.46224366960061009
+    w[10] = 0.46224366960061009
+    w[11] = 0.28667550536283404
+    w[12] = 0.10901720602002152
+    w[13] = 0.024810520887463626
+    w[14] = 0.0032437733422378528
+    w[15] = 0.00022833863601635264
+    w[16] = 7.8025564785320666e-06
+    w[17] = 1.0860693707692815e-07
+    w[18] = 4.3993409922731799e-10
+    w[19] = 2.2293936455341523e-13
+    return (x * np.sqrt(2)) * sigma + mu, (w / np.sqrt(np.pi))
+
+def SpreadCallOption(F1, F2, K, vol1, vol2, tau, rho, DF, mu1 = 0, mu2 = 0, kirk = True, LogNormal = False) : 
+    if LogNormal == True : 
+        if kirk == False : 
+            v, w = Gauss_Hermite_Normal(mu = 0, sigma = 1)
+            h = np.vectorize(lambda v : K + F2 * np.exp((mu2 - 0.5 * vol1 * vol1) * tau + vol2 * np.sqrt(tau) * v))
+            X1 = np.vectorize(lambda v : np.log(F1/h(v)) + (mu1 + (0.5 - rho*rho)*vol1*vol1)*tau + rho * vol1 * np.sqrt(tau) * v)
+            X2 = np.vectorize(lambda v : X1(v) - vol1 * np.sqrt(tau) * np.sqrt(1-rho*rho))
+            C1 = np.vectorize(lambda v : -0.5 * rho*rho * vol1*vol1 * tau + rho * vol1 * np.sqrt(tau) * v)
+            f = np.vectorize(lambda v : F1 * np.exp(C1(v)) * CDF_N(X1(v)) - h(v) * CDF_N(X2(v)))
+            return (f(v) * w).sum() * DF
+        else : 
+            b = F2/(F2 + K)
+            sigk = np.sqrt(vol1 * vol1 + b * b * vol2 * vol2 - 2 * b * rho * vol1 * vol2)
+            d1 = (np.log(F1/(F2+K)) + 0.5 * sigk*sigk * tau)/(sigk * np.sqrt(tau))
+            d2 = d1 - sigk * np.sqrt(tau)
+            C = DF * (F1 * CDF_N(d1) - (F2 + K) * CDF_N(d2))
+            return C
+    else : 
+        sig = np.sqrt(vol1 * vol1 + vol2 * vol2 - 2.0 * rho * vol1 * vol2)
+        F = F1 - F2
+        d = (F - K)/(sig * np.sqrt(tau))
+        return DF * sig * np.sqrt(tau) * (d * CDF_N(d) + 1/np.sqrt(np.pi * 2) * np.exp(-d*d/2))
+
+def DigitalSpreadCall(F1, F2, K, vol1, vol2, tau, rho, DF, mu1 = 0, mu2 = 0, kirk = True, LogNormal = False, dK = 0.0001, Cpn = 0.05) :
+    numberofoption = Cpn/dK
+    K1 = K
+    K2 = K + dK
+    C1 = numberofoption * SpreadCallOption(F1, F2, K1, vol1, vol2, tau, rho, DF, mu1, mu2, kirk, LogNormal)
+    C2 = -numberofoption * SpreadCallOption(F1, F2, K2, vol1, vol2, tau, rho, DF, mu1, mu2, kirk, LogNormal)
+    return C1 + C2
+
+def SpreadRangeAccrualAnalyticDigitalSpreadCall(F1, F2, K1, K2, vol1, vol2, tau, rho, DF, mu1 = 0, mu2 = 0, kirk = True, LogNormal = False, dK = 0.0001, Cpn = 0.05) :
+    if K2 <= K1 : 
+        raise ValueError("K2 must bigger than K1")
+    C1 = DigitalSpreadCall(F1, F2, K1, vol1, vol2, tau, rho, DF, mu1, mu2, kirk, LogNormal, dK, Cpn)
+    C2 = -DigitalSpreadCall(F1, F2, K2, vol1, vol2, tau, rho, DF, mu1, mu2, kirk, LogNormal, dK, Cpn)
+    return C1 + C2
+
+def PricingRangeAccrualSinglePayoff(
+    Notional,
+    PriceDate,
+    StartDate,
+    EndDate,
+    PayDate,
+    RefZeroTerm,
+    RefZeroRate,
+    DiscZeroTerm,
+    DiscZeroRate,
+    K1,
+    K2,
+    RefSwapMaturity_T,
+    RefSwapNCPNOneYear,
+    vol,
+    model = "black",
+    DayCountFlag = 0,
+    CpnRate = 0.01,
+    PowerSpreadFlag = False,
+    RefSwapMaturity_T_PowerSpread = 1.0,
+    vol2 = 0.2,
+    rho12 = 0.56,
+    Cap = 100.0,
+    Floor = -100.0
+) : 
+    Preprocessing_ZeroTermAndRate(RefZeroTerm, RefZeroRate,PriceDate)
+    Preprocessing_ZeroTermAndRate(DiscZeroTerm, DiscZeroRate,PriceDate)
+    NDates = DayCountAtoB(StartDate, EndDate)
+    Dates = []
+    for i in range(NDates) : 
+        if i == 0 : 
+            Today = StartDate
+        else : 
+            Today = DayPlus(Today, 1)
+        Dates.append(Today)
+    DayCountFrc = DayCountFractionAtoB(StartDate, EndDate, DayCountFlag)
+    EachSwapMaturityInBDate = np.vectorize(EDate_YYYYMMDD)(Dates, int(RefSwapMaturity_T * 12 + 0.0001))
+    CpnDateListInSimul = []
+    for i in range(len(Dates)) : 
+        CpnDateListInSimul.append(np.array(malloc_cpn_date_holiday(Dates[i], EachSwapMaturityInBDate[i], RefSwapNCPNOneYear)[0]).reshape(1,-1))
+    CpnDateArrayForEachBDate = np.concatenate(CpnDateListInSimul, axis = 0)
+
+    t1 = np.vectorize(DayCountAtoB)(PriceDate, Dates)/365
+    t2 = np.vectorize(DayCountAtoB)(PriceDate, CpnDateArrayForEachBDate)/365
+    r1 = np.interp(t1, RefZeroTerm, RefZeroRate)
+    r2 = np.interp(t2, RefZeroTerm, RefZeroRate)
+    df1 = np.exp(-r1 * t1)
+    df2 = np.exp(-r2 * t2)
+    df_t_T = df2/df1.reshape(-1,1)
+    deltat = np.concatenate([(t2[:,0] - t1).reshape(-1,1), (t2[:,1:] - t2[:,:-1])], axis = 1)    
+    SwapRateForwardMeasure = (1-df_t_T[:,-1])/(df_t_T * deltat).sum(1)
+    t_to_PayDate = DayCountAtoB(PriceDate, PayDate)/365
+    DF = Calc_Discount_Factor(DiscZeroTerm, DiscZeroRate, t_to_PayDate)
+    if PowerSpreadFlag == 0 : 
+        vect_rangeforward = np.vectorize(lambda Farray, tauarray : price_digital_rangeforward(Farray,K1,K2,vol,tauarray,1,1.0,1.0,model))
+        Pct = vect_rangeforward(SwapRateForwardMeasure, t1).sum()/NDates
+        Payoff = Notional *CpnRate *DayCountFrc
+        EPayoff = Payoff *Pct
+        Price = np.minimum(Cap,np.maximum(Floor,EPayoff)) * DF
+        Result = {"Pct" : Pct, "DayCountFrc" : DayCountFrc, "Payoff" : Payoff, "EPayoff" : EPayoff, "DF" : DF, "Price" : Price}
+        return Result
+    else : 
+        EachSwapMaturityInBDate2 = np.vectorize(EDate_YYYYMMDD)(Dates, int(RefSwapMaturity_T_PowerSpread * 12 + 0.0001))
+        CpnDateListInSimul2 = []
+        for i in range(len(Dates)) : 
+            CpnDateListInSimul2.append(np.array(malloc_cpn_date_holiday(Dates[i], EachSwapMaturityInBDate2[i], RefSwapNCPNOneYear)[0]).reshape(1,-1))
+        CpnDateArrayForEachBDate2 = np.concatenate(CpnDateListInSimul2, axis = 0)
+        t1_spread = np.vectorize(DayCountAtoB)(PriceDate, Dates)/365
+        t2_spread = np.vectorize(DayCountAtoB)(PriceDate, CpnDateArrayForEachBDate2)/365
+        r1_spread = np.interp(t1_spread, RefZeroTerm, RefZeroRate)
+        r2_spread = np.interp(t2_spread, RefZeroTerm, RefZeroRate)
+        df1_spread = np.exp(-r1_spread * t1_spread)
+        df2_spread = np.exp(-r2_spread * t2_spread)
+        df_t_T_spread = df2_spread/df1_spread.reshape(-1,1)
+        deltat_spread = np.concatenate([(t2_spread[:,0] - t1_spread).reshape(-1,1), (t2_spread[:,1:] - t2_spread[:,:-1])], axis = 1)    
+        SwapRateForwardMeasure_spread = (1-df_t_T_spread[:,-1])/(df_t_T_spread * deltat_spread).sum(1)
+        vect_spreadrange = np.vectorize(lambda Farray1, Farray2, tauarray : SpreadRangeAccrualAnalyticDigitalSpreadCall(Farray1, Farray2, K1, K2, vol, vol2, tauarray, rho12, 1.0, mu1 = 0, mu2 = 0, kirk = True, LogNormal = (model.lower() != 'black'), dK = 0.0001, Cpn = CpnRate))
+        resultcpnrate = vect_spreadrange(SwapRateForwardMeasure, SwapRateForwardMeasure_spread, t1).mean()
+        EPayoff = Notional *resultcpnrate *DayCountFrc
+        Price = np.minimum(Cap,np.maximum(Floor,EPayoff)) * DF
+        Result = {"F1" : SwapRateForwardMeasure, "F2" : SwapRateForwardMeasure_spread, "MeanCpn" : resultcpnrate,"DayCountFrc" : DayCountFrc, "EPayoff" : EPayoff, "DF" : DF, "Price" : Price}
+
+        return Result
+
 def Pricing_IRCallableSwap_HWFDM(
     Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, NumCpnOneYear_Leg1_Phase1, 
     Leg1_RefSwapRate_Multiple_Phase1, Leg1_RefSwapMaturity_T, Leg1_RefSwapNCPNOneYear, Leg1_FixedCpnRate_Phase1, Leg1_DayCount, 
@@ -12336,7 +12531,30 @@ while True :
 # %%
 #Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1 = 0, Call0Put1 = 0, PriceDate = 20240627, AverageStartDate = 20240601, AverageEndDate = 20240927, OptionMaturityDate = 20240927, S = 100, K = 95, PrevAverage = 98, DiscTerm = [1, 2, 3], DiscRate = [0.03, 0.03, 0.03], DivTerm = [1], DivRate = [0.02], QuantoCorr = 0, FXVolTerm = [1], FXVol = [0], VolTerm = [0], VolParity = [0], Vols2D = 0.3, DivTypeFlag = 0, Holidays = KoreaHolidaysFromStartToEnd(2020,2040))
 
+x = PricingRangeAccrualSinglePayoff(
+    Notional = 100,
+    PriceDate = 20240627,
+    StartDate = 20250627,
+    EndDate = 20250929,
+    PayDate = 20250930,
+    RefZeroTerm = [1,10,30],
+    RefZeroRate = [3.0,3.3,3.5],
+    DiscZeroTerm = [1,10,30],
+    DiscZeroRate = [3.0,3.3,3.5],
+    K1 = 0.0000001,
+    K2 = 0.05,
+    RefSwapMaturity_T = 5,
+    RefSwapNCPNOneYear = 4,
+    vol = 0.02,
+    model = "normal",
+    DayCountFlag = 0,
+    CpnRate = 0.04,
+    PowerSpreadFlag = True,
+    RefSwapMaturity_T_PowerSpread = 1.0,
+    vol2 = 0.02,
+    rho12 = 0.76)
+Holidays = KoreaHolidaysFromStartToEnd(2020,2060)
+ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD  = MappingCouponDates(1, 20220906, 20320906, 2, 4, 1, Holidays,Holidays,1)
 
 # %%
-
-#CalResult = CalibrationKappaFromSwapRatio(20240625, [20250627, 20300627], [20300627, 20350627], [20350627, 20400627], [0.01, 0.01], [0.0095, 0.0095], [1, 2, 3], [0.034, 0.035, 0.036], 4, 0, KoreanHolidayFlag = False, AddHolidays = [])
+# %%
