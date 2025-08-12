@@ -4515,6 +4515,7 @@ def price_digital_rangeforward(
     """
     if K1 >= K2 : 
         raise ValueError("K2 must bigger than K1")
+    tau = max(0.00001, tau)
 
     c1 = price_digital_forward(F,K1,vol,tau,df,notional,alpha,option_type = "call", model = model)
     c2 = -price_digital_forward(F,K2,vol,tau,df,notional,alpha,option_type = "call", model = model)
@@ -4590,6 +4591,7 @@ def SpreadCallOption(F1, F2, K, vol1, vol2, tau, rho, DF, mu1 = 0, mu2 = 0, kirk
         return DF * sig * np.sqrt(tau) * (d * CDF_N(d) + 1/np.sqrt(np.pi * 2) * np.exp(-d*d/2))
 
 def DigitalSpreadCall(F1, F2, K, vol1, vol2, tau, rho, DF, mu1 = 0, mu2 = 0, kirk = True, LogNormal = False, dK = 0.0001, Cpn = 0.05) :
+    tau = max(0.00001, tau)
     numberofoption = Cpn/dK
     K1 = K
     K2 = K + dK
@@ -4598,6 +4600,7 @@ def DigitalSpreadCall(F1, F2, K, vol1, vol2, tau, rho, DF, mu1 = 0, mu2 = 0, kir
     return C1 + C2
 
 def SpreadRangeAccrualAnalyticDigitalSpreadCall(F1, F2, K1, K2, vol1, vol2, tau, rho, DF, mu1 = 0, mu2 = 0, kirk = True, LogNormal = False, dK = 0.0001, Cpn = 0.05) :
+    tau = max(0.00001, tau)
     if K2 <= K1 : 
         raise ValueError("K2 must bigger than K1")
     C1 = DigitalSpreadCall(F1, F2, K1, vol1, vol2, tau, rho, DF, mu1, mu2, kirk, LogNormal, dK, Cpn)
@@ -4618,19 +4621,28 @@ def PricingRangeAccrualSinglePayoff(
     K2,
     RefSwapMaturity_T,
     RefSwapNCPNOneYear,
-    vol,
+    voloptterm,
+    volswapterm,
+    vol2d,
     model = "black",
     DayCountFlag = 0,
     CpnRate = 0.01,
     PowerSpreadFlag = False,
     RefSwapMaturity_T_PowerSpread = 1.0,
-    vol2 = 0.2,
     rho12 = 0.56,
     Cap = 100.0,
     Floor = -100.0
 ) : 
     Preprocessing_ZeroTermAndRate(RefZeroTerm, RefZeroRate,PriceDate)
     Preprocessing_ZeroTermAndRate(DiscZeroTerm, DiscZeroRate,PriceDate)
+    topt = DayCountAtoB(PriceDate, StartDate)/365
+    tswp = RefSwapMaturity_T
+    vol = Linterp2D(voloptterm, volswapterm, vol2d, topt, tswp)
+    if PowerSpreadFlag == 0 : 
+        vol2 = vol
+    else : 
+        tswp2 = RefSwapMaturity_T_PowerSpread
+        vol2 = vol = Linterp2D(voloptterm, volswapterm, vol2d, topt, tswp2)
     NDates = DayCountAtoB(StartDate, EndDate)
     Dates = []
     for i in range(NDates) : 
@@ -4680,13 +4692,171 @@ def PricingRangeAccrualSinglePayoff(
         df_t_T_spread = df2_spread/df1_spread.reshape(-1,1)
         deltat_spread = np.concatenate([(t2_spread[:,0] - t1_spread).reshape(-1,1), (t2_spread[:,1:] - t2_spread[:,:-1])], axis = 1)    
         SwapRateForwardMeasure_spread = (1-df_t_T_spread[:,-1])/(df_t_T_spread * deltat_spread).sum(1)
-        vect_spreadrange = np.vectorize(lambda Farray1, Farray2, tauarray : SpreadRangeAccrualAnalyticDigitalSpreadCall(Farray1, Farray2, K1, K2, vol, vol2, tauarray, rho12, 1.0, mu1 = 0, mu2 = 0, kirk = True, LogNormal = (model.lower() != 'black'), dK = 0.0001, Cpn = CpnRate))
+        vect_spreadrange = np.vectorize(lambda Farray1, Farray2, tauarray : SpreadRangeAccrualAnalyticDigitalSpreadCall(Farray1, Farray2, K1, K2, vol, vol2, tauarray, rho12, 1.0, mu1 = 0, mu2 = 0, kirk = True, LogNormal = (model.lower() == 'black'), dK = 0.0001, Cpn = CpnRate))
         resultcpnrate = vect_spreadrange(SwapRateForwardMeasure, SwapRateForwardMeasure_spread, t1).mean()
         EPayoff = Notional *resultcpnrate *DayCountFrc
         Price = np.minimum(Cap,np.maximum(Floor,EPayoff)) * DF
         Result = {"F1" : SwapRateForwardMeasure, "F2" : SwapRateForwardMeasure_spread, "MeanCpn" : resultcpnrate,"DayCountFrc" : DayCountFrc, "EPayoff" : EPayoff, "DF" : DF, "Price" : Price}
 
         return Result
+
+def Pricing_RangeAccrualBond(PriceDate, BondStartDate, BondMaturity, NCPN_Annual, Notional,
+                             NotionalUseFlag, RefSwapMaturity_T, RefSwapNCPNOneYear, K1, K2,
+                             CpnRate, DayCountFlag, VolatilityOptTerm, VolatilitySwpTerm, VolatilitySurf,
+                             RefZeroTerm, RefZeroRate, DiscZeroTerm, DiscZeroRate, Holidays = [], 
+                             RefRateHistoryDate = [], RefRateHistoryRate = [], model = "normal",PowerSpreadFlag = False, RefSwapMaturity_T_PowerSpread = 1.0, 
+                             rho12= 0.76, Cap = 100, Floor = -100) : 
+    '''
+    Desc : Pricing Range Accrual(or Spread Range Accrual) Note
+    
+        PriceDate -> Pricing Date YYYYMMDD Format
+        BondStartDate -> BondStartDate YYYYMMDD Format
+        BondMaturity -> BondMaturityDate YYYYMMDD Format
+        NCPN_Annual -> Number of Cpn in Annual (1, 2, 4, 6, ...)
+        Notional -> Notional Amount
+        NotionalUseFlag -> Notional Payment Use Flag
+        RefSwapMaturity_T -> Reference Rate Maturity converted T (1.0, 3.0, ...)
+        RefSwapNCPNOneYear -> Number of Reference Rate Annual Payment (1, 2, 4, 6, ...)
+        K1 -> Range Lower
+        K2 -> Range Upper
+        CpnRate -> Range Coupon Rate
+        DayCountFlag -> 0: Act365 1: Act360 2: ActAct 3: 30/360
+        VolatilityOptTerm -> VolSurf Option Maturity Tenor Converted T List [1.0, 2.0, ...]
+        VolatilitySwpTerm -> VolSurf Swap Maturity Tenor Converted T List [1.0, 2.0, ...]
+        VolatilitySurf -> VolSurf Matrix Array
+        RefZeroTerm -> Reference Rate Term Array
+        RefZeroRate -> Reference Rate Array
+        DiscZeroTerm -> Discount Rate Term Array
+        DiscZeroRate -> Discount Rate Array
+        Holidays -> Holidays to Generate Cpn
+        RefRateHistoryDate -> Historical Reference Rate Date YYYYMMDD Array
+        RefRateHistoryRate -> Historical Reference Rate
+        model -> "normal or black" String
+        PowerSpreadFlag -> PowerSpread Range Accrual Flag (True or False)
+        RefSwapMaturity_T_PowerSpread -> PowerSpread Range Accrual Rate2 Maturity T
+        rho12 -> Rate1 Rate2 Correlation
+
+    Variables Example : 
+    
+    PriceDate = 20240627
+    BondStartDate = 20220906
+    BondMaturity = 20320906
+    NCPN_Annual = 4
+    Notional = 100
+    NotionalUseFlag = 1
+    K1 = -0.10
+    K2 = 0.1
+    CpnRate = 0.04
+    RefSwapMaturity_T = 5
+    RefSwapNCPNOneYear = 4
+    DayCountFlag = 0
+    VolatilityOptTerm = [1, 2]
+    VolatilitySwpTerm = [1, 2]
+    VolatilitySurf = [[0.02,0.022],[0.021,0.019]]
+    RefZeroTerm = [1,10,15, 20]
+    RefZeroRate = [3.0,3.4,3.5, 3.55]
+    DiscZeroTerm = [1,10,15, 20]
+    DiscZeroRate = [3.0,3.4,3.5, 3.55]
+    Holidays = KoreaHolidaysFromStartToEnd(2020,2060)
+    RefRateHistoryDate = [20240607, 20240608, 20240609, 20240610, 20240611, 20240612]
+    RefRateHistoryRate = [0.04, 0.039, 0.0394, 0.0391, 0.0390, 0.0390]
+    model = "normal"
+    PowerSpreadFlag = True
+    RefSwapMaturity_T_PowerSpread = 1.0
+    Cap = 100.0
+    Floor = -100.0
+    rho12 = 0.76
+    
+    Result = Pricing_RangeAccrualBond(PriceDate, BondStartDate, BondMaturity, NCPN_Annual, Notional,
+                                    NotionalUseFlag, RefSwapMaturity_T, RefSwapNCPNOneYear, K1, K2,
+                                    CpnRate, DayCountFlag, VolatilityOptTerm, VolatilitySwpTerm, VolatilitySurf,
+                                    RefZeroTerm, RefZeroRate, DiscZeroTerm, DiscZeroRate, Holidays, 
+                                    RefRateHistoryDate, RefRateHistoryRate, model, PowerSpreadFlag, RefSwapMaturity_T_PowerSpread, 
+                                    rho12, Cap, Floor) 
+    '''
+    NCPN_Ann = NCPN_Annual
+    Preprocessing_ZeroTermAndRate(RefZeroTerm, RefZeroRate,PriceDate)
+    Preprocessing_ZeroTermAndRate(DiscZeroTerm, DiscZeroRate,PriceDate)
+    VolatilitySurf = np.array(VolatilitySurf)
+    ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD  = MappingCouponDates(1, BondStartDate, BondMaturity, -1, NCPN_Ann, 1, Holidays,Holidays,1)
+    EPayoffList, DFList, DCFList = [], [], []
+    for i in range(len(ResultForwardEnd)) : 
+        EPayoff = 0
+        DF = 1.0
+        RAPrice = 0
+        if PriceDate > ResultForwardStart[i] and PriceDate < ResultForwardEnd[i] : 
+            Frac = DayCountFractionAtoB(ResultForwardStart[i], PriceDate, DayCountFlag)
+            NTotalDate = DayCountAtoB(ResultForwardStart[i], ResultForwardEnd[i])
+            NDate = DayCountAtoB(ResultForwardStart[i], PriceDate) 
+            NumberofDate = 0
+            NumberofInDate = 0
+            for j in range(NDate) : 
+                if j == 0 : 
+                    Today = ResultForwardStart[i]
+                else : 
+                    Today = DayPlus(Today, 1)
+                if Today in RefRateHistoryDate : 
+                    ind = list(RefRateHistoryDate).index(Today)
+                    if K1 <= RefRateHistoryRate[ind] and RefRateHistoryRate[ind] <= K2 : 
+                        NumberofInDate += 1
+                    NumberofDate += 1
+            if NumberofDate > 0 : 
+                AccruedCpn = Frac * NumberofInDate/NumberofDate * CpnRate * Notional
+            else : 
+                AccruedCpn = 0
+            t = DayCountAtoB(PriceDate, ResultPayDate[i])/365
+            DF = Calc_Discount_Factor(DiscZeroTerm, DiscZeroRate, t)
+            OptionPrice = PricingRangeAccrualSinglePayoff(Notional,PriceDate,PriceDate,ResultForwardEnd[i],ResultPayDate[i],
+                                            RefZeroTerm, RefZeroRate, DiscZeroTerm,DiscZeroRate,K1,
+                                            K2,RefSwapMaturity_T,RefSwapNCPNOneYear,VolatilityOptTerm, VolatilitySwpTerm, VolatilitySurf,model,
+                                            DayCountFlag,CpnRate,PowerSpreadFlag,RefSwapMaturity_T_PowerSpread,
+                                            rho12)
+            EPayoff = np.minimum(np.maximum(Floor * Notional,OptionPrice["EPayoff"] + AccruedCpn), Cap * Notional)
+            RAPrice = EPayoff * DF
+        elif PriceDate > ResultForwardEnd[i] and PriceDate < ResultPayDate[i] : 
+            Frac = DayCountFractionAtoB(ResultForwardStart[i], ResultForwardEnd[i], DayCountFlag)
+            NumberofDate = 0
+            NumberofInDate = 0
+            NDate = DayCountAtoB(ResultForwardStart[i], ResultForwardEnd[i]) 
+            for j in range(NDate) : 
+                if j == 0 : 
+                    Today = ResultForwardStart[i]
+                else : 
+                    Today = DayPlus(Today, 1)
+                if Today in RefRateHistoryDate : 
+                    ind = list(RefRateHistoryDate).index(Today)
+                    if K1 <= RefRateHistoryRate[ind] and RefRateHistoryRate[ind] <= K2 : 
+                        NumberofInDate += 1
+                    NumberofDate += 1
+            t = DayCountAtoB(PriceDate, ResultPayDate[i])/365
+            DF = Calc_Discount_Factor(DiscZeroTerm, DiscZeroRate, t)
+            if NumberofDate > 0 : 
+                EPayoff = np.minimum(np.maximum(Floor, Frac * NumberofInDate/NumberofDate * CpnRate),Cap) * Notional
+            else : 
+                EPayoff = 0
+            RAPrice = EPayoff * DF
+        elif PriceDate <= ResultForwardStart[i] and PriceDate < ResultPayDate[i] : 
+            OptionPrice = PricingRangeAccrualSinglePayoff(Notional,PriceDate,ResultForwardStart[i],ResultForwardEnd[i],ResultPayDate[i],
+                                            RefZeroTerm, RefZeroRate, DiscZeroTerm,DiscZeroRate,K1,
+                                            K2,RefSwapMaturity_T,RefSwapNCPNOneYear,VolatilityOptTerm, VolatilitySwpTerm, VolatilitySurf,model,
+                                            DayCountFlag,CpnRate,PowerSpreadFlag,RefSwapMaturity_T_PowerSpread,
+                                            rho12)
+            EPayoff = OptionPrice["EPayoff"]
+            RAPrice = OptionPrice["Price"]
+            DF = OptionPrice["DF"]
+        EPayoffList.append(EPayoff)
+        DFList.append(DF)
+        DCFList.append(RAPrice)
+
+    if NotionalUseFlag == True : 
+        EPayoffList.append(Notional)
+        DFList.append(DF)
+        DCFList.append(Notional * DF)
+
+    Data = pd.DataFrame([ResultForwardStart + [ResultForwardStart[-1]], ResultForwardEnd + [ResultForwardEnd[-1]], ResultPayDate + [ResultPayDate[-1]], ResultNBD + [ResultNBD[-1]],EPayoffList, DFList,DCFList], index = ["ResultForwardStart", "ResultForwardEnd", "ResultPayDate", "ResultNBD","EPayoffList","DF","DiscCF"]).T
+    ResultPrice = Data["DiscCF"].sum()
+    Data["Price"] = ResultPrice
+    return Data
 
 def Pricing_IRCallableSwap_HWFDM(
     Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, NumCpnOneYear_Leg1_Phase1, 
@@ -12531,30 +12701,6 @@ while True :
 # %%
 #Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1 = 0, Call0Put1 = 0, PriceDate = 20240627, AverageStartDate = 20240601, AverageEndDate = 20240927, OptionMaturityDate = 20240927, S = 100, K = 95, PrevAverage = 98, DiscTerm = [1, 2, 3], DiscRate = [0.03, 0.03, 0.03], DivTerm = [1], DivRate = [0.02], QuantoCorr = 0, FXVolTerm = [1], FXVol = [0], VolTerm = [0], VolParity = [0], Vols2D = 0.3, DivTypeFlag = 0, Holidays = KoreaHolidaysFromStartToEnd(2020,2040))
 
-x = PricingRangeAccrualSinglePayoff(
-    Notional = 100,
-    PriceDate = 20240627,
-    StartDate = 20250627,
-    EndDate = 20250929,
-    PayDate = 20250930,
-    RefZeroTerm = [1,10,30],
-    RefZeroRate = [3.0,3.3,3.5],
-    DiscZeroTerm = [1,10,30],
-    DiscZeroRate = [3.0,3.3,3.5],
-    K1 = 0.0000001,
-    K2 = 0.05,
-    RefSwapMaturity_T = 5,
-    RefSwapNCPNOneYear = 4,
-    vol = 0.02,
-    model = "normal",
-    DayCountFlag = 0,
-    CpnRate = 0.04,
-    PowerSpreadFlag = True,
-    RefSwapMaturity_T_PowerSpread = 1.0,
-    vol2 = 0.02,
-    rho12 = 0.76)
-Holidays = KoreaHolidaysFromStartToEnd(2020,2060)
-ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD  = MappingCouponDates(1, 20220906, 20320906, 2, 4, 1, Holidays,Holidays,1)
-
+# %%
 # %%
 # %%
