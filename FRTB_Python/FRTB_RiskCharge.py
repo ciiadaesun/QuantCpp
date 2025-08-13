@@ -19,8 +19,8 @@ PrevTreeFlag = 0
 tree = None
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
-vers = "1.1.9"
-recentupdate = '20250807'
+vers = "1.2.0"
+recentupdate = '20250813'
 print("######################################\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Validation Quant\nMy FRTB Module \n"+vers+" (RecentUpdated :" +recentupdate + ")" + "\n######################################\n")
 GlobalFlag = 0
 GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
@@ -10184,7 +10184,7 @@ def ViewFRTB(Data) :
     PrevTreeFlag = insert_dataframe_to_treeview(tree, DataDF, width = 100)
     root.mainloop()    
 
-def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation","5: Cap Floor Implied Vol Calibration",'6: HW Kappa1F VolRatio Calib(미완)'], size = "800x450+30+30", splitby = ":", listheight = 7, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = []) : 
+def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation","5: Cap Floor Implied Vol Calibration",'6: HW Kappa1F VolRatio Calib(미완)','7: 환포지션으로 FXDelta계산'], size = "800x450+30+30", splitby = ":", listheight = 8, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = []) : 
     root = tk.Tk()
     root.title(Title)
     root.geometry(size)
@@ -10281,8 +10281,10 @@ def CalcFXRateToKRW(FXData, Currency = "USD", BaseDate = "20250627") :
         return NewSeries.loc[Currency + "/KRW"]
     elif Currency + "/USD" in NewSeries.index: 
         return NewSeries.loc[Currency + "/USD"] * NewSeries.loc["USD/KRW"]
-    else : 
+    elif Currency + "/EUR" in NewSeries.index : 
         return NewSeries.loc[Currency + "/EUR"] * NewSeries.loc["EUR/KRW"]        
+    else : 
+        return -1
 
 def PrintingMarketDataInformation(YYYYMMDD, NameList, MyMarketDataList) : 
     print("\n##########################################################################################\n\n     세팅된 커브는 다음과 같습니다. \n     평가날짜 : " + YYYYMMDD)
@@ -12215,6 +12217,131 @@ def KappaCalibration(HolidayDate, currdir = os.getcwd()) :
     root.mainloop()      
     return 0, 0, 0, 0    
     
+def CalcFXDeltaProgram_FromFXPosition(FXSpot) : 
+
+    root = tk.Tk()
+    root.title("FX Delta Calculator(from FX Position)")
+    root.geometry("1500x750+30+30")
+    root.resizable(False, False)
+
+    left_frame = tk.Frame(root)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_Currency1 = make_variable_interface(left_frame, 'CurrencyName1', bold = False, textfont = 11, defaultflag = True, defaultvalue='USD')
+    v_Currency2 = make_variable_interface(left_frame, 'CurrencyName2', bold = False, textfont = 11, defaultflag = True, defaultvalue='JPY')
+    v_Currency3 = make_variable_interface(left_frame, 'CurrencyName3', bold = False, textfont = 11, defaultflag = True, defaultvalue='CNH')
+    v_Currency4 = make_variable_interface(left_frame, 'CurrencyName4', bold = False, textfont = 11, defaultflag = True, defaultvalue='BRL')
+    v_Currency5 = make_variable_interface(left_frame, 'CurrencyName5', bold = False, textfont = 11, defaultflag = True, defaultvalue='EUR')
+    v_Currency6 = make_variable_interface(left_frame, 'CurrencyName6', bold = False, textfont = 11, defaultflag = True, defaultvalue='CHF')
+    v_Currency7 = make_variable_interface(left_frame, 'CurrencyName7', bold = False, textfont = 11, defaultflag = True, defaultvalue='AUD')
+    v_Currency8 = make_variable_interface(left_frame, 'CurrencyName8', bold = False, textfont = 11, defaultflag = True, defaultvalue='THB')
+    v_Currency9 = make_variable_interface(left_frame, 'CurrencyName9', bold = False, textfont = 11, defaultflag = True, defaultvalue='GBP')
+
+    center_frame = tk.Frame(root)
+    center_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_Position1 = make_variable_interface(center_frame, 'CurrencyPosition1', bold = False, textfont = 11, defaultflag = True, defaultvalue=100)
+    v_Position2 = make_variable_interface(center_frame, 'CurrencyPosition2', bold = False, textfont = 11, defaultflag = False, defaultvalue=0)
+    v_Position3 = make_variable_interface(center_frame, 'CurrencyPosition3', bold = False, textfont = 11, defaultflag = True, defaultvalue=-10)
+    v_Position4 = make_variable_interface(center_frame, 'CurrencyPosition4', bold = False, textfont = 11, defaultflag = False, defaultvalue=0)
+    v_Position5 = make_variable_interface(center_frame, 'CurrencyPosition5', bold = False, textfont = 11, defaultflag = False, defaultvalue=3.4)
+    v_Position6 = make_variable_interface(center_frame, 'CurrencyPosition6', bold = False, textfont = 11, defaultflag = False, defaultvalue=0)
+    v_Position7 = make_variable_interface(center_frame, 'CurrencyPosition7', bold = False, textfont = 11, defaultflag = False, defaultvalue=0)
+    v_Position8 = make_variable_interface(center_frame, 'CurrencyPosition8', bold = False, textfont = 11, defaultflag = False, defaultvalue=0)
+    v_Position9 = make_variable_interface(center_frame, 'CurrencyPosition9', bold = False, textfont = 11, defaultflag = False, defaultvalue=0)
+
+    Result_frame = tk.Frame(root)
+    Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_PriceDate = make_variable_interface(Result_frame, 'PriceDate', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = int('20250102'))
+    Value = 0
+    PV01, TempPV01 = None, None
+    PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2]
+    def run_function(MyArrays) : 
+        PrevTreeFlag = MyArrays[0] 
+        tree = MyArrays[1] 
+        scrollbar = MyArrays[2]
+        scrollbar2 = MyArrays[3]        
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else 20250102
+        Position1 = float(v_Position1.get()) if len(str(v_Position1.get())) > 0 else 0
+        Position2 = float(v_Position2.get()) if len(str(v_Position2.get())) > 0 else 0
+        Position3 = float(v_Position3.get()) if len(str(v_Position3.get())) > 0 else 0
+        Position4 = float(v_Position4.get()) if len(str(v_Position4.get())) > 0 else 0
+        Position5 = float(v_Position5.get()) if len(str(v_Position5.get())) > 0 else 0
+        Position6 = float(v_Position6.get()) if len(str(v_Position6.get())) > 0 else 0
+        Position7 = float(v_Position7.get()) if len(str(v_Position7.get())) > 0 else 0
+        Position8 = float(v_Position8.get()) if len(str(v_Position8.get())) > 0 else 0
+        Position9 = float(v_Position9.get()) if len(str(v_Position9.get())) > 0 else 0
+
+        Currency1 = str(v_Currency1.get()) if len(str(v_Currency1.get())) > 0 else "NAN"
+        Currency2 = str(v_Currency2.get()) if len(str(v_Currency2.get())) > 0 else "NAN"
+        Currency3 = str(v_Currency3.get()) if len(str(v_Currency3.get())) > 0 else "NAN"
+        Currency4 = str(v_Currency4.get()) if len(str(v_Currency4.get())) > 0 else "NAN"
+        Currency5 = str(v_Currency5.get()) if len(str(v_Currency5.get())) > 0 else "NAN"
+        Currency6 = str(v_Currency6.get()) if len(str(v_Currency6.get())) > 0 else "NAN"
+        Currency7 = str(v_Currency7.get()) if len(str(v_Currency7.get())) > 0 else "NAN"
+        Currency8 = str(v_Currency8.get()) if len(str(v_Currency8.get())) > 0 else "NAN"
+        Currency9 = str(v_Currency9.get()) if len(str(v_Currency9.get())) > 0 else "NAN"
+        MyListPos = [Position1, Position2, Position3, Position4, Position5, 
+                    Position6, Position7, Position8, Position9]
+        MyListCur = [Currency1, Currency2, Currency3, Currency4, Currency5, 
+                    Currency6, Currency7, Currency8, Currency9]
+        CurrencyList , CurrencyPosition = [], []
+        for i in range(len(MyListPos)) : 
+            if MyListPos[i] != 0 : 
+                CurrencyList.append(MyListCur[i])
+                CurrencyPosition.append(MyListPos[i])
+
+        FXPosKRWV = []
+        FXPosCurr = []
+        FXRateList = []
+        ErrorCheck = False
+        ErrorString = ''
+        for c, p in zip(CurrencyList, CurrencyPosition) : 
+            FXRate = CalcFXRateToKRW(FXSpot, c, str(PriceDate))
+            Pos = FXRate * float(p)
+            if FXRate >= 0 : 
+                FXPosKRWV.append(Pos)
+                FXPosCurr.append(c + "/KRW")
+                FXRateList.append(FXRate)
+            else : 
+                ErrorCheck = True
+                ErrorString += c+'/KRW,\n'
+        ErrorStringResult = ErrorString[:-1] + '\nmust in FXSpot.csv File' if ErrorCheck else "Calculated\nSuccessfully"
+        
+        Bucket = pd.Series(FXPosCurr, name = 'Bucket')
+        Delta = pd.Series(FXPosKRWV, name = 'Delta')
+        InputData = pd.DataFrame([Bucket, Delta]).T
+        InputData["Risk_Type"] = "Delta"
+        ResultData = Calc_FXRDelta(InputData, HighLiquidCurrency, "Delta")
+        ResultData["FXRate"] = FXRateList + [1]
+        if PrevTreeFlag == 0 : 
+            tree = ttk.Treeview(root)
+        else : 
+            tree.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
+            tree = ttk.Treeview(root)
+        ResultData = ResultData.applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+        ResultData["Bucket"] = ResultData['Bucket'].apply(lambda x : 'Total' if '99999' in str(x) else x)
+        tree.pack(padx=5, pady=5, fill="both", expand=True)    
+        scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")    
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, ResultData, width = 100)
+        output_label.config(text = f"\n에러메시지:\n{ErrorStringResult}", font = ("맑은 고딕", 12, 'bold'))
+        MyArrays[0] = PrevTreeFlag 
+        MyArrays[1] = tree
+        MyArrays[2] = scrollbar
+        MyArrays[3] = scrollbar2
+
+    temp_func = lambda : run_function(MyArrays)
+    tk.Button(Result_frame, text = '실행', padx = 20, pady = 20, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+    output_label = tk.Label(Result_frame, text = "", anchor = "n")
+    output_label.pack(padx = 5, pady = 2)
+    root.mainloop()
+
 def PreprocessingFXSpotData(DataDirectory) :     
     try : 
         FXSpot = ReadCSV(DataDirectory).dropna(how = 'all').fillna(method = 'ffill').applymap(lambda x : str(x).replace(",","").replace("-","")).astype(np.float64)
@@ -12228,6 +12355,7 @@ def PreprocessingFXSpotData(DataDirectory) :
     except FileNotFoundError : 
         FXSpot = pd.DataFrame([])
     return FXSpot    
+    
 
 def CurveNamePreprocessingBankStyle(cvname) : 
     if "ZeroCurve" in cvname : 
@@ -12560,10 +12688,9 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
 # Main Program #
 ################
 MainFlag2 = 0
-
 while True : 
     MainFlag = MainViewer(size = "800x450+50+50")
-    if len(str(MainFlag)) == 0 or (MainFlag not in [1,2,3,4,5,6,'1','2','3','4','5','6']) : 
+    if len(str(MainFlag)) == 0 or (MainFlag not in [1,2,3,4,5,6,7,'1','2','3','4','5','6','7']) : 
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break
     elif MainFlag in [2,'2'] :         
@@ -12663,12 +12790,15 @@ while True :
         HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
         KappaCalibration(HolidayDate, currdir)
 
+    elif MainFlag in [7, '7'] :
+        FXSpot = PreprocessingFXSpotData(currdir + "\\MarketData\\spot\\FXSpot.csv")        
+        CalcFXDeltaProgram_FromFXPosition(FXSpot)
+
     MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13)
     if MainFlag2 == 0:
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break    
 # %%
-
 #x, y = Generate_OptionDate(20190929, 20460929, 1, 20, -1, ModifiedFollow = 0)
 #Result = Pricing_IRCallableSwap_HWFDM(
 #            20000, 20160929, 20250304, 20460929, 0,         
