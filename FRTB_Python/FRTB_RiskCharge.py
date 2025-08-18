@@ -3873,7 +3873,7 @@ def Calc_CRS(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveDateYY
             EstZeroCurveRate = EstZeroCurveRateForeign, FixingHolidayList = FixingHolidayListForeign, AdditionalPayHolidayList  = AdditionalPayHolidayList, NominalDateIsNominalPayDate = NominalDateIsNominalPayDate,
             LoggingFlag = LoggingFlag2, LoggingDir = LoggingDir, ModifiedFollow = ModifiedFollow, LookBackDays = LookBackDaysForeign, ObservShift = ObservShift, DiscCurveName = DiscCurveNameForeign, EstCurveName = EstCurveNameForeign)
     if ValuationFlag == 0 : 
-        return FixedLeg - FloatLeg if DomesticPayerFlag == 0 else FloatLeg - FixedLeg    
+        return FixedLeg - FloatLeg * NominalDomestic/NominalForeign if DomesticPayerFlag == 0 else FloatLeg * NominalDomestic/NominalForeign - FixedLeg    
     else : 
         return FixedLeg *ValuationDomesticFX - FloatLeg *ValuationForeignFX if DomesticPayerFlag == 0 else FloatLeg *ValuationForeignFX - FixedLeg *ValuationDomesticFX    
 
@@ -3884,7 +3884,7 @@ def CalC_CRS_PV01(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveD
              FixingHolidayListForeign = [], AdditionalPayHolidayList  = [], NominalDateIsNominalPayDate = True, LoggingFlag = 0, LoggingDir = '', 
              ModifiedFollow = 1,LookBackDaysDomestic = 0, LookBackDaysForeign = 0, ObservShift = False, DomesticPayerFlag = 0, 
              DiscCurveName = "", EstCurveName = "", ValuationDomesticFX = 1.0, ValuationForeignFX = 1.0, SOFRFlag = False, FixFixFlag = False, FirstFloatFixRateForeign = 0, DiscCurveNameForeign = "", EstCurveNameForeign = "", DomesticParallelUp = False, ForeignParallelUp = False) : 
-    
+
     P = Calc_CRS(NominalDomestic, NominalForeign, FirstFloatFixRate, EffectiveDateYYYYMMDD, PriceDateYYYYMMDD, MaturityYYYYMMDD, 
                 CpnRate, ZeroCurveTermDomestic, ZeroCurveRateDomestic, NumCpnOneYear, DayCountFlagDomestic, 
                 DayCountFlagForeign, KoreanHoliday, MaturityToPayDate, EstZeroCurveTermDomestic , EstZeroCurveRateDomestic, 
@@ -10184,7 +10184,7 @@ def ViewFRTB(Data) :
     PrevTreeFlag = insert_dataframe_to_treeview(tree, DataDF, width = 100)
     root.mainloop()    
 
-def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation","5: Cap Floor Implied Vol Calibration",'6: HW Kappa1F VolRatio Calib(미완)','7: 환포지션으로 FXDelta계산'], size = "800x450+30+30", splitby = ":", listheight = 8, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = []) : 
+def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation","5: Cap Floor Implied Vol Calibration",'6: HW Kappa1F VolRatio Calib(미완)','7: 환포지션으로 FXDelta계산'], size = "800x450+30+30", splitby = ":", listheight = 8, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = [], width = 95, expand = True) : 
     root = tk.Tk()
     root.title(Title)
     root.geometry(size)
@@ -10192,16 +10192,16 @@ def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)
     left_frame = tk.Frame(root)
     left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
     if MultiSelection == False : 
-        FunctionSelection = make_listvariable_interface(left_frame, MyText, MyList, listheight = listheight, textfont = textfont, defaultflag = True, defaultvalue=(len(MyList) - 1) if defaultvalue < 0 else defaultvalue, width = 95, titlelable= titlelable, titleName=titleName, DefaultStringList = DefaultStringList)
+        FunctionSelection = make_listvariable_interface(left_frame, MyText, MyList, listheight = listheight, textfont = textfont, defaultflag = True, defaultvalue=(len(MyList) - 1) if defaultvalue < 0 else defaultvalue, width = width, titlelable= titlelable, titleName=titleName, DefaultStringList = DefaultStringList)
     else : 
-        FunctionSelection = make_multilistvariable_interface(left_frame, MyText, MyList, listheight = listheight, textfont = textfont, width = 95, titlelable= titlelable, titleName=titleName, defaultflag = True, defaultvalue = defaultvalue, DefaultStringList = DefaultStringList)
+        FunctionSelection = make_multilistvariable_interface(left_frame, MyText, MyList, listheight = listheight, textfont = textfont, width = width, titlelable= titlelable, titleName=titleName, defaultflag = True, defaultvalue = defaultvalue, DefaultStringList = DefaultStringList)
     FunctionSelected = []
     PrevTreeFlag = 0
     tree, scrollbar, scrollabar2 = None, None, None
     if addtreeflag == True : 
         tree = ttk.Treeview(root)
         treedata = treedata.reset_index().applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
-        tree.pack(padx=5, pady=5, fill="both", expand=True)
+        tree.pack(padx=5, pady=5, fill="both", expand=expand)
         scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
         scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
         tree.configure(yscrollcommand=scrollbar.set)
@@ -11565,10 +11565,10 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
                 df_pre = ReadCSV(currdir + "\\Book\\IRS\\CRS.csv")
                 MyCol = ["Nominal1","Nominal2","LDFixingRate","LFFixingRate","EffectiveDate",
                          "SwapMaturity","LDFixedCpnRate","LFFixedCpnRate","LDNumCpnOneYear_P1","LFNumCpnOneYear_P1",
-                         "LD_DayCount","LF_DayCount","KoreanHoliday","MaturityToPayDate","NominalDateIsNominalPayDate",
+                         "LD_DayCount","LF_DayCount","KoreanHoliday","NBDFromEndDateToPayDate","NominalDateIsNominalPayDate",
                          "ModifiedFollow","LD_LookBackDays","LF_LookBackDays","LDPayer","LDPricingFXRate",
                          "LFPricingFXRate","DiscCurveNameLeg1","EstCurveNameLeg1","DiscCurveNameLeg2","EstCurveNameLeg2",
-                         "Currency1","Currency2","Holiday","MTM","PriceDate","GirrBucket1","GirrBucket2"]
+                         "Currency1","Currency2","Holiday","MTM","PriceDate","GirrBucket1","GirrBucket2","ProductType"]
                 cname1 = DomeDiscName.split("\\")[-1].replace(".csv","")
                 cname2 = DomeEstName.split("\\")[-1].replace(".csv","")
                 cname3 = ForeDiscName.split("\\")[-1].replace(".csv","")
@@ -11578,7 +11578,7 @@ def PricingCRSProgram(HolidayData = pd.DataFrame([]), SpotData = pd.DataFrame([]
                             LD_DayCount, LF_DayCount, 0, SwapMaturityToPayDate, 1, 
                             1, LD_LookBackDays, LF_LookBackDays, FixedPayer, LDPricingFXRate,
                             LFPricingFXRate, cname1, cname2, cname3, cname4,
-                            LD_Holiday_Curr, LF_Holiday_Curr, LD_Holiday_Curr+LF_Holiday_Curr,Value,int(PriceDate), LD_Holiday_Curr, LF_Holiday_Curr]  
+                            LD_Holiday_Curr, LF_Holiday_Curr, LD_Holiday_Curr+LF_Holiday_Curr,Value,int(PriceDate), LD_Holiday_Curr, LF_Holiday_Curr,"CRS"]  
                 data2 = pd.DataFrame([Contents], columns = MyCol)
                 data2 = pd.concat([data2, GIRR],axis = 1)
                 df = pd.concat([df_pre, data2],axis = 0)
@@ -12393,7 +12393,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
             PriceDate = RAWData["기준일자"].iloc[0]
             if len(Bond) + len(IRS) + len(CRS)> 0 : 
                 #AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
-                AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "1800x450+10+10", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", addtreeflag=True, treedata = concatdata)
+                AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을\n FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "1550x450+5+5", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", addtreeflag=True, treedata = concatdata, width = 60)
                 if AddBookedPosition == 1 :
                     Depart = MainViewer2(Title = "Department Name",MyText = "부점명을 입력하시오",size = "800x450+30+30", textfont = 14, defaultvalue = "TempDepart")#input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
                     for i in range(len(Bond)) : 
@@ -12560,7 +12560,7 @@ def AddFRTB_BookedPosition(currdir, RAWData, RAWFORMAT) :
         else : 
             if len(Bond) + len(IRS) + len(CRS) > 0 : 
                 #AddBookedPosition = input("\nBooking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?(Y/N)\n->").lower()
-                AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을 FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "1800x450+30+30", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", addtreeflag=True, treedata = concatdata)
+                AddBookedPosition = MainViewer(Title = 'Continue', MyText = currdir + "\\Book\n에 Booking된 " + str(len(Bond) + len(IRS)) + "건의 포지션을\n FRTB SA 계산에 추가하겠습니까?", MyList = ["0: 추가안함", "1: 추가함"], size = "1550x450+5+5", splitby = ":", listheight = 6, textfont = 13, titlelable = False, titleName = "Name", addtreeflag=True, treedata = concatdata, width = 60)
                 if AddBookedPosition == 1 :
                     Depart = MainViewer2(Title = "Department Name",MyText = "부점명을 입력하시오",size = "800x450+30+30", textfont = 14, defaultvalue = "TempDepart")#input("\n 부점명을 입력하시오. (ex : 자금운용실)\n-> ")
                     for i in range(len(Bond)) : 
