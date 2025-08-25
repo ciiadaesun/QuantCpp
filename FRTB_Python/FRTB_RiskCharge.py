@@ -4642,7 +4642,7 @@ def PricingRangeAccrualSinglePayoff(
         vol2 = vol
     else : 
         tswp2 = RefSwapMaturity_T_PowerSpread
-        vol2 = vol = Linterp2D(voloptterm, volswapterm, vol2d, topt, tswp2)
+        vol2 = Linterp2D(voloptterm, volswapterm, vol2d, topt, tswp2)
     NDates = DayCountAtoB(StartDate, EndDate)
     Dates = []
     for i in range(NDates) : 
@@ -4676,7 +4676,7 @@ def PricingRangeAccrualSinglePayoff(
         EPayoff = Payoff *Pct
         Price = np.minimum(Cap,np.maximum(Floor,EPayoff)) * DF
         Result = {"Pct" : Pct, "DayCountFrc" : DayCountFrc, "Payoff" : Payoff, "EPayoff" : EPayoff, "DF" : DF, "Price" : Price}
-        return Result
+        return Result, vol, vol2
     else : 
         EachSwapMaturityInBDate2 = np.vectorize(EDate_YYYYMMDD)(Dates, int(RefSwapMaturity_T_PowerSpread * 12 + 0.0001))
         CpnDateListInSimul2 = []
@@ -4698,7 +4698,7 @@ def PricingRangeAccrualSinglePayoff(
         Price = np.minimum(Cap,np.maximum(Floor,EPayoff)) * DF
         Result = {"F1" : SwapRateForwardMeasure, "F2" : SwapRateForwardMeasure_spread, "MeanCpn" : resultcpnrate,"DayCountFrc" : DayCountFrc, "EPayoff" : EPayoff, "DF" : DF, "Price" : Price}
 
-        return Result
+        return Result, vol, vol2
 
 def Pricing_RangeAccrualBond(PriceDate, BondStartDate, BondMaturity, NCPN_Annual, Notional,
                              NotionalUseFlag, RefSwapMaturity_T, RefSwapNCPNOneYear, K1, K2,
@@ -4774,12 +4774,13 @@ def Pricing_RangeAccrualBond(PriceDate, BondStartDate, BondMaturity, NCPN_Annual
                                     RefRateHistoryDate, RefRateHistoryRate, model, PowerSpreadFlag, RefSwapMaturity_T_PowerSpread, 
                                     rho12, Cap, Floor) 
     '''
+    v1, v2 = 0, 0
     NCPN_Ann = NCPN_Annual
     Preprocessing_ZeroTermAndRate(RefZeroTerm, RefZeroRate,PriceDate)
     Preprocessing_ZeroTermAndRate(DiscZeroTerm, DiscZeroRate,PriceDate)
     VolatilitySurf = np.array(VolatilitySurf)
     ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD  = MappingCouponDates(1, BondStartDate, BondMaturity, -1, NCPN_Ann, 1, Holidays,Holidays,1)
-    EPayoffList, DFList, DCFList = [], [], []
+    EPayoffList, DFList, DCFList, v1list, v2list = [], [], [], [], []
     for i in range(len(ResultForwardEnd)) : 
         EPayoff = 0
         DF = 1.0
@@ -4806,7 +4807,7 @@ def Pricing_RangeAccrualBond(PriceDate, BondStartDate, BondMaturity, NCPN_Annual
                 AccruedCpn = 0
             t = DayCountAtoB(PriceDate, ResultPayDate[i])/365
             DF = Calc_Discount_Factor(DiscZeroTerm, DiscZeroRate, t)
-            OptionPrice = PricingRangeAccrualSinglePayoff(Notional,PriceDate,PriceDate,ResultForwardEnd[i],ResultPayDate[i],
+            OptionPrice, v1, v2 = PricingRangeAccrualSinglePayoff(Notional,PriceDate,PriceDate,ResultForwardEnd[i],ResultPayDate[i],
                                             RefZeroTerm, RefZeroRate, DiscZeroTerm,DiscZeroRate,K1,
                                             K2,RefSwapMaturity_T,RefSwapNCPNOneYear,VolatilityOptTerm, VolatilitySwpTerm, VolatilitySurf,model,
                                             DayCountFlag,CpnRate,PowerSpreadFlag,RefSwapMaturity_T_PowerSpread,
@@ -4836,7 +4837,7 @@ def Pricing_RangeAccrualBond(PriceDate, BondStartDate, BondMaturity, NCPN_Annual
                 EPayoff = 0
             RAPrice = EPayoff * DF
         elif PriceDate <= ResultForwardStart[i] and PriceDate < ResultPayDate[i] : 
-            OptionPrice = PricingRangeAccrualSinglePayoff(Notional,PriceDate,ResultForwardStart[i],ResultForwardEnd[i],ResultPayDate[i],
+            OptionPrice, v1, v2 = PricingRangeAccrualSinglePayoff(Notional,PriceDate,ResultForwardStart[i],ResultForwardEnd[i],ResultPayDate[i],
                                             RefZeroTerm, RefZeroRate, DiscZeroTerm,DiscZeroRate,K1,
                                             K2,RefSwapMaturity_T,RefSwapNCPNOneYear,VolatilityOptTerm, VolatilitySwpTerm, VolatilitySurf,model,
                                             DayCountFlag,CpnRate,PowerSpreadFlag,RefSwapMaturity_T_PowerSpread,
@@ -4847,13 +4848,17 @@ def Pricing_RangeAccrualBond(PriceDate, BondStartDate, BondMaturity, NCPN_Annual
         EPayoffList.append(EPayoff)
         DFList.append(DF)
         DCFList.append(RAPrice)
+        v1list.append(v1)
+        v2list.append(v2)
 
     if NotionalUseFlag == True : 
         EPayoffList.append(Notional)
         DFList.append(DF)
         DCFList.append(Notional * DF)
+        v1list.append(v1)
+        v2list.append(v2)
 
-    Data = pd.DataFrame([ResultForwardStart + [ResultForwardStart[-1]], ResultForwardEnd + [ResultForwardEnd[-1]], ResultPayDate + [ResultPayDate[-1]], ResultNBD + [ResultNBD[-1]],EPayoffList, DFList,DCFList], index = ["ResultForwardStart", "ResultForwardEnd", "ResultPayDate", "ResultNBD","EPayoffList","DF","DiscCF"]).T
+    Data = pd.DataFrame([ResultForwardStart + [ResultForwardStart[-1]], ResultForwardEnd + [ResultForwardEnd[-1]], ResultPayDate + [ResultPayDate[-1]], ResultNBD + [ResultNBD[-1]],EPayoffList, DFList,DCFList, v1list, v2list], index = ["ResultForwardStart", "ResultForwardEnd", "ResultPayDate", "ResultNBD","EPayoffList","DF","DiscCF","Vol1","Vol2"]).T
     ResultPrice = Data["DiscCF"].sum()
     Data["Price"] = ResultPrice
     return Data
@@ -7350,6 +7355,193 @@ def PricingIRStructuredSwapProgram2FDoublePhase(HolidayData, currdir) :
     MainFlag2 = 0#input("종료하시겠습니까? (Y/N)\n->")
 
     return MainFlag2, 1, 1, 1
+
+def PricingRangeAccrualNote(HolidayDate, currdir) : 
+    YYYYMMDD, Name, Data = UsedMarketDataSetToPricing(currdir + "\\MarketData\\outputdata",MultiSelection=False, namenotin = "Vol", Comments="Pricing을 위한 ZeroCurve", DefaultStringList= ["IRS"])
+    ZeroCurve = Data[0]
+    ZeroTerm = ZeroCurve["Term"].astype(np.float64)
+    ZeroRate = ZeroCurve["Rate"].astype(np.float64)
+
+    ZeroCurveName = Name[0].split("\\")[-1].replace(".csv","")  
+    Currency = Name[0].split("\\")[-2]
+    Holidays = list(HolidayDate[Currency].dropna().unique()) if Currency in HolidayDate.columns else []
+    Data = MarketDataFileListPrint(currdir + '\\MarketData\\outputdata', namein = 'vol').sort_values(by = "YYYYMMDD")[-50:]
+    Data = Data[Data['DirectoryPrint'].apply(lambda x : ('EQ' in str(x).upper() and 'VOL' in str(x).upper()) == False)] #Out EQ Vol 
+    GroupbyYYYYMMDD = Data[Data["YYYYMMDD"] == YYYYMMDD]
+    GroupbyYYYYMMDD["Currency"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split("\\")[-2])
+    GroupbyYYYYMMDD["ListName"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split(".")[0] + '. ' + x.split("\\")[-1].replace(".csv",""))            
+    root = tk.Tk()
+    root.title("Range Accrual Note Pricer")
+    root.geometry("1500x750+30+30")
+    root.resizable(False, False)
+
+    left_frame = tk.Frame(root)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+
+    v_Nominal = make_variable_interface(left_frame, 'Nominal Amount', bold = False, textfont = 11, defaultflag = True, defaultvalue=10000)
+    vb_NominalFlag = make_listvariable_interface(left_frame, 'NominalFlag', ["0: Not Use","1: Use Nominal"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=1)
+    v_PriceDate = make_variable_interface(left_frame, 'PriceDate', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = int(YYYYMMDD))
+    v_SwapEffectiveDate = make_variable_interface(left_frame, 'EffectiveDate(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=EDate_YYYYMMDD(int(YYYYMMDD), 3))
+    v_SwapMaturity = make_variable_interface(left_frame, 'Maturity(YYYYMMDD)', bold = False, textfont = 11, defaultflag = True, defaultvalue=EDate_YYYYMMDD(int(YYYYMMDD), 3 + 60))
+    vb_L1_NumCpnOneYear_P1 = make_listvariable_interface(left_frame, '연 쿠폰지급수 \n(리스트에서 선택)', ["1","2","4","6"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=2)
+    vb_SelectedCurve_P1 = make_listvariable_interface(left_frame, 'Swaption Vol 선택', list(GroupbyYYYYMMDD["ListName"]), listheight = 5, textfont = 11, titlelable = True, titleName = "Swaption Info", defaultflag = True, defaultvalue = 0, width = 25, DefaultStringList=["Vol"])
+    vb_DayCount = make_listvariable_interface(left_frame, 'DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0)
+
+    center_frame = tk.Frame(root)
+    center_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_RefSwapMaturity_T = make_variable_interface(center_frame, '기초금리 만기\n(3M-> 0.25, 5Y-> 5\n, 5Y-1Y-> 5-1)', bold = False, titlelable = True, titleName = "기초금리 정보입력", textfont = 11)
+    v_CMSCorr = make_variable_interface(center_frame, 'Power Spread의 경우 \n상관계수', bold = False, textfont = 11, defaultflag = True, defaultvalue=0.87)
+    vb_RefSwapNCPNOneYear_P1 = make_listvariable_interface(center_frame, '기초금리의 \n연 쿠폰지급수', ["1","2","4","6"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 2)
+    v_FloorStrike = make_variable_interface(center_frame, 'Floor Strike Rate(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue=0.00001)
+    v_CapStrike = make_variable_interface(center_frame, 'Cap Strike Rate(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue=2.56)
+    v_CpnRate = make_variable_interface(center_frame, 'CouponRate(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue=3.1)
+    vb_VolFlag = make_listvariable_interface(center_frame, 'VolFlag', ["0: Black Vol","1: Normal Vol"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=1)
+    vb_Holiday = make_listvariable_interface(center_frame, 'HolidayFlag', ["KRW","USD","JPY","EUR"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=0)
+
+    Result_frame = tk.Frame(root)
+    Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+
+    vb_zerocurve = make_listvariable_interface(Result_frame, 'ZeroCurve(자동Load)', termratestr(ZeroTerm, ZeroRate), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
+    v_FixedAverage = make_variable_interface(Result_frame, 'Pre-Fixed \n Average Rate', bold = False, textfont = 11, defaultflag = True, defaultvalue=2.66)
+
+    PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
+    ResultDF = pd.DataFrame()
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2, ResultDF]
+    def run_function(MyArrays) : 
+        PrevTreeFlag = MyArrays[0] 
+        tree = MyArrays[1] 
+        scrollbar = MyArrays[2]
+        scrollbar2 = MyArrays[3]        
+        DF = MyArrays[4]
+        Nominal = float(v_Nominal.get()) if len(str(v_Nominal.get())) > 0 else 10000
+        CMSCorr = float(v_CMSCorr.get()) if len(str(v_CMSCorr.get())) > 0 else 0
+        NominalFlag = int(str(vb_NominalFlag.get(vb_NominalFlag.curselection())).split(":")[0]) if vb_NominalFlag.curselection() else 1
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else int(YYYYMMDD)
+        SwapEffectiveDate = int(v_SwapEffectiveDate.get()) if len(str(v_SwapEffectiveDate.get())) > 0 else 20200627
+        SwapMaturity = int(v_SwapMaturity.get()) if len(str(v_SwapMaturity.get())) > 0 else (SwapEffectiveDate + 100000)
+        NumCpnOneYear_P1 = int(vb_L1_NumCpnOneYear_P1.get(vb_L1_NumCpnOneYear_P1.curselection())) if vb_L1_NumCpnOneYear_P1.curselection() else 4
+        DayCount = int(str(vb_DayCount.get(vb_DayCount.curselection())).split(":")[0]) if vb_DayCount.curselection() else (0 if L1_NumCpnOneYear_P1 != 0 else 3)
+        VolFlag = int(str(vb_VolFlag.get(vb_VolFlag.curselection())).split(":")[0]) if vb_VolFlag.curselection() else 1
+        Curr = str(vb_Holiday.get(vb_Holiday.curselection())).upper() if vb_Holiday.curselection() else "KRW"
+        if 'KRW' in Curr : 
+            HolidaysForSwap = KoreaHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+        elif "KRW" in Curr : 
+            HolidaysForSwap = USHolidaysFromStartToEnd(int(YYYYMMDD)//10000-1, int(YYYYMMDD)//10000 + 60)
+        else : 
+            if Curr in HolidayDate.columns : 
+                HolidaysForSwap = HolidayDate[Curr].unique().astype(np.int64)
+            else : 
+                HolidaysForSwap = []
+
+        if len(str(v_CpnRate.get())) > 0 : 
+            if "%" in str(v_CpnRate.get()) : 
+                FixedCpnRate_P1 = float(v_CpnRate.get())/100
+            else : 
+                FixedCpnRate_P1 = float(str(v_CpnRate.get()).replace("%",""))/100
+        else : 
+            FixedCpnRate_P1 = 0
+
+        L1_PowerSpreadFlag = 0
+        if len(str(v_RefSwapMaturity_T.get())) > 0 :         
+            if '-' in str(v_RefSwapMaturity_T.get()) : 
+                SplitedStr = str(v_RefSwapMaturity_T.get()).split("-")
+                if 'm' in SplitedStr[0].lower() :
+                    L1_RefSwapMaturity_T = float(SplitedStr[0].lower().split("m")[0])/12
+                elif 'y' in SplitedStr[0].lower() : 
+                    L1_RefSwapMaturity_T = float(SplitedStr[0].lower().split("y")[0]) 
+                else : 
+                    L1_RefSwapMaturity_T = float(SplitedStr[0]) 
+
+                if 'm' in SplitedStr[1].lower() :
+                    L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("m")[0])/12
+                elif 'y' in SplitedStr[1].lower() : 
+                    L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("y")[0]) 
+                else : 
+                    L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1]) 
+                L1_PowerSpreadFlag = 1
+            else : 
+                if 'm' in str(v_RefSwapMaturity_T.get()).lower() : 
+                    L1_RefSwapMaturity_T = float(str(v_RefSwapMaturity_T.get()).split('m')[0])/12
+                elif 'y' in str(v_RefSwapMaturity_T.get()).lower() :
+                    L1_RefSwapMaturity_T = float(str(v_RefSwapMaturity_T.get()).split('y')[0])
+                else :
+                    L1_RefSwapMaturity_T = float(v_RefSwapMaturity_T.get()) 
+                L1_RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T
+        else : 
+            L1_RefSwapMaturity_T = 0.25
+            L1_RefSwapMaturity_T_PowerSpread = 0.25
+
+        L1_RefSwapNCPNOneYear_P1 = int(vb_RefSwapNCPNOneYear_P1.get(vb_RefSwapNCPNOneYear_P1.curselection())) if vb_RefSwapNCPNOneYear_P1.curselection() else 4
+        if L1_RefSwapMaturity_T == 0.25 : 
+            L1_RefSwapNCPNOneYear_P1 = 4
+
+        PrevDateExl = YYYYMMDDToExcelDate(PriceDate) - 1
+        PrevDate = ExcelDateToYYYYMMDD(PrevDateExl)
+        RefRateHistoryDate = [PrevDate, PriceDate]
+
+        FixedAvg = float(v_FixedAverage.get()) if len(str(v_FixedAverage.get())) > 0 else 0
+        if FixedAvg > 0 : 
+            FixedAvg = FixedAvg/100
+
+        FloorStrike = float(v_FloorStrike.get()) if len(str(v_FloorStrike.get())) > 0 else 0.00001
+        if FloorStrike > 0 : 
+            FloorStrike = FloorStrike/100
+
+        CapStrike = float(v_CapStrike.get()) if len(str(v_CapStrike.get())) > 0 else 1000
+        if CapStrike > 0 : 
+            CapStrike = CapStrike/100
+        
+        RefRateHistoryRate = [FixedAvg, FixedAvg]
+        model = 'normal' if VolFlag == 1 else 'black'
+        SelectedNumber = int(str(vb_SelectedCurve_P1.get(vb_SelectedCurve_P1.curselection())).split(".")[0]) if vb_SelectedCurve_P1.curselection() else 1
+        
+        SwaptionVolRaw = ReadCSV(GroupbyYYYYMMDD[GroupbyYYYYMMDD["Number"] == SelectedNumber]["Directory"].iloc[0], True)
+        SwaptionVolRawSetIndex = SwaptionVolRaw.astype(np.float64).set_index(SwaptionVolRaw.columns[0])
+        SwaptionVolRawSetIndex.columns = SwaptionVolRawSetIndex.columns.astype(np.float64)
+        VolatilitySurf = SwaptionVolRawSetIndex.values.astype(np.float64)
+        VolatilityOptTerm = np.array(SwaptionVolRawSetIndex.columns, dtype = np.float64)/12
+        VolatilitySwpTerm = np.array(SwaptionVolRawSetIndex.index, dtype = np.float64)/12
+        if VolatilitySurf.min() > 0.5 : 
+            VolatilitySurf = VolatilitySurf/100
+
+        Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate)
+        DF = Pricing_RangeAccrualBond(PriceDate, SwapEffectiveDate, SwapMaturity, NumCpnOneYear_P1, Nominal,
+                                NominalFlag, L1_RefSwapMaturity_T, L1_RefSwapNCPNOneYear_P1, FloorStrike, CapStrike,
+                                FixedCpnRate_P1, DayCount, VolatilityOptTerm, VolatilitySwpTerm, VolatilitySurf,
+                                ZeroTerm, ZeroRate, ZeroTerm, ZeroRate, Holidays = HolidaysForSwap, 
+                                RefRateHistoryDate = RefRateHistoryDate, RefRateHistoryRate = RefRateHistoryRate, model = model,PowerSpreadFlag = L1_PowerSpreadFlag, RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T_PowerSpread, 
+                                rho12= CMSCorr, Cap = 100, Floor = -100)
+        if PrevTreeFlag == 0 : 
+            tree = ttk.Treeview(root)
+        else : 
+            tree.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
+            tree = ttk.Treeview(root)
+        ResultDF = DF.applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
+        tree.pack(padx=5, pady=5, fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")        
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, ResultDF, width = 60)
+        
+        #output_label.config(text = f"\n결과: {np.round(P,4)}({np.round(P/Nominal*100,4)}%)\n\nValue: \n{np.round(V)}\n\nForwardSwapRate: \n{np.round(F*100,4)}% \n사용된 변동성:\n{np.round(Vol*100,4)}%", font = ("맑은 고딕", 12, 'bold'))
+        MyArrays[0] = PrevTreeFlag 
+        MyArrays[1] = tree 
+        MyArrays[2] = scrollbar
+        MyArrays[3] = scrollbar2        
+        MyArrays[4] = DF
+
+    temp_func = lambda : run_function(MyArrays)            
+    tk.Button(Result_frame, text = '실행', padx = 20, pady = 20, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+    output_label = tk.Label(Result_frame, text = "", anchor = "n")
+    output_label.pack(padx = 5, pady = 2)
+
+    root.mainloop()     
+    return 0, 0, 0, 0
 
 #############################################################################################################
 #TK GUI Tool
@@ -12744,7 +12936,7 @@ while True :
         except FileNotFoundError : 
             FXSpot = pd.DataFrame([])
         MainFlag2 = ""
-        n = MainViewer(Title = 'Pricer', MyText = 'Pricer를 선택하시오', MyList = ["1: 채권", "2: IRS", "3: CMS Swap", "4: Currency Swap","5: Equity Option", "6: IRStructuredSwap(1Factor FDM Single Phase)","7: Plain Swaption","8: Plain FX Swap","9: Cap Floor","10: IRStructuredSwap(2Factor FDM Single Phase)","11: IRStructuredSwap(1Factor FDM DoublePhase)","12: IRStructuredSwap(2Factor FDM DoublePhase)"], size = "800x450+50+50", splitby = ":", listheight = 12, textfont = 13, titlelable = False, titleName = "Name")
+        n = MainViewer(Title = 'Pricer', MyText = 'Pricer를 선택하시오', MyList = ["1: 채권", "2: IRS", "3: CMS Swap", "4: Currency Swap","5: Equity Option", "6: IRStructuredSwap(1Factor FDM Single Phase)","7: Plain Swaption","8: Plain FX Swap","9: Cap Floor","10: IRStructuredSwap(2Factor FDM Single Phase)","11: IRStructuredSwap(1Factor FDM DoublePhase)","12: IRStructuredSwap(2Factor FDM DoublePhase)","13: Range Accrual Note"], size = "800x450+50+50", splitby = ":", listheight = 13, textfont = 13, titlelable = False, titleName = "Name")
         if int(n) == 1 or n == "채권" or str(n).lower() == "bond": 
             MainFlag2, Value, PV01, TempPV01 = PricingBondProgram(HolidayDate, currdir)
         elif int(n) == 2 or n == "IRS" or str(n).lower() == "irs" : 
@@ -12769,6 +12961,8 @@ while True :
             MainFlag2, Value, PV01, TempPV01 = PricingIRStructuredSwapProgramDoublePhase(HolidayDate, currdir)             
         elif int(n) == 12 :
             MainFlag2, Value, PV01, TempPV01 = PricingIRStructuredSwapProgram2FDoublePhase(HolidayDate, currdir)             
+        elif int(n) == 13 : 
+            MainFlag2, Value, PV01, TempPV01 = PricingRangeAccrualNote(HolidayDate, currdir)
         
     elif MainFlag in [3,'3'] : 
         HolidayDate = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.float64)        
@@ -12823,6 +13017,7 @@ while True :
 #            LoggingFlag = 0)
 
 # %%
+
 
 # %%a
 
