@@ -1695,12 +1695,13 @@ double Arithmetic_Asian_Opt_Pricing(long n, double* Forward, double* Weight, dou
 	double E = mu1 - y1;
 	double d1, d2;
 	double r_disc;
+	double K_eff = Strike - PrevCummulative_Weight * PrevAverage - E;
 	r_disc = Interpolate_Linear(TermRate, Rate, nRate, T_Option);
 	if (Strike - PrevCummulative_Weight * PrevAverage - E <= 0)
 	{
 		if (Call0Put1 == 0)
 		{
-			value = exp(-r_disc * T_Option)* (y1 - (Strike - PrevCummulative_Weight * PrevAverage - E));
+			value = exp(-r_disc * T_Option)* (y1 - K_eff);
 		}
 		else
 		{
@@ -1847,7 +1848,7 @@ long Arithmetic_Asian_Opt_Pricing_Preprocessing(
 			j += 1;
 		}
 	}
-	w = 1.0 / ((double)NForward);
+	w = 1.0 / ((double)N_BD_Avg);
 	PrevCummulativeWeight = ((double)NPrev) / (double)N_BD_Avg;
 	
 	double r_ref, d, rho, fxv;
