@@ -1721,6 +1721,17 @@ double Arithmetic_Asian_Opt_Pricing(long n, double* Forward, double* Weight, dou
 			value = exp(-r_disc * T_Option) * ((Strike - PrevCummulative_Weight * PrevAverage - E) * CDF_N(-d2) - y1 * CDF_N(-d1));
 		}
 	}
+	if (n == 0)
+	{
+		if (Call0Put1 == 0)
+		{
+			value = exp(-r_disc * T_Option) * max(PrevAverage - Strike, 0);
+		}
+		else
+		{
+			value = exp(-r_disc * T_Option) * max(Strike - PrevAverage, 0);
+		}
+	}
 	delta = Arithmetic_Asian_Option_Delta(n, Forward, Weight, T, nVol, TermVol, Vol, r_disc, y1, y11, d1);
 	vega = Arithmetic_Asian_Option_Vega(n, Forward, Weight, T, nVol, TermVol, Vol, r_disc, y1, y11, d1);
 	return value;
