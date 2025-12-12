@@ -1,0 +1,37 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\HiFive_ELS\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{2D30E091-3FD4-4171-A249-81F894A20742}|HiFive_ELS\\HiFive_ELS.vcxproj|C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\HiFive_ELS\\HiFive_ELS\\HiFive_ELS.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{2D30E091-3FD4-4171-A249-81F894A20742}|HiFive_ELS\\HiFive_ELS.vcxproj|solutionrelative:HiFive_ELS\\HiFive_ELS.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "HiFive_ELS.cpp",
+              "DocumentMoniker": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\HiFive_ELS\\HiFive_ELS\\HiFive_ELS.cpp",
+              "RelativeDocumentMoniker": "HiFive_ELS\\HiFive_ELS.cpp",
+              "ToolTip": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\HiFive_ELS\\HiFive_ELS\\HiFive_ELS.cpp",
+              "RelativeToolTip": "HiFive_ELS\\HiFive_ELS.cpp",
+              "ViewState": "AgIAAAgHAAAAAAAAAAAAwAsHAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2025-12-11T11:56:16.867Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
