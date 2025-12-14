@@ -3,7 +3,7 @@
 Created By Daesun Lim (CIIA(R), FRM(R))
 Bank Risk Quant
 My FRTB Module 
-v1.1.9
+v1.2.2
 """
 import numpy as np
 import pandas as pd
@@ -21,8 +21,8 @@ PrevTreeFlag = 0
 tree = None
 currdir = os.getcwd()
 warnings.filterwarnings('ignore')
-vers = "1.2.0"
-recentupdate = '20250813'
+vers = "1.2.2"
+recentupdate = '20251214'
 print("######################################\nCreated By Daesun Lim (CIIA(R), FRM(R))\nRisk Validation Quant\nMy FRTB Module \n"+vers+" (RecentUpdated :" +recentupdate + ")" + "\n######################################\n")
 BASE_URL = "https://finance.naver.com/marketindex/exchangeDailyQuote.nhn" # 환율 크롤링주소
 HEADERS = {"User-Agent": "Mozilla/5.0"}
@@ -10442,7 +10442,7 @@ def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)
     temp_function = lambda : run_function(FunctionSelected)
     tk.Button(left_frame, text = '실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = temp_function, width = 15).pack()
     root.mainloop()            
-    return FunctionSelected[-1]    
+    return FunctionSelected[-1] if len(FunctionSelected) > 0 else None    
 
 def MainViewer2(Title = "Viewer", MyText = "데이터인풋", size = "800x450+30+30", textfont = 13, defaultvalue = 0, bold = True) : 
     root = tk.Tk()
@@ -11821,6 +11821,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
     GroupbyYYYYMMDD["Currency"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split("\\")[-2])
     GroupbyYYYYMMDD["ListName"] = GroupbyYYYYMMDD["DirectoryPrint"].apply(lambda x : x.split(".")[0] + '. ' + x.split("\\")[-1].replace(".csv",""))
     Currency = CurveName.split("\\")[-2]
+
     DefaultSpot = 1.0
     if ('krw' in Currency.lower()) and (int(YYYYMMDD) in FXSpot.index) : 
         DefaultSpot = FXSpot.loc[int(YYYYMMDD)]["USD/KRW"]
@@ -11830,7 +11831,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
     DomesticCurveData = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Currency"] == Currency]
     ForeignCurveData = GroupbyYYYYMMDD[GroupbyYYYYMMDD["Currency"] != Currency]
     
-    c1 = DomesticCurveData["DirectoryPrint"].iloc[0].split("\\")[-2] if len(DomesticCurveData) > 0 else '' 
+    c1 = DomesticCurveData["DirectoryPrint"].iloc[0].split("\\")[-2] if len(DomesticCurveData) > 0 else Currency 
     c2 = ForeignCurveData["DirectoryPrint"].iloc[0].split("\\")[-2] if len(ForeignCurveData) > 0 else '' 
     
     root = tk.Tk()
@@ -12041,8 +12042,31 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
                     else : 
                         MinRate = TargetRate
                         TargetRate = (MaxRate + MinRate)/2
+
                 if j == 499 : 
-                    raise ValueError("Error")
+                    RateRange = np.linspace(0.001, 0.101, 2001)
+                    ZeroArrayCopy = ZeroArray.copy()
+                    Err = 100
+                    for j in range(len(RateRange)) : 
+                        TempRate = RateRange[j]
+                        ZeroArrayCopy[-1] = TempRate
+                        if len(ZeroTermForeign) > 0 : 
+                            if FloatFloatFlag == False : 
+                                TempErr = Calc_CRS(100, 100, 0.0, ScheduleStart[i], PriceDate, ScheduleEnd[i], MarketQuote/100, ZeroTerm, ZeroArrayCopy, NumCpnOneYear, DayCountFlag, DayCountFlagForeign, False, NBDList[i], DomesticEstCurveTerm, DomesticEstCurveRate, ForeignEstCurveTerm, ForeignEstCurveRate, ZeroTermForeign, ZeroRateForeign, HolidayDomestic, HolidayForeign, HolidayPay )
+                            else : 
+                                TempErr = Calc_CRS(100, 100 * dffo/DF_to_StartDate, 0.0, ScheduleStart[i], PriceDate, ScheduleEnd[i], MarketQuote/100, ZeroTerm, ZeroArrayCopy, NumCpnOneYear, DayCountFlag, DayCountFlagForeign, False, NBDList[i], [], [], [], [], ZeroTermForeign, ZeroRateForeign, HolidayDomestic, HolidayForeign, HolidayPay )
+                        else : 
+                            TempErr = Calc_IRS(100, 0.0, ScheduleStart[i], PriceDate, ScheduleEnd[i], MarketQuote/100, ZeroTerm, ZeroArray, NumCpnOneYear, DayCountFlag, True if Currency == "KRW" else False, NBDList[i], [], [], HolidayDomestic, HolidayDomestic )
+
+                        if abs(TempErr) < Err : 
+                            Err = TempErr
+
+                        if Err < 0.0001 : 
+                            TargetRate = TempRate
+                            break
+
+                    if j == len(RateRange) - 1 : 
+                        raise ValueError("Error")
                 ZeroRate.append(TargetRate)
             else : 
                 raise ValueError("Check the Product Type")
@@ -12072,7 +12096,7 @@ def ZeroCurveMaker(MyData, currdir, YYYYMMDD, HolidayDate, FXSpot, CurveName = "
                     ResultDF.to_csv(TheName, index = False, encoding = "cp949")
                     SavePrint = ("\n" + TheName + "저장 완료\n")
             except FileNotFoundError : 
-                os.system('mkdir ' + currdir + '\\MarketData\\outputdata\\' + str(YYYYMMDD) + "\\" + CurrencyName)    
+                os.makedirs(currdir + '\\MarketData\\outputdata\\' + str(YYYYMMDD) + "\\" + CurrencyName)    
                 if cvname + ".csv" not in os.listdir(targetdir) : 
                     TheName = targetdir + "\\" + cvname + ".csv"
                     ResultDF.to_csv(TheName, index = False, encoding = "cp949")
@@ -12516,6 +12540,8 @@ def CalcFXDeltaProgram_FromFXPosition(FXSpot) :
             else : 
                 ErrorCheck = True
                 ErrorString += c+'/KRW,\n'
+        
+        FXRateSeries = pd.Series(FXRateList + [1], index = FXPosCurr + ['Total'])
         ErrorStringResult = ErrorString[:-1] + '\nmust in FXSpot.csv File' if ErrorCheck else "Calculated\nSuccessfully"
         
         Bucket = pd.Series(FXPosCurr, name = 'Bucket')
@@ -12523,7 +12549,7 @@ def CalcFXDeltaProgram_FromFXPosition(FXSpot) :
         InputData = pd.DataFrame([Bucket, Delta]).T
         InputData["Risk_Type"] = "Delta"
         ResultData = Calc_FXRDelta(InputData, HighLiquidCurrency, "Delta")
-        ResultData["FXRate"] = FXRateList + [1]
+
         if PrevTreeFlag == 0 : 
             tree = ttk.Treeview(root)
         else : 
@@ -12533,6 +12559,7 @@ def CalcFXDeltaProgram_FromFXPosition(FXSpot) :
             tree = ttk.Treeview(root)
         ResultData = ResultData.applymap(lambda x : np.round(x, 4) if isinstance(x, float) else x)
         ResultData["Bucket"] = ResultData['Bucket'].apply(lambda x : 'Total' if '99999' in str(x) else x)
+        ResultData["FXRate"] = ResultData["Bucket"].map(FXRateSeries)
         tree.pack(padx=5, pady=5, fill="both", expand=True)    
         scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
         scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
@@ -13092,7 +13119,8 @@ def fetch_naver_interest_daily_quote(marketindex_cd: str, max_pages: int = 50) -
     return out.dropna(subset=["date"]).sort_values("date").set_index('date').rename(columns = {'rate': marketindex_cd})[[marketindex_cd]]
 
 def Update_KRWIRSData(currdir : str) : 
-
+    DataLastDate = int(sorted(os.listdir(currdir + '\\MarketData\\inputdata'))[-1])
+    UpDatedDateList = []
     if is_internet_connected() : 
         df_call = fetch_naver_interest_daily_quote("IRR_CALL")   # 콜금리
         df_cd91 = fetch_naver_interest_daily_quote("IRR_CD91")   # CD(91일)
@@ -13100,7 +13128,6 @@ def Update_KRWIRSData(currdir : str) :
         myindex = df_krw_irs.index.intersection(df_call.index).intersection(df_cd91.index)
         IRSData = pd.concat([df_call.loc[myindex], df_cd91.loc[myindex], df_krw_irs.loc[myindex]],axis = 1)
 
-        DataLastDate = int(sorted(os.listdir(currdir + '\\MarketData\\inputdata'))[-1])
         MinUpdateDate = int(IRSData.index[0].strftime("%Y%m%d"))
         TodayDate = int(f"{pd.Timestamp.now().date():%Y%m%d}")
         if DataLastDate < MinUpdateDate and DayCountAtoB(DataLastDate, TodayDate) >= 1 :     
@@ -13130,21 +13157,146 @@ def Update_KRWIRSData(currdir : str) :
                 os.makedirs(r"C:\Users\임대선\Desktop\새 폴더\github5\FRTB_Python\MarketData\inputdata" + '\\' + Today , exist_ok=True) 
                 os.makedirs(r"C:\Users\임대선\Desktop\새 폴더\github5\FRTB_Python\MarketData\inputdata" + '\\' + Today + "\\KRW", exist_ok=True) 
                 df.to_csv(r"C:\Users\임대선\Desktop\새 폴더\github5\FRTB_Python\MarketData\inputdata" + '\\' + Today + "\\KRW"+ '\\KRW IRS Quote.csv', index = False)
+                UpDatedDateList.append(Today)
             print("KRW IRS Input Data 업데이트 완료")
         else : 
             print("KRW IRS 데이터 이미 최근일자입니다.")
     else : 
         print("KRW IRS 데이터 이미 최근일자입니다.")
+    return DataLastDate, UpDatedDateList
+
+def CalcMaturityStringFormat(Day1, Day2, HolidayData, curr) : 
+    D1 = int(pd.to_datetime(Day1).date().strftime("%Y%m%d"))
+    D2 = int(pd.to_datetime(Day2).date().strftime("%Y%m%d"))
+    TempDate = [Day1]
+    DC = DayCountAtoB(D1, D2)
+    if DC < 30 : 
+        NBD =  NBusinessCountFromEndToPay(D1, D2, HolidayData[curr].values,0 ,TempDate)
+        if DC == 0 : 
+            return 'Today'
+        elif NBD == 1 or DC == 1: 
+            return 'ON'
+        elif NBD == 2 : 
+            return 'TN'
+        elif DC < 14 : 
+            return '1W'
+        elif DC < 21 : 
+            return '2W'
+        elif DC < 28 : 
+            return '3W'
+        else : 
+            return '1M' 
+    else : 
+        MC = MonthCountAtoB(D1, D2)
+        if int(MC) < 12 : 
+            return str(MC) + 'M'
+        else : 
+            return str(int(MC)/12) + 'Y'
+
+def CalcMaturityFromStringToYYYYMMDD(PriceDate, Tenor, HolidayData) : 
+    Tenorlower = str(Tenor).lower()
+    if 'today' in Tenorlower : 
+        return PriceDate
+    elif 'o' in Tenorlower and 'n' in Tenorlower : 
+        return NextNthBusinessDate(PriceDate, 1, HolidayData)
+    elif 't' in Tenorlower and 'n' in Tenorlower : 
+        return NextNthBusinessDate(PriceDate, 2, HolidayData)
+    elif '1' in Tenorlower and 'w' in Tenorlower : 
+        return ParseBusinessDateIfHoliday(DayPlus(PriceDate, 7),HolidayData)
+    elif '2' in Tenorlower and 'w' in Tenorlower : 
+        return ParseBusinessDateIfHoliday(DayPlus(PriceDate, 14),HolidayData)
+    elif '3' in Tenorlower and 'w' in Tenorlower : 
+        return ParseBusinessDateIfHoliday(DayPlus(PriceDate, 21),HolidayData)
+    elif 'm' in Tenorlower : 
+        nm = int(float(Tenorlower.split('m')[0]))
+        return ParseBusinessDateIfHoliday(EDate_YYYYMMDD(PriceDate, nm),HolidayData)
+    elif 'y' in Tenorlower : 
+        nm = int(float(Tenorlower.split('y')[0])) * 12
+        return ParseBusinessDateIfHoliday(EDate_YYYYMMDD(PriceDate, nm),HolidayData)
+    else : 
+        return PriceDate
+
+def CopyAllPreviousMarketData(currdir, inputdir, HolidayData) : 
+    tempf = np.vectorize(lambda x : pd.to_datetime(str(x)[:-4] + '-' + str(x)[-4:-2] + '-' + str(x)[-2:]))
+    CapFloorSwaptionNames = []
+    CapFloorSwaptiondfs = []
+    UpDateFileTargets = ["CRS","IRS","AAA QUOTE","AA QUOTE","A QUOTE","BBB QUOTE","BB QUOTE","B QUOTE","CCC QUOTE","CC QUOTE","C Quote"]
+    CopyFileNameList = []
+    CopyFiles = []
+    TargetFiles = []
+    for cur in os.listdir(inputdir) : 
+        FileNameList = []
+        FileDfList = []
+        for csvname in os.listdir(inputdir + '\\' + cur) :
+            if 'cap' in csvname.lower() or 'floor' in csvname.lower() or 'ption' in csvname.lower(): 
+                CapFloorSwaptiondfs.append(ReadCSV(inputdir + '\\' + cur + '\\' + csvname))
+                CapFloorSwaptionNames.append(cur + '\\' + csvname)
+            
+            for i in UpDateFileTargets :
+                if i in csvname.upper() : 
+                    FileNameList.append(cur + '\\' + csvname)
+                    FileDfList.append(ReadCSV(inputdir + '\\' + cur + '\\' + csvname).dropna(how = 'all'))
+                    break
+        CopyFileNameList += FileNameList
+        CopyFiles += FileDfList
+
+    for i in range(len(CopyFileNameList)) : 
+        curr = CopyFileNameList[i].split("\\")[0]
+        StartDates = CopyFiles[i]['StartDate']
+        Maturitys = CopyFiles[i]['Maturity']
+        Types = CopyFiles[i]['Type']
+        MarketQuotes = CopyFiles[i]['MarketQuote']
+        StartDateTenor = [CalcMaturityStringFormat(StartDates.values[0],y,HolidayData,curr) for y in StartDates.values]
+        MaturitysTenor = [CalcMaturityStringFormat(x,y,HolidayData,curr) for x, y in zip(StartDates,Maturitys)]        
+        TargetFile = pd.DataFrame([list(Types), StartDateTenor, MaturitysTenor, list(MarketQuotes)], index = ["Type","StartDateTenor","MaturityTenor","MarketQuote"]).T
+        TargetFiles.append(TargetFile)
+        
+    if len(UpDatedDate) > 0 :
+        for d in UpDatedDate : 
+            direc = currdir + '\\MarketData\\inputdata\\' + d
+            for cur in os.listdir(inputdir) : 
+                if cur not in os.listdir(direc) : 
+                    os.makedirs(direc + '\\' + cur, exist_ok=True) 
+
+            for n, name in enumerate(CapFloorSwaptionNames) : 
+                if name.split("\\")[-1] not in os.listdir(direc + '\\' + name.split("\\")[0]) : 
+                    CapFloorSwaptiondfs[n].to_csv(direc + '\\' + name, index = False)
+            
+            TodayInt = int(d) 
+            for i in range(len(CopyFileNameList)) : 
+                curr = CopyFileNameList[i].split("\\")[0]
+                TargetFile = TargetFiles[i]
+                StartDate = [CalcMaturityFromStringToYYYYMMDD(TodayInt, j, HolidayData[curr]) for j in TargetFile["StartDateTenor"].values]
+                Maturity = [CalcMaturityFromStringToYYYYMMDD(k, j, HolidayData[curr]) for k, j in zip(StartDate, TargetFile["MaturityTenor"].values)]
+                TargetFile['StartDate'] = tempf(StartDate)
+                TargetFile['Maturity'] = tempf(Maturity)
+                if 'usd' == curr.lower() : 
+                    TargetFile['Maturity'] = tempf([NextNthBusinessDate(Maturity[k], 2, HolidayData[curr.upper()]) if TargetFile['Type'].iloc[k].lower() == 'sw' else Maturity[k] for k in range(len(Maturity))])
+                filename = CopyFileNameList[i].split("\\")[-1]
+                if filename not in os.listdir(direc + '\\'  + CopyFileNameList[i].split("\\")[0]) :
+                    TargetFile[["Type","StartDate","Maturity","MarketQuote"]].to_csv(direc + '\\' +CopyFileNameList[i], index = False)
+        print("모든데이터 전일자 Copy완료")
+    else : 
+        print("모든데이터 이미 최신일자")
 
 ################
 # Main Program #
 ################
 MainFlag2 = 0
-UpdateFXSpotRateNaverFinance(currdir)
-Update_KRWIRSData(currdir)
+MainFlag = MainViewer(Title = 'Continue', MyText = 'Market Input Data Update', 
+                               MyList = ["0: Data 업데이트 안함", "1: Data 업데이트함"], defaultvalue=1, 
+                               size = "800x450+30+30", splitby = ":", 
+                               listheight = 6, textfont = 13, titlelable = False, titleName = "Name")
+if MainFlag : 
+    HolidayData = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.int64)
+    UpdateFXSpotRateNaverFinance(currdir)
+    LastFileDate, UpDatedDate = Update_KRWIRSData(currdir)
+    inputdir = currdir + '\\MarketData\\inputdata\\' + str(LastFileDate)
+    CopyAllPreviousMarketData(currdir, inputdir, HolidayData)
+
 while True : 
     MainFlag = MainViewer(size = "800x450+50+50")
-    if len(str(MainFlag)) == 0 or (MainFlag not in [1,2,3,4,5,6,7,'1','2','3','4','5','6','7']) : 
+    if str(MainFlag) == 0 or len(str(MainFlag)) == 0 or (MainFlag not in [1,2,3,4,5,6,7,'1','2','3','4','5','6','7']) : 
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break
     elif MainFlag in [2,'2'] :         
@@ -13259,6 +13411,7 @@ while True :
     if MainFlag2 == 0:
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break    
+
 
 # %%
    
