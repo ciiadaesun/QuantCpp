@@ -1797,6 +1797,17 @@ def MapGIRRDeltaGreeks(Greeks, RiskFactor) :
             ResultSensi.loc[30.00] += Greeks.iloc[i]                 
     return ResultSensi            
 
+def MapGIRRVegaGreeks(GreekDf, Tenor1Column : str, Tenor2Column : str, VegaSensiColumn : str, CurveNameColumn : str) : 
+    Data = GreekDf.copy()
+    T1 = GreekDf[Tenor1Column]
+    T2 = GreekDf[Tenor2Column]
+    Vega = GreekDf[VegaSensiColumn]
+    tempf = lambda x : 0.5 if x < 0.51 else (1.0 if x < 1.01 else (3.0 if x < 3.01 else (5.0 if x < 5.01 else 10.00)))
+    Data["RiskFactor2"] = T1.apply(tempf)
+    Data["RiskFactor3"] = T2.apply(tempf)
+    Data = Data.groupby(["Depart","Risk_Class","Risk_Type","Portfolio","Bucket", CurveNameColumn,"RiskFactor2","RiskFactor3"])[VegaSensiColumn].sum().reset_index()
+    return Data
+
 def MapCSRDeltaGreeks(Greeks, RiskFactor) : 
     ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
     for i in range(len(Greeks)) : 
@@ -5780,7 +5791,7 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
     YYYY = int(YYYYMMDD) // 10000
     root = tk.Tk()
     root.title("Callable Swap Pricer(Single Phase)")
-    root.geometry("1500x750+30+30")
+    root.geometry("1520x750+30+30")
     root.resizable(False, False)
 
     left_frame = tk.Frame(root)
@@ -6004,6 +6015,7 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
         L2_FixingHistoryDate = [DayPlus(int(PriceDate) - 10000, i) for i in range(366)] 
         L2_FixingHistoryRate = [L2FirstFixing] * len(L2_FixingHistoryDate)    
         Pu = Pd = 0.0
+        V = pd.DataFrame([])
         OptionFixDate, OptionPayDate = Generate_OptionDate(FirstOptPayDate, SwapMaturity, NYearBetweenOptionPay, NBDateBetweenOptionFixToPay, MaxNumOpt, ModifiedFollow = 0)
         if GreekFlag == 0 and BookFlag == 0 and FRTBRawFlag == 0: 
             resultframe = Pricing_IRCallableSwap_HWFDM(
@@ -6095,10 +6107,12 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
                 V["Risk_Type"] = "Vega"
                 V["Curve"] = UsedCurveName
                 V["Risk_Class"] = "GIRR"
-                V["Bucket"] = "KRW"
+                V["Bucket"] = Curr
                 GIRRVega = Calc_GIRRVega(V, SensitivityColumnName = "VegaSensi")["KB_M"].iloc[0]
             else : 
+                V = pd.DataFrame([[1,0, 1.0, 0.0,'Vega',UsedCurveName,"GIRR",Curr]],columns = ['Tenor1','Tenor2','VegaSensi','Risk_Type','Curve','Risk_Class','Bucket'])
                 GIRRVega = 0
+ 
         if PrevTreeFlag == 0 : 
             tree = ttk.Treeview(root)
         else : 
@@ -6117,7 +6131,7 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
         
         PrevTreeFlag = insert_dataframe_to_treeview(tree, resultframe.reset_index(), width = 100)
         if GreekFlag > 0 : 
-            output_label.config(text = f"\n결과: {np.round(resultprice,4)}\n\nLeg1 Payoff: \n{L1ResultPayoff}\n\nLeg2 Payoff: \n{L2ResultPayoff}\n\nGIRR Delta: {np.round(GIRRDelta,4)}\n\nGIRR Curvature: {np.round(GIRRCurvature,4)}\n\nGIRR Vega: {np.round(GIRRVega,4)} ", font = ("맑은 고딕", 12, 'bold'))
+            output_label.config(text = f"\n결과: {np.round(resultprice,4)}\nLeg1 Payoff: \n{L1ResultPayoff}\nLeg2 Payoff: \n{L2ResultPayoff}\nGIRR Delta: {np.round(GIRRDelta,4)}\nGIRR Curvature: {np.round(GIRRCurvature,4)}\nGIRR Vega: {np.round(GIRRVega,4)} ", font = ("맑은 고딕", 12, 'bold'))
         else : 
             output_label.config(text = f"\n결과: {np.round(resultprice,4)}\n\nLeg1 Payoff: \n{L1ResultPayoff}\n\nLeg2 Payoff: \n{L2ResultPayoff}", font = ("맑은 고딕", 12, 'bold'))
 
@@ -6135,12 +6149,25 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
             DeltaFRTB['RiskFactor1'] = UsedCurveName.replace(" ZeroCurve","")
             DeltaFRTB['RiskFactor2'] = DeltaFRTB["Tenor"]
             DeltaFRTB['RiskFactor3'] = DeltaFRTB["Type"]
-            DeltaFRTB = DeltaFRTB[['Depart',	'Risk_Class',	'Risk_Type',	'Portfolio',	'Bucket',	'RiskFactor1',	'RiskFactor2',	'RiskFactor3',	'Delta_Sensi']]
+            DeltaFRTB = DeltaFRTB[['Depart','Risk_Class','Risk_Type','Portfolio','Bucket',
+                                   'RiskFactor1','RiskFactor2','RiskFactor3','Delta_Sensi']]
             GammaFRTB = DeltaFRTB.copy()
             GammaFRTB["Risk_Type"] = "Curvature"
             GammaFRTB["Value_Up"] = Pu
             GammaFRTB["Value_Dn"] = Pd
-            FRTBRaw = pd.concat([FRTBRaw, DeltaFRTB,GammaFRTB],axis = 0)
+            V['Vega_Sensi'] = V['VegaSensi']
+            VolName = ''
+            if 'KRW' in Curr : 
+                VolName = 'KRW SWAPTION VOL'
+            elif 'USD' in Curr : 
+                VolName = 'USD SOFR SWAPTION'
+            else : 
+                VolName += Curr + ' SWAPTION VOL'
+            V['RiskFactor1'] = VolName
+            V['Depart'] = FRTBDepart
+            V['Portfolio'] = FRTBPort            
+            VegaFRTB = MapGIRRVegaGreeks(V, "Tenor1","Tenor2","Vega_Sensi","RiskFactor1")            
+            FRTBRaw = pd.concat([FRTBRaw, DeltaFRTB,GammaFRTB,VegaFRTB],axis = 0)
             FRTBRaw.to_csv(currdir + '\\FRTBRAWFILE\\FRTB_RAW.csv', index = False)
             messagebox.showinfo("알림","FRTB Raw 추가 완료!!")   
 
@@ -6650,6 +6677,9 @@ def PricingIRStructuredSwapProgram2F(HolidayData, currdir) :
 
     Result_frame = tk.Frame(root)
     Result_frame.pack(side = 'left', padx = 2, pady = 5, anchor = 'n')
+    vb_FRTBRaw = make_listvariable_interface(Result_frame, 'BookFRTB', ["0: FRTB RAW 저장X","1: FRTB RAW 저장O"], listheight = 2, textfont = 11, pady = 10)
+    vb_FRTBRawDepart = make_variable_interface(Result_frame, '부서명', bold = False, textfont = 11, defaultflag = True, defaultvalue = 'Derivatives Dept')
+    vb_FRTBRawPort = make_variable_interface(Result_frame, '포트명', bold = False, textfont = 11, defaultflag = True, defaultvalue = 'Structured')
     
     PV01, TempPV01 = None, None
     PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
@@ -6819,8 +6849,15 @@ def PricingIRStructuredSwapProgram2F(HolidayData, currdir) :
         L1_FixingHistoryRate = [L1FirstFixing] * len(L1_FixingHistoryDate)    
         L2_FixingHistoryDate = [DayPlus(int(PriceDate) - 10000, i) for i in range(366)] 
         L2_FixingHistoryRate = [L2FirstFixing] * len(L2_FixingHistoryDate)    
+
+        FRTBRawFlag = int(str(vb_FRTBRaw.get(vb_FRTBRaw.curselection())).split(":")[0]) if vb_FRTBRaw.curselection() else 0
+        FRTBDepart = str(vb_FRTBRawDepart.get()) if len(str(vb_FRTBRawDepart.get())) > 0 else "TempDepart"
+        FRTBPort = str(vb_FRTBRawPort.get()) if len(str(vb_FRTBRawPort.get())) > 0 else "TempPort"
+
+        Pu = Pd = 0.0
+        V = pd.DataFrame([])        
         OptionFixDate, OptionPayDate = Generate_OptionDate(FirstOptPayDate, SwapMaturity, NYearBetweenOptionPay, NBDateBetweenOptionFixToPay, MaxNumOpt, ModifiedFollow = 0)
-        if GreekFlag == 0 : 
+        if GreekFlag == 0 and FRTBRawFlag == 0 : 
             resultframe = Pricing_IRCallableSwap_HWFDM(
                     Nominal, SwapEffectiveDate, PriceDate, SwapMaturity, L1_NumCpnOneYear_P1,         
                     L1_RefRateMultiple_P1, L1_RefSwapMaturity_T, L1_RefSwapNCPNOneYear_P1, L1_FixedCpnRate_P1, L1_DayCount, 
@@ -6908,6 +6945,7 @@ def PricingIRStructuredSwapProgram2F(HolidayData, currdir) :
                 V["Bucket"] = "KRW"
                 GIRRVega = Calc_GIRRVega(V, SensitivityColumnName = "VegaSensi")["KB_M"].iloc[0]
             else : 
+                V = pd.DataFrame([[1,0, 1.0, 0.0,'Vega',UsedCurveName,"GIRR",Curr]],columns = ['Tenor1','Tenor2','VegaSensi','Risk_Type','Curve','Risk_Class','Bucket'])
                 GIRRVega = 0
         if PrevTreeFlag == 0 : 
             tree = ttk.Treeview(root)
@@ -6930,6 +6968,37 @@ def PricingIRStructuredSwapProgram2F(HolidayData, currdir) :
             output_label.config(text = f"\n결과: {np.round(resultprice,4)}\n\nLeg1 Payoff: \n{L1ResultPayoff}\n\nLeg2 Payoff: \n{L2ResultPayoff}\n\nGIRR Delta: {np.round(GIRRDelta,4)}\n\nGIRR Curvature: {np.round(GIRRCurvature,4)}\n\nGIRR Vega: {np.round(GIRRVega,4)} ", font = ("맑은 고딕", 12, 'bold'))
         else : 
             output_label.config(text = f"\n결과: {np.round(resultprice,4)}\n\nLeg1 Payoff: \n{L1ResultPayoff}\n\nLeg2 Payoff: \n{L2ResultPayoff}", font = ("맑은 고딕", 12, 'bold'))
+
+        if FRTBRawFlag != 0 : 
+            FRTBRaw = ReadCSV(currdir + '\\FRTBRAWFILE\\FRTB_RAW.csv')
+            DeltaFRTB = Calc_GIRRDeltaNotCorrelated_FromGreeks_PreProcessing(DeltaGreek, "PV01Term","PV01", Curvename = UsedCurveName, Type = "Rate", Bucket = Curr)
+            DeltaFRTB['Depart'] = FRTBDepart
+            DeltaFRTB['Portfolio'] = FRTBPort
+            DeltaFRTB['RiskFactor1'] = UsedCurveName.replace(" ZeroCurve","")
+            DeltaFRTB['RiskFactor2'] = DeltaFRTB["Tenor"]
+            DeltaFRTB['RiskFactor3'] = DeltaFRTB["Type"]
+            DeltaFRTB = DeltaFRTB[['Depart','Risk_Class','Risk_Type','Portfolio','Bucket',
+                                   'RiskFactor1','RiskFactor2','RiskFactor3','Delta_Sensi']]
+            GammaFRTB = DeltaFRTB.copy()
+            GammaFRTB["Risk_Type"] = "Curvature"
+            GammaFRTB["Value_Up"] = Pu
+            GammaFRTB["Value_Dn"] = Pd
+            V['Vega_Sensi'] = V['VegaSensi']
+            VolName = ''
+            if 'KRW' in Curr : 
+                VolName = 'KRW SWAPTION VOL'
+            elif 'USD' in Curr : 
+                VolName = 'USD SOFR SWAPTION'
+            else : 
+                VolName += Curr + ' SWAPTION VOL'
+            V['RiskFactor1'] = VolName
+            V['Depart'] = FRTBDepart
+            V['Portfolio'] = FRTBPort            
+            VegaFRTB = MapGIRRVegaGreeks(V, "Tenor1","Tenor2","Vega_Sensi","RiskFactor1")            
+            FRTBRaw = pd.concat([FRTBRaw, DeltaFRTB,GammaFRTB,VegaFRTB],axis = 0)
+            FRTBRaw.to_csv(currdir + '\\FRTBRAWFILE\\FRTB_RAW.csv', index = False)
+            messagebox.showinfo("알림","FRTB Raw 추가 완료!!")   
+
         MyArrays[0] = PrevTreeFlag 
         MyArrays[1] = tree 
         MyArrays[2] = scrollbar
@@ -13128,7 +13197,7 @@ def Update_KRWIRSData(currdir : str) :
         myindex = df_krw_irs.index.intersection(df_call.index).intersection(df_cd91.index)
         IRSData = pd.concat([df_call.loc[myindex], df_cd91.loc[myindex], df_krw_irs.loc[myindex]],axis = 1)
 
-        MinUpdateDate = int(IRSData.index[0].strftime("%Y%m%d"))
+        MinUpdateDate = int(IRSData.index[-1].strftime("%Y%m%d"))
         TodayDate = int(f"{pd.Timestamp.now().date():%Y%m%d}")
         if DataLastDate < MinUpdateDate and DayCountAtoB(DataLastDate, TodayDate) >= 1 :     
             tempf = np.vectorize(lambda x : str(x)[:-4] + '-' + str(x)[-4:-2] + '-' + str(x)[-2:])
