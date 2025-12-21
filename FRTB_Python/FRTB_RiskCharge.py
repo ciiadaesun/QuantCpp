@@ -1772,57 +1772,6 @@ def Preprocessing_EQVol(ParityArray, TermArray, Vols2D, PriceDate, StockPrice) :
         for i in range(len(ParityArray)) : 
             ParityArray[i] = ParityArray[i]/StockPrice
 
-def MapGIRRDeltaGreeks(Greeks, RiskFactor) : 
-    ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
-    for i in range(len(Greeks)) : 
-        if float(Greeks.index[i]) < 0.251 :     
-            ResultSensi.loc[0.25] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 0.251 and float(Greeks.index[i]) < 0.51:
-            ResultSensi.loc[0.5] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 0.51 and float(Greeks.index[i]) < 1.01:
-            ResultSensi.loc[1.00] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 1.01 and float(Greeks.index[i]) < 2.01:
-            ResultSensi.loc[2.00] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 2.01 and float(Greeks.index[i]) < 3.01:
-            ResultSensi.loc[3.00] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 3.01 and float(Greeks.index[i]) < 5.01:
-            ResultSensi.loc[5.00] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 5.01 and float(Greeks.index[i]) < 10.01:
-            ResultSensi.loc[10.00] += Greeks.iloc[i]                 
-        elif float(Greeks.index[i]) >= 10.01 and float(Greeks.index[i]) < 15.01:
-            ResultSensi.loc[15.00] += Greeks.iloc[i]                 
-        elif float(Greeks.index[i]) >= 15.01 and float(Greeks.index[i]) < 20.01:
-            ResultSensi.loc[20.00] += Greeks.iloc[i]                 
-        else : 
-            ResultSensi.loc[30.00] += Greeks.iloc[i]                 
-    return ResultSensi            
-
-def MapGIRRVegaGreeks(GreekDf, Tenor1Column : str, Tenor2Column : str, VegaSensiColumn : str, CurveNameColumn : str) : 
-    Data = GreekDf.copy()
-    T1 = GreekDf[Tenor1Column]
-    T2 = GreekDf[Tenor2Column]
-    Vega = GreekDf[VegaSensiColumn]
-    tempf = lambda x : 0.5 if x < 0.51 else (1.0 if x < 1.01 else (3.0 if x < 3.01 else (5.0 if x < 5.01 else 10.00)))
-    Data["RiskFactor2"] = T1.apply(tempf)
-    Data["RiskFactor3"] = T2.apply(tempf)
-    Data = Data.groupby(["Depart","Risk_Class","Risk_Type","Portfolio","Bucket", CurveNameColumn,"RiskFactor2","RiskFactor3"])[VegaSensiColumn].sum().reset_index()
-    return Data
-
-def MapCSRDeltaGreeks(Greeks, RiskFactor) : 
-    ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
-    for i in range(len(Greeks)) : 
-        if float(Greeks.index[i]) < 0.51 :     
-            ResultSensi.loc[0.5] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 0.51 and float(Greeks.index[i]) < 1.01:
-            ResultSensi.loc[1.00] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 1.01 and float(Greeks.index[i]) < 3.01:
-            ResultSensi.loc[3.00] += Greeks.iloc[i]
-        elif float(Greeks.index[i]) >= 3.01 and float(Greeks.index[i]) < 5.01:
-            ResultSensi.loc[5.00] += Greeks.iloc[i]
-        else : 
-            ResultSensi.loc[10.00] += Greeks.iloc[i]                 
-    return ResultSensi 
-
 def Calc_Discount_Factor(Term, Rate, T) : 
     r = Linterp(Term, Rate, T)
     return np.exp(-r * T)
@@ -2087,7 +2036,7 @@ def BSDigitalOption(TypeFlag, PriceDate, Maturity, PayDate, S0, X, DiscTerm, Dis
             Gamma = 0.0
             Vega = 0.0
             Theta = dvd * S0 * np.exp(-dvd * T) - rd * X * np.exp(-rd * T)
-            Rho = X * T * np.exp(-r * T)
+            Rho = X * T * np.exp(-rd * T)
         else : 
             Price = np.exp(-rd * T) * CDF_N(d2) 
             Delta = np.exp(-rd * T) * PDF_ND2 / (vol * np.sqrt(T) * S0)
@@ -6006,7 +5955,7 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
         FRTBRawFlag = int(str(vb_FRTBRaw.get(vb_FRTBRaw.curselection())).split(":")[0]) if vb_FRTBRaw.curselection() else 0
         FRTBDepart = str(vb_FRTBRawDepart.get()) if len(str(vb_FRTBRawDepart.get())) > 0 else "TempDepart"
         FRTBPort = str(vb_FRTBRawPort.get()) if len(str(vb_FRTBRawPort.get())) > 0 else "TempPort"
-                         
+        GreekFlag = 2 if FRTBRawFlag != 0 else GreekFlag                         
         L1FirstFixing = float(v_L1FirstFixing.get())/100 if str(v_L1FirstFixing.get()) else 0.0
         L2FirstFixing = float(v_L2FirstFixing.get())/100 if str(v_L2FirstFixing.get()) else 0.0
         
@@ -6155,6 +6104,7 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
             GammaFRTB["Risk_Type"] = "Curvature"
             GammaFRTB["Value_Up"] = Pu
             GammaFRTB["Value_Dn"] = Pd
+            GammaFRTB["Value"] = resultprice
             V['Vega_Sensi'] = V['VegaSensi']
             VolName = ''
             if 'KRW' in Curr : 
@@ -6853,6 +6803,7 @@ def PricingIRStructuredSwapProgram2F(HolidayData, currdir) :
         FRTBRawFlag = int(str(vb_FRTBRaw.get(vb_FRTBRaw.curselection())).split(":")[0]) if vb_FRTBRaw.curselection() else 0
         FRTBDepart = str(vb_FRTBRawDepart.get()) if len(str(vb_FRTBRawDepart.get())) > 0 else "TempDepart"
         FRTBPort = str(vb_FRTBRawPort.get()) if len(str(vb_FRTBRawPort.get())) > 0 else "TempPort"
+        GreekFlag = 2 if FRTBRawFlag != 0 else GreekFlag                         
 
         Pu = Pd = 0.0
         V = pd.DataFrame([])        
@@ -6983,6 +6934,7 @@ def PricingIRStructuredSwapProgram2F(HolidayData, currdir) :
             GammaFRTB["Risk_Type"] = "Curvature"
             GammaFRTB["Value_Up"] = Pu
             GammaFRTB["Value_Dn"] = Pd
+            GammaFRTB["Value"] = resultprice
             V['Vega_Sensi'] = V['VegaSensi']
             VolName = ''
             if 'KRW' in Curr : 
@@ -7492,7 +7444,7 @@ def PricingRangeAccrualNote(HolidayDate, currdir) :
         SwapEffectiveDate = int(v_SwapEffectiveDate.get()) if len(str(v_SwapEffectiveDate.get())) > 0 else 20200627
         SwapMaturity = int(v_SwapMaturity.get()) if len(str(v_SwapMaturity.get())) > 0 else (SwapEffectiveDate + 100000)
         NumCpnOneYear_P1 = int(vb_L1_NumCpnOneYear_P1.get(vb_L1_NumCpnOneYear_P1.curselection())) if vb_L1_NumCpnOneYear_P1.curselection() else 4
-        DayCount = int(str(vb_DayCount.get(vb_DayCount.curselection())).split(":")[0]) if vb_DayCount.curselection() else (0 if L1_NumCpnOneYear_P1 != 0 else 3)
+        DayCount = int(str(vb_DayCount.get(vb_DayCount.curselection())).split(":")[0]) if vb_DayCount.curselection() else (0 if NumCpnOneYear_P1 != 0 else 3)
         VolFlag = int(str(vb_VolFlag.get(vb_VolFlag.curselection())).split(":")[0]) if vb_VolFlag.curselection() else 1
         Curr = str(vb_Holiday.get(vb_Holiday.curselection())).upper() if vb_Holiday.curselection() else "KRW"
         if 'KRW' in Curr : 
@@ -7753,6 +7705,57 @@ def insert_dataframe_to_treeview(treeview, dataframe, width = 50):
 ########################################### 여기까지 Pricing Module ###########################################
 ########################################### 여기부터 FRTB Module ##############################################  
 ##############################################################################################################
+
+def MapGIRRDeltaGreeks(Greeks, RiskFactor) : 
+    ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
+    for i in range(len(Greeks)) : 
+        if float(Greeks.index[i]) < 0.251 :     
+            ResultSensi.loc[0.25] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 0.251 and float(Greeks.index[i]) < 0.51:
+            ResultSensi.loc[0.5] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 0.51 and float(Greeks.index[i]) < 1.01:
+            ResultSensi.loc[1.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 1.01 and float(Greeks.index[i]) < 2.01:
+            ResultSensi.loc[2.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 2.01 and float(Greeks.index[i]) < 3.01:
+            ResultSensi.loc[3.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 3.01 and float(Greeks.index[i]) < 5.01:
+            ResultSensi.loc[5.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 5.01 and float(Greeks.index[i]) < 10.01:
+            ResultSensi.loc[10.00] += Greeks.iloc[i]                 
+        elif float(Greeks.index[i]) >= 10.01 and float(Greeks.index[i]) < 15.01:
+            ResultSensi.loc[15.00] += Greeks.iloc[i]                 
+        elif float(Greeks.index[i]) >= 15.01 and float(Greeks.index[i]) < 20.01:
+            ResultSensi.loc[20.00] += Greeks.iloc[i]                 
+        else : 
+            ResultSensi.loc[30.00] += Greeks.iloc[i]                 
+    return ResultSensi            
+
+def MapGIRRVegaGreeks(GreekDf, Tenor1Column : str, Tenor2Column : str, VegaSensiColumn : str, CurveNameColumn : str) : 
+    Data = GreekDf.copy()
+    T1 = GreekDf[Tenor1Column]
+    T2 = GreekDf[Tenor2Column]
+    Vega = GreekDf[VegaSensiColumn]
+    tempf = lambda x : 0.5 if x < 0.51 else (1.0 if x < 1.01 else (3.0 if x < 3.01 else (5.0 if x < 5.01 else 10.00)))
+    Data["RiskFactor2"] = T1.apply(tempf)
+    Data["RiskFactor3"] = T2.apply(tempf)
+    Data = Data.groupby(["Depart","Risk_Class","Risk_Type","Portfolio","Bucket", CurveNameColumn,"RiskFactor2","RiskFactor3"])[VegaSensiColumn].sum().reset_index()
+    return Data
+
+def MapCSRDeltaGreeks(Greeks, RiskFactor) : 
+    ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
+    for i in range(len(Greeks)) : 
+        if float(Greeks.index[i]) < 0.51 :     
+            ResultSensi.loc[0.5] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 0.51 and float(Greeks.index[i]) < 1.01:
+            ResultSensi.loc[1.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 1.01 and float(Greeks.index[i]) < 3.01:
+            ResultSensi.loc[3.00] += Greeks.iloc[i]
+        elif float(Greeks.index[i]) >= 3.01 and float(Greeks.index[i]) < 5.01:
+            ResultSensi.loc[5.00] += Greeks.iloc[i]
+        else : 
+            ResultSensi.loc[10.00] += Greeks.iloc[i]                 
+    return ResultSensi 
 
 def Calc_GIRRDeltaNotCorrelated_FromGreeks_PreProcessing(PV01 ,col = "PV01Term", bpv = "PV01", Curvename = "IRS", Type = "Rate", Bucket = "KRW") :
     GIRR_DeltaRiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)
@@ -8156,7 +8159,7 @@ def Calc_AggregatedDeltaVega(Kb, Sb, Corr, median0up1dn2) :
         riskcharge = np.sqrt(riskcharge_sqaure)
     return riskcharge
 
-#@jit('double(double[:],double[:],double[:], int32)', nopython = True)
+#@jit('double[:](double[:],double[:],double[:], int32)', nopython = True)
 def Calc_CVR(Vud, V, DeltaWS, plus0minus1) : 
     '''
     참고문헌 : 은행업감독업무 시행세칙 별표3의2 45.나
@@ -8177,14 +8180,14 @@ def Calc_CVR(Vud, V, DeltaWS, plus0minus1) :
     
     '''    
     n = len(DeltaWS)
-    targetvalue = 0
+    ResultArray = np.zeros(n, dtype = np.float64)
     if plus0minus1 == 0 : 
         for i in range(n) : 
-            targetvalue += -(Vud[i] - V[i] - DeltaWS[i])
+            ResultArray[i] = -(Vud[i] - V[i] - DeltaWS[i])
     else : 
         for i in range(n) : 
-            targetvalue += -(Vud[i] - V[i] + DeltaWS[i])
-    return targetvalue
+            ResultArray[i] = -(Vud[i] - V[i] + DeltaWS[i])
+    return ResultArray
 
 #@jit('double(double[:],double[:,:], int32)', nopython = True)
 def Calc_Kb_Curvature(CVRPlusMinus, rho, median0up1dn2) : 
@@ -9400,7 +9403,7 @@ def Calc_GIRRCurvature(CurvatureData, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, De
     if CurvatureData["CVR_Plus"].isna().sum() == len(CurvatureData) and CurvatureData["CVR_Minus"].isna().sum() == len(CurvatureData) :    
         CurvatureData["RW"] = GIRR_DeltaRiskWeight(CurvatureData["Tenor"].values, CurvatureData["Bucket"].values, CurvatureData["Type"].values)
         CurvatureData["DeltaWeightedSensi"] = CurvatureData["RW"] * CurvatureData[DeltaSensitivityColumnName]    
-    
+
     KB_Median = CurvatureData.groupby("Bucket").apply(Calc_GIRRKb_Curvature, "m", GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensitivityColumnName)
     KB_Up = CurvatureData.groupby("Bucket").apply(Calc_GIRRKb_Curvature, "u", GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensitivityColumnName)
     KB_Dn = CurvatureData.groupby("Bucket").apply(Calc_GIRRKb_Curvature, "d", GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensitivityColumnName)
@@ -9886,7 +9889,7 @@ def CalcDRC3RiskCharge(DRC_Data) :
         DRC1Data = pd.DataFrame([])
         DRC2Data = pd.DataFrame([])
         DRC3Data = pd.DataFrame([])
-
+        DRC = DRC_Data
         DRC1 = DRC[DRC["Risk_Type"].isin(["DRC","DRC1"])]
         if len(DRC1) > 0 : 
             DRC1["RW"] = DRC1["Rating"].apply(DRC_RW)
@@ -10685,6 +10688,12 @@ def PricingEquityOptionProgram(currdir = os.getcwd(), HolidayDate = pd.DataFrame
     Result_frame = tk.Frame(root)
     Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
     vb_Logging = make_listvariable_interface(Result_frame, 'CSVLogging', ["0: Logging안함","1: CSVLogging"], listheight = 2, textfont = 11, titleName="Pricing Result",titlelable=True, pady = 10)
+    vb_FRTBRaw = make_listvariable_interface(Result_frame, 'BookFRTB', ["0: FRTB RAW 저장X","1: FRTB RAW 저장O"], listheight = 2, textfont = 11, pady = 10)
+    vb_FRTBRawDepart = make_variable_interface(Result_frame, '부서명', bold = False, textfont = 11, defaultflag = True, defaultvalue = 'Derivatives Dept')
+    vb_FRTBRawPort = make_variable_interface(Result_frame, '포트명', bold = False, textfont = 11, defaultflag = True, defaultvalue = 'Structured')
+    vb_FRTBStockName = make_variable_interface(Result_frame, '종목명', bold = False, textfont = 11, defaultflag = True, defaultvalue = 'KOSPI 200')
+    vb_FRTBBucket = make_variable_interface(Result_frame, 'FRTB Bucket', bold = False, textfont = 11, defaultflag = True, defaultvalue=13)
+
     Value = 0
     Price, Delta, Gamma = None, None, None
     PV01, TempPV01 = None, None
@@ -10740,30 +10749,103 @@ def PricingEquityOptionProgram(currdir = os.getcwd(), HolidayDate = pd.DataFrame
         Plain0Barrier1 = int(str(v_Plain0Barrier1Digital2.get(v_Plain0Barrier1Digital2.curselection())).split(":")[0]) if v_Plain0Barrier1Digital2.curselection() else 0
         Down0Up1Flag = int(str(vb_Down0Up1Flag.get(vb_Down0Up1Flag.curselection())).split(":")[0]) if vb_Down0Up1Flag.curselection() else 0
         In0Out1Flag = int(str(vb_In0Out1Flag.get(vb_In0Out1Flag.curselection())).split(":")[0]) if vb_In0Out1Flag.curselection() else 0
-
         LoggingFlag = int(str(vb_Logging.get(vb_Logging.curselection())).split(":")[0]) if vb_Logging.curselection() else 0
+        FRTBRawFlag = int(str(vb_FRTBRaw.get(vb_FRTBRaw.curselection())).split(":")[0]) if vb_FRTBRaw.curselection() else 0
+        FRTBDepart = str(vb_FRTBRawDepart.get()) if len(str(vb_FRTBRawDepart.get())) > 0 else "TempDepart"
+        FRTBPort = str(vb_FRTBRawPort.get()) if len(str(vb_FRTBRawPort.get())) > 0 else "TempPort"
+        FRTBStockName = str(vb_FRTBStockName.get()) if len(str(vb_FRTBStockName.get())) > 0 else "StockA"
+        FRTBBucket = int(vb_FRTBBucket.get()) if len(str(vb_FRTBBucket.get())) > 0 else 13
+        Pu = 0
+        PU_Curvature = PD_Curvature = 0
+        v = Vega = 0.01
+        risktype = ["price"]
+        riskbucket = [str(FRTBBucket)]
+        df = pd.DataFrame([risktype,riskbucket], index = ["Type","Bucket"]).T        
+        EQRW = MapEquityRiskWeight(df, EQDeltaRWMappingDF, TypeColName = "Type", BucketColName = "Bucket").iloc[0]
+
         if Plain0Barrier1 == 0 : 
             Price, Delta, Gamma, Vega, Theta, Rho, v = BS_Option(int(PriceDate), int(Maturity), S, X, DiscTerm, 
                     DiscRate, DivTerm, DivRate, Vols2D if ATMVolFlag != 2 else SelfVol, QuantoCorr = QuantoCorr, 
                     FXVolTerm = [0], FXVol = [FX_Vol], DivFlag = 0, EstTerm = EstTerm, EstRate = EstRate, 
                     ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir, VolTerm = TermVol, VolParity = ParityVol,TypeFlag = TypeFlag, ATMVolFlag = ATMVolFlag, ATMVol = VolsATM)
+            if FRTBRawFlag != 0 : 
+                Pu, Delta_U, Gamma_U, Vega_U, Theta_U, Rho_U, v_U = BS_Option(int(PriceDate), int(Maturity), S * 1.01, X, DiscTerm, 
+                        DiscRate, DivTerm, DivRate, Vols2D if ATMVolFlag != 2 else SelfVol, QuantoCorr = QuantoCorr, 
+                        FXVolTerm = [0], FXVol = [FX_Vol], DivFlag = 0, EstTerm = EstTerm, EstRate = EstRate, 
+                        ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir, VolTerm = TermVol, VolParity = ParityVol,TypeFlag = TypeFlag, ATMVolFlag = ATMVolFlag, ATMVol = VolsATM)
+                PU_Curvature = BS_Option(int(PriceDate), int(Maturity), S * (1+EQRW), X, DiscTerm, 
+                        DiscRate, DivTerm, DivRate, Vols2D if ATMVolFlag != 2 else SelfVol, QuantoCorr = QuantoCorr, 
+                        FXVolTerm = [0], FXVol = [FX_Vol], DivFlag = 0, EstTerm = EstTerm, EstRate = EstRate, 
+                        ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir, VolTerm = TermVol, VolParity = ParityVol,TypeFlag = TypeFlag, ATMVolFlag = ATMVolFlag, ATMVol = VolsATM)[0]
+                PD_Curvature = BS_Option(int(PriceDate), int(Maturity), S * (1-EQRW), X, DiscTerm, 
+                        DiscRate, DivTerm, DivRate, Vols2D if ATMVolFlag != 2 else SelfVol, QuantoCorr = QuantoCorr, 
+                        FXVolTerm = [0], FXVol = [FX_Vol], DivFlag = 0, EstTerm = EstTerm, EstRate = EstRate, 
+                        ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir, VolTerm = TermVol, VolParity = ParityVol,TypeFlag = TypeFlag, ATMVolFlag = ATMVolFlag, ATMVol = VolsATM)[0]
+
         elif Plain0Barrier1 == 1 : 
             Price, Delta, Gamma, Vega, Theta, Rho, v = BSBarrierOption(int(PriceDate), BarrierCall1Put2, S, X, H, DiscTerm, 
                                 DiscRate, DiscTerm, DiscRate, DivTerm, DivRate, 
                                 QuantoCorr, [0], [FX_Vol], TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, 
                                 Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 0, int(Maturity), int(Maturity), 
                                 Down0Up1Flag, In0Out1Flag, Reb = 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)
+            if FRTBRawFlag != 0 : 
+                Pu, Delta_U, Gamma_U, Vega_U, Theta_U, Rho_U, v_U = BSBarrierOption(int(PriceDate), BarrierCall1Put2, S * 1.01, X, H, DiscTerm, 
+                                    DiscRate, DiscTerm, DiscRate, DivTerm, DivRate, 
+                                    QuantoCorr, [0], [FX_Vol], TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, 
+                                    Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 0, int(Maturity), int(Maturity), 
+                                    Down0Up1Flag, In0Out1Flag, Reb = 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)
+                PU_Curvature = BSBarrierOption(int(PriceDate), BarrierCall1Put2, S * (1+EQRW), X, H, DiscTerm, 
+                                    DiscRate, DiscTerm, DiscRate, DivTerm, DivRate, 
+                                    QuantoCorr, [0], [FX_Vol], TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, 
+                                    Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 0, int(Maturity), int(Maturity), 
+                                    Down0Up1Flag, In0Out1Flag, Reb = 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)[0]
+                PD_Curvature = BSBarrierOption(int(PriceDate), BarrierCall1Put2, S * (1-EQRW), X, H, DiscTerm, 
+                                    DiscRate, DiscTerm, DiscRate, DivTerm, DivRate, 
+                                    QuantoCorr, [0], [FX_Vol], TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, 
+                                    Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 0, int(Maturity), int(Maturity), 
+                                    Down0Up1Flag, In0Out1Flag, Reb = 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)[0]
+
         elif Plain0Barrier1 == 2 : 
             Price, Delta, Gamma, Vega, Theta, Rho, v = BSDigitalOption(BarrierCall1Put2, int(PriceDate), int(Maturity), int(Maturity), S,
                                                                        X, DiscTerm, DiscRate, DiscTerm, DiscRate, 
                                                                        DivTerm, DivRate, TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 
                                                                        QuantoCorr, [0], [FX_Vol], 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)            
+            if FRTBRawFlag != 0 : 
+                Pu, Delta_U, Gamma_U, Vega_U, Theta_U, Rho_U, v_U = BSDigitalOption(BarrierCall1Put2, int(PriceDate), int(Maturity), int(Maturity), S * 1.01,
+                                                                        X, DiscTerm, DiscRate, DiscTerm, DiscRate, 
+                                                                        DivTerm, DivRate, TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 
+                                                                        QuantoCorr, [0], [FX_Vol], 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)            
+                PU_Curvature = BSDigitalOption(BarrierCall1Put2, int(PriceDate), int(Maturity), int(Maturity), S * (1+EQRW),
+                                                                        X, DiscTerm, DiscRate, DiscTerm, DiscRate, 
+                                                                        DivTerm, DivRate, TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 
+                                                                        QuantoCorr, [0], [FX_Vol], 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)[0]            
+                PD_Curvature = BSDigitalOption(BarrierCall1Put2, int(PriceDate), int(Maturity), int(Maturity), S * (1-EQRW),
+                                                                        X, DiscTerm, DiscRate, DiscTerm, DiscRate, 
+                                                                        DivTerm, DivRate, TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 
+                                                                        QuantoCorr, [0], [FX_Vol], 0, ForwardPrice = ForwardPrice, LoggingFlag = LoggingFlag, LoggingDir = currdir)[0]            
+
         else : 
             Price, Delta, Gamma, Vega, Theta, Rho, v = Arithmetic_Asian_Opt_Pricing_Preprocessing(0, 0 if TypeFlag == 'c' else 1, int(PriceDate), AvgStartDate, AvgEndDate, 
                                                                                                   int(Maturity), S, X, MeanPrice, DiscTerm, 
                                                                                                   DiscRate, DivTerm, DivRate, QuantoCorr, [0], 
                                                                                                   [FX_Vol], TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 0, 
                                                                                                   Holidays = Holidays, ForwardTerm = [] if ForwardPrice == 0 else [1], ForwardPrice = [ForwardPrice])            
+            if FRTBRawFlag != 0 : 
+                Pu, Delta_U, Gamma_U, Vega_U, Theta_U, Rho_U, v_U = Arithmetic_Asian_Opt_Pricing_Preprocessing(0, 0 if TypeFlag == 'c' else 1, int(PriceDate), AvgStartDate, AvgEndDate, 
+                                                                                                    int(Maturity), S*1.01, X, MeanPrice, DiscTerm, 
+                                                                                                    DiscRate, DivTerm, DivRate, QuantoCorr, [0], 
+                                                                                                    [FX_Vol], TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 0, 
+                                                                                                    Holidays = Holidays, ForwardTerm = [] if ForwardPrice == 0 else [1], ForwardPrice = [ForwardPrice])            
+                PU_Curvature = Arithmetic_Asian_Opt_Pricing_Preprocessing(0, 0 if TypeFlag == 'c' else 1, int(PriceDate), AvgStartDate, AvgEndDate, 
+                                                                                                    int(Maturity), S*(1+EQRW), X, MeanPrice, DiscTerm, 
+                                                                                                    DiscRate, DivTerm, DivRate, QuantoCorr, [0], 
+                                                                                                    [FX_Vol], TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 0, 
+                                                                                                    Holidays = Holidays, ForwardTerm = [] if ForwardPrice == 0 else [1], ForwardPrice = [ForwardPrice])[0]            
+                PD_Curvature = Arithmetic_Asian_Opt_Pricing_Preprocessing(0, 0 if TypeFlag == 'c' else 1, int(PriceDate), AvgStartDate, AvgEndDate, 
+                                                                                                    int(Maturity), S*(1-EQRW), X, MeanPrice, DiscTerm, 
+                                                                                                    DiscRate, DivTerm, DivRate, QuantoCorr, [0], 
+                                                                                                    [FX_Vol], TermVol, ParityVol if ATMVolFlag != 1 else VolsATMParity, Vols2D if ATMVolFlag == 0 else (VolsATMAry if ATMVolFlag != 2 else SelfVol), 0, 
+                                                                                                    Holidays = Holidays, ForwardTerm = [] if ForwardPrice == 0 else [1], ForwardPrice = [ForwardPrice])[0]            
             
         if PrevTreeFlag == 0 : 
             tree = ttk.Treeview(root)
@@ -10784,6 +10866,34 @@ def PricingEquityOptionProgram(currdir = os.getcwd(), HolidayDate = pd.DataFrame
         PrevTreeFlag = insert_dataframe_to_treeview(tree, VolDF, width = 100)
 
         output_label.config(text = f"\n결과: {np.round(Price,4)}\nDelta: {np.round(Delta,4)}\nGamma: {np.round(Gamma,4)}\nVega: {np.round(Vega,4)}\nTheta: {np.round(Theta,4)}\nRho: {np.round(Rho,4)}\nFRTB EQ Delta:{np.round(Price*0.25,2)}\nFRTB EQ Vega:{np.round(np.array(Vols2D).mean() * Vega * 0.25,2)}\nFRTB EQ Curvature:{np.round(abs(Gamma * (S * 0.25 * S * 0.25 * 0.5) - Price*0.25),2)}\n변동성:\n{np.round(v*100,4)}%", font = ("맑은 고딕", 12, 'bold'))
+        if FRTBRawFlag != 0 : 
+            DeltaSensi = (Pu - Price)/0.01
+            DeltaDF = pd.DataFrame([DeltaSensi], columns = ['Delta_Sensi'])
+            DeltaDF["RiskFactor1"] = 'price'
+            DeltaDF["RiskFactor2"] = FRTBStockName
+            DeltaDF["RiskFactor3"] = FRTBStockName
+            DeltaDF["Risk_Type"] = "Delta"
+            GammaDF = pd.DataFrame([[DeltaSensi, PU_Curvature,PD_Curvature, Price]], columns = ["Delta_Sensi","Value_Up","Value_Dn","Value"])
+            GammaDF["RiskFactor1"] = 'price'
+            GammaDF["RiskFactor2"] = FRTBStockName
+            GammaDF["RiskFactor3"] = FRTBStockName
+            GammaDF["Risk_Type"] = "Curvature"
+            VegaDF = pd.DataFrame([Vega * v], columns = ['Vega_Sensi'])
+            tempf = lambda x : 0.5 if x < 0.51 else (1.0 if x < 1.01 else (3.0 if x < 3.01 else (5.0 if x < 5.01 else 10.00)))
+            T = DayCountAtoB(int(PriceDate), int(Maturity))/365
+            VegaDF["RiskFactor1"] = 'price'
+            VegaDF["RiskFactor3"] = FRTBStockName
+            VegaDF["RiskFactor2"] = tempf(T)            
+            VegaDF["Risk_Type"] = "Vega"
+            FRTBTarget = pd.concat([DeltaDF, GammaDF, VegaDF],axis = 0)
+            FRTBTarget["Depart"] = FRTBDepart 
+            FRTBTarget["Risk_Class"] = "EQR"
+            FRTBTarget["Portfolio"] = FRTBPort 
+            FRTBTarget["Bucket"] = FRTBBucket
+            FRTBRaw = ReadCSV(currdir + '\\FRTBRAWFILE\\FRTB_RAW.csv')
+            FRTBResult = pd.concat([FRTBRaw, FRTBTarget],axis = 0)
+            FRTBResult.to_csv(currdir + '\\FRTBRAWFILE\\FRTB_RAW.csv', index = False)
+            messagebox.showinfo("알림","FRTB Raw 추가 완료!!")   
         MyArrays[0] = PrevTreeFlag 
         MyArrays[1] = tree 
         MyArrays[2] = scrollbar
@@ -13190,9 +13300,12 @@ def fetch_naver_interest_daily_quote(marketindex_cd: str, max_pages: int = 50) -
 def Update_KRWIRSData(currdir : str) : 
     DataLastDate = int(sorted(os.listdir(currdir + '\\MarketData\\inputdata'))[-1])
     UpDatedDateList = []
+    UpDatedZeroList = []
     if is_internet_connected() : 
         df_call = fetch_naver_interest_daily_quote("IRR_CALL")   # 콜금리
         df_cd91 = fetch_naver_interest_daily_quote("IRR_CD91")   # CD(91일)
+        if df_call.index[-1] < df_cd91.index[-1] : 
+            df_call.loc[df_cd91.index[-1]] = df_call["IRR_CALL"].iloc[-1]
         df_krw_irs = fetch_krw_irs_kmb_simple()
         myindex = df_krw_irs.index.intersection(df_call.index).intersection(df_cd91.index)
         IRSData = pd.concat([df_call.loc[myindex], df_cd91.loc[myindex], df_krw_irs.loc[myindex]],axis = 1)
@@ -13222,17 +13335,72 @@ def Update_KRWIRSData(currdir : str) :
                     TempDate = ParseBusinessDateIfHoliday(EDate_YYYYMMDD(CallDate, nm),Holidays)
                     Maturitys.append(TempDate)
                     Types.append(ty)
+                                    
                 df = pd.DataFrame([Types, tempf(StartDate), tempf(Maturitys), MarketQuote], index = ['Type','StartDate','Maturity','MarketQuote']).T
                 os.makedirs(r"C:\Users\임대선\Desktop\새 폴더\github5\FRTB_Python\MarketData\inputdata" + '\\' + Today , exist_ok=True) 
                 os.makedirs(r"C:\Users\임대선\Desktop\새 폴더\github5\FRTB_Python\MarketData\inputdata" + '\\' + Today + "\\KRW", exist_ok=True) 
                 df.to_csv(r"C:\Users\임대선\Desktop\새 폴더\github5\FRTB_Python\MarketData\inputdata" + '\\' + Today + "\\KRW"+ '\\KRW IRS Quote.csv', index = False)
                 UpDatedDateList.append(Today)
+                ZeroTerm = []
+                ZeroRate = []
+                for n in range(len(Types)) : 
+                    if (Types[n].lower() in ['dp','dg','deposit']) : 
+                        r = Calc_ZeroRate_FromDiscFactor(Todayint, StartDate[n], Maturitys[n], MarketQuote[n]/100, 0, ZeroTerm, ZeroRate)
+                        ZeroTerm.append(DayCountAtoB(Today, Maturitys[n])/365)
+                        ZeroRate.append(r)
+                    else :
+                        T = DayCountAtoB(Today, Maturitys[n])/365
+                        ZeroArray = np.r_[np.array(ZeroRate), 0.0]
+                        MaxRate = max(0.3, np.array(ZeroRate).mean() * 4)
+                        MinRate = min(-0.04, np.array(ZeroRate).min() - 0.03)
+                        TargetRate = MaxRate
+                        ZeroTerm.append(T)
+                        for j in range(500) : 
+                            ZeroArray[-1] = TargetRate
+                            Err = Calc_IRS(100, 0.0, StartDate[n], Todayint, Maturitys[n], MarketQuote[n]/100, ZeroTerm, ZeroArray, 4, 0, True, 0, [], [], [], [])
+                            
+                            if abs(Err) < 0.000001 : 
+                                break
+                            elif Err < 0 : 
+                                MaxRate = TargetRate
+                                TargetRate = (MaxRate + MinRate)/2
+                            else : 
+                                MinRate = TargetRate
+                                TargetRate = (MaxRate + MinRate)/2
+
+                        if j == 499 : 
+                            RateRange = np.linspace(0.001, 0.101, 2001)
+                            ZeroArrayCopy = ZeroArray.copy()
+                            Err = 100
+                            for j in range(len(RateRange)) : 
+                                TempRate = RateRange[j]
+                                ZeroArrayCopy[-1] = TempRate
+                                TempErr = Calc_IRS(100, 0.0, StartDate[n], Todayint, Maturitys[n], MarketQuote[n]/100, ZeroTerm, ZeroArray, 4, 0, True, 0, [], [], [], [] )
+
+                                if abs(TempErr) < Err : 
+                                    Err = TempErr
+
+                                if Err < 0.0001 : 
+                                    TargetRate = TempRate
+                                    break
+
+                            #if j == len(RateRange) - 1 : 
+                            #    raise ValueError("Error")
+                        ZeroRate.append(TargetRate)
+                ResultZero = pd.DataFrame([ZeroTerm, ZeroRate],index = ['Term','Rate']).T
+                ResultZero["Rate"] = ResultZero["Rate"] * 100
+                ResultZero["PriceDate"] = Todayint
+                ResultZero["NBD"] = 0
+                ResultZero["StartDate"] = StartDate
+                ResultZero["EndDate"] = Maturitys
+                ResultZero["PayDate"] = Maturitys
+                UpDatedZeroList.append(ResultZero)
             print("KRW IRS Input Data 업데이트 완료")
         else : 
             print("KRW IRS 데이터 이미 최근일자입니다.")
     else : 
         print("KRW IRS 데이터 이미 최근일자입니다.")
-    return DataLastDate, UpDatedDateList
+    return DataLastDate, UpDatedDateList, UpDatedZeroList
 
 def CalcMaturityStringFormat(Day1, Day2, HolidayData, curr) : 
     D1 = int(pd.to_datetime(Day1).date().strftime("%Y%m%d"))
@@ -13359,10 +13527,16 @@ MainFlag = MainViewer(Title = 'Continue', MyText = 'Market Input Data Update',
 if MainFlag : 
     HolidayData = ReadCSV(currdir + "\\MarketData\\holidays\\Holidays.csv").fillna("19990101").applymap(lambda x : str(x).replace("-","")).astype(np.int64)
     UpdateFXSpotRateNaverFinance(currdir)
-    LastFileDate, UpDatedDate = Update_KRWIRSData(currdir)
+    LastFileDate, UpDatedDate, UpDateZeroList = Update_KRWIRSData(currdir)
     inputdir = currdir + '\\MarketData\\inputdata\\' + str(LastFileDate)
     CopyAllPreviousMarketData(currdir, inputdir, HolidayData)
-
+    lst = os.listdir(currdir + '\\MarketData\\outputdata')
+    for i, d in enumerate(UpDatedDate) : 
+        if d not in lst : 
+            os.makedirs(r"C:\Users\임대선\Desktop\새 폴더\github5\FRTB_Python\MarketData\outputdata" + '\\' + d , exist_ok=True) 
+            os.makedirs(r"C:\Users\임대선\Desktop\새 폴더\github5\FRTB_Python\MarketData\outputdata" + '\\' + d + "\\KRW", exist_ok=True) 
+            UpDateZeroList[i].to_csv(r"C:\Users\임대선\Desktop\새 폴더\github5\FRTB_Python\MarketData\outputdata" + '\\' + d + "\\KRW\\KRW IRS ZeroCurve.csv", index = False)
+ 
 while True : 
     MainFlag = MainViewer(size = "800x450+50+50")
     if str(MainFlag) == 0 or len(str(MainFlag)) == 0 or (MainFlag not in [1,2,3,4,5,6,7,'1','2','3','4','5','6','7']) : 
@@ -13483,9 +13657,10 @@ while True :
 
 
 # %%
-   
+df = pd.read_excel("임시저장.xlsx")
+CSR,CSR_SecuritizedNonCTP,CSR_CTP,GIRR, FXR, EQR, COMR, DRC, RRAO = PreProcessingMyData(df)
 # %%
-
+Calc_GIRRCurvature(GIRR, GIRR_DeltaRiskFactor, GIRR_DeltaRfCorr, DeltaSensitivityColumnName = "Delta_Sensi")
 # %%a
 
 # %%
