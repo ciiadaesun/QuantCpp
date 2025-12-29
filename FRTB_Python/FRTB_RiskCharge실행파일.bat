@@ -1,4 +1,4 @@
 @echo off
 setlocal
-python .\FRTB_RiskCharge.py
+python .\MainProgram.py
 pause
