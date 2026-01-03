@@ -150,7 +150,7 @@ def MarketDataFileListPrint(currdir, namein = "", namenotin = "", namenotin2 = "
     return Result
 
 def UsedMarketDataSetToPricing(MarketDataDir, FixedDate = "TEMPSTRING", namein = "", namenotin = "", Comments = "", MainComments = "", MultiSelection = True, defaultvalue = 0, DefaultStringList = [], namenotin2 = "") : 
-    Data = MarketDataFileListPrint(MarketDataDir, namein ,namenotin , namenotin2).sort_values(by = "YYYYMMDD")[-50:]
+    Data = MarketDataFileListPrint(MarketDataDir, namein ,namenotin , namenotin2).sort_values(by = "YYYYMMDD")[-100:]
     
     GroupbyYYYYMMDD = Data.groupby("YYYYMMDD").first().reset_index()
     PrintDate = MainComments + "\n 다음 중 사용하실 MarketData 날짜를 고르세요. (번호선택)\n"
@@ -5759,11 +5759,11 @@ if MainFlag :
 
     lstoutput = os.listdir(currdir + '\\MarketData\\outputdata')
     for i, d in enumerate(UpDatedDate) : 
-        EQOptPriceToVolatility(d, currdir, currency = 'KRW')
         if d not in lstoutput :                         
             os.makedirs(currdir + '\\MarketData\\outputdata' + '\\' + d , exist_ok=True) 
             os.makedirs(currdir + '\\MarketData\\outputdata' + '\\' + d + "\\KRW", exist_ok=True) 
             UpDateZeroList[i].to_csv(currdir + '\\MarketData\\outputdata' + '\\' + d + "\\KRW\\KRW IRS ZeroCurve.csv", index = False)
+        EQOptPriceToVolatility(d, currdir, currency = 'KRW')
     UpDateIRImpliedVolatilityFromQuoteToVol(currdir, UpDatedDate)
     UpDateCorpBondCurveFromInputData(currdir, UpDatedDate, HolidayData)
 
