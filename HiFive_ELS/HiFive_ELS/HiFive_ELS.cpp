@@ -1541,9 +1541,9 @@ long Preprocessing_HiFive_MC_Excel(
 
 	curveinfo disc_curve(N_TermDisc, TermDisc, RateDisc);   // Discount Curve Setting
 
-	curveinfo* rf_curves = (curveinfo*)malloc(sizeof(curveinfo) * NStock);//new curveinfo[NStock];           // RiskFree Curve Setting
-	curveinfo* div_curves = (curveinfo*)malloc(sizeof(curveinfo) * NStock);// new curveinfo[NStock];          // Dividend Setting
-	curveinfo* quanto_curves = (curveinfo*)malloc(sizeof(curveinfo) * NStock);// new curveinfo[NStock];       // Quanto Setting 
+	curveinfo* rf_curves = new curveinfo[NStock];          // RiskFree Curve Setting
+	curveinfo* div_curves = new curveinfo[NStock];         // Dividend Setting
+	curveinfo* quanto_curves = new curveinfo[NStock];      // Quanto Setting 
 
 	nterm_rf = 0;
 	nterm_div = 0;
@@ -1564,7 +1564,7 @@ long Preprocessing_HiFive_MC_Excel(
 	// Imvol, LocalVol Setting
 	//////////////////////////
 
-	volinfo* VolMatrixList = (volinfo*)malloc(sizeof(volinfo) * NStock); // new volinfo[NStock];
+	volinfo* VolMatrixList = new volinfo[NStock];
 	double* Parity_AfterAdj;
 	nterm_vol = 0;
 	nparity = 0;
@@ -1628,10 +1628,10 @@ long Preprocessing_HiFive_MC_Excel(
 	free(SortedStrike);
 	free(StrikeIdx);
 
-	if (rf_curves) free(rf_curves);
-	if (div_curves) free(div_curves);
-	if (quanto_curves) free(quanto_curves);
-	if (VolMatrixList) free(VolMatrixList);
+	delete[] rf_curves;
+	delete[] div_curves;
+	delete[] quanto_curves;
+	delete[] VolMatrixList;
 
 	free(Days_Autocall_Eval);
 	free(Days_Autocall_Pay);
@@ -1802,7 +1802,7 @@ void Logging_HiFive_ELS_MC(
 	}
 
 }
-DLLEXPORT(long) Excel_HiFive_ELS_MC(
+long HiFive_ELS_MC(
 	long PricingDate,				// 가격계산날짜
 	long NSimul,					// 시뮬레이션개수
 	long GreekFlag,					// 그릭계산할지여부
@@ -1877,48 +1877,8 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 	//_crtBreakAlloc = 91;
 
 	long i, j, k;
-
+	//_CrtSetBreakAlloc(1224);
 	long ResultCode;
-
-	/////////////
-	// 에러체크
-	/////////////
-
-	ResultCode = ErrorCheck(
-		PricingDate, NSimul, GreekFlag, FaceValue, FaceValueFlag,
-		MaxProfit, MaxLoss, NEvaluate, KI_Barrier_Level, Now_KI_State,
-		KI_Method, EvalDate, PayDate, NStrike, StrikeLevel,
-		Slope, FixedAmount, NLizard, LizardFlag, LizardStartDate,
-		LizardEndDate, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
-		CPN_EvaluateDate, CPN_PayDate, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
-		NStock, S0X0, CorrelationReshaped, NTerm, TermRate,
-		Rate, NDivTerm, DivFlag, TermDiv, Div,
-		QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto, VolQuanto,
-		ImVolLocalVolFlag, NParityVol, ParityVol, NTermVol, TermVol,
-		Vol, ResultPrice, AutocallProb, CPNProb, ResultLocalVol,
-		Error);
-
-	if (ResultCode < 0) return ResultCode;
-
-	char CalcFunctionName[] = "Excel_HiFive_ELS_MC";
-	char SaveFileName[100];
-
-	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
-	if (TextDumpFlag > 0)
-	{
-
-		Logging_HiFive_ELS_MC(PricingDate, NSimul, GreekFlag, FaceValue, FaceValueFlag,
-			MaxProfit, MaxLoss, NEvaluate, KI_Barrier_Level, Now_KI_State,
-			KI_Method, EvalDate, PayDate, NStrike, StrikeLevel,
-			Slope, FixedAmount, NLizard, LizardFlag, LizardStartDate,
-			LizardEndDate, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
-			CPN_EvaluateDate, CPN_PayDate, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
-			NStock, S0X0, CorrelationReshaped, NTerm, TermRate,
-			Rate, NDivTerm, DivFlag, TermDiv, Div,
-			QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto, VolQuanto,
-			ImVolLocalVolFlag, NParityVol, ParityVol, NTermVol, TermVol,
-			Vol, CalcFunctionName, SaveFileName);
-	}
 	/////////////
 	// 변수 다 풀기 and Reshape하기
 	/////////////
@@ -2339,6 +2299,139 @@ DLLEXPORT(long) Excel_HiFive_ELS_MC(
 #endif
 
 	return ResultCode;
+}
+
+DLLEXPORT(long) Excel_HiFive_ELS_MC(
+	long PricingDate,				// 가격계산날짜
+	long NSimul,					// 시뮬레이션개수
+	long GreekFlag,					// 그릭계산할지여부
+	double FaceValue,				// 원금액
+	long FaceValueFlag,				// 원금설정여부
+
+	double MaxProfit,				// 최대이익
+	double MaxLoss,					// 최대손실
+	long NEvaluate,					// 조기상환 평가일개수
+	double KI_Barrier_Level,		// 낙인배리어수준
+	long Now_KI_State,				// 현재 낙인상태
+
+	long KI_Method,					// 낙인처리방법
+	long* EvalDate,					// 조기상환 ExcelType평가일 Array [ Shape = (NEvaluate , ) ]
+	long* PayDate,					// 조기상환 ExcelType지급일 Array [ Shape = (NEvaluate , ) ]
+	long* NStrike,					// 조기상환 회차별 행사가격개수 Array [ Shape = (NEvaluate , ) ]
+	double* StrikeLevel,			// 조기상환 회차별 행사가격 Array [ Shape = reshape(3 * NEvaluate) ]
+
+	double* Slope,					// 조기상환 회차별 참여율 [ Shape = reshape(3 * NEvaluate)  ]
+	double* FixedAmount,			// 조기상환 회차별 쿠폰 [ Shape = reshape(3 * NEvaluate)  ]
+	long NLizard,					// 리자드상환 평가일 개수
+	long* LizardFlag,				// 조기상환 회차별 리자드상환 평가할지 여부 Array [ Shape = (NLizard , ) ]
+	long* LizardStartDate,			// 조기상환 회차별 리자드배리어 체크 시작일 ExcelType Array [ Shape = (NLizard , ) ]
+
+	long* LizardEndDate,			// 조기상환 회차별 리자드배리어 체크 종료일 ExcelType Array [ Shape = (NLizard , ) ]
+	double* LizardBarrierLevel,		// 조기상환 회차별 리자드배리어 배리어레벨 Array
+	long* Now_LizardHitting,		// 조기상환 회차별 리자드배리어 현재 Hitting여부 Array
+	double* LizardCoupon,			// 조기상환 회차별 리자드배리어 쿠폰이자율 Array
+	long NCPN,						// 일반 쿠폰 지급 개수
+
+	long* CPN_EvaluateDate,			// 일반 쿠폰 평가일 ExcelType Array [ Shape = (NCPN , ) ]
+	long* CPN_PayDate,				// 일반 쿠폰 지급일 ExcelType Array [ Shape = (NCPN , ) ]
+	double* CPN_Lower_Barrier,		// 일반 쿠폰 하방배리어 Array [ Shape = (NCPN , ) ]
+	double* CPN_Upper_Barrier,		// 일반 쿠폰 하방배리어 Array [ Shape = (NCPN , ) ]
+	double* CPN_Rate,				// 일반 쿠폰 쿠폰이자율 Array [ Shape = (NCPN , ) ]
+
+	long NStock,					// 기초자산개수
+	double* S0X0,					// [기초자산Array + 기준가격Array + Autocall기준 평가가격Array + Coupon기준 평가가격Array]
+	double* CorrelationReshaped,	// Correlation Matrix.reshape(-1)
+	long* NTerm,					// 이자율 기간구조 개수 (Discount, Rf1, Rf2, ....) [ Shape = (NStock +1 , )]
+	double* TermRate,				// 이자율 기간구조 Term -> append(Discount Term Array + RfTermArray1 + RfTermArray2 + ...] , Shape = (sum(NTerm) , )
+
+	double* Rate,					// 이자율 기간구조 Rate append(Discount Rate Array + RfRateArray1 + RfRateArray2 + ...], Shape = (sum(NTerm), )
+	long* NDivTerm,					// 배당 기간구조 개수 (Stock1, Stock2, ....)    [ Shape = (NStock , )]
+	long* DivFlag,					// 배당 기간구조 배당타입 (Stock1DivType, ) , Shape = (sum(NDivTerm) , )
+	double* TermDiv,				// 배당 기간구조 Term -> append(Stock1DivTermArray+ Stock2DivTermArray + ....) , Shape = (sum(NDivTerm) , )
+	double* Div,					// 배당 기간구조 Rate 또는 금액 -> append(Stock1DivArray + Stock2DivArray + ....), Shape = (sum(NDivTerm), )
+
+	long* QuantoFlag,				// Quanto 사용여부 Array [Shape = (NStock ,)]
+	double* QuantoCorr,				// FX, 기초자산 Correlation Array [Shape = (NStock , )]
+	long* NTermQuanto,				// Quanto FX Vol Term 길이 Array [ Shape = (NStock, )]
+	double* TermQuanto,				// Quanto FX Vol Term Array -> append[ FX Vol Term1 Array + FX Vol Term2 Array + FX Vol Term3 Array + ...] [ Shape = (sum(NTermQuanto), )]
+	double* VolQuanto,				// Quanto FX Vol Array -> append[FX Vol1 Array + FX Vol2 Array + FX Vol3 Array + ....] [ Shape = (sum(NTermQuanto), )]
+
+	long* ImVolLocalVolFlag,		// Imvol을 할 지 Localvol을 할 지 Flag Array (0: Imvol, 1: LocalVol) [ Shape = (NStock, )]
+	long* NParityVol,				// 기초자산별 패러티 개수 Array [ Shape = (NStock, )]
+	double* ParityVol,				// 기초자산별 패러티 Array -> append[Parity1 Array, Parity2 Array, Parity3 Array...]
+	long* NTermVol,					// 기초자산별 Volatility Term 개수 Array [ Shape = (NStock, )]
+	double* TermVol,				// 기초자산별 Volatility Term Array -> append[VolTerm1, VolTerm2, VolTerm3 ...]
+
+	double* Vol,					// 기초자산별 Volatility Array -> append[ReshapedVol1, ReshapedVol2, ReshapedVol3, ReshapedVol4 .....]
+	double* ResultPrice,			// 결과가격 및 델타감마베가, SABR Parameter Shape = (1 + NStock * 3 + sum(NTermVol)*3 )
+	double* AutocallProb,			// 조기상환 확률 및 조기상환 Payoff -> Shape = (NEvaluate * 2, )
+	double* CPNProb,				// 쿠폰 확률 및 쿠폰 -> Shape = (NCPN * 2, )
+	double* ResultLocalVol,			// LocalVolatility 결과값
+
+	char* Error,
+	double* RMSPE,
+	long TextDumpFlag
+)
+{
+	//_crtBreakAlloc = 91;
+
+	long i, j, k;
+
+	long ResultCode;
+
+	/////////////
+	// 에러체크
+	/////////////
+
+	ResultCode = ErrorCheck(
+		PricingDate, NSimul, GreekFlag, FaceValue, FaceValueFlag,
+		MaxProfit, MaxLoss, NEvaluate, KI_Barrier_Level, Now_KI_State,
+		KI_Method, EvalDate, PayDate, NStrike, StrikeLevel,
+		Slope, FixedAmount, NLizard, LizardFlag, LizardStartDate,
+		LizardEndDate, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
+		CPN_EvaluateDate, CPN_PayDate, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
+		NStock, S0X0, CorrelationReshaped, NTerm, TermRate,
+		Rate, NDivTerm, DivFlag, TermDiv, Div,
+		QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto, VolQuanto,
+		ImVolLocalVolFlag, NParityVol, ParityVol, NTermVol, TermVol,
+		Vol, ResultPrice, AutocallProb, CPNProb, ResultLocalVol,
+		Error);
+
+	if (ResultCode < 0) return ResultCode;
+
+	char CalcFunctionName[] = "Excel_HiFive_ELS_MC";
+	char SaveFileName[100];
+
+	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+	if (TextDumpFlag > 0)
+	{
+
+		Logging_HiFive_ELS_MC(PricingDate, NSimul, GreekFlag, FaceValue, FaceValueFlag,
+			MaxProfit, MaxLoss, NEvaluate, KI_Barrier_Level, Now_KI_State,
+			KI_Method, EvalDate, PayDate, NStrike, StrikeLevel,
+			Slope, FixedAmount, NLizard, LizardFlag, LizardStartDate,
+			LizardEndDate, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
+			CPN_EvaluateDate, CPN_PayDate, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
+			NStock, S0X0, CorrelationReshaped, NTerm, TermRate,
+			Rate, NDivTerm, DivFlag, TermDiv, Div,
+			QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto, VolQuanto,
+			ImVolLocalVolFlag, NParityVol, ParityVol, NTermVol, TermVol,
+			Vol, CalcFunctionName, SaveFileName);
+	}
+
+	ResultCode = HiFive_ELS_MC(
+		PricingDate, NSimul, GreekFlag, FaceValue, FaceValueFlag,
+		MaxProfit, MaxLoss, NEvaluate, KI_Barrier_Level, Now_KI_State,
+		KI_Method, EvalDate, PayDate, NStrike, StrikeLevel,
+		Slope, FixedAmount, NLizard, LizardFlag, LizardStartDate,
+		LizardEndDate, LizardBarrierLevel, Now_LizardHitting, LizardCoupon, NCPN,
+		CPN_EvaluateDate, CPN_PayDate, CPN_Lower_Barrier, CPN_Upper_Barrier, CPN_Rate,
+		NStock, S0X0, CorrelationReshaped, NTerm, TermRate,
+		Rate, NDivTerm, DivFlag, TermDiv, Div,
+		QuantoFlag, QuantoCorr, NTermQuanto, TermQuanto, VolQuanto,
+		ImVolLocalVolFlag, NParityVol, ParityVol, NTermVol, TermVol,
+		Vol, ResultPrice, AutocallProb, CPNProb, ResultLocalVol,
+		Error, RMSPE, TextDumpFlag);
 }
 
 double Preprocessing_HiFiVe_VaR(

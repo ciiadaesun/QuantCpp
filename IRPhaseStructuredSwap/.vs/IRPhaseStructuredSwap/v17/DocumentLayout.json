@@ -1,0 +1,37 @@
+{
+  "Version": 1,
+  "WorkspaceRootPath": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRPhaseStructuredSwap\\",
+  "Documents": [
+    {
+      "AbsoluteMoniker": "D:0:0:{BBCA6E0A-BE5F-428D-A8A0-599FED486802}|IRPhaseStructuredSwap\\IRPhaseStructuredSwap.vcxproj|C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{BBCA6E0A-BE5F-428D-A8A0-599FED486802}|IRPhaseStructuredSwap\\IRPhaseStructuredSwap.vcxproj|solutionrelative:IRPhaseStructuredSwap\\IRPhaseStructuredSwap.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    }
+  ],
+  "DocumentGroupContainers": [
+    {
+      "Orientation": 0,
+      "VerticalTabListWidth": 256,
+      "DocumentGroups": [
+        {
+          "DockedWidth": 200,
+          "SelectedChildIndex": 0,
+          "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "IRPhaseStructuredSwap.cpp",
+              "DocumentMoniker": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap.cpp",
+              "RelativeDocumentMoniker": "IRPhaseStructuredSwap\\IRPhaseStructuredSwap.cpp",
+              "ToolTip": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap.cpp",
+              "RelativeToolTip": "IRPhaseStructuredSwap\\IRPhaseStructuredSwap.cpp",
+              "ViewState": "AgIAAKwJAAAAAAAAAAAmwIgJAAAMAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
+              "WhenOpened": "2026-04-04T06:58:10.405Z",
+              "EditorCaption": ""
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

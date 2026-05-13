@@ -31,9 +31,8 @@ print("######################################\nCreated By Daesun Lim (CIIA(R), F
 BASE_URL = "https://finance.naver.com/marketindex/exchangeDailyQuote.nhn" # 환율 크롤링주소
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 URLIRS = "https://www.kmbco.com/kor/rate/deri_rate.do"
-HEADERSIRS = {"User-Agent": "Mozilla/5.0"}
 BASECD = "https://finance.naver.com/marketindex/interestDailyQuote.nhn"
-HEADERSCD = {"User-Agent": "Mozilla/5.0"}
+
 
 def termratestr(term, rate) : 
     lst = []
@@ -5175,7 +5174,7 @@ def fetch_krw_irs_kmb_simple() -> pd.DataFrame:
     - time.sleep 미사용
     """
 
-    r = requests.get(URLIRS, headers=HEADERSIRS, timeout=10)
+    r = requests.get(URLIRS, headers=HEADERS, timeout=10)
     r.raise_for_status()
 
     tables = pd.read_html(r.text)
@@ -5218,7 +5217,7 @@ def fetch_naver_interest_daily_quote(marketindex_cd: str, max_pages: int = 50) -
     rows = []
 
     with requests.Session() as s:
-        s.headers.update(HEADERSCD)
+        s.headers.update(HEADERS)
 
         for page in range(1, max_pages + 1):
             r = s.get(BASECD, params={"marketindexCd": marketindex_cd, "page": page}, timeout=10)
@@ -5887,9 +5886,19 @@ while True :
 
 
 # %%
-
+x = np.array([[1.00000,  0.99000,  0.20000,  0.10000],
+ [0.99000,  1.00000,  0.10000,  0.01000],
+ [0.20000,  0.10000,  1.00000,  0.04000],
+ [0.10000,  0.01000,  0.04000,  1.00000]])
+np.linalg.inv(x)
 # %%
-
+np.random.seed(0)
+B = np.array([100.22, 4.0, -10.0])
+X = np.array([[1, 1300, 2.3],[1, 1350,2.66],[1, 1400,2.11],[1, 1100,4.4], [1,1366, 1.99]])
+e = np.random.normal(0,10,5)
+X.T.dot(Y)
+Y = X.dot(B) + e
+best = np.linalg.inv(X.T.dot(X)).dot(X.T.dot(Y))
 # %%
 #Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1 = 0, Call0Put1 = 0, PriceDate = 20240627, AverageStartDate = 20240601, AverageEndDate = 20240927, OptionMaturityDate = 20240927, S = 100, K = 95, PrevAverage = 98, DiscTerm = [1, 2, 3], DiscRate = [0.03, 0.03, 0.03], DivTerm = [1], DivRate = [0.02], QuantoCorr = 0, FXVolTerm = [1], FXVol = [0], VolTerm = [0], VolParity = [0], Vols2D = 0.3, DivTypeFlag = 0, Holidays = KoreaHolidaysFromStartToEnd(2020,2040))
 

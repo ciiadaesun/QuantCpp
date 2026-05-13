@@ -1018,7 +1018,7 @@ long Count_Accrual_Fast(
     }
     else if ((LowerBound > r_min) && (UpperBound > r_max))
     {
-        a = UpperBound - r_max;
+        a = r_max - LowerBound;
         b = r_max - r_min;
         Ratio = a / b;
         nAccrual = (long)(Ratio * (double)NDays);

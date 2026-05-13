@@ -22,6 +22,8 @@
 #endif
 #endif 
 
+
+
 long sumation(long* array, long narray)
 {
     long i;
@@ -112,6 +114,7 @@ void LockOutCheck(long& LockOutFlag, long LockOutDay, long Today, double& LockOu
         }
     }
 }
+
 
 double Continuous_ForwardRate(curveinfo& Curve, double T0, double T1)
 {
@@ -961,6 +964,122 @@ double DayCountFractionAtoB(long Day1, long Day2, long Flag)
     }
 }
 
+void ZeroForwardRate(
+    long PriceDate,
+    long ForwardStartDate,
+    long NZero,
+    double* ZeroTerm,
+    double* ZeroRate,
+    double* ForwardZeroRate
+)
+{
+    long i;
+    double t1, t2, r1, r2;
+    Preprocessing_TermAndRate(PriceDate, NZero, ZeroTerm, ZeroRate);
+    if (PriceDate == ForwardStartDate)
+    {
+        for (i = 0; i < NZero; i++) ForwardZeroRate[i] = ZeroRate[i];
+    }
+    else
+    {
+        t1 = ((double)DayCountAtoB(PriceDate, ForwardStartDate)) / 365.;
+        r1 = Interpolate_Linear(ZeroTerm, ZeroRate, NZero, t1);
+        for (i = 0; i < NZero; i++)
+        {
+            t2 = t1 + ZeroTerm[i];
+            r2 = Interpolate_Linear(ZeroTerm, ZeroRate, NZero, t2);
+            ForwardZeroRate[i] = (r2 * t2 - r1 * t1) / ZeroTerm[i];
+        }
+    }
+}
+
+double BondTotalReturn(
+    long PriceDate,
+    long StartDate,
+    long EndDate,
+    long BondDayCountFlag,
+    double BondNominal,
+    long MarketBondPriceFlag,
+    double MarketBondPrice,
+    double cpnrate,
+    long BondEffectiveDate,
+    long NBondCpnDate,
+    long* BondCpnDate,
+    long NTerm,
+    double* Term,
+    double* Rate
+)
+{
+    long i;
+    long TempNTerm = NTerm;
+    double* RateAtEndDate = (double*)malloc(sizeof(double) * TempNTerm);
+    double* RateAtStartDate = (double*)malloc(sizeof(double) * TempNTerm);
+    ZeroForwardRate(PriceDate, EndDate, NTerm, Term, Rate, RateAtEndDate);
+    ZeroForwardRate(PriceDate, StartDate, NTerm, Term, Rate, RateAtStartDate);
+    double t1, t_to_startdate, t_to_enddate, sum_cpn_to_enddate, sum_cpn_to_startdate, pv_end_to_maturity, pv_start_to_maturity, df_to_enddate, df_to_startdate, t, deltat, discrate, pv_startdate, totalret;
+    sum_cpn_to_enddate = 0.;
+    sum_cpn_to_startdate = 0.;
+    pv_end_to_maturity = 0.;
+    pv_start_to_maturity = 0.;
+    t_to_enddate = (double)DayCountAtoB(PriceDate, EndDate) / 365.;
+    t_to_startdate = (double)DayCountAtoB(PriceDate, StartDate) / 365.;
+    df_to_enddate = Calc_Discount_Factor(Term, Rate, NTerm, t_to_enddate);
+    df_to_startdate = Calc_Discount_Factor(Term, Rate, NTerm, t_to_startdate);
+    pv_startdate = 0.;
+
+    for (i = 0; i < NBondCpnDate; i++)
+    {
+        if (i == 0) deltat = DayCountFractionAtoB(BondEffectiveDate, BondCpnDate[i], BondDayCountFlag);
+        else deltat = DayCountFractionAtoB(BondCpnDate[i - 1], BondCpnDate[i], BondDayCountFlag);
+        t1 = (double)DayCountAtoB(PriceDate, BondCpnDate[i]) / 365.;
+
+        if (BondCpnDate[i] > PriceDate)
+        {
+            if (BondCpnDate[i] <= EndDate)
+            {
+                // Coupon은 제로쿠폰채에 투자한다고 치자
+                sum_cpn_to_enddate += BondNominal * cpnrate * deltat * Calc_Discount_Factor(Term, Rate, NTerm, t1) / df_to_enddate;
+            }
+            else if (BondCpnDate[i] > EndDate)
+            {
+                // 나머지 채권은 미래현금흐름을 현가화
+                t = (double)DayCountAtoB(EndDate, BondCpnDate[i]) / 365.;
+                discrate = Interpolate_Linear(Term, RateAtEndDate, NTerm, t);
+                pv_end_to_maturity += BondNominal * cpnrate * deltat * exp(-discrate * t);
+                if (i == NBondCpnDate - 1) pv_end_to_maturity += BondNominal * exp(-discrate * t);
+            }
+
+            if (BondCpnDate[i] <= StartDate)
+            {
+                // Coupon은 제로쿠폰채에 투자한다고 치자
+                sum_cpn_to_startdate += BondNominal * cpnrate * deltat * Calc_Discount_Factor(Term, Rate, NTerm, t1) / df_to_startdate;
+            }
+            else if (BondCpnDate[i] > StartDate)
+            {
+                // 나머지 채권은 미래현금흐름을 현가화
+                t = (double)DayCountAtoB(StartDate, BondCpnDate[i]) / 365.;
+                discrate = Interpolate_Linear(Term, RateAtStartDate, NTerm, t);
+                pv_start_to_maturity += BondNominal * cpnrate * deltat * exp(-discrate * t);
+                if (i == NBondCpnDate - 1) pv_start_to_maturity += BondNominal * exp(-discrate * t);
+            }
+        }
+    }
+
+    if (PriceDate >= StartDate)
+    {
+        if (MarketBondPriceFlag == 1)
+        {
+            totalret = (pv_end_to_maturity + sum_cpn_to_enddate) / MarketBondPrice - 1.0;
+        }
+        else totalret = (pv_end_to_maturity + sum_cpn_to_enddate) / (pv_start_to_maturity + sum_cpn_to_startdate) - 1.0;
+    }
+    else
+    {
+        totalret = (pv_end_to_maturity + sum_cpn_to_enddate) / (pv_start_to_maturity + sum_cpn_to_startdate) - 1.0;
+    }
+    return totalret;
+}
+
 double GPrimePrime_Over_GPrime(double CpnRate, double YTM, long PriceDate, double SwapMaturity, double FreqMonth)
 {
     long i, j;
@@ -1192,6 +1311,11 @@ typedef struct schd_info {
     long N_NotHoliday;          // Holiday가 아닌 영업일 Array개수
     long* NotHoliday;
     long* DayCount_NotHoliday;
+
+    double RefBondCpn;
+    long RefBondEffective;
+    long RefBondMaturity;
+    long RefBondDayCount;
 } SCHD;
 
 double Calc_Current_IRS(
@@ -1970,6 +2094,64 @@ double LegValue(
                 }
             }
         }
+        else if (Schedule->ReferenceType == -1)
+        {
+            //////////////////////////////////////////
+            // 기초자산이 Bond Total Return 일 경우 //
+            /////////////////////////////////////////
+                            // 이미 쿠폰 지급한 과거인지 확인
+            PrevFlag = 1;
+            for (i = 0; i < Schedule->NCF; i++)
+            {
+                if (Schedule->PayDate_C[i] > Schedule->PriceDate_C) PrevFlag = 0;
+
+                if (PrevFlag == 0)
+                {
+                    Pay_T = ((double)DayCountAtoB(Schedule->PriceDate_C, Schedule->PayDate_C[i])) / 365.0;
+                    dt = DayCountFractionAtoB(Schedule->StartDate_C[i], Schedule->EndDate_C[i], Schedule->DayCount);
+                    SwapStartT = ((double)DayCountAtoB(Schedule->PriceDate_C, Schedule->ForwardStart_C[i])) / 365.0;
+                    long TempNCPN = 0;
+                    long FirstDate = Schedule->RefBondEffective;
+                    long* TempCpnDate = Malloc_CpnDate_Holiday(Schedule->RefBondEffective, Schedule->RefBondMaturity, Schedule->NSwapPayAnnual, TempNCPN, FirstDate, Schedule->NHolidays_Ref, Schedule->Holidays_Ref, 0);
+                    if (Schedule->ForwardStart_C[i] <= Schedule->PriceDate_C)
+                    {
+                        ResultRefRate[i] = BondTotalReturn(Schedule->PriceDate_C, Schedule->ForwardStart_C[i], Schedule->ForwardEnd_C[i], Schedule->RefBondDayCount,
+                            Schedule->NotionalAmount, Schedule->FixedRefRate[i] > 0.,
+                            Schedule->FixedRefRate[i] * Schedule->NotionalAmount,
+                            Schedule->RefBondCpn,
+                            Schedule->RefBondEffective, TempNCPN,
+                            TempCpnDate,
+                            RefCurve.nterm(),
+                            RefCurve.Term,
+                            RefCurve.Rate);
+                    }
+                    else
+                    {
+                        ResultRefRate[i] = BondTotalReturn(Schedule->PriceDate_C, Schedule->ForwardStart_C[i], Schedule->ForwardEnd_C[i], Schedule->RefBondDayCount,
+                            Schedule->NotionalAmount, 0,
+                            Schedule->FixedRefRate[i] * Schedule->NotionalAmount,
+                            Schedule->RefBondCpn,
+                            Schedule->RefBondEffective, TempNCPN,
+                            TempCpnDate,
+                            RefCurve.nterm(),
+                            RefCurve.Term,
+                            RefCurve.Rate);
+                    }
+
+                    ResultCPN[i] = FXRate * Schedule->NotionalAmount * (ResultRefRate[i] * Schedule->Slope[i] + Schedule->CPN[i] * dt);
+                    ResultDF[i] = exp(-DiscCurve.Interpolated_Rate(Pay_T) * Pay_T);
+                    DiscCFArray[i] = ResultCPN[i] * ResultDF[i];
+                    if (TempCpnDate) free(TempCpnDate);
+                }
+                else
+                {
+                    ResultRefRate[i] = Schedule->FixedRefRate[i];
+                    ResultCPN[i] = 0.0;
+                    ResultDF[i] = 0.0;
+                    DiscCFArray[i] = 0.0;
+                }
+            }
+        }
     }
     else
     {
@@ -2629,7 +2811,7 @@ long ErrorCheckIRS(
         }
     }
 
-    if (Rcv_RefRateType < 0 || Rcv_RefRateType > 5) return -6;
+    if (Rcv_RefRateType < -1 || Rcv_RefRateType > 5) return -6;
     if (Rcv_SwapYearlyNPayment <= 0 || Rcv_SwapYearlyNPayment > 12) return -7;
     if (Rcv_SwapMaturity < 0.0) return -8;
     if (Rcv_FixFloFlag != 0 && Rcv_FixFloFlag != 1) return -9;
@@ -2660,7 +2842,6 @@ long ErrorCheckIRS(
         if (Rcv_ForwardStart[i] >= Rcv_ForwardEnd[i] || Rcv_PayDate[i] < Rcv_ForwardEnd[i]) return -20;
     }
 
-    if (Rcv_RefRateType < 0 || Rcv_RefRateType > 5) return -6;
     if (Rcv_RefRateType == 1 || Rcv_RefRateType == 3)
     {
         if (Rcv_SwapYearlyNPayment <= 0 || Rcv_SwapYearlyNPayment > 12) return -7;
@@ -2695,7 +2876,7 @@ long ErrorCheckIRS(
     }
 
     //
-    if (Pay_RefRateType < 0 || Pay_RefRateType > 5) return -6;
+    if (Pay_RefRateType < -1 || Pay_RefRateType > 5) return -6;
     if (Pay_RefRateType == 1 || Pay_RefRateType == 3)
     {
         if (Pay_SwapYearlyNPayment <= 0 || Pay_SwapYearlyNPayment > 12) return -7;
@@ -2739,7 +2920,7 @@ DLLEXPORT(long) CalcIRS(
     long* CRS_Flag,                    // [0]CRS Pricing Flag [1]FX선도 Term 개수
     double* CRS_Info,                  // [0~FX개수-1] FX Forward Term, [FX개수-1~2*FX개수-1] FX Forward
 
-    long Rcv_RefRateType,              // Rcv 기초금리 0: Libor/CD 1: Swap 2: SOFR 3:SOFR Swap
+    long Rcv_RefRateType,              // Rcv 기초금리 0: Libor/CD 1: Swap 2: SOFR 3:SOFR Swap, -1: Bond Total Return
     long Rcv_SwapYearlyNPayment,       // Rcv_RefRateType가 1, 3일 때 스왑 연 지급회수
     double Rcv_SwapMaturity,           // Rcv_RefRateType가 1, 3일 때 스왑만기
     long Rcv_FixFloFlag,               // Rcv Fix/Flo Flag
@@ -2760,7 +2941,7 @@ DLLEXPORT(long) CalcIRS(
     double* Rcv_Slope,                 // Rcv Leg 변동금리 기울기 Array
     double* Rcv_CPN,                   // Rcv Leg 고정쿠폰 Array
     double* Rcv_FixedRefRate,          // Rcv Leg 과거 확정금리 Array
-    long Pay_RefRateType,              // Pay 기초금리 0: Libor/CD 1: Swap 2: SOFR 3:SOFR Swap
+    long Pay_RefRateType,              // Pay 기초금리 0: Libor/CD 1: Swap 2: SOFR 3:SOFR Swap, -1: Bond Total Return
     long Pay_SwapYearlyNPayment,       // Pay_RefRateType가 1, 3일 때 스왑 연 지급회수
 
     double Pay_SwapMaturity,            // Pay_RefRateType가 1, 3일 때 스왑만기
@@ -2799,6 +2980,7 @@ DLLEXPORT(long) CalcIRS(
     long* HistoryDate,                  // OverNight History
     double* HistoryRate,                // OverNight Rate History
 
+    double* RefBondInfo,                // Reference Bond Info
     long* RcvPayConvexityAdjFlag,       // [0] RcvLeg Convexity 보정Flag [1] PayLeg Convexity 보정Flag
     long* NRcvPayConvexAdjVol,          // [0] Rcv Vol개수 [1] Pay Vol개수
     double* RcvTermAndVol,              // [~NRcvConvexAdj] RcvVolTerm, [NRcvConvexAdj~2NRcvConvexAdj-1] RcvVol
@@ -3069,6 +3251,13 @@ DLLEXPORT(long) CalcIRS(
     ////////////////////////////////
 
     SCHD* Rcv_Schedule = new SCHD;
+    Rcv_Schedule->RefBondCpn = RefBondInfo[0];
+    Rcv_Schedule->RefBondEffective = (long)RefBondInfo[1];
+    Rcv_Schedule->RefBondMaturity = (long)RefBondInfo[2];
+    Rcv_Schedule->RefBondDayCount = (long)RefBondInfo[3];
+    if (Rcv_Schedule->RefBondEffective < 19000101) Rcv_Schedule->RefBondEffective = ExcelDateToCDate(Rcv_Schedule->RefBondEffective);
+    if (Rcv_Schedule->RefBondMaturity < 19000101) Rcv_Schedule->RefBondMaturity = ExcelDateToCDate(Rcv_Schedule->RefBondMaturity);
+
     Rcv_Schedule->HolidayFlag_Ref = RcvRef_HolidayCalc;
     Rcv_Schedule->NHolidays_Ref = NHolidays_Array[0];
     Rcv_Schedule->Holidays_Ref = RcvRef_Holidays;
@@ -3107,6 +3296,13 @@ DLLEXPORT(long) CalcIRS(
     ////////////////////////////
 
     SCHD* Pay_Schedule = new SCHD;
+    Pay_Schedule->RefBondCpn = RefBondInfo[0];
+    Pay_Schedule->RefBondEffective = (long)RefBondInfo[1];
+    Pay_Schedule->RefBondMaturity = (long)RefBondInfo[2];
+    Pay_Schedule->RefBondDayCount = (long)RefBondInfo[3];
+    if (Pay_Schedule->RefBondEffective < 19000101) Pay_Schedule->RefBondEffective = ExcelDateToCDate(Pay_Schedule->RefBondEffective);
+    if (Pay_Schedule->RefBondMaturity < 19000101) Pay_Schedule->RefBondMaturity = ExcelDateToCDate(Pay_Schedule->RefBondMaturity);
+
     Pay_Schedule->HolidayFlag_Ref = RcvRef_HolidayCalc;
     Pay_Schedule->NHolidays_Ref = NHolidays_Array[1];
     Pay_Schedule->Holidays_Ref = PayRef_Holidays;
@@ -3299,7 +3495,7 @@ long FindZeroRate(
     long TempNumber2[2] = { 0, 0 };
     long TempFlag2[2] = { 0, 0 };
     double TempFloat[2] = { 0.0, 0.0 };
-
+    double RefBondInfo[4] = { 0.035, 20200627., 20300627., 3 };
     for (i = 0; i < 1000; i++)
     {
         Rate[NCurve - 1] = TargetRate;
@@ -3314,7 +3510,7 @@ long FindZeroRate(
             Pay_CPN, ResultPrice, ResultRefRate, ResultCPN, ResultDF,
             PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
             NHolidayAdj, Holiday, NHistory, HistoryDateExl, HistoryRate,
-            TempFlag2, TempNumber2, TempFloat, TempFloat);
+            RefBondInfo, TempFlag2, TempNumber2, TempFloat, TempFloat);
 
         dblCalcPrice = ResultPrice[1] - ResultPrice[2];
         if (fabs(dblCalcPrice) < dblErrorRange) break;
@@ -3951,7 +4147,7 @@ DLLEXPORT(long) ZeroRateGenerator(
 
         double t, rb;
         double dffo, df_to_startdate;
-
+        double RefBondInfo[4] = { 0.035, 20200627., 20300627., 3 };
         long DayAtoB;
         long W1Flag;
 
@@ -4247,7 +4443,7 @@ DLLEXPORT(long) ZeroRateGenerator(
                             ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfo1 + k, ResultIRSInfo2 + k,
                             ResultIRSInfo3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
                             NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
-                            RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
+                            RefBondInfo, RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
 
                         dblCalcPrice = ResultPrice[1] - ResultPrice[2];
                         if (fabs(dblCalcPrice) < dblErrorRange) break;
@@ -4285,6 +4481,7 @@ DLLEXPORT(long) ZeroRateGenerator(
                 TargetRate = MaxRate;
                 PrevRate = MaxRate;
                 Pay_DayCount = 1; // USD Act 360
+                
                 for (n = 0; n < 1000; n++)
                 {
                     ResultZeroRate[ncurve] = TargetRate;
@@ -4300,7 +4497,7 @@ DLLEXPORT(long) ZeroRateGenerator(
                         ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfo1 + k, ResultIRSInfo2 + k,
                         ResultIRSInfo3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
                         NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
-                        RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
+                        RefBondInfo, RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
 
                     dblCalcPrice = -ResultPrice[1] + ResultPrice[2];
 
@@ -4335,7 +4532,7 @@ DLLEXPORT(long) ZeroRateGenerator(
                 TargetRate = MaxRate;
                 PrevRate = MaxRate;
                 Pay_DayCount = 1; // USD Act 360
-
+                
                 for (n = 0; n < 1000; n++)
                 {
                     ResultZeroRate[ncurve] = TargetRate;
@@ -4351,7 +4548,7 @@ DLLEXPORT(long) ZeroRateGenerator(
                         ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfo1 + k, ResultIRSInfo2 + k,
                         ResultIRSInfo3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
                         NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
-                        RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
+                        RefBondInfo, RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
 
                     dblCalcPrice = -ResultPrice[1] + ResultPrice[2];
                     if (fabs(dblCalcPrice) < dblErrorRange) break;
@@ -4388,6 +4585,7 @@ DLLEXPORT(long) ZeroRateGenerator(
                 PrevRate = MaxRate;
                 Pay_DayCount = Rcv_DayCount;
                 Pay_RefRateType = Rcv_RefRateType;
+                
                 for (n = 0; n < 1000; n++)
                 {
                     ResultZeroRate[ncurve] = TargetRate;
@@ -4403,7 +4601,7 @@ DLLEXPORT(long) ZeroRateGenerator(
                         ResultFixedRefRate2DUSD[i], ResultPrice, ResultIRSInfo1 + k, ResultIRSInfo2 + k,
                         ResultIRSInfo3 + k, PV01, KeyRateRcvPV01, KeyRatePayPV01, SOFRConv, HolidayCalcFlag,
                         NHolidays, Holidays, NOverNightHistory, OverNightHistoryDate, OverNightHistoryRate,
-                        RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
+                        RefBondInfo, RcvPayConvexityAdjFlag, RcvPayConvexityAdjFlag, TempDoubleArray, TempDoubleArray);
 
                     dblCalcPrice = ResultPrice[1] - ResultPrice[2];
                     if (fabs(dblCalcPrice) < dblErrorRange) break;

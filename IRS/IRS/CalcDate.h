@@ -1411,7 +1411,7 @@ void Mapping_Holiday16(long YYYY, long* Array16)
         // 개천절이 추석에 껴있을 경우 하루 더 대체휴일
         GaeChun = DayPlus(Chuseok[2], 1);
         if (CDateToExcelDate(GaeChun) % 7 == 0) GaeChun = DayPlus(GaeChun, 2);
-        else if (CDateToExcelDate(GaeChun) % 7 == 1) GaeChun == DayPlus(GaeChun, 1);
+        else if (CDateToExcelDate(GaeChun) % 7 == 1) GaeChun = DayPlus(GaeChun, 1);
     }
     Array16[13] = GaeChun;
 
@@ -3779,7 +3779,7 @@ DLLEXPORT(long) CalcZeroRateAnalyticFast(
     {
         if (Term[i] < 300.) Maturity[i] = ExcelDateToCDate(PriceDateExcel + (long)(Term[i] * 365. + 0.1e-5));
         else if (Term[i] < 19000101) Maturity[i] = ExcelDateToCDate(Term[i]);
-        else Maturity[i] = ((long)Term[i] + 0.1e-9);
+        else Maturity[i] = (long)((double)Term[i] + 0.1e-9);
     }
 
     long EndDate = ((long)Maturity[NTerm - 1]/100) * 100 + (StartDate % 100);
@@ -3974,4 +3974,67 @@ DLLEXPORT(long) TenorStrToMaturity(char* Tenor, long StartDate, long NBDAfterFix
 
     free(DomesticHolidays);
     return PayDate;
+}
+
+long* DateRange(long YYYYMMDD1, long YYYYMMDD2, long &NArrayLength, long nd = 1)
+{
+    long i, ndate, tempdateexcel, k;
+    long Date1 = min(YYYYMMDD1, YYYYMMDD2);
+    long Date2 = max(YYYYMMDD1, YYYYMMDD2);
+    nd = max(1, nd);
+    long Date1Excel = CDateToExcelDate(Date1);
+    long Date2Excel = CDateToExcelDate(Date2);
+    long N = DayCountAtoB(Date1, Date2) + 1;
+    ndate = 0;
+    for (i = 0; i < N; i++)
+    {
+        tempdateexcel = Date1Excel + i * nd;
+        ndate++;
+        if (tempdateexcel >= Date2Excel)
+        {
+            break;
+        }
+    }
+    NArrayLength = ndate;
+    long* result = (long*)malloc(sizeof(long) * ndate);
+    for (i = 0; i < ndate; i++)
+    {
+        tempdateexcel = Date1Excel + i * nd;
+        result[i] = ExcelDateToCDate(tempdateexcel);
+    }
+    return result;
+}
+
+long* BDateRange(long YYYYMMDD1, long YYYYMMDD2, long& NArrayLength, long* Holidays, long NHolidays, long nd = 1)
+{
+    long i, ndate, tempdate;
+    long Date1 = min(YYYYMMDD1, YYYYMMDD2);
+    long Date2 = max(YYYYMMDD1, YYYYMMDD2);
+    nd = max(1, nd);
+    long Date1Excel = CDateToExcelDate(Date1);
+    long Date2Excel = CDateToExcelDate(Date2);
+    long N = DayCountAtoB(Date1, Date2) + 1;
+    long FirstDateIsHoliday = (isin_Longtype(Date1, Holidays, NHolidays) + (Date1Excel % 7 == 0) + (Date1Excel % 7 == 1)) > 0;
+    long FirstDate = (FirstDateIsHoliday > 0) * ParseBusinessDateIfHoliday(Date1, Holidays, NHolidays) + (FirstDateIsHoliday <= 0) * Date1;
+    ndate = 0;
+    for (i = 0; i < N; i++)
+    {
+        if (i == 0) tempdate = FirstDate;
+        else tempdate = NextNthBusinessDate(tempdate, nd, Holidays, NHolidays);
+        ndate++;
+        if (tempdate >= YYYYMMDD2)
+        {
+            break;
+        }
+    }
+    NArrayLength = (ndate + FirstDateIsHoliday);
+    long* result = (long*)malloc(sizeof(long) * (ndate + FirstDateIsHoliday));
+    result[0] = Date1;
+    for (i = 0; i < ndate; i++)
+    {
+        if (i == 0) tempdate = FirstDate;
+        else tempdate = NextNthBusinessDate(tempdate, nd, Holidays, NHolidays);
+        result[i + FirstDateIsHoliday] = tempdate;
+    }
+    return result;
 }

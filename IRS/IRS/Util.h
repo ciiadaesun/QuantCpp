@@ -591,29 +591,19 @@ double** Cholesky_Decomposition(double** matrix, long n)
 	return lower;
 }
 
-// Cholesky 분해된 Array를 리턴 (CorrMatrix.reshape(-1) , EmptyMatrix.reshape(-1), Length)
+
 DLLEXPORT(long) Cholesky_Decomposition(double* matrix_reshaped, double* temp_array, long n)
 {
 	long i, j, k;
 	double sum;
 
+	double* TempAry = (double*)malloc(sizeof(double) * n * n);
 	double** matrix = (double**)malloc(n * sizeof(double*));
-	k = 0;
-	for (i = 0; i < n; i++)
-	{
-		matrix[i] = (double*)malloc(sizeof(double) * n);
-		for (j = 0; j < n; j++)
-		{
-			matrix[i][j] = matrix_reshaped[k];
-			k++;
-		}
-	}
-
+	for (i = 0; i < n; i++) matrix[i] = TempAry + i * n;
+	for (i = 0; i < n * n; i++) TempAry[i] = matrix_reshaped[i];
+	double* TempAry2 = (double*)calloc(n * n, sizeof(double));
 	double** lower = (double**)malloc(n * sizeof(double*));
-	for (i = 0; i < n; i++)
-	{
-		lower[i] = (double*)calloc(n, sizeof(double));
-	}
+	for (i = 0; i < n; i++) lower[i] = TempAry2 + i * n;
 
 	// Decomposing a matrix into Lower Triangular
 	for (i = 0; i < n; i++) {
@@ -622,39 +612,24 @@ DLLEXPORT(long) Cholesky_Decomposition(double* matrix_reshaped, double* temp_arr
 
 			if (j == i) // summation for diagonals
 			{
-				for (k = 0; k < j; k++)
-					sum += pow(lower[j][k], 2);
-				lower[j][j] = sqrt(matrix[j][j] -
-					sum);
+				for (k = 0; k < j; k++) sum += lower[j][k] * lower[j][k];
+				lower[j][j] = sqrt(matrix[j][j] - sum);
 			}
 			else
 			{
 				// Evaluating L(i, j) using L(j, j)
-				for (k = 0; k < j; k++)
-					sum += (lower[i][k] * lower[j][k]);
-				lower[i][j] = (matrix[i][j] - sum) /
-					lower[j][j];
+				for (k = 0; k < j; k++) sum += (lower[i][k] * lower[j][k]);
+				lower[i][j] = (matrix[i][j] - sum) / lower[j][j];
 			}
 		}
 	}
 
+	for (i = 0; i < n * n; i++) temp_array[i] = TempAry2[i];
 
-	k = 0;
-	for (i = 0; i < n; i++)
-		for (j = 0; j < n; j++)
-		{
-			temp_array[k] = lower[i][j];
-			k++;
-		}
-
-	for (i = 0; i < n; i++)
-		if (matrix[i]) free(matrix[i]);
+	if (TempAry) free(TempAry);
 	if (matrix) free(matrix);
-
-	for (i = 0; i < n; i++)
-		if (lower[i]) free(lower[i]);
+	if (TempAry2) free(TempAry2);
 	if (lower) free(lower);
-
 
 	return 1;
 }
@@ -1301,62 +1276,6 @@ DLLEXPORT(double) Calc_Forward_Rate(
 	return FRate;
 }
 
-// matrix inversioon
-// the result is put in Y
-// Too slow to use
-// Delete Function
-// 너무느리다 그냥 가우스 소거법으로 역행렬 구하는게 더 빠름
-//void MatrixInversion(double** A, long order, double** Y)
-//{
-//	long i, j, k, n;
-//	// MinorMatrixList 추가 2022.08.30 임대선 미리 만들어두고 반복사용하기
-//	double*** MinorMatrixList = (double***)malloc(sizeof(double**) * order);
-//	for (i = 0; i < order; i++)
-//	{
-//		n = max(1, i);
-//		MinorMatrixList[i] = (double**)malloc(sizeof(double*) * n);
-//		for (j = 0; j < n; j++)
-//		{
-//			MinorMatrixList[i][j] = (double*)malloc(sizeof(double) * n);
-//		}
-//	}
-//	// get the determinant of a
-//	double det = 1.0 / CalcDeterminant(A, order, MinorMatrixList);
-//
-//	// memory allocation
-//	double* temp = new double[(order - 1) * (order - 1)];
-//	double** minor = new double* [order - 1];
-//	for (i = 0; i < order - 1; i++)
-//		minor[i] = temp + (i * (order - 1));
-//
-//	for (j = 0; j < order; j++)
-//	{
-//		for (i = 0; i < order; i++)
-//		{
-//			// get the co-factor (matrix) of A(j,i)
-//			GetMinor(A, minor, j, i, order);
-//			Y[i][j] = det * CalcDeterminant(minor, order - 1, MinorMatrixList);
-//			if ((i + j) % 2 == 1)
-//				Y[i][j] = -Y[i][j];
-//		}
-//	}
-//
-//	// release memory
-//	delete[] temp;
-//	delete[] minor;
-//
-//	for (i = 0; i < order; i++)
-//	{
-//		n = max(1, i);
-//		for (j = 0; j < n; j++)
-//		{
-//			free(MinorMatrixList[i][j]);
-//		}
-//		free(MinorMatrixList[i]);
-//	}
-//	free(MinorMatrixList);
-//}
-
 // Inverse Matrix를 계산한다. (가우스소거법 사용으로 대체)
 void MatrixInversion(double** MyMatrix, long n, double** InvMatrix)
 {
@@ -1365,8 +1284,9 @@ void MatrixInversion(double** MyMatrix, long n, double** InvMatrix)
 	for (i = 0; i < n; i++) Known[i] = 0.0;
 
 	double* UnKnown = (double*)malloc(sizeof(double) * n);
+	double* TempAry = (double*)malloc(sizeof(double) * n * n);
 	double** MatrixCopy = (double**)malloc(sizeof(double*) * n);
-	for (i = 0; i < n; i++) MatrixCopy[i] = (double*)malloc(sizeof(double) * n);
+	for (i = 0; i < n; i++) MatrixCopy[i] = TempAry + i * n;
 
 	for (i = 0; i < n; i++)
 	{
@@ -1395,7 +1315,7 @@ void MatrixInversion(double** MyMatrix, long n, double** InvMatrix)
 	}
 	free(Known);
 	free(UnKnown);
-	for (i = 0; i < n; i++) free(MatrixCopy[i]);
+	free(TempAry);
 	free(MatrixCopy);
 }
 
@@ -1479,6 +1399,42 @@ double CalcDeterminant(double** mat, long order, double*** MinorMatrixList)
 void bubble_sort(double* arr, long count, long ascending)
 {
 	double temp;
+	long i, j;
+	if (ascending == 1)
+	{
+		for (i = 0; i < count; i++)
+		{
+			for (j = 0; j < count - 1; j++)
+			{
+				if (arr[j] > arr[j + 1])          // 이전 값이 더 크면
+				{                                 // 이전 값을 다음 요소로 보내고 다음 요소를 이전 요소 자리로
+					temp = arr[j];
+					arr[j] = arr[j + 1];
+					arr[j + 1] = temp;
+				}
+			}
+		}
+	}
+	else
+	{
+		for (i = 0; i < count; i++)
+		{
+			for (j = 0; j < count - 1; j++)
+			{
+				if (arr[j] < arr[j + 1])
+				{
+					temp = arr[j];
+					arr[j] = arr[j + 1];
+					arr[j + 1] = temp;
+				}
+			}
+		}
+	}
+}
+
+void bubble_sort_long(long* arr, long count, long ascending)
+{
+	long temp;
 	long i, j;
 	if (ascending == 1)
 	{
@@ -2105,8 +2061,9 @@ void matrixinverse(double** MyMatrix, long* MatrixShape, double** InvMatrix)
 	for (i = 0; i < n; i++) Known[i] = 0.0;
 
 	double* UnKnown = (double*)malloc(sizeof(double) * n);
+	double* TempArray = (double*)malloc(sizeof(double) * n * n);
 	double** MatrixCopy = (double**)malloc(sizeof(double*) * n);
-	for (i = 0; i < n; i++) MatrixCopy[i] = (double*)malloc(sizeof(double) * n);
+	for (i = 0; i < n; i++) MatrixCopy[i] = TempArray + n*i;
 
 	for (i = 0; i < n; i++)
 	{
@@ -2118,11 +2075,7 @@ void matrixinverse(double** MyMatrix, long* MatrixShape, double** InvMatrix)
 		}
 
 		// Matrix Setting
-		for (j = 0; j < n; j++)
-			for (k = 0; k < n; k++)
-			{
-				MatrixCopy[j][k] = MyMatrix[j][k];
-			}
+		for (j = 0; j < n; j++) for (k = 0; k < n; k++) MatrixCopy[j][k] = MyMatrix[j][k];
 
 		gaussian_elimination(MatrixCopy, Known, UnKnown, n);
 		for (j = 0; j < n; j++) InvMatrix[j][i] = UnKnown[j];
@@ -2135,7 +2088,7 @@ void matrixinverse(double** MyMatrix, long* MatrixShape, double** InvMatrix)
 	}
 	free(Known);
 	free(UnKnown);
-	for (i = 0; i < n; i++) free(MatrixCopy[i]);
+	free(TempArray);
 	free(MatrixCopy);
 }
 
@@ -4182,3 +4135,1815 @@ DLLEXPORT(double) Calc_ZeroRate_FromSwapPoint(double SwapPoint, double S, double
 	double r_d = r_f + 1.0 / t * log(F / S);
 	return r_d;
 }
+
+struct MyArray {
+	long Length_Rows;
+	long Length_Cols;
+	double** Array2D;
+	double* ArrayReshaped;
+
+	MyArray() : Length_Rows(0), Length_Cols(0), Array2D(nullptr), ArrayReshaped(nullptr) {}
+};
+
+class ArrayUtil {
+private:
+	long Size[2];
+
+	void clear()
+	{
+		if (Array.Array2D) { free(Array.Array2D); Array.Array2D = nullptr; }
+		if (Array.ArrayReshaped) { free(Array.ArrayReshaped); Array.ArrayReshaped = nullptr; }
+
+		Size[0] = 0;
+		Size[1] = 0;
+		Array.Length_Rows = 0;
+		Array.Length_Cols = 0;
+	}
+
+public:
+	MyArray Array;
+	long idum_rn;
+	long iy_rn;
+	long iv_rn[NTAB];
+	long iset_rn;
+	double gset_rn;
+	long seed_rn;
+
+	ArrayUtil()
+	{
+		Size[0] = 0;
+		Size[1] = 0;
+		idum_rn = -1;
+		iy_rn = 0;
+		iset_rn = 0;
+		gset_rn = 0.0;
+		seed_rn = 0;
+	}
+
+	long shape(long n)
+	{
+		return Size[n];
+	}
+
+	void set_new_randomseed(const ArrayUtil& rhs)
+	{
+		this->idum_rn = rhs.idum_rn;
+		this->iy_rn = rhs.iy_rn;
+		for (long i = 0; i < NTAB; i++) this->iv_rn[i] = rhs.iv_rn[i];
+		this->iset_rn = rhs.iset_rn;
+		this->gset_rn = rhs.gset_rn;
+		this->seed_rn = rhs.seed_rn;
+	}
+
+	ArrayUtil(double** InputArray2D, long Length_Rows, long Length_Cols)
+	{
+		long i, j, k;
+		Size[0] = Length_Rows;
+		Size[1] = Length_Cols;
+		idum_rn = -1;
+		iy_rn = 0;
+		iset_rn = 0;
+		gset_rn = 0.0;
+		seed_rn = 0;
+		if (Array.ArrayReshaped) { free(Array.ArrayReshaped); Array.ArrayReshaped = nullptr; }
+		if (Array.Array2D) { free(Array.Array2D); Array.Array2D = nullptr; }
+		Array.ArrayReshaped = (double*)calloc((size_t)Length_Rows * (size_t)Length_Cols, sizeof(double));
+		Array.Array2D = (double**)malloc(sizeof(double*) * (size_t)Length_Rows);
+		for (i = 0; i < Length_Rows; i++) Array.Array2D[i] = Array.ArrayReshaped + (size_t)i * (size_t)Length_Cols;
+
+		Array.Length_Rows = Length_Rows;
+		Array.Length_Cols = Length_Cols;
+		k = 0;
+		for (i = 0; i < Length_Rows; i++)
+		{
+			for (j = 0; j < Length_Cols; j++)
+			{
+				Array.ArrayReshaped[k] = InputArray2D[i][j];
+				Array.Array2D[i][j] = InputArray2D[i][j];
+				k++;
+			}
+		}
+	}
+
+	ArrayUtil(double* InputArray1D, long Length)
+	{
+		long i;
+
+		Size[0] = Length;
+		Size[1] = 0;
+		idum_rn = -1;
+		iy_rn = 0;
+		iset_rn = 0;
+		gset_rn = 0.0;
+		seed_rn = 0;
+
+		Array.Length_Rows = Length;
+		Array.Length_Cols = 0;
+		if (Array.ArrayReshaped) { free(Array.ArrayReshaped); Array.ArrayReshaped = nullptr; }
+		if (Array.Array2D) { free(Array.Array2D); Array.Array2D = nullptr; }
+		Array.ArrayReshaped = (double*)calloc((size_t)Length, sizeof(double));
+		for (i = 0; i < Length; i++) Array.ArrayReshaped[i] = InputArray1D[i];
+	}
+
+	/* 복사 금지: shallow copy로 인한 double-free 방지 */
+	ArrayUtil(const ArrayUtil&) = delete;
+	ArrayUtil& operator=(const ArrayUtil&) = delete;
+
+	/* 이동은 허용(원하면) */
+	ArrayUtil(ArrayUtil&& other) noexcept
+	{
+		Size[0] = other.Size[0];
+		Size[1] = other.Size[1];
+		Array = other.Array;
+		idum_rn = other.idum_rn;
+		iy_rn = other.iy_rn;
+		iset_rn = other.iset_rn;
+		gset_rn = other.gset_rn;
+		seed_rn = other.seed_rn;
+		for (long i = 0; i < NTAB; i++) iv_rn[i] = other.iv_rn[i];
+
+		other.Size[0] = 0;
+		other.Size[1] = 0;
+		other.Array.Array2D = NULL;
+		other.Array.ArrayReshaped = NULL;
+		other.Array.Length_Rows = 0;
+		other.Array.Length_Cols = 0;
+		other.idum_rn = -1;
+		other.iy_rn = 0;
+		other.iset_rn = 0;
+		other.gset_rn = 0.0;
+		other.seed_rn = 0;
+	}
+
+	ArrayUtil& operator=(ArrayUtil&& other) noexcept
+	{
+		if (this == &other) return *this;
+		clear();
+
+		Size[0] = other.Size[0];
+		Size[1] = other.Size[1];
+		Array = other.Array;
+		idum_rn = other.idum_rn;
+		iy_rn = other.iy_rn;
+		iset_rn = other.iset_rn;
+		gset_rn = other.gset_rn;
+		seed_rn = other.seed_rn;
+		for (long i = 0; i < NTAB; i++) iv_rn[i] = other.iv_rn[i];
+
+		other.Size[0] = 0;
+		other.Size[1] = 0;
+		other.Array.Array2D = NULL;
+		other.Array.ArrayReshaped = NULL;
+		other.Array.Length_Rows = 0;
+		other.Array.Length_Cols = 0;
+		other.idum_rn = -1;
+		other.iy_rn = 0;
+		other.iset_rn = 0;
+		other.gset_rn = 0.0;
+		other.seed_rn = 0;
+		return *this;
+	}
+
+	long setarray1D(long Length, long RandomFlag = 0)
+	{
+		clear();
+		long i;
+
+		if (Length <= 0) return 0;
+
+		Size[0] = Length;
+		Size[1] = 0;
+		idum_rn = -1;
+		iy_rn = 0;
+		iset_rn = 0;
+		gset_rn = 0.0;
+		seed_rn = 0;
+		Array.Length_Rows = Length;
+		Array.Length_Cols = 0;
+
+		Array.ArrayReshaped = (double*)calloc((size_t)Length, sizeof(double));
+		if (!Array.ArrayReshaped) { clear(); return 0; }
+
+		if (RandomFlag)
+		{
+			if (seed_rn == 0)
+			{
+				seed_rn = 1;
+				randn(0, idum_rn, iset_rn, gset_rn, iy_rn, iv_rn);
+			}
+
+			for (i = 0; i < Length; i++) Array.ArrayReshaped[i] = randn(seed_rn, idum_rn, iset_rn, gset_rn, iy_rn, iv_rn);
+		}
+
+		return 1;
+	}
+
+	long setidentity(long n)
+	{
+		clear();
+		long i, j, k;
+		if (n <= 0) return 0;
+
+		Size[0] = n;
+		Size[1] = n;
+		idum_rn = -1;
+		iy_rn = 0;
+		iset_rn = 0;
+		gset_rn = 0.0;
+		seed_rn = 0;
+		Array.Length_Rows = n;
+		Array.Length_Cols = n;
+
+		Array.ArrayReshaped = (double*)calloc((size_t)n * (size_t)n, sizeof(double));
+		if (!Array.ArrayReshaped) { clear(); return 0; }
+
+		Array.Array2D = (double**)malloc(sizeof(double*) * (size_t)n);
+		if (!Array.Array2D) { clear(); return 0; }
+
+		for (i = 0; i < n; i++)
+		{
+			Array.Array2D[i] = Array.ArrayReshaped + (size_t)i * (size_t)n;
+			Array.Array2D[i][i] = 1.;
+		}
+		return 1;
+	}
+
+	long setarray2D(long Length_Rows, long Length_Cols, long RandomFlag = 0, double** Corr = NULL, long seed = 0)
+	{
+		clear();
+		long i, j, k;
+
+		if (Length_Rows <= 0 && Length_Cols > 0) return setarray1D(Length_Cols, RandomFlag);
+		else if (Length_Rows > 0 && Length_Cols <= 0) return setarray1D(Length_Rows, RandomFlag);
+		else if (Length_Rows <= 0 && Length_Cols <= 0) return 0;
+
+		Size[0] = Length_Rows;
+		Size[1] = Length_Cols;
+		if (seed == 0)
+		{
+			idum_rn = -1;
+			iy_rn = 0;
+			iset_rn = 0;
+			gset_rn = 0.0;
+			seed_rn = 0;
+		}
+		Array.Length_Rows = Length_Rows;
+		Array.Length_Cols = Length_Cols;
+
+		Array.ArrayReshaped = (double*)calloc((size_t)Length_Rows * (size_t)Length_Cols, sizeof(double));
+		if (!Array.ArrayReshaped) { clear(); return 0; }
+
+		Array.Array2D = (double**)malloc(sizeof(double*) * (size_t)Length_Rows);
+		if (!Array.Array2D) { clear(); return 0; }
+
+		for (i = 0; i < Length_Rows; i++) Array.Array2D[i] = Array.ArrayReshaped + (size_t)i * (size_t)Length_Cols;
+
+		if (RandomFlag)
+		{
+			if (seed_rn == 0)
+			{
+				seed_rn = 1;
+				randn(0, idum_rn, iset_rn, gset_rn, iy_rn, iv_rn);
+			}
+
+			for (i = 0; i < Length_Rows * Length_Cols; i++) Array.ArrayReshaped[i] = randn(seed_rn, idum_rn, iset_rn, gset_rn, iy_rn, iv_rn);
+			if (Corr)
+			{
+				double sum;
+				long n = Length_Cols;
+				double* ary = (double*)calloc((size_t)n * (size_t)n, sizeof(double));
+				double** Chol = (double**)malloc((size_t)n * sizeof(double*));
+				for (i = 0; i < n; i++) Chol[i]  = ary + i * n;
+
+				// Decomposing a matrix into Lower Triangular
+				for (i = 0; i < n; i++) {
+					for (j = 0; j <= i; j++) {
+						sum = 0.0;
+
+						if (j == i) // summation for diagonals
+						{
+							for (k = 0; k < j; k++) sum += Chol[j][k] * Chol[j][k];
+							Chol[j][j] = sqrt(Corr[j][j] - sum);
+						}
+						else
+						{
+							// Evaluating L(i, j) using L(j, j)
+							for (k = 0; k < j; k++)
+								sum += (Chol[i][k] * Chol[j][k]);
+							Chol[i][j] = (Corr[i][j] - sum) / Chol[j][j];
+						}
+					}
+				}
+
+				double* rndm = (double*)malloc(sizeof(double) * (size_t)Length_Cols);
+				for (i = 0; i < Length_Rows; i++)
+				{
+					for (j = 0; j < Length_Cols; j++)
+					{
+						rndm[j] = Array.Array2D[i][j];
+					}
+
+					for (j = 0; j < Length_Cols; j++)
+					{
+						sum = 0.0;
+						for (k = 0; k <= j; k++)
+						{
+							sum += Chol[j][k] * rndm[k];
+						}
+						Array.Array2D[i][j] = sum;
+					}
+				}
+				free(ary);
+				free(Chol);
+				free(rndm);
+			}
+		}
+		return 1;
+	}
+
+	// Print Array
+	void Print()
+	{
+		long i, j;
+		if (Size[1] == 0 && Size[0] > 0)
+		{
+			printf("[");
+			for (i = 0; i < Size[0] - 1; i++)
+			{
+				if (Array.ArrayReshaped[i] > 0.) printf("%0.5lf,  ", Array.ArrayReshaped[i]);
+				else printf("%0.4lf,  ", Array.ArrayReshaped[i]);
+			}
+			if (Array.ArrayReshaped[Size[0] - 1] > 0.) printf("%0.5lf]\n", Array.ArrayReshaped[Size[0] - 1]);
+			else printf("%0.4lf]\n", Array.ArrayReshaped[Size[0] - 1]);
+		}
+		else if (Size[0] > 0 && Size[1] > 0)
+		{
+			printf("[");
+			for (i = 0; i < Size[0] - 1; i++)
+			{
+				if (i > 0) printf(" ");
+				printf("[");
+				for (j = 0; j < Size[1] - 1; j++)
+				{
+					if (Array.Array2D[i][j]>0.) printf("%0.5lf,  ", Array.Array2D[i][j]);
+					else printf("%0.4lf,  ", Array.Array2D[i][j]);
+				}
+				if (Array.Array2D[i][Size[1]-1] > 0.) printf("%0.5lf],", Array.Array2D[i][Size[1] - 1]);
+				else printf("%0.4lf],", Array.Array2D[i][Size[1] - 1]);
+				printf("\n");
+			}
+			printf(" [");
+			for (i = 0; i < Size[1] - 1; i++)
+			{
+				if (Array.Array2D[Size[0]-1][i] > 0.) printf("%0.5lf,  ", Array.Array2D[Size[0] - 1][i]);
+				else printf("%0.4lf,  ", Array.Array2D[Size[0] - 1][i]);
+			}
+			if (Array.Array2D[Size[0]-1][Size[1]-1] > 0.) printf("%0.5lf]", Array.Array2D[Size[0] - 1][Size[1] - 1]);
+			else printf("%0.4lf]", Array.Array2D[Size[0] - 1][Size[1] - 1]);
+			printf("]\n");
+		}
+	}
+	
+	ArrayUtil operator+(double x) const
+	{
+		ArrayUtil result;
+		if (this->Size[1] == 0)
+		{
+			result.setarray1D(this->Size[0], 0);
+			for (long i = 0; i < this->Size[0]; i++) result.Array.ArrayReshaped[i] = this->Array.ArrayReshaped[i] + x;
+		}
+		else
+		{
+			result.setarray2D(this->Size[0], this->Size[1], 0);
+			for (long i = 0; i < this->Size[0]; i++) for (long j = 0; j < this->Size[1]; j++) result.Array.Array2D[i][j] = this->Array.Array2D[i][j] + x;
+		}
+		return result;
+	}
+
+	ArrayUtil operator*(double x) const
+	{
+		ArrayUtil result;
+		if (this->Size[1] == 0)
+		{
+			result.setarray1D(this->Size[0], 0);
+			for (long i = 0; i < this->Size[0]; i++) result.Array.ArrayReshaped[i] = this->Array.ArrayReshaped[i] * x;
+		}
+		else
+		{
+			result.setarray2D(this->Size[0], this->Size[1], 0);
+			for (long i = 0; i < this->Size[0]; i++) for (long j = 0; j < this->Size[1]; j++) result.Array.Array2D[i][j] = this->Array.Array2D[i][j] * x;
+		}
+		return result;
+	}
+
+	ArrayUtil operator+(const ArrayUtil& rhs) const
+	{
+		ArrayUtil result;
+
+		/* dimension check */
+		if (this->Array.Length_Rows == rhs.Array.Length_Rows && this->Array.Length_Cols == rhs.Array.Length_Cols && this->Array.Length_Cols > 0 && rhs.Array.Length_Cols > 0)
+		{
+			result.setarray2D(rhs.Array.Length_Rows, rhs.Array.Length_Cols, 0);
+			for (long i = 0; i < rhs.Array.Length_Rows; i++)
+			{
+				for (long j = 0; j < rhs.Array.Length_Cols; j++)
+				{
+					result.Array.Array2D[i][j] = this->Array.Array2D[i][j] + rhs.Array.Array2D[i][j];
+				}
+			}
+			return result;
+		}
+		else if (this->Array.Length_Rows == rhs.Array.Length_Rows)
+		{
+			if (this->Array.Length_Cols == 1)
+			{
+				// (n x 1) + (n x k) = (n, k), (n x 0) + (n x k) = (n, k)
+				result.setarray2D(rhs.Array.Length_Rows, rhs.Array.Length_Cols, 0);
+				for (long i = 0; i < rhs.Array.Length_Rows; i++)
+				{
+					for (long j = 0; j < rhs.Array.Length_Cols; j++)
+					{
+						result.Array.Array2D[i][j] = this->Array.ArrayReshaped[i] + rhs.Array.Array2D[i][j];
+					}
+				}
+				return result;
+			}
+			else if (rhs.Array.Length_Cols == 1)
+			{
+				// (n x k) + (n x 1) = (n, k)
+				result.setarray2D(this->Array.Length_Rows, this->Array.Length_Cols, 0);
+				for (long i = 0; i < this->Array.Length_Rows; i++)
+				{
+					for (long j = 0; j < this->Array.Length_Cols; j++)
+					{
+						result.Array.Array2D[i][j] = rhs.Array.ArrayReshaped[i] + this->Array.Array2D[i][j];
+					}
+				}
+				return result;
+			}
+		}
+		else if (this->Array.Length_Cols == rhs.Array.Length_Cols)
+		{
+			if (this->Array.Length_Rows == 1)
+			{
+				// (1 x k) + (n x k) = (n, k)
+				result.setarray2D(rhs.Array.Length_Rows, rhs.Array.Length_Cols, 0);
+				for (long i = 0; i < rhs.Array.Length_Rows; i++)
+				{
+					for (long j = 0; j < rhs.Array.Length_Cols; j++)
+					{
+						result.Array.Array2D[i][j] = this->Array.ArrayReshaped[j] + rhs.Array.Array2D[i][j];
+					}
+				}
+				return result;
+			}
+			else if (rhs.Array.Length_Rows == 1)
+			{
+				// (n x k) + (1 x k) = (n, k)
+				result.setarray2D(this->Array.Length_Rows, this->Array.Length_Cols, 0);
+				for (long i = 0; i < this->Array.Length_Rows; i++)
+				{
+					for (long j = 0; j < this->Array.Length_Cols; j++)
+					{
+						result.Array.Array2D[i][j] = this->Array.Array2D[i][j] - rhs.Array.ArrayReshaped[j];
+					}
+				}
+				return result;
+			}
+		}
+		else if (this->Array.Length_Cols == 0 && this->Array.Length_Rows == rhs.Array.Length_Cols)
+		{
+			// (n, 0) + (k x n) = (k, n)
+			result.setarray2D(rhs.Array.Length_Rows, rhs.Array.Length_Cols, 0);
+			for (long i = 0; i < rhs.Array.Length_Rows; i++)
+			{
+				for (long j = 0; j < rhs.Array.Length_Cols; j++)
+				{
+					result.Array.Array2D[i][j] = this->Array.ArrayReshaped[j] + rhs.Array.Array2D[i][j];
+				}
+			}
+			return result;
+		}
+		else if (rhs.Array.Length_Cols == 0 && rhs.Array.Length_Rows == this->Array.Length_Cols)
+		{
+			// (k, n) + (n, 0) = (k, n)
+			result.setarray2D(this->Array.Length_Rows, this->Array.Length_Cols, 0);
+			for (long i = 0; i < this->Array.Length_Rows; i++)
+			{
+				for (long j = 0; j < this->Array.Length_Cols; j++)
+				{
+					result.Array.Array2D[i][j] = this->Array.Array2D[i][j] + rhs.Array.ArrayReshaped[j];
+				}
+			}
+			return result;
+		}
+
+		if (Array.Length_Rows != rhs.Array.Length_Rows || Array.Length_Cols != rhs.Array.Length_Cols)
+		{
+			/* dimension mismatch → return empty object */
+			return result;
+		}
+
+		long rows = Array.Length_Rows;
+		long cols = Array.Length_Cols;
+
+		/* 1D case */
+		if (cols == 0 && rows > 0)
+		{
+			result.setarray1D(rows, 0);
+			for (long i = 0; i < rows; i++) result.Array.ArrayReshaped[i] = Array.ArrayReshaped[i] + rhs.Array.ArrayReshaped[i];
+
+			return result;
+		}
+
+		/* 2D case */
+		if (rows > 0 && cols > 0)
+		{
+			result.setarray2D(rows, cols, 0, NULL);
+
+			long n = rows * cols;
+			for (long i = 0; i < n; i++) result.Array.ArrayReshaped[i] = Array.ArrayReshaped[i] + rhs.Array.ArrayReshaped[i];
+			return result;
+		}
+
+		return result;
+	}
+
+	ArrayUtil operator-(const ArrayUtil& rhs) const
+	{
+		ArrayUtil result;
+
+		/* dimension check */
+		if (this->Array.Length_Rows == rhs.Array.Length_Rows && this->Array.Length_Cols == rhs.Array.Length_Cols && this->Array.Length_Cols > 0 && rhs.Array.Length_Cols > 0)
+		{
+			result.setarray2D(rhs.Array.Length_Rows, rhs.Array.Length_Cols, 0);
+			for (long i = 0; i < rhs.Array.Length_Rows; i++)
+			{
+				for (long j = 0; j < rhs.Array.Length_Cols; j++)
+				{
+					result.Array.Array2D[i][j] = this->Array.Array2D[i][j] - rhs.Array.Array2D[i][j];
+				}
+			}
+			return result;
+		}
+		else if (this->Array.Length_Rows == rhs.Array.Length_Rows)
+		{
+			if (this->Array.Length_Cols == 1)
+			{
+				// (n x 1) + (n x k) = (n, k), (n x 0) + (n x k) = (n, k)
+				result.setarray2D(rhs.Array.Length_Rows, rhs.Array.Length_Cols, 0);
+				for (long i = 0; i < rhs.Array.Length_Rows; i++)
+				{
+					for (long j = 0; j < rhs.Array.Length_Cols; j++)
+					{
+						result.Array.Array2D[i][j] = this->Array.ArrayReshaped[i] - rhs.Array.Array2D[i][j];
+					}
+				}
+				return result;
+			}
+			else if (rhs.Array.Length_Cols == 1)
+			{
+				// (n x k) + (n x 1) = (n, k)
+				result.setarray2D(this->Array.Length_Rows, this->Array.Length_Cols, 0);
+				for (long i = 0; i < this->Array.Length_Rows; i++)
+				{
+					for (long j = 0; j < this->Array.Length_Cols; j++)
+					{
+						result.Array.Array2D[i][j] = this->Array.Array2D[i][j] - rhs.Array.ArrayReshaped[i];
+					}
+				}
+				return result;
+			}
+		}
+		else if (this->Array.Length_Cols == rhs.Array.Length_Cols)
+		{
+			if (this->Array.Length_Rows == 1)
+			{
+				// (1 x k) + (n x k) = (n, k)
+				result.setarray2D(rhs.Array.Length_Rows, rhs.Array.Length_Cols, 0);
+				for (long i = 0; i < rhs.Array.Length_Rows; i++)
+				{
+					for (long j = 0; j < rhs.Array.Length_Cols; j++)
+					{
+						result.Array.Array2D[i][j] = this->Array.ArrayReshaped[j] - rhs.Array.Array2D[i][j];
+					}
+				}
+				return result;
+			}
+			else if (rhs.Array.Length_Rows == 1)
+			{
+				// (n x k) + (1 x k) = (n, k)
+				result.setarray2D(this->Array.Length_Rows, this->Array.Length_Cols, 0);
+				for (long i = 0; i < this->Array.Length_Rows; i++)
+				{
+					for (long j = 0; j < this->Array.Length_Cols; j++)
+					{
+						result.Array.Array2D[i][j] = this->Array.Array2D[i][j] - rhs.Array.ArrayReshaped[j];
+					}
+				}
+				return result;
+			}
+		}
+		else if (this->Array.Length_Cols == 0 && this->Array.Length_Rows == rhs.Array.Length_Cols)
+		{
+			// (n, 0) + (k x n) = (k, n)
+			result.setarray2D(rhs.Array.Length_Rows, rhs.Array.Length_Cols, 0);
+			for (long i = 0; i < rhs.Array.Length_Rows; i++)
+			{
+				for (long j = 0; j < rhs.Array.Length_Cols; j++)
+				{
+					result.Array.Array2D[i][j] = this->Array.ArrayReshaped[j] - rhs.Array.Array2D[i][j];
+				}
+			}
+			return result;
+		}
+		else if (rhs.Array.Length_Cols == 0 && rhs.Array.Length_Rows == this->Array.Length_Cols)
+		{
+			// (k, n) + (n, 0) = (k, n)
+			result.setarray2D(this->Array.Length_Rows, this->Array.Length_Cols, 0);
+			for (long i = 0; i < this->Array.Length_Rows; i++)
+			{
+				for (long j = 0; j < this->Array.Length_Cols; j++)
+				{
+					result.Array.Array2D[i][j] = this->Array.Array2D[i][j] - rhs.Array.ArrayReshaped[j];
+				}
+			}
+			return result;
+		}
+
+		if (Array.Length_Rows != rhs.Array.Length_Rows || Array.Length_Cols != rhs.Array.Length_Cols)
+		{
+			/* dimension mismatch → return empty object */
+			return result;
+		}
+
+		long rows = Array.Length_Rows;
+		long cols = Array.Length_Cols;
+
+		/* 1D case */
+		if (cols == 0 && rows > 0)
+		{
+			result.setarray1D(rows, 0);
+			for (long i = 0; i < rows; i++) result.Array.ArrayReshaped[i] = Array.ArrayReshaped[i] - rhs.Array.ArrayReshaped[i];
+
+			return result;
+		}
+
+		/* 2D case */
+		if (rows > 0 && cols > 0)
+		{
+			result.setarray2D(rows, cols, 0, NULL);
+
+			long n = rows * cols;
+			for (long i = 0; i < n; i++) result.Array.ArrayReshaped[i] = Array.ArrayReshaped[i] - rhs.Array.ArrayReshaped[i];
+			return result;
+		}
+
+		return result;
+	}
+
+	ArrayUtil operator*(const ArrayUtil& rhs) const
+	{
+		ArrayUtil result;
+
+		/* dimension check */
+		if (this->Array.Length_Rows == rhs.Array.Length_Rows && this->Array.Length_Cols == rhs.Array.Length_Cols && this->Array.Length_Cols > 0 && rhs.Array.Length_Cols > 0)
+		{
+			result.setarray2D(rhs.Array.Length_Rows, rhs.Array.Length_Cols, 0);
+			for (long i = 0; i < rhs.Array.Length_Rows; i++)
+			{
+				for (long j = 0; j < rhs.Array.Length_Cols; j++)
+				{
+					result.Array.Array2D[i][j] = this->Array.Array2D[i][j] * rhs.Array.Array2D[i][j];
+				}
+			}
+			return result;
+		}
+		else if (this->Array.Length_Rows == rhs.Array.Length_Rows)
+		{
+			if (this->Array.Length_Cols == 1)
+			{
+				// (n x 1) + (n x k) = (n, k), (n x 0) + (n x k) = (n, k)
+				result.setarray2D(rhs.Array.Length_Rows, rhs.Array.Length_Cols, 0);
+				for (long i = 0; i < rhs.Array.Length_Rows; i++)
+				{
+					for (long j = 0; j < rhs.Array.Length_Cols; j++)
+					{
+						result.Array.Array2D[i][j] = this->Array.ArrayReshaped[i] * rhs.Array.Array2D[i][j];
+					}
+				}
+				return result;
+			}
+			else if (rhs.Array.Length_Cols == 1)
+			{
+				// (n x k) + (n x 1) = (n, k)
+				result.setarray2D(this->Array.Length_Rows, this->Array.Length_Cols, 0);
+				for (long i = 0; i < this->Array.Length_Rows; i++)
+				{
+					for (long j = 0; j < this->Array.Length_Cols; j++)
+					{
+						result.Array.Array2D[i][j] = rhs.Array.ArrayReshaped[i] * this->Array.Array2D[i][j];
+					}
+				}
+				return result;
+			}
+		}
+		else if (this->Array.Length_Cols == rhs.Array.Length_Cols)
+		{
+			if (this->Array.Length_Rows == 1)
+			{
+				// (1 x k) + (n x k) = (n, k)
+				result.setarray2D(rhs.Array.Length_Rows, rhs.Array.Length_Cols, 0);
+				for (long i = 0; i < rhs.Array.Length_Rows; i++)
+				{
+					for (long j = 0; j < rhs.Array.Length_Cols; j++)
+					{
+						result.Array.Array2D[i][j] = this->Array.ArrayReshaped[j] * rhs.Array.Array2D[i][j];
+					}
+				}
+				return result;
+			}
+			else if (rhs.Array.Length_Rows == 1)
+			{
+				// (n x k) + (1 x k) = (n, k)
+				result.setarray2D(this->Array.Length_Rows, this->Array.Length_Cols, 0);
+				for (long i = 0; i < this->Array.Length_Rows; i++)
+				{
+					for (long j = 0; j < this->Array.Length_Cols; j++)
+					{
+						result.Array.Array2D[i][j] = rhs.Array.ArrayReshaped[j] * this->Array.Array2D[i][j];
+					}
+				}
+				return result;
+			}
+		}
+		else if (this->Array.Length_Cols == 0 && this->Array.Length_Rows == rhs.Array.Length_Cols)
+		{
+			// (n, 0) + (k x n) = (k, n)
+			result.setarray2D(rhs.Array.Length_Rows, rhs.Array.Length_Cols, 0);
+			for (long i = 0; i < rhs.Array.Length_Rows; i++)
+			{
+				for (long j = 0; j < rhs.Array.Length_Cols; j++)
+				{
+					result.Array.Array2D[i][j] = this->Array.ArrayReshaped[j] * rhs.Array.Array2D[i][j];
+				}
+			}
+			return result;
+		}
+		else if (rhs.Array.Length_Cols == 0 && rhs.Array.Length_Rows == this->Array.Length_Cols)
+		{
+			// (k, n) + (n, 0) = (k, n)
+			result.setarray2D(this->Array.Length_Rows, this->Array.Length_Cols, 0);
+			for (long i = 0; i < this->Array.Length_Rows; i++)
+			{
+				for (long j = 0; j < this->Array.Length_Cols; j++)
+				{
+					result.Array.Array2D[i][j] = this->Array.Array2D[i][j] * rhs.Array.ArrayReshaped[j];
+				}
+			}
+			return result;
+		}
+
+		if (Array.Length_Rows != rhs.Array.Length_Rows || Array.Length_Cols != rhs.Array.Length_Cols)
+		{
+			/* dimension mismatch → return empty object */
+			return result;
+		}
+
+		long rows = Array.Length_Rows;
+		long cols = Array.Length_Cols;
+
+		/* 1D case */
+		if (cols == 0 && rows > 0)
+		{
+			result.setarray1D(rows, 0);
+			for (long i = 0; i < rows; i++) result.Array.ArrayReshaped[i] = Array.ArrayReshaped[i] * rhs.Array.ArrayReshaped[i];
+			return result;
+		}
+
+		/* 2D case */
+		if (rows > 0 && cols > 0)
+		{
+			result.setarray2D(rows, cols, 0, NULL);
+
+			long n = rows * cols;
+			for (long i = 0; i < n; i++) result.Array.ArrayReshaped[i] = Array.ArrayReshaped[i] * rhs.Array.ArrayReshaped[i];
+			return result;
+		}
+
+		return result;
+	}
+
+	double mean()
+	{
+		long i, j, k;
+		long ncol = max(1, Array.Length_Cols);
+		long nrow = max(1, Array.Length_Rows);
+		double nt = (double)(ncol * nrow);
+		double avg = 0.;
+		k = 0;
+		for (i = 0; i < nrow; i++)
+		{
+			for (j = 0; j < ncol; j++)
+			{
+				avg += Array.ArrayReshaped[k]/nt;
+				k++;
+			}
+		}
+		return avg;
+	}
+
+	struct IndexProxy {
+		double* base;     // 1D일 때: ArrayReshaped
+		double** rows;    // 2D일 때: Array2D (nullptr이면 1D모드)
+		long i;
+		long cols;        // 2D일 때 cols, 1D면 0
+
+		// 2D: A[i][j]
+		double& operator[](long j) {
+			// (안전성 원하면 여기서 cols==0 체크 후 처리)
+			return rows[i][j];
+		}
+		const double& operator[](long j) const {
+			return rows[i][j];
+		}
+
+		// 1D: A[i] -> double&
+		operator double& () {
+			// 1D 모드에서만 의미
+			return base[i];
+		}
+		operator const double& () const {
+			return base[i];
+		}
+
+		// 2D: A[i] -> double*
+		operator double* () {
+			return rows ? rows[i] : (base + i); // 1D면 &base[i]
+		}
+		operator const double* () const {
+			return rows ? rows[i] : (base + i);
+		}
+	};
+
+	struct ConstIndexProxy {
+		const double* base;
+		double* const* rows; // const row-pointer array
+		long i;
+		long cols;
+
+		const double& operator[](long j) const {
+			return rows[i][j];
+		}
+
+		operator const double& () const {
+			return base[i];
+		}
+
+		operator const double* () const {
+			return rows ? rows[i] : (base + i);
+		}
+	};
+
+	// non-const
+	IndexProxy operator[](long i) {
+		return IndexProxy{ Array.ArrayReshaped, Array.Array2D, i, Array.Length_Cols };
+	}
+
+	// const
+	ConstIndexProxy operator[](long i) const {
+		return ConstIndexProxy{ Array.ArrayReshaped, (double* const*)Array.Array2D, i, Array.Length_Cols };
+	}
+
+	ArrayUtil Transpose() const
+	{
+		ArrayUtil result;
+
+		long rows = Array.Length_Rows;
+		long cols = Array.Length_Cols;
+
+		/* empty */
+		if (rows <= 0) {
+			return result;
+		}
+
+		/* ---------- 1D case ---------- */
+		if (cols == 0)
+		{
+			result.setarray1D(rows, 0);
+			for (long i = 0; i < rows; i++)
+				result.Array.ArrayReshaped[i] = Array.ArrayReshaped[i];
+			return result;
+		}
+
+		/* ---------- 2D case ---------- */
+		if (rows > 0 && cols > 0)
+		{
+			result.setarray2D(cols, rows, 0, NULL);
+
+			/* cache-friendly traversal */
+			for (long i = 0; i < rows; i++)
+			{
+				for (long j = 0; j < cols; j++)
+				{
+					result.Array.Array2D[j][i] = Array.Array2D[i][j];
+				}
+			}
+			return result;
+		}
+
+		return result;
+	}
+
+	ArrayUtil dot(const ArrayUtil& rhs) const
+	{
+		ArrayUtil result;
+
+		long rows1 = this->Size[0];
+		long cols1 = this->Size[1];
+		long rows2 = rhs.Size[0];
+		long cols2 = rhs.Size[1];
+		if (cols1 != rows2) return result;
+		result.setarray2D(rows1, cols2, 0, NULL);
+		long p = rows1;
+		long q = cols2;
+		long i, j, k, maxk;
+		double s;
+		maxk = cols1;
+		for (i = 0; i < p; i++)
+		{
+			for (j = 0; j < q; j++)
+			{
+				s = 0.0;
+				for (k = 0; k < maxk; k++)
+				{
+					s += this->Array.Array2D[i][k] * rhs.Array.Array2D[k][j];;
+				}
+				result.Array.Array2D[i][j] = s;
+			}
+		}
+		return result;
+	}
+
+	ArrayUtil sum(long axis = 0)
+	{
+		ArrayUtil result;
+		long i, j;
+		double s = 0.;
+		if (axis == 0)
+		{
+			result.setarray1D(this->Array.Length_Cols);
+			for (j = 0; j < this->Array.Length_Cols; j++)
+			{
+				s = 0.;
+				for (i = 0; i < this->Array.Length_Rows; i++) s += this->Array.Array2D[i][j];
+				result.Array.ArrayReshaped[j] = s;
+			}
+		}
+		else
+		{
+			result.setarray1D(this->Array.Length_Rows);
+			for (i = 0; i < this->Array.Length_Rows; i++)
+			{
+				s = 0.;
+				for (j = 0; j < this->Array.Length_Cols; j++) s += this->Array.Array2D[i][j];
+				result.Array.ArrayReshaped[i] = s;
+			}
+		}
+		return result;
+	}
+
+	// ===========================
+	// LU decomposition (partial pivoting)
+	// LU는 (L과 U를 한 행렬에 합쳐서) resultLU에 저장
+	// pivot[i]는 행 교환 정보를 저장 (길이 n)
+	// return: 0 성공, 1 입력오류, 2 singular
+	// ===========================
+	long LUDecompose(ArrayUtil& resultLU, long* pivot, double eps = 1e-14) const
+	{
+		long n = Array.Length_Rows;
+		long m = Array.Length_Cols;
+
+		if (n <= 0 || m <= 0 || n != m) return 1; // square only
+		if (!Array.Array2D || !Array.ArrayReshaped) return 1;
+
+		// resultLU = this 복사
+		resultLU.setarray2D(n, n, 0, NULL);
+		for (long i = 0; i < n * n; ++i)
+			resultLU.Array.ArrayReshaped[i] = Array.ArrayReshaped[i];
+
+		// pivot 초기화
+		for (long i = 0; i < n; ++i) pivot[i] = i;
+
+		// Doolittle with partial pivoting
+		for (long k = 0; k < n; ++k)
+		{
+			// pivot 찾기: |LU[i][k]| 최대인 i>=k
+			long piv = k;
+			double maxabs = fabs(resultLU.Array.Array2D[k][k]);
+
+			for (long i = k + 1; i < n; ++i)
+			{
+				double v = fabs(resultLU.Array.Array2D[i][k]);
+				if (v > maxabs) { maxabs = v; piv = i; }
+			}
+
+			// singular 체크
+			if (maxabs < eps)
+			{
+				return 2;
+			}
+
+			// 행 교환
+			if (piv != k)
+			{
+				double* tmp = resultLU.Array.Array2D[piv];
+				resultLU.Array.Array2D[piv] = resultLU.Array.Array2D[k];
+				resultLU.Array.Array2D[k] = tmp;
+
+				// reshaped는 row 포인터가 바뀌었으므로 "2D 포인터 기준" 연산은 OK
+				// (주의: ArrayReshaped를 직접 믿고 쓰는 로직이 섞이면 위험. 아래 연산은 Array2D만 사용)
+
+				long t = pivot[piv];
+				pivot[piv] = pivot[k];
+				pivot[k] = t;
+			}
+
+			// 소거
+			double Akk = resultLU.Array.Array2D[k][k];
+			for (long i = k + 1; i < n; ++i)
+			{
+				resultLU.Array.Array2D[i][k] /= Akk;          // L(i,k)
+				double Lik = resultLU.Array.Array2D[i][k];
+				for (long j = k + 1; j < n; ++j)
+				{
+					resultLU.Array.Array2D[i][j] -= Lik * resultLU.Array.Array2D[k][j];
+				}
+			}
+		}
+
+		return 0;
+	}
+
+	// ===========================
+	// Solve Ax=b using LU & pivot
+	// LU: LUDecompose 결과 (L,U가 합쳐져 있음)
+	// pivot: LUDecompose 결과
+	// b (size n) -> x (size n)
+	// return: 0 성공, 1 오류
+	// ===========================
+	static long LUSolve(const ArrayUtil& LU, const long* pivot,
+		const double* b, double* x, double eps = 1e-14)
+	{
+		long n = LU.Array.Length_Rows;
+		long m = LU.Array.Length_Cols;
+		if (n <= 0 || m <= 0 || n != m) return 1;
+		if (!LU.Array.Array2D || !b || !x || !pivot) return 1;
+
+		// Pb 적용: x = P*b
+		for (long i = 0; i < n; ++i) x[i] = b[pivot[i]];
+
+		// Forward substitution: L y = P b
+		// L의 대각은 1, L(i,j)=LU(i,j) (i>j)
+		for (long i = 0; i < n; ++i)
+		{
+			double sum = x[i];
+			for (long j = 0; j < i; ++j)
+				sum -= LU.Array.Array2D[i][j] * x[j];
+			x[i] = sum;
+		}
+
+		// Backward substitution: U x = y
+		for (long i = n - 1; i >= 0; --i)
+		{
+			double sum = x[i];
+			for (long j = i + 1; j < n; ++j)
+				sum -= LU.Array.Array2D[i][j] * x[j];
+
+			double Uii = LU.Array.Array2D[i][i];
+			if (fabs(Uii) < eps) return 1;
+
+			x[i] = sum / Uii;
+		}
+
+		return 0;
+	}
+
+	// ===========================
+	// Inverse matrix using LU
+	// return: 역행렬(실패 시 빈 ArrayUtil 반환)
+	// ===========================
+	ArrayUtil Inverse(double eps = 1e-14) const
+	{
+		ArrayUtil inv;
+		long n = Array.Length_Rows;
+		long m = Array.Length_Cols;
+
+		if (n <= 0 || m <= 0 || n != m) return inv;
+
+		ArrayUtil LU;
+		long* pivot = (long*)malloc(sizeof(long) * (size_t)n);
+		if (!pivot) return inv;
+
+		long st = LUDecompose(LU, pivot, eps);
+		if (st != 0)
+		{
+			free(pivot);
+			return inv;
+		}
+
+		inv.setarray2D(n, n, 0, NULL);
+
+		// 각 단위벡터 e_k에 대해 Ax = e_k를 풀어 inv의 k번째 열로 저장
+		double* b = (double*)calloc((size_t)n, sizeof(double));
+		double* x = (double*)malloc(sizeof(double) * (size_t)n);
+		if (!b || !x)
+		{
+			if (b) free(b);
+			if (x) free(x);
+			free(pivot);
+			return ArrayUtil();
+		}
+
+		for (long k = 0; k < n; ++k)
+		{
+			// b = e_k
+			for (long i = 0; i < n; ++i) b[i] = 0.0;
+			b[k] = 1.0;
+
+			if (LUSolve(LU, pivot, b, x, eps) != 0)
+			{
+				// 실패 시 가우스소거법으로 계산 반환
+				matrixinverse(this->Array.Array2D, (long*)Size, inv.Array.Array2D);
+				free(b); free(x); free(pivot);
+				return inv;
+			}
+
+			// inv(:,k) = x
+			for (long i = 0; i < n; ++i)
+				inv.Array.Array2D[i][k] = x[i];
+		}
+
+		free(b);
+		free(x);
+		free(pivot);
+
+		return inv;
+	}
+
+	ArrayUtil CalcBeta(const ArrayUtil& X) const
+	{
+		long i, j;
+		long n = X.Size[1];
+		long m = X.Size[0];
+		double s;
+		ArrayUtil UnKnown;
+		if (this->Size[0] != m) return UnKnown;
+
+		ArrayUtil XT, XTX,XTY;
+		UnKnown.setarray1D(n);
+		XT = X.Transpose();
+		XTX = XT.dot(X);
+		XTY.setarray1D(n);
+		for (i = 0; i < n; i++)
+		{
+			s = 0.;
+			for (j = 0; j < m; j++) s += XT[i][j] * this->Array.ArrayReshaped[j];
+			XTY.Array.ArrayReshaped[i] = s;
+		}
+
+		gaussian_elimination(XTX.Array.Array2D, XTY.Array.ArrayReshaped, UnKnown.Array.ArrayReshaped, n);
+
+		return UnKnown;
+	}
+
+	~ArrayUtil()
+	{
+		clear();
+	}
+};
+
+struct MyArrayLong {
+	long Length_Rows;
+	long Length_Cols;
+	long ** Array2D;
+	long* ArrayReshaped;
+
+	MyArrayLong() : Length_Rows(0), Length_Cols(0), Array2D(nullptr), ArrayReshaped(nullptr) {}
+};
+
+class ArrayUtilLong {
+private:
+	long Size[2];
+	void clear()
+	{
+		if (Array.Array2D) { free(Array.Array2D); Array.Array2D = nullptr; }
+		if (Array.ArrayReshaped) { free(Array.ArrayReshaped); Array.ArrayReshaped = nullptr; }
+
+		Size[0] = 0;
+		Size[1] = 0;
+		Array.Length_Rows = 0;
+		Array.Length_Cols = 0;
+	}
+
+public:
+	MyArrayLong Array;
+	ArrayUtilLong()
+	{
+		Size[0] = 0;
+		Size[1] = 0;
+	}
+
+	long shape(long n)
+	{
+		return Size[n];
+	}
+
+	long setarray1D(long Length)
+	{
+		clear();
+		long i;
+
+		if (Length <= 0) return 0;
+
+		Size[0] = Length;
+		Size[1] = 0;
+
+		Array.Length_Rows = Length;
+		Array.Length_Cols = 0;
+
+		Array.ArrayReshaped = (long*)calloc((size_t)Length, sizeof(long));
+		if (!Array.ArrayReshaped) { clear(); return 0; }
+
+		return 1;
+	}
+
+	long setarray2D(long Length_Rows, long Length_Cols)
+	{
+		clear();
+		long i, j, k;
+
+		if (Length_Rows <= 0 && Length_Cols > 0) return setarray1D(Length_Cols);
+		else if (Length_Rows > 0 && Length_Cols <= 0) return setarray1D(Length_Rows);
+		else if (Length_Rows <= 0 && Length_Cols <= 0) return 0;
+
+		Size[0] = Length_Rows;
+		Size[1] = Length_Cols;
+
+		Array.Length_Rows = Length_Rows;
+		Array.Length_Cols = Length_Cols;
+
+		Array.ArrayReshaped = (long*)calloc((size_t)Length_Rows * (size_t)Length_Cols, sizeof(long));
+		if (!Array.ArrayReshaped) { clear(); return 0; }
+
+		Array.Array2D = (long**)malloc(sizeof(long*) * (size_t)Length_Rows);
+		if (!Array.Array2D) { clear(); return 0; }
+
+		for (i = 0; i < Length_Rows; i++) Array.Array2D[i] = Array.ArrayReshaped + (size_t)i * (size_t)Length_Cols;
+
+		return 1;
+	}
+
+	long setarray1D(long* InputArray1D, long Length)
+	{
+		long i;
+
+		Size[0] = Length;
+		Size[1] = 0;
+
+		Array.Length_Rows = Length;
+		Array.Length_Cols = 0;
+		if (Array.ArrayReshaped) { free(Array.ArrayReshaped); Array.ArrayReshaped = nullptr; }
+		if (Array.Array2D) { free(Array.Array2D); Array.Array2D = nullptr; }
+		Array.ArrayReshaped = (long*)calloc((size_t)Length, sizeof(long));
+		for (i = 0; i < Length; i++) Array.ArrayReshaped[i] = InputArray1D[i];
+		return 1;
+	}
+
+
+	ArrayUtilLong(long** InputArray2D, long Length_Rows, long Length_Cols)
+	{
+		long i, j, k;
+		Size[0] = Length_Rows;
+		Size[1] = Length_Cols;
+		if (Array.ArrayReshaped) { free(Array.ArrayReshaped); Array.ArrayReshaped = nullptr; }
+		if (Array.Array2D) { free(Array.Array2D); Array.Array2D = nullptr; }
+		Array.ArrayReshaped = (long*)calloc((size_t)Length_Rows * (size_t)Length_Cols, sizeof(long));
+		Array.Array2D = (long**)malloc(sizeof(long*) * (size_t)Length_Rows);
+		for (i = 0; i < Length_Rows; i++) Array.Array2D[i] = Array.ArrayReshaped + (size_t)i * (size_t)Length_Cols;
+
+		Array.Length_Rows = Length_Rows;
+		Array.Length_Cols = Length_Cols;
+		k = 0;
+		for (i = 0; i < Length_Rows; i++)
+		{
+			for (j = 0; j < Length_Cols; j++)
+			{
+				Array.ArrayReshaped[k] = InputArray2D[i][j];
+				Array.Array2D[i][j] = InputArray2D[i][j];
+				k++;
+			}
+		}
+	}
+
+	ArrayUtilLong(long* InputArray1D, long Length)
+	{
+		long i;
+
+		Size[0] = Length;
+		Size[1] = 0;
+
+		Array.Length_Rows = Length;
+		Array.Length_Cols = 0;
+		if (Array.ArrayReshaped) { free(Array.ArrayReshaped); Array.ArrayReshaped = nullptr; }
+		if (Array.Array2D) { free(Array.Array2D); Array.Array2D = nullptr; }
+		Array.ArrayReshaped = (long*)calloc((size_t)Length, sizeof(long));
+		for (i = 0; i < Length; i++) Array.ArrayReshaped[i] = InputArray1D[i];
+	}
+
+	ArrayUtilLong Transpose() const
+	{
+		ArrayUtilLong result;
+
+		long rows = Array.Length_Rows;
+		long cols = Array.Length_Cols;
+
+		/* empty */
+		if (rows <= 0) {
+			return result;
+		}
+
+		/* ---------- 1D case ---------- */
+		if (cols == 0)
+		{
+			result.setarray1D(rows);
+			for (long i = 0; i < rows; i++)
+				result.Array.ArrayReshaped[i] = Array.ArrayReshaped[i];
+			return result;
+		}
+
+		/* ---------- 2D case ---------- */
+		if (rows > 0 && cols > 0)
+		{
+			result.setarray2D(cols, rows);
+
+			/* cache-friendly traversal */
+			for (long i = 0; i < rows; i++)
+			{
+				for (long j = 0; j < cols; j++)
+				{
+					result.Array.Array2D[j][i] = Array.Array2D[i][j];
+				}
+			}
+			return result;
+		}
+
+		return result;
+	}
+
+	ArrayUtilLong operator+(long x) const
+	{
+		ArrayUtilLong result;
+		if (this->Size[1] == 0)
+		{
+			result.setarray1D(this->Size[0]);
+			for (long i = 0; i < this->Size[0]; i++) result.Array.ArrayReshaped[i] = this->Array.ArrayReshaped[i] + x;
+		}
+		else
+		{
+			result.setarray2D(this->Size[0], this->Size[1]);
+			for (long i = 0; i < this->Size[0]; i++) for (long j = 0; j < this->Size[1]; j++) result.Array.Array2D[i][j] = this->Array.Array2D[i][j] + x;
+		}
+		return result;
+	}
+
+	// Print Array
+	void Print()
+	{
+		long i, j;
+		if (Size[1] == 0 && Size[0] > 0)
+		{
+			printf("[");
+			for (i = 0; i < Size[0] - 1; i++)
+				printf("%d,  ", Array.ArrayReshaped[i]);
+			printf("%d]\n", Array.ArrayReshaped[Size[0] - 1]);
+		}
+		else if (Size[0] > 0 && Size[1] > 0)
+		{
+			printf("[");
+			for (i = 0; i < Size[0] - 1; i++)
+			{
+				if (i > 0) printf(" ");
+				printf("[");
+				for (j = 0; j < Size[1] - 1; j++) printf("%d,  ", Array.Array2D[i][j]);
+				printf("%d],", Array.Array2D[i][Size[1] - 1]);
+				printf("\n");
+			}
+			printf(" [");
+			for (i = 0; i < Size[1] - 1; i++) printf("%d,  ", Array.Array2D[Size[0] - 1][i]);
+			printf("%d]", Array.Array2D[Size[0] - 1][Size[1] - 1]);
+			printf("]\n");
+		}
+	}
+
+	struct IndexProxy {
+		long* base;     // 1D일 때: ArrayReshaped
+		long** rows;    // 2D일 때: Array2D (nullptr이면 1D모드)
+		long i;
+		long cols;        // 2D일 때 cols, 1D면 0
+
+		// 2D: A[i][j]
+		long& operator[](long j) {
+			// (안전성 원하면 여기서 cols==0 체크 후 처리)
+			return rows[i][j];
+		}
+		const long& operator[](long j) const {
+			return rows[i][j];
+		}
+
+		// 1D: A[i] -> double&
+		operator long& () {
+			// 1D 모드에서만 의미
+			return base[i];
+		}
+		operator const long& () const {
+			return base[i];
+		}
+
+		// 2D: A[i] -> double*
+		operator long* () {
+			return rows ? rows[i] : (base + i); // 1D면 &base[i]
+		}
+		operator const long* () const {
+			return rows ? rows[i] : (base + i);
+		}
+	};
+
+	struct ConstIndexProxy {
+		const long* base;
+		long* const* rows; // const row-pointer array
+		long i;
+		long cols;
+
+		const long& operator[](long j) const {
+			return rows[i][j];
+		}
+
+		operator const long& () const {
+			return base[i];
+		}
+
+		operator const long* () const {
+			return rows ? rows[i] : (base + i);
+		}
+	};
+
+	// non-const
+	IndexProxy operator[](long i) {
+		return IndexProxy{ Array.ArrayReshaped, Array.Array2D, i, Array.Length_Cols };
+	}
+
+	// const
+	ConstIndexProxy operator[](long i) const {
+		return ConstIndexProxy{ Array.ArrayReshaped, (long* const*)Array.Array2D, i, Array.Length_Cols };
+	}
+
+	~ArrayUtilLong()
+	{
+		clear();
+	}
+};
+
+class FixedRandNumber {
+public : 
+	long NAsset;
+	long NDate;
+	long NSimul;
+	ArrayUtil* RN;
+	ArrayUtil CholeskyMatrix;
+	long idum_rn;
+	long iy_rn;
+	long iv_rn[NTAB];
+	long iset_rn;
+	double gset_rn;
+	long seed_rn;
+
+	FixedRandNumber()
+	{
+		NAsset = 0;
+		NDate = 0;
+		NSimul = 0;
+	}
+
+	void setrandn(const FixedRandNumber& rhs, long ResetCorr = 0)
+	{
+		long i, j, k, n;
+		double sum;
+		this->NAsset = rhs.NAsset;
+		this->NDate = rhs.NDate;
+		this->NSimul = rhs.NSimul;
+		RN = new ArrayUtil[this->NAsset];
+		CholeskyMatrix.setarray2D(this->NAsset, this->NAsset);
+		for (i = 0; i < this->NAsset * this->NAsset; i++) CholeskyMatrix.Array.ArrayReshaped[i] = rhs.CholeskyMatrix.Array.ArrayReshaped[i];
+		if (ResetCorr)
+		{
+			k = 0;
+			for (i = 0; i < this->NAsset; i++)
+			{
+				for (j = 0; j < this->NAsset; j++)
+				{
+					if (i == j) CholeskyMatrix.Array.ArrayReshaped[k] = 1.0;
+					else CholeskyMatrix.Array.ArrayReshaped[k] = 0.;
+					k++;
+				}
+			}
+		}
+
+		n = 0;
+		for (i = 0; i < NAsset; i++)
+		{
+			if (i == 0)
+			{
+				RN[i].set_new_randomseed(rhs.RN[NAsset - 1]);
+				RN[0].setarray2D(NDate, NSimul, 1, 0, 1);
+				n++;
+			}
+			else
+			{
+				RN[i].set_new_randomseed(RN[i - 1]);
+				RN[i].setarray2D(NDate, NSimul, 1, 0, 1);
+				n++;
+			}
+		}
+
+		double* rndm = (double*)malloc(sizeof(double) * (size_t)NAsset);
+		for (i = 0; i < NDate * NSimul; i++)
+		{
+			for (j = 0; j < NAsset; j++)
+			{
+				rndm[j] = RN[j].Array.ArrayReshaped[i];
+			}
+
+			for (j = 0; j < NAsset; j++)
+			{
+				sum = 0.0;
+				for (k = 0; k <= j; k++)
+				{
+					sum += CholeskyMatrix.Array.Array2D[j][k] * rndm[k];
+				}
+				RN[j].Array.ArrayReshaped[i] = sum;
+			}
+		}
+
+		this->idum_rn = RN[NAsset - 1].idum_rn;
+		this->iy_rn = RN[NAsset - 1].iy_rn;
+		this->iset_rn = RN[NAsset - 1].iset_rn;
+		this->gset_rn = RN[NAsset - 1].gset_rn;
+		this->seed_rn = RN[NAsset - 1].seed_rn;
+		for (i = 0; i < NTAB; i++) this->iv_rn[i] = RN[NAsset - 1].iv_rn[i];
+		free(rndm);
+	}
+
+	void setrandn(long NumAsset, long NumDate, long NumSimul, double** Corr)
+	{
+		long i, j, k, n;
+		double sum;
+		this->NAsset = NumAsset;
+		this->NDate = NumDate;
+		this->NSimul = NumSimul;
+		RN = new ArrayUtil[NAsset];
+		CholeskyMatrix.setarray2D(NumAsset, NumAsset);
+		// Decomposing a matrix into Lower Triangular
+		for (i = 0; i < this->NAsset; i++) {
+			for (j = 0; j <= i; j++) {
+				sum = 0.0;
+
+				if (j == i) // summation for diagonals
+				{
+					for (k = 0; k < j; k++) sum += CholeskyMatrix.Array.Array2D[j][k] * CholeskyMatrix.Array.Array2D[j][k];
+					CholeskyMatrix.Array.Array2D[j][j] = sqrt(Corr[j][j] - sum);
+				}
+				else
+				{
+					// Evaluating L(i, j) using L(j, j)
+					for (k = 0; k < j; k++) sum += (CholeskyMatrix.Array.Array2D[i][k] * CholeskyMatrix.Array.Array2D[j][k]);
+					CholeskyMatrix.Array.Array2D[i][j] = (Corr[i][j] - sum) / CholeskyMatrix.Array.Array2D[j][j];
+				}
+			}
+		}
+		
+		n = 0;
+		for (i = 0; i < NAsset; i++)
+		{
+			if (i == 0)
+			{
+				RN[0].setarray2D(NDate, NSimul, 1, 0, 0);
+				n++;
+			}
+			else
+			{
+				RN[i].set_new_randomseed(RN[i - 1]);
+				RN[i].setarray2D(NDate, NSimul, 1, 0, 1);
+				n++;
+			}
+		}
+
+		double* rndm = (double*)malloc(sizeof(double) * (size_t)NumAsset);
+		for (i = 0; i < NumDate * NumSimul; i++)
+		{
+			for (j = 0; j < NumAsset; j++)
+			{
+				rndm[j] = RN[j].Array.ArrayReshaped[i];
+			}
+
+			for (j = 0; j < NumAsset; j++)
+			{
+				sum = 0.0;
+				for (k = 0; k <= j; k++)
+				{
+					sum += CholeskyMatrix.Array.Array2D[j][k] * rndm[k];
+				}
+				RN[j].Array.ArrayReshaped[i] = sum;
+			}
+		}
+
+		this->idum_rn = RN[NAsset - 1].idum_rn;
+		this->iy_rn = RN[NAsset - 1].iy_rn;
+		this->iset_rn = RN[NAsset - 1].iset_rn;
+		this->gset_rn = RN[NAsset - 1].gset_rn;
+		this->seed_rn = RN[NAsset - 1].seed_rn;
+		for (i = 0; i < NTAB; i++) this->iv_rn[i] = RN[NAsset - 1].iv_rn[i];
+		free(rndm);
+	}
+
+	FixedRandNumber(long NumAsset, long NumDate, long NumSimul, double** Corr)
+	{
+		setrandn(NumAsset, NumDate, NumSimul, Corr);
+	}
+
+
+	void Print()
+	{
+		long i;
+		printf("[");
+		for (i = 0; i < this->NAsset; i++)
+		{
+			RN[i].Print();
+			if (i < this->NAsset - 1) printf(",\n");
+		}
+		printf("]\n");
+	}
+
+	void ChokesyPrint()
+	{
+		CholeskyMatrix.Print();
+	}
+
+	~FixedRandNumber()
+	{
+		delete[] RN;
+	}
+};
+
+class TimeSeries {
+private : 
+	long n;
+	long m;
+public : 
+	ArrayUtilLong index;
+	ArrayUtil values;
+	TimeSeries(double* Values, long* Index, long Length)
+	{
+		n = Length;
+		m = 1;
+		this->index.setarray1D(Index, Length);
+		this->values.setarray2D(Length, 1);
+		for (long i = 0; i < Length; i++) this->values.Array.ArrayReshaped[i] = Values[i];
+	}
+
+	TimeSeries(double** Values, long* Index, long Length, long NumberVariables)
+	{
+		long i, j, k;
+		n = Length;
+		m = NumberVariables;
+		this->index.setarray1D(n);
+		for (i = 0; i < n; i++) this->index.Array.ArrayReshaped[i] = Index[i];
+		this->values.setarray2D(n, m);
+		for (i = 0; i < n; i++) for (j = 0; j < m; j++) this->values.Array.Array2D[i][j] = Values[i][j];
+	}
+
+	TimeSeries(ArrayUtil& Values, ArrayUtilLong& Index) 
+	{
+		long i;
+		n = Values.shape(0);
+		m = Values.shape(1);
+		this->index.setarray1D(Index.Array.ArrayReshaped, n);
+		this->values.setarray2D(n, m);
+		for (i = 0; i < n * m; i++) this->values.Array.ArrayReshaped[i] = Values.Array.ArrayReshaped[i];
+	}
+
+	ArrayUtil FindValues(long TargetIndex) const
+	{
+		long i, j;
+		ArrayUtil Result;
+		Result.setarray1D(m);
+		for (i = 0; i < n; i++)
+		{
+			if (TargetIndex == this->index.Array.ArrayReshaped[i])
+			{
+				for (j = 0; j < m; j++)
+				{
+					Result.Array.ArrayReshaped[j] = this->values.Array.Array2D[i][j];
+				}
+				break;
+			}
+		}
+		return Result;
+	}
+
+	long len()
+	{
+		return n;
+	}
+
+	void sort_index(long ascending)
+	{
+		long temp;
+		double temp_value;
+		long i, j, k;
+
+		if (ascending == 1)
+		{
+			for (i = 0; i < n; i++)
+			{
+				for (j = 0; j < n - 1; j++)
+				{
+					if (index.Array.ArrayReshaped[j] > index.Array.ArrayReshaped[j + 1])
+					{
+						temp = index.Array.ArrayReshaped[j];
+						for (k = 0; k < m; k++)
+						{
+							temp_value = values.Array.Array2D[i][k];
+							values.Array.Array2D[j][k] = values.Array.Array2D[j + 1][k];
+							values.Array.Array2D[j + 1][k] = temp_value;
+						}
+						index.Array.ArrayReshaped[j] = index.Array.ArrayReshaped[j + 1];
+						index.Array.ArrayReshaped[j + 1] = temp;
+					}
+				}
+			}
+		}
+		else
+		{
+			for (i = 0; i < n; i++)
+			{
+				for (j = 0; j < n - 1; j++)
+				{
+					if (index.Array.ArrayReshaped[j] < index.Array.ArrayReshaped[j + 1])
+					{
+						temp = index.Array.ArrayReshaped[j];
+						for (k = 0; k < m; k++)
+						{
+							temp_value = values.Array.Array2D[i][k];
+							values.Array.Array2D[j][k] = values.Array.Array2D[j + 1][k];
+							values.Array.Array2D[j + 1][k] = temp_value;
+						}
+						index.Array.ArrayReshaped[j] = index.Array.ArrayReshaped[j + 1];
+						index.Array.ArrayReshaped[j + 1] = temp;
+					}
+				}
+			}
+		}
+	}
+
+	void Print()
+	{
+		long i, j;
+		for (i = 0; i < this->n; i++)
+		{
+			printf("%d : ", this->index.Array.ArrayReshaped[i]);
+			if (i == 0) printf("[");
+			for (j = 0; j < this->m; j++)
+			{
+				if (j == 0)
+				{
+					if (values.Array.Array2D[i][j] > 0.) printf("[%0.5lf,", values.Array.Array2D[i][j]);
+					else printf("[%0.4lf,", values.Array.Array2D[i][j]);
+				}
+				else if (j == this->n - 1)
+				{
+					if (values.Array.Array2D[i][j] > 0.) printf("%0.5lf]", values.Array.Array2D[i][j]);
+					else printf("%0.4lf]", values.Array.Array2D[i][j]);
+				}
+				else
+				{
+					if (values.Array.Array2D[i][j] > 0.) printf("%0.5lf,", values.Array.Array2D[i][j]);
+					else printf("%0.4lf,", values.Array.Array2D[i][j]);
+				}
+
+			}
+			if (i == this->n - 1) printf("]");
+			printf("\n");
+		}
+	}
+};
