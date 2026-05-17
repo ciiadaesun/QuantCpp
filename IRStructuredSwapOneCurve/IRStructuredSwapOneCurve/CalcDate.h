@@ -1411,7 +1411,7 @@ void Mapping_Holiday16(long YYYY, long* Array16)
         // 개천절이 추석에 껴있을 경우 하루 더 대체휴일
         GaeChun = DayPlus(Chuseok[2], 1);
         if (CDateToExcelDate(GaeChun) % 7 == 0) GaeChun = DayPlus(GaeChun, 2);
-        else if (CDateToExcelDate(GaeChun) % 7 == 1) GaeChun == DayPlus(GaeChun, 1);
+        else if (CDateToExcelDate(GaeChun) % 7 == 1) GaeChun = DayPlus(GaeChun, 1);
     }
     Array16[13] = GaeChun;
 

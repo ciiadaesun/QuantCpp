@@ -5,6 +5,10 @@
     {
       "AbsoluteMoniker": "D:0:0:{A2FA57A8-BBFB-46EE-B6C3-DA86CB90CBEA}|IRS\\IRS.vcxproj|C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRS\\IRS\\IRS.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
       "RelativeMoniker": "D:0:0:{A2FA57A8-BBFB-46EE-B6C3-DA86CB90CBEA}|IRS\\IRS.vcxproj|solutionrelative:IRS\\IRS.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{A2FA57A8-BBFB-46EE-B6C3-DA86CB90CBEA}|IRS\\IRS.vcxproj|C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRS\\IRS\\Util.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{A2FA57A8-BBFB-46EE-B6C3-DA86CB90CBEA}|IRS\\IRS.vcxproj|solutionrelative:IRS\\Util.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     }
   ],
   "DocumentGroupContainers": [
@@ -24,9 +28,23 @@
               "RelativeDocumentMoniker": "IRS\\IRS.cpp",
               "ToolTip": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRS\\IRS\\IRS.cpp",
               "RelativeToolTip": "IRS\\IRS.cpp",
-              "ViewState": "AgIAADQIAAAAAAAAAAAmwFwIAACFAAAAAAAAAA==",
+              "ViewState": "AgIAALEMAAAAAAAAAAAmwMEMAAAXAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
               "WhenOpened": "2025-08-23T14:02:06.477Z",
+              "IsPinned": true,
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Util.h",
+              "DocumentMoniker": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRS\\IRS\\Util.h",
+              "RelativeDocumentMoniker": "IRS\\Util.h",
+              "ToolTip": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRS\\IRS\\Util.h",
+              "RelativeToolTip": "IRS\\Util.h",
+              "ViewState": "AgIAAEUUAAAAAAAAAAAmwF8UAAAdAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
+              "WhenOpened": "2026-05-17T10:56:37.342Z",
               "EditorCaption": ""
             }
           ]

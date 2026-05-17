@@ -2195,6 +2195,7 @@ double LegValue(
     value = sumation(DiscCFArray, Schedule->NCF);
     return value;
 }
+
 long SwapPricer(
     long PriceDate_C,
     long CalcCRSFlag,
