@@ -45,44 +45,13 @@ C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructu
 C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4598,10): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
 C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4777,12): warning C4101: 'sigma' :참조되지 않은 지역 변수입니다.
 C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(5541,12): warning C4101: 'fm' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(27,8): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(38,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(170,9): warning C4101: 'u_i_j' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(315,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(365,7): warning C4101: 'i' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(412,9): warning C4101: 'A' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(443,7): warning C4101: 'imax' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(976,60): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1021,65): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1031,64): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1105,60): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1106,61): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1168,66): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1170,68): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1180,65): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1182,67): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1275,60): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1320,65): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1330,64): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1402,60): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1403,61): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1465,66): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1467,68): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1477,65): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1479,67): warning C4244: '인수': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1659,117): warning C4101: 'R' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(871,26): warning C4101: 'y_p' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(871,21): warning C4101: 'x_p' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1657,47): warning C4101: 'fwdvar' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(587,13): warning C4101: 'k' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(957,21): warning C4101: 'df_T_Rcv' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(957,31): warning C4101: 'df_T_Pay' :참조되지 않은 지역 변수입니다.
+C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(518,8): warning C4101: 'nAvg' :참조되지 않은 지역 변수입니다.
      C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\Release\IRStructuredSwapOneCurve.lib 라이브러리 및 C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\Release\IRStructuredSwapOneCurve.exp 개체를 생성하고 있습니다.
   코드를 생성하고 있습니다.
   Previous IPDB not found, fall back to full compilation.
 C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\HW_Calibration.h(4985): warning C4715: 'HWCapHWSwaption_2FCalibration': 모든 제어 경로에서 값을 반환하지는 않습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1194): warning C4723: 0의 나누기 연산이 발생할 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1491): warning C4723: 0의 나누기 연산이 발생할 수 있습니다.
-  All 193 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1296): warning C4723: 0의 나누기 연산이 발생할 수 있습니다.
+C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve\IRStructuredSwapOneCurve.cpp(1593): warning C4723: 0의 나누기 연산이 발생할 수 있습니다.
+  All 194 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
   코드를 생성했습니다.
   IRStructuredSwapOneCurve.vcxproj -> C:\Users\임대선\Desktop\새 폴더\github5\IRStructuredSwapOneCurve\Release\IRStructuredSwapOneCurve.dll

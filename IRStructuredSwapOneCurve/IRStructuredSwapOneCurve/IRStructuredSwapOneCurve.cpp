@@ -24,7 +24,6 @@ double rounding_double(double x, long n_decimal)
 	else
 	{
 		long i;
-		long j;
 		double div = 1.0;
 		for (i = 0; i < min(15, n_decimal); i++) div *= 10.0;
 
@@ -35,7 +34,6 @@ double rounding_double(double x, long n_decimal)
 
 DLLEXPORT(long) NCpnDate_Holiday_2Phase(long PriceDateYYYYMMDD, long SwapMat_YYYYMMDD, long AnnCpnOneYearPhase1, long Phase2UseFlag, long AnnCpnOneYearPhase2, long Phase2Date, long ModifiedFollowing)
 {
-	long i;
 	if (AnnCpnOneYearPhase1 < 0) AnnCpnOneYearPhase1 = 0;
 	if (AnnCpnOneYearPhase2 < 0) AnnCpnOneYearPhase2 = 0;
 
@@ -167,7 +165,7 @@ void ResultRHS_2F(
 )
 {
 	long i, j;
-	double u_i_j, u_iu_jd, u_id_ju, u_iu_ju, u_id_jd;
+	double u_iu_jd, u_id_ju, u_iu_ju, u_id_jd;
 	double s = s_2F(sig1, sig2, corr_factor, dt, dx, dy);
 
 	for (i = 0; i < NGreed; i++)
@@ -312,7 +310,6 @@ double HullWhiteQVTerm(
 	double* HWVol
 )
 {
-	long i;
 	double vol;
 	double RHS = 0.0;
 	double V_1, V_2, V_3;
@@ -362,7 +359,6 @@ double HullWhite2F_CrossTerm(
 	double rho
 )
 {
-	long i;
 	double vol, vol2;
 	double RHS = 0.0;
 	double V_1, V_2, V_3;
@@ -409,7 +405,7 @@ double HW_Rate(
 	double PtT;
 	double term = 1.0 / ((double)NCPN_Ann);
 	double ResultRate;
-	double A, B;
+	double B;
 	if (ReferenceType == 0) NCfSwap = 1;
 	if (NCPN_Ann > 0)
 	{
@@ -436,12 +432,21 @@ double HW_Rate(
 	return ResultRate;
 }
 
+long CountModRange(long start, long end, long mod, long remainder)
+{
+	// [start, end) 구간에서 x % mod == remainder 개수
+	return (end - 1 - remainder) / mod
+		- (start - 1 - remainder) / mod;
+}
+
 double DayCountFractionAtoB(long Day1, long Day2, long Flag)
 {
 	long i;
 	double tau;
-	long imax;
 	double Div;
+	long YearA, YearB;
+	long MonthA, MonthB;
+	long nMonth;
 
 	if (Day1 < 19000000 && Day2 < 19000000)
 	{
@@ -453,8 +458,6 @@ double DayCountFractionAtoB(long Day1, long Day2, long Flag)
 	else if (Flag == 1) return DayCountAtoB(Day1, Day2) / 360.;
 	else if (Flag == 2)
 	{
-		long YearA, YearB;
-		long MonthA, MonthB;
 		long DayA, DayB;
 		long CurrentY;
 		long NextY;
@@ -494,11 +497,8 @@ double DayCountFractionAtoB(long Day1, long Day2, long Flag)
 			return tau;
 		}
 	}
-	else
+	else if (Flag == 3)
 	{
-		long YearA, YearB;
-		long MonthA, MonthB;
-		long nMonth;
 		YearA = Day1 / 10000;
 		MonthA = (Day1 - YearA * 10000) / 100;
 
@@ -507,6 +507,40 @@ double DayCountFractionAtoB(long Day1, long Day2, long Flag)
 
 		nMonth = (YearB - YearA) * 12 + (MonthB - MonthA);
 		return ((double)30. * (nMonth)) / 360.0;
+	}
+	else
+	{
+		long ExcelEndDate;
+		long ExcelDate1 = CDateToExcelDate(Day1);
+		long ExcelDate2 = CDateToExcelDate(Day2);
+		long nDayExceptWeekend = ExcelDate2 - ExcelDate1 - (CountModRange(ExcelDate1, ExcelDate2, 7, 0) + CountModRange(ExcelDate1, ExcelDate2, 7, 1));
+		double nDayDiv;
+		long nAvg;
+		YearA = Day1 / 10000;
+		MonthA = (Day1 - YearA * 10000) / 100;
+
+		YearB = Day2 / 10000;
+		MonthB = (Day2 - YearB * 10000) / 100;
+		if (YearA == YearB)
+		{
+			ExcelEndDate = CDateToExcelDate(Day1 + 10000);
+			nDayDiv = (double)(ExcelEndDate - ExcelDate1 - (CountModRange(ExcelDate1, ExcelEndDate, 7, 0) + CountModRange(ExcelDate1, ExcelEndDate, 7, 1)));
+			return ((double)nDayExceptWeekend) / nDayDiv;
+		}
+		else
+		{
+			if (MonthA < MonthB)
+			{
+				ExcelEndDate = CDateToExcelDate(Day1 + (YearB - YearA + 1) * 10000);
+				nDayDiv = (double)(ExcelEndDate - ExcelDate1 - (CountModRange(ExcelDate1, ExcelEndDate, 7, 0) + CountModRange(ExcelDate1, ExcelEndDate, 7, 1))) / ((double)(YearB - YearA + 1));
+			}
+			else 
+			{
+				ExcelEndDate = CDateToExcelDate(Day1 + (YearB - YearA) * 10000);
+				nDayDiv = (double)(ExcelEndDate - ExcelDate1 - (CountModRange(ExcelDate1, ExcelEndDate, 7, 0) + CountModRange(ExcelDate1, ExcelEndDate, 7, 1))) / ((double)(YearB - YearA));
+			}
+			return ((double)nDayExceptWeekend) / nDayDiv;
+		}
 	}
 }
 
@@ -573,8 +607,10 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 
 	double* kappa,
 	double FactorCorrelation,
+	long* RangeAccrualFlagRcvPay,
 	long* InterestRateRoundingRcvPay,
 	long* ResultCpnDateRcv,
+
 	long* ResultCpnDatePay,
 	double* ResultFixingRateCpn,
 	long TextFlag
@@ -585,6 +621,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	if (EffectiveDate < 19000101) EffectiveDate = ExcelDateToCDate(EffectiveDate);
 	if (Phase2Date < 19000101) Phase2Date = ExcelDateToCDate(Phase2Date);
 	long i, j, k, n;
+	double w1, w2;
 	for (i = 0; i < NAdditionalHolidays[0] + NAdditionalHolidays[1]; i++) if (AdditionalHolidays[i] < 19000101) AdditionalHolidays[i] = ExcelDateToCDate(AdditionalHolidays[i]);
 	for (i = 0; i < NOption; i++) if (OptionDate[i] < 19000101) OptionDate[i] = ExcelDateToCDate(OptionDate[i]);
 	for (i = 0; i < NOption; i++) if (OptionPayDate[i] < 19000101) OptionPayDate[i] = ExcelDateToCDate(OptionPayDate[i]);
@@ -664,6 +701,10 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	if (BondFlag == 1) NAFlag = 1;
 
 	long idx1, idx2;
+	long RcvRangeAccrualFlag = RangeAccrualFlagRcvPay[0] > 0;
+	long PayRangeAccrualFlag = RangeAccrualFlagRcvPay[1] > 0;
+	long NHist;
+
 	long NGreed = 100;
 
 	long PowerSpreadFlagRcv = PowerSpreadFlagRcvPay[0];
@@ -717,11 +758,11 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	double* HWVol2 = HWVol + NHWVol;
 
 	long NTotalHoliday[2] = { 0, 0 };
-	long** TotalHolidays = (long**)malloc(sizeof(long*) * 2);			// 할당1
+	long** TotalHolidays = (long**)malloc(sizeof(long*) * 2);															// 할당1
 	long nsum = 0;
 	long NCpnDate[2] = { 0, 0 };
-	long** CpnDate = (long**)malloc(sizeof(long*) * 2);					// 할당2
-	long** CpnPayDate = (long**)malloc(sizeof(long*) * 2);				// 할당3
+	long** CpnDate = (long**)malloc(sizeof(long*) * 2);																	// 할당2
+	long** CpnPayDate = (long**)malloc(sizeof(long*) * 2);																// 할당3
 
 	long TempDate = PriceDate;
 	long* TempHoliday;
@@ -827,7 +868,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	long* PayPaymentDate = ResultCpnDatePay + 2 * NCpnDate[1];
 
 	long NTotalSimulNotAdj = NCpnDate[0] * 2 + NCpnDate[1] * 2 + NOption * 2 + 2;
-	long* TotalArraySimulNotAdj = (long*)malloc(sizeof(long) * NTotalSimulNotAdj);
+	long* TotalArraySimulNotAdj = (long*)malloc(sizeof(long) * NTotalSimulNotAdj);													// 할당 4
 	TotalArraySimulNotAdj[0] = EffectiveDate;
 	TotalArraySimulNotAdj[1] = PriceDate;
 	for (i = 0; i < NCpnDate[0]; i++) TotalArraySimulNotAdj[2 + i] = CpnDate[0][i];
@@ -837,10 +878,61 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	for (i = 0; i < NOption; i++) TotalArraySimulNotAdj[2 + i + 2 * NCpnDate[0] + 2 * NCpnDate[1]] = OptionDate[i];
 	for (i = 0; i < NOption; i++) TotalArraySimulNotAdj[2 + i + 2 * NCpnDate[0] + 2 * NCpnDate[1] + NOption] = OptionPayDate[i];
 	long NTotalSimul = 0;
-	long* TotalArrayDateSimul = MallocUnique(TotalArraySimulNotAdj, NTotalSimulNotAdj, NTotalSimul);
+	long* TotalArrayDateSimul;
+	long ND, HolFlag, CDate;
+	if (RcvRangeAccrualFlag != 1 && PayRangeAccrualFlag != 1)
+	{
+		TotalArrayDateSimul = MallocUnique(TotalArraySimulNotAdj, NTotalSimulNotAdj, NTotalSimul);								// 할당 5
+	}
+	else
+	{
+		ND = DayCountAtoB(PriceDate, max(CpnPayDate[0][NCpnDate[0] - 1], CpnPayDate[0][NCpnDate[1] - 1]));
+		NBD = 0;		
+		for (i = 0; i < ND; i++)
+		{
+			if (i == 0) CDate = PriceDate;
+			else CDate = DayPlus(CDate, 1);
+			if (isin_Longtype(CDate, TotalHolidays[0], NTotalHoliday[0]) && isin_Longtype(CDate, TotalHolidays[1], NTotalHoliday[1])) HolFlag = 1;
+			else if (isweekendflag(CDate)) HolFlag = 1;
+			else HolFlag = 0;
+
+			if (isin_Longtype(CDate, RcvFixingDate, NCpnDateRcv)) HolFlag = 0;
+			if (isin_Longtype(CDate, RcvPaymentDate, NCpnDateRcv)) HolFlag = 0;
+			if (isin_Longtype(CDate, PayFixingDate, NCpnDatePay)) HolFlag = 0; // 픽싱데이트 있으면 그냥 영업일로 고정
+			if (isin_Longtype(CDate, PayPaymentDate, NCpnDateRcv)) HolFlag = 0;
+			if (isin_Longtype(CDate, OptionDate, NOption)) HolFlag = 0;
+			if (isin_Longtype(CDate, OptionPayDate, NOption)) HolFlag = 0;
+
+			if (HolFlag == 0) NBD += 1;
+		}
+		NTotalSimul = NBD;
+		TotalArrayDateSimul = (long*)malloc(sizeof(long) * NBD);
+		k = 0;
+		for (i = 0; i < ND; i++)
+		{
+			if (i == 0) CDate = PriceDate;
+			else CDate = DayPlus(CDate, 1);
+			if (isin_Longtype(CDate, TotalHolidays[0], NTotalHoliday[0]) && isin_Longtype(CDate, TotalHolidays[1], NTotalHoliday[1])) HolFlag = 1;
+			else if (isweekendflag(CDate)) HolFlag = 1;
+			else HolFlag = 0;
+
+			if (isin_Longtype(CDate, RcvFixingDate, NCpnDateRcv)) HolFlag = 0;
+			if (isin_Longtype(CDate, RcvPaymentDate, NCpnDateRcv)) HolFlag = 0;
+			if (isin_Longtype(CDate, PayFixingDate, NCpnDatePay)) HolFlag = 0; // 픽싱데이트 있으면 그냥 영업일로 고정
+			if (isin_Longtype(CDate, PayPaymentDate, NCpnDateRcv)) HolFlag = 0;
+			if (isin_Longtype(CDate, OptionDate, NOption)) HolFlag = 0;
+			if (isin_Longtype(CDate, OptionPayDate, NOption)) HolFlag = 0;
+
+			if (HolFlag == 0)
+			{
+				TotalArrayDateSimul[k] = CDate;
+				k += 1;
+			}
+		}
+	}
 	bubble_sort_date(TotalArrayDateSimul, NTotalSimul, 1);
-	double* dtime = (double*)malloc(sizeof(double) * NTotalSimul);
-	double* Time = (double*)malloc(sizeof(double) * NTotalSimul);
+	double* dtime = (double*)malloc(sizeof(double) * NTotalSimul);																	// 할당 6
+	double* Time = (double*)malloc(sizeof(double) * NTotalSimul);																	// 할당 7
 	for (i = 0; i < NTotalSimul; i++)
 	{
 		Time[i] = ((double)DayCountAtoB(PriceDate, TotalArrayDateSimul[i])) / 365.;
@@ -848,8 +940,8 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 		else dtime[i] = ((double)DayCountAtoB(TotalArrayDateSimul[i - 1], TotalArrayDateSimul[i])) / 365.;
 	}
 
-	double* ResultFixingRateCpnRcv = ResultFixingRateCpn + 1;
-	double* ResultFixingRateCpnPay = ResultFixingRateCpn + 1 + NCpnDate[0] * 2;
+	double* ResultFixingRateCpnRcv = ResultFixingRateCpn + 3;
+	double* ResultFixingRateCpnPay = ResultFixingRateCpn + 3 + NCpnDate[0] * 2;
 
 	//////////////////////////
 	// KDB ZeroCallableSwap //
@@ -868,93 +960,103 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	double dxt = (xt_max - xt_min) / ((double)NGreed);
 	double yt_min = -0.1, yt_max = 0.4;
 	double dyt = (yt_max - yt_min) / ((double)NGreed);
-	double x, y, Rate, x_p, y_p, Rate_p;
+	double x, y, Rate, Rate_p;
 
-	double* xt = (double*)malloc(sizeof(double) * NGreed);
-	double* yt = (double*)malloc(sizeof(double) * NGreed);
+	double* xt = (double*)malloc(sizeof(double) * NGreed);																			// 할당 8
+	double* yt = (double*)malloc(sizeof(double) * NGreed);																			// 할당 9
 	for (i = 0; i < NGreed; i++) xt[i] = xt_min + ((double)i) * dxt;
 	for (i = 0; i < NGreed; i++) yt[i] = yt_min + ((double)i) * dyt;
-	double* RcvLastFixingPayoff_1F = (double*)malloc(sizeof(double) * NGreed);
-	double* PayLastFixingPayoff_1F = (double*)malloc(sizeof(double) * NGreed);
-	double** RcvLastFixingPayoff_2F = (double**)malloc(sizeof(double*) * NGreed);
-	double** PayLastFixingPayoff_2F = (double**)malloc(sizeof(double*) * NGreed);
-	for (i = 0; i < NGreed; i++) RcvLastFixingPayoff_2F[i] = (double*)malloc(sizeof(double) * NGreed);
-	for (i = 0; i < NGreed; i++) PayLastFixingPayoff_2F[i] = (double*)malloc(sizeof(double) * NGreed);
+	double* RcvLastFixingPayoff_1F = (double*)malloc(sizeof(double) * NGreed);														// 할당 10
+	double* RcvLastFixingPayoff_2F_Reshaped = (double*)malloc(sizeof(double) * NGreed * NGreed);									// 할당 11
+	double** RcvLastFixingPayoff_2F = (double**)malloc(sizeof(double*) * NGreed);													// 할당 12
+	for (i = 0; i < NGreed; i++) RcvLastFixingPayoff_2F[i] = RcvLastFixingPayoff_2F_Reshaped + i * NGreed;
+	
+	double* PayLastFixingPayoff_1F = (double*)malloc(sizeof(double) * NGreed);														// 할당 13
+	double* PayLastFixingPayoff_2F_Reshaped = (double*)malloc(sizeof(double) * NGreed * NGreed);									// 할당 14
+	double** PayLastFixingPayoff_2F = (double**)malloc(sizeof(double*) * NGreed);													// 할당 15
+	for (i = 0; i < NGreed; i++) PayLastFixingPayoff_2F[i] = PayLastFixingPayoff_2F_Reshaped + i * NGreed;
 
-	double** Rate_Rcv_1F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Rate_RcvPowerSpread_1F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double*** Rate_Rcv_2F = (double***)malloc(sizeof(double**) * NTotalSimul);
-	double*** Rate_RcvPowerSpread_2F = (double***)malloc(sizeof(double**) * NTotalSimul);
-	for (i = 0; i < NTotalSimul; i++)
-	{
-		Rate_Rcv_1F[i] = (double*)malloc(sizeof(double) * NGreed);
-		Rate_RcvPowerSpread_1F[i] = (double*)malloc(sizeof(double) * NGreed);
-		Rate_Rcv_2F[i] = (double**)malloc(sizeof(double*) * NGreed);
-		Rate_RcvPowerSpread_2F[i] = (double**)malloc(sizeof(double*) * NGreed);
-		for (j = 0; j < NGreed; j++)
-		{
-			Rate_Rcv_2F[i][j] = (double*)malloc(sizeof(double) * NGreed);
-			Rate_RcvPowerSpread_2F[i][j] = (double*)malloc(sizeof(double) * NGreed);
-		}
-	}
+	double* Rate_Rcv_1F_Reshaped = (double*)malloc(sizeof(double) * NTotalSimul * NGreed);											// 할당 16
+	double** Rate_Rcv_1F = (double**)malloc(sizeof(double*) * NTotalSimul);															// 할당 17
+	for (i = 0; i < NTotalSimul; i++) Rate_Rcv_1F[i] = Rate_Rcv_1F_Reshaped + i * NGreed;
 
-	double** Rate_Pay_1F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Rate_PayPowerSpread_1F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double*** Rate_Pay_2F = (double***)malloc(sizeof(double**) * NTotalSimul);
-	double*** Rate_PayPowerSpread_2F = (double***)malloc(sizeof(double**) * NTotalSimul);
-	for (i = 0; i < NTotalSimul; i++)
-	{
-		Rate_Pay_1F[i] = (double*)malloc(sizeof(double) * NGreed);
-		Rate_PayPowerSpread_1F[i] = (double*)malloc(sizeof(double) * NGreed);
-		Rate_Pay_2F[i] = (double**)malloc(sizeof(double*) * NGreed);
-		Rate_PayPowerSpread_2F[i] = (double**)malloc(sizeof(double*) * NGreed);
-		for (j = 0; j < NGreed; j++)
-		{
-			Rate_Pay_2F[i][j] = (double*)malloc(sizeof(double) * NGreed);
-			Rate_PayPowerSpread_2F[i][j] = (double*)malloc(sizeof(double) * NGreed);
-		}
-	}
+	double* Rate_RcvPowerSpread_1F_Reshaped = (double*)malloc(sizeof(double) * NTotalSimul * NGreed);								// 할당 18
+	double** Rate_RcvPowerSpread_1F = (double**)malloc(sizeof(double*) * NTotalSimul);												// 할당 19
+	for (i = 0; i < NTotalSimul; i++) Rate_RcvPowerSpread_1F[i] = Rate_RcvPowerSpread_1F_Reshaped + i * NGreed;
+
+	double* Rate_Rcv_2F_Reshaped = (double*)malloc(sizeof(double) * NTotalSimul * NGreed * NGreed);									// 할당 20
+	double** Rate_Rcv_2F_Reshaped2 = (double**)malloc(sizeof(double*) * NTotalSimul * NGreed);										// 할당 21
+	double*** Rate_Rcv_2F = (double***)malloc(sizeof(double**) * NTotalSimul);														// 할당 22
+	for (i = 0; i < NTotalSimul; i++) Rate_Rcv_2F[i] = Rate_Rcv_2F_Reshaped2 + i * NGreed;
+	for (i = 0; i < NTotalSimul; i++) for (j = 0; j < NGreed; j++) Rate_Rcv_2F[i][j] = Rate_Rcv_2F_Reshaped + i * NGreed * NGreed + j * NGreed;
+
+	double* Rate_RcvPowerSpread_2F_Reshaped = (double*)malloc(sizeof(double) * NTotalSimul * NGreed * NGreed);						// 할당 23
+	double** Rate_RcvPowerSpread_2F_Reshaped2 = (double**)malloc(sizeof(double*) * NTotalSimul * NGreed);							// 할당 24
+	double*** Rate_RcvPowerSpread_2F = (double***)malloc(sizeof(double**) * NTotalSimul);											// 할당 25
+	for (i = 0; i < NTotalSimul; i++) Rate_RcvPowerSpread_2F[i] = Rate_RcvPowerSpread_2F_Reshaped2 + i * NGreed;
+	for (i = 0; i < NTotalSimul; i++) for (j = 0; j < NGreed; j++) Rate_RcvPowerSpread_2F[i][j] = Rate_RcvPowerSpread_2F_Reshaped + i * NGreed * NGreed + j * NGreed;
+
+	double* Rate_Pay_1F_Reshaped = (double*)malloc(sizeof(double) * NTotalSimul * NGreed);											// 할당 26
+	double** Rate_Pay_1F = (double**)malloc(sizeof(double*) * NTotalSimul);															// 할당 27
+	for (i = 0; i < NTotalSimul; i++) Rate_Pay_1F[i] = Rate_Pay_1F_Reshaped + i * NGreed;
+
+	double* Rate_PayPowerSpread_1F_Reshaped = (double*)malloc(sizeof(double) * NTotalSimul * NGreed);								// 할당 28
+	double** Rate_PayPowerSpread_1F = (double**)malloc(sizeof(double*) * NTotalSimul);												// 할당 29
+	for (i = 0; i < NTotalSimul; i++) Rate_PayPowerSpread_1F[i] = Rate_PayPowerSpread_1F_Reshaped + i * NGreed;
+
+	double* Rate_Pay_2F_Reshaped = (double*)malloc(sizeof(double) * NTotalSimul * NGreed * NGreed);									// 할당 30
+	double** Rate_Pay_2F_Reshaped2 = (double**)malloc(sizeof(double*) * NTotalSimul * NGreed);										// 할당 31
+	double*** Rate_Pay_2F = (double***)malloc(sizeof(double**) * NTotalSimul);														// 할당 32
+	for (i = 0; i < NTotalSimul; i++) Rate_Pay_2F[i] = Rate_Pay_2F_Reshaped2 + i * NGreed;
+	for (i = 0; i < NTotalSimul; i++) for (j = 0; j < NGreed; j++) Rate_Pay_2F[i][j] = Rate_Pay_2F_Reshaped + i * NGreed * NGreed + j * NGreed;
+
+	double* Rate_PayPowerSpread_2F_Reshaped = (double*)malloc(sizeof(double) * NTotalSimul * NGreed * NGreed);						// 할당 33
+	double** Rate_PayPowerSpread_2F_Reshaped2 = (double**)malloc(sizeof(double*) * NTotalSimul * NGreed);							// 할당 34
+	double*** Rate_PayPowerSpread_2F = (double***)malloc(sizeof(double**) * NTotalSimul);											// 할당 35
+	for (i = 0; i < NTotalSimul; i++) Rate_PayPowerSpread_2F[i] = Rate_PayPowerSpread_2F_Reshaped2 + i * NGreed;		
+	for (i = 0; i < NTotalSimul; i++) for (j = 0; j < NGreed; j++) Rate_PayPowerSpread_2F[i][j] = Rate_PayPowerSpread_2F_Reshaped + i * NGreed * NGreed + j * NGreed;
 
 	////////////////////////////////////
 	// Hull White Bond Pricing Params //
 	////////////////////////////////////
-	long* Rcv_ncpn = (long*)malloc(sizeof(long) * NTotalSimul);
-	long* RcvPowerSpread_ncpn = (long*)malloc(sizeof(long) * NTotalSimul);
-	double** Rcv_DF_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Rcv_B_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Rcv_QVTerm = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Rcv_dt = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** RcvPowerSpread_DF_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** RcvPowerSpread_B_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** RcvPowerSpread_QVTerm = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** RcvPowerSpread_dt = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Rcv_B_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Rcv_QVTerm_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** RcvPowerSpread_B_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** RcvPowerSpread_QVTerm_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Rcv_Cross_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** RcvPowerSpread_Cross_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
+	long* Rcv_ncpn = (long*)malloc(sizeof(long) * NTotalSimul);																		// 할당 36
+	long* RcvPowerSpread_ncpn = (long*)malloc(sizeof(long) * NTotalSimul);															// 할당 37
+	double** Rcv_DF_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);															// 할당 38
+	double** Rcv_B_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);															// 할당 39
+	double** Rcv_QVTerm = (double**)malloc(sizeof(double*) * NTotalSimul);															// 할당 40
+	double** Rcv_dt = (double**)malloc(sizeof(double*) * NTotalSimul);																// 할당 41
+	double** RcvPowerSpread_DF_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);												// 할당 42
+	double** RcvPowerSpread_B_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);												// 할당 43
+	double** RcvPowerSpread_QVTerm = (double**)malloc(sizeof(double*) * NTotalSimul);												// 할당 44
+	double** RcvPowerSpread_dt = (double**)malloc(sizeof(double*) * NTotalSimul);													// 할당 45
+	double** Rcv_B_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);														// 할당 46
+	double** Rcv_QVTerm_2F = (double**)malloc(sizeof(double*) * NTotalSimul);														// 할당 47
+	double** RcvPowerSpread_B_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);												// 할당 48
+	double** RcvPowerSpread_QVTerm_2F = (double**)malloc(sizeof(double*) * NTotalSimul);											// 할당 49
+	double** Rcv_Cross_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);													// 할당 50
+	double** RcvPowerSpread_Cross_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);											// 할당 51
 
-	long* Pay_ncpn = (long*)malloc(sizeof(long) * NTotalSimul);
-	long* PayPowerSpread_ncpn = (long*)malloc(sizeof(long) * NTotalSimul);
-	double** Pay_DF_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Pay_B_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Pay_QVTerm = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Pay_dt = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** PayPowerSpread_DF_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** PayPowerSpread_B_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** PayPowerSpread_QVTerm = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** PayPowerSpread_dt = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Pay_B_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Pay_QVTerm_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** PayPowerSpread_B_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** PayPowerSpread_QVTerm_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** Pay_Cross_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
-	double** PayPowerSpread_Cross_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);
+	long* Pay_ncpn = (long*)malloc(sizeof(long) * NTotalSimul);																		// 할당 52	
+	long* PayPowerSpread_ncpn = (long*)malloc(sizeof(long) * NTotalSimul);															// 할당 53
+	double** Pay_DF_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);															// 할당 54
+	double** Pay_B_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);															// 할당 55
+	double** Pay_QVTerm = (double**)malloc(sizeof(double*) * NTotalSimul);															// 할당 56
+	double** Pay_dt = (double**)malloc(sizeof(double*) * NTotalSimul);																// 할당 57
+	double** PayPowerSpread_DF_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);												// 할당 58
+	double** PayPowerSpread_B_t_T = (double**)malloc(sizeof(double*) * NTotalSimul);												// 할당 59
+	double** PayPowerSpread_QVTerm = (double**)malloc(sizeof(double*) * NTotalSimul);												// 할당 60
+	double** PayPowerSpread_dt = (double**)malloc(sizeof(double*) * NTotalSimul);													// 할당 61
+	double** Pay_B_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);														// 할당 62
+	double** Pay_QVTerm_2F = (double**)malloc(sizeof(double*) * NTotalSimul);														// 할당 63
+	double** PayPowerSpread_B_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);												// 할당 64
+	double** PayPowerSpread_QVTerm_2F = (double**)malloc(sizeof(double*) * NTotalSimul);											// 할당 65
+	double** Pay_Cross_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);													// 할당 66
+	double** PayPowerSpread_Cross_t_T_2F = (double**)malloc(sizeof(double*) * NTotalSimul);											// 할당 67
 	double t, t1, t2, deltat;
 
 	long Today, EndDate1, EndDate2, ncpn, ncpn1, ncpn2, isinflag = 0;
-	double df_t, df_T, df_T_Rcv, df_T_Pay, temp = 0., temp2 = 0.;
+	long TodayIsOptionDate;
+	double df_t, df_T, temp = 0., temp2 = 0.;
 	long* TempDateArray;
 	long* TempDateArray2;
 
@@ -973,7 +1075,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 		if (PowerSpreadFlagRcv == 0)
 		{
 			EndDate1 = EDate_Cpp(Today, (long)(Maturity_Rcv * 12 + 0.00001));
-			TempDateArray = Malloc_CpnDate_Holiday(Today, EndDate1, NCPN_ANN_Rcv, ncpn, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
+			TempDateArray = Malloc_CpnDate_Holiday(Today, EndDate1, (long)NCPN_ANN_Rcv, ncpn, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
 
 			Rcv_ncpn[i] = ncpn;
 			Rcv_DF_t_T[i] = (double*)malloc(sizeof(double) * ncpn);
@@ -1018,7 +1120,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					for (idx2 = 0; idx2 < NGreed; idx2++)
 					{
 						y = yt[idx2];
-						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, y, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
+						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, (long)NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, y, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
 						Rate_Rcv_2F[i][idx1][idx2] = Rate;
 					}
 				}
@@ -1028,7 +1130,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				for (idx1 = 0; idx1 < NGreed; idx1++)
 				{
 					x = xt[idx1];
-					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, y, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
+					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, (long)NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, y, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
 					Rate_Rcv_1F[i][idx1] = Rate;
 				}
 			}
@@ -1102,8 +1204,8 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 		{
 			EndDate1 = EDate_Cpp(Today, (long)(Maturity1_Rcv * 12 + 0.00001));
 			EndDate2 = EDate_Cpp(Today, (long)(Maturity2_Rcv * 12 + 0.00001));
-			TempDateArray = Malloc_CpnDate_Holiday(Today, EndDate1, NCPN_ANN_Rcv, ncpn1, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
-			TempDateArray2 = Malloc_CpnDate_Holiday(Today, EndDate2, NCPN_ANN_Rcv, ncpn2, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
+			TempDateArray = Malloc_CpnDate_Holiday(Today, EndDate1, (long)NCPN_ANN_Rcv, ncpn1, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
+			TempDateArray2 = Malloc_CpnDate_Holiday(Today, EndDate2, (long)NCPN_ANN_Rcv, ncpn2, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
 
 			Rcv_ncpn[i] = ncpn1;
 			Rcv_DF_t_T[i] = (double*)malloc(sizeof(double) * ncpn1);
@@ -1165,9 +1267,9 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					for (idx2 = 0; idx2 < NGreed; idx2++)
 					{
 						y = yt[idx2];
-						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn1, NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, y, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
+						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn1, (long)NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, y, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
 						Rate_Rcv_2F[i][idx1][idx2] = Rate;
-						Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn2, NCPN_ANN_Rcv, RcvPowerSpread_DF_t_T[i], RcvPowerSpread_QVTerm[i], RcvPowerSpread_B_t_T[i], RcvPowerSpread_dt[i], HW2FFlag, y, RcvPowerSpread_QVTerm_2F[i], RcvPowerSpread_B_t_T_2F[i], RcvPowerSpread_Cross_t_T_2F[i]);
+						Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn2, (long)NCPN_ANN_Rcv, RcvPowerSpread_DF_t_T[i], RcvPowerSpread_QVTerm[i], RcvPowerSpread_B_t_T[i], RcvPowerSpread_dt[i], HW2FFlag, y, RcvPowerSpread_QVTerm_2F[i], RcvPowerSpread_B_t_T_2F[i], RcvPowerSpread_Cross_t_T_2F[i]);
 						Rate_RcvPowerSpread_2F[i][idx1][idx2] = Rate_p;
 					}
 				}
@@ -1177,9 +1279,9 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				for (idx1 = 0; idx1 < NGreed; idx1++)
 				{
 					x = xt[idx1];
-					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn1, NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, y, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
+					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn1, (long)NCPN_ANN_Rcv, Rcv_DF_t_T[i], Rcv_QVTerm[i], Rcv_B_t_T[i], Rcv_dt[i], HW2FFlag, y, Rcv_QVTerm_2F[i], Rcv_B_t_T_2F[i], Rcv_Cross_t_T_2F[i]);
 					Rate_Rcv_1F[i][idx1] = Rate;
-					Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn2, NCPN_ANN_Rcv, RcvPowerSpread_DF_t_T[i], RcvPowerSpread_QVTerm[i], RcvPowerSpread_B_t_T[i], RcvPowerSpread_dt[i], HW2FFlag, y, RcvPowerSpread_QVTerm_2F[i], RcvPowerSpread_B_t_T_2F[i], RcvPowerSpread_Cross_t_T_2F[i]);
+					Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn2, (long)NCPN_ANN_Rcv, RcvPowerSpread_DF_t_T[i], RcvPowerSpread_QVTerm[i], RcvPowerSpread_B_t_T[i], RcvPowerSpread_dt[i], HW2FFlag, y, RcvPowerSpread_QVTerm_2F[i], RcvPowerSpread_B_t_T_2F[i], RcvPowerSpread_Cross_t_T_2F[i]);
 					Rate_RcvPowerSpread_1F[i][idx1] = Rate_p;
 				}
 			}
@@ -1272,7 +1374,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 		if (PowerSpreadFlagPay == 0)
 		{
 			EndDate1 = EDate_Cpp(Today, (long)(Maturity_Pay * 12 + 0.00001));
-			TempDateArray = Malloc_CpnDate_Holiday(Today, EndDate1, NCPN_ANN_Pay, ncpn, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
+			TempDateArray = Malloc_CpnDate_Holiday(Today, EndDate1, (long)NCPN_ANN_Pay, ncpn, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
 
 			Pay_ncpn[i] = ncpn;
 			Pay_DF_t_T[i] = (double*)malloc(sizeof(double) * ncpn);
@@ -1317,7 +1419,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					for (idx2 = 0; idx2 < NGreed; idx2++)
 					{
 						y = yt[idx2];
-						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, y, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
+						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, (long)NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, y, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
 						Rate_Pay_2F[i][idx1][idx2] = Rate;
 					}
 				}
@@ -1327,7 +1429,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				for (idx1 = 0; idx1 < NGreed; idx1++)
 				{
 					x = xt[idx1];
-					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, y, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
+					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn, (long)NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, y, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
 					Rate_Pay_1F[i][idx1] = Rate;
 				}
 			}
@@ -1399,8 +1501,8 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 		{
 			EndDate1 = EDate_Cpp(Today, (long)(Maturity1_Pay * 12 + 0.00001));
 			EndDate2 = EDate_Cpp(Today, (long)(Maturity2_Pay * 12 + 0.00001));
-			TempDateArray = Malloc_CpnDate_Holiday(Today, EndDate1, NCPN_ANN_Pay, ncpn1, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
-			TempDateArray2 = Malloc_CpnDate_Holiday(Today, EndDate2, NCPN_ANN_Pay, ncpn2, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
+			TempDateArray = Malloc_CpnDate_Holiday(Today, EndDate1, (long)NCPN_ANN_Pay, ncpn1, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
+			TempDateArray2 = Malloc_CpnDate_Holiday(Today, EndDate2, (long)NCPN_ANN_Pay, ncpn2, TempDate, NTotalHoliday[0], TotalHolidays[0], 1);
 
 			Pay_ncpn[i] = ncpn1;
 			Pay_DF_t_T[i] = (double*)malloc(sizeof(double) * ncpn1);
@@ -1462,9 +1564,9 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					for (idx2 = 0; idx2 < NGreed; idx2++)
 					{
 						y = yt[idx2];
-						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn1, NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, y, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
+						Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn1, (long)NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, y, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
 						Rate_Pay_2F[i][idx1][idx2] = Rate;
-						Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn2, NCPN_ANN_Pay, PayPowerSpread_DF_t_T[i], PayPowerSpread_QVTerm[i], PayPowerSpread_B_t_T[i], PayPowerSpread_dt[i], HW2FFlag, y, PayPowerSpread_QVTerm_2F[i], PayPowerSpread_B_t_T_2F[i], PayPowerSpread_Cross_t_T_2F[i]);
+						Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn2, (long)NCPN_ANN_Pay, PayPowerSpread_DF_t_T[i], PayPowerSpread_QVTerm[i], PayPowerSpread_B_t_T[i], PayPowerSpread_dt[i], HW2FFlag, y, PayPowerSpread_QVTerm_2F[i], PayPowerSpread_B_t_T_2F[i], PayPowerSpread_Cross_t_T_2F[i]);
 						Rate_PayPowerSpread_2F[i][idx1][idx2] = Rate_p;
 					}
 				}
@@ -1474,9 +1576,9 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				for (idx1 = 0; idx1 < NGreed; idx1++)
 				{
 					x = xt[idx1];
-					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn1, NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, y, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
+					Rate = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn1, (long)NCPN_ANN_Pay, Pay_DF_t_T[i], Pay_QVTerm[i], Pay_B_t_T[i], Pay_dt[i], HW2FFlag, y, Pay_QVTerm_2F[i], Pay_B_t_T_2F[i], Pay_Cross_t_T_2F[i]);
 					Rate_Pay_1F[i][idx1] = Rate;
-					Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn2, NCPN_ANN_Pay, PayPowerSpread_DF_t_T[i], PayPowerSpread_QVTerm[i], PayPowerSpread_B_t_T[i], PayPowerSpread_dt[i], HW2FFlag, y, PayPowerSpread_QVTerm_2F[i], PayPowerSpread_B_t_T_2F[i], PayPowerSpread_Cross_t_T_2F[i]);
+					Rate_p = HW_Rate(1, NZeroRate, ZeroTerm, ZeroRate, x, ncpn2, (long)NCPN_ANN_Pay, PayPowerSpread_DF_t_T[i], PayPowerSpread_QVTerm[i], PayPowerSpread_B_t_T[i], PayPowerSpread_dt[i], HW2FFlag, y, PayPowerSpread_QVTerm_2F[i], PayPowerSpread_B_t_T_2F[i], PayPowerSpread_Cross_t_T_2F[i]);
 					Rate_PayPowerSpread_1F[i][idx1] = Rate_p;
 				}
 			}
@@ -1554,26 +1656,58 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 		}
 	}
 
-	double* SlopeOfFixingRate_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);
-	double* SlopeOfPayoff_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);
-	double* FixedRate_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);
-	long* Structured_Rcv = (long*)malloc(sizeof(long) * NCpnDateRcv);
-	double* RangeCpn_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);
-	double* DeltatRcv = (double*)malloc(sizeof(double) * NCpnDateRcv);
-	long* ZeroCouponFlagRcv = (long*)malloc(sizeof(long) * NCpnDateRcv);
+	double* SlopeOfFixingRate_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);														// 할당 68
+	double* SlopeOfPayoff_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);															// 할당 69
+	double* FixedRate_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);																// 할당 70
+	long* Structured_Rcv = (long*)malloc(sizeof(long) * NCpnDateRcv);																	// 할당 71	
+	double* RangeCpn_Rcv = (double*)malloc(sizeof(double) * NCpnDateRcv);																// 할당 72
+	double* DeltatRcv = (double*)malloc(sizeof(double) * NCpnDateRcv);																	// 할당 73
+	long* ZeroCouponFlagRcv = (long*)malloc(sizeof(long) * NCpnDateRcv);																// 할당 74
+	long* NBD_Fixing_to_End_Rcv = (long*)malloc(sizeof(long) * NCpnDateRcv);															// 할당 106
 
-	double* SlopeOfFixingRate_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);
-	double* SlopeOfPayoff_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);
-	double* FixedRate_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);
-	long* Structured_Pay = (long*)malloc(sizeof(long) * NCpnDatePay);
-	double* RangeCpn_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);
-	double* DeltatPay = (double*)malloc(sizeof(double) * NCpnDatePay);
-	long* ZeroCouponFlagPay = (long*)malloc(sizeof(long) * NCpnDatePay);
+	double* SlopeOfFixingRate_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);														// 할당 75
+	double* SlopeOfPayoff_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);															// 할당 76	
+	double* FixedRate_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);																// 할당 77	
+	long* Structured_Pay = (long*)malloc(sizeof(long) * NCpnDatePay);																	// 할당 78
+	double* RangeCpn_Pay = (double*)malloc(sizeof(double) * NCpnDatePay);																// 할당 79
+	double* DeltatPay = (double*)malloc(sizeof(double) * NCpnDatePay);																	// 할당 80
+	long* ZeroCouponFlagPay = (long*)malloc(sizeof(long) * NCpnDatePay);																// 할당 81
+	long* NBD_Fixing_to_End_Pay = (long*)malloc(sizeof(long) * NCpnDatePay);															// 할당 107
 
 	long* CpnDateRcv = CpnDate[0];
 	long* CpnDatePay = CpnDate[1];
 	long DayCountFracRcv = DayCountRcvPay[0];
 	long DayCountFracPay = DayCountRcvPay[1];
+	long idxrcv = 0, idxpay = 0;
+	for (i = 0; i < NCpnDateRcv; i++) NBD_Fixing_to_End_Rcv[i] = 0;
+	for (i = 0; i < NCpnDatePay; i++) NBD_Fixing_to_End_Pay[i] = 0;
+
+	for (i = 0; i < NTotalSimul; i++)
+	{
+		Today = TotalArrayDateSimul[NTotalSimul - 1 - i];
+		idxrcv = -1;
+		for (j = 0; j < NCpnDateRcv; j++)
+		{
+			if (RcvFixingDate[j] <= Today && CpnDateRcv[j] > Today)
+			{
+				idxrcv = j;
+				break;
+			}
+		}
+		if (idxrcv >= 0) NBD_Fixing_to_End_Rcv[idxrcv] += 1;
+
+		idxpay = -1;
+		for (j = 0; j < NCpnDatePay; j++)
+		{
+			if (PayFixingDate[j] <= Today && CpnDatePay[j] > Today)
+			{
+				idxpay = j;
+				break;
+			}
+		}
+		if (idxpay >= 0) NBD_Fixing_to_End_Pay[idxpay] += 1;
+	}
+
 	for (i = 0; i < NCpnDateRcv; i++)
 	{
 		SlopeOfFixingRate_Rcv[i] = MultipleRatefixPayoffRcv[0];
@@ -1600,11 +1734,13 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 			else ZeroCouponFlagRcv[i] = 0;
 		}
 	}
+
 	for (i = 0; i < NCpnDatePay; i++)
 	{
 		SlopeOfFixingRate_Pay[i] = MultipleRatefixPayoffPay[0];
 		SlopeOfPayoff_Pay[i] = MultipleRatefixPayoffPay[1];
 		DeltatPay[i] = DayCountFractionAtoB(PayFixingDate[i], CpnDatePay[i], DayCountFracPay);
+
 		if (PayFixingDate[i] >= Phase2Date)
 		{
 			FixedRate_Pay[i] = Phase2PayLegFixedRate;
@@ -1627,43 +1763,48 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 		}
 	}
 
-	double* Alpha_1Curve = (double*)malloc(sizeof(double) * NGreed);		// IFDM 1F x_t Alpha or OS x_t 
-	double* Beta_1Curve = (double*)malloc(sizeof(double) * NGreed);
-	double* Gamma_1Curve = (double*)malloc(sizeof(double) * NGreed);
+	double* Alpha_1Curve = (double*)malloc(sizeof(double) * NGreed);		// IFDM 1F x_t Alpha or OS x_t						// 할당 82
+	double* Beta_1Curve = (double*)malloc(sizeof(double) * NGreed);																// 할당 83
+	double* Gamma_1Curve = (double*)malloc(sizeof(double) * NGreed);															// 할당 84
 
-	double* Alpha_2Curve = (double*)malloc(sizeof(double) * NGreed);		// OS y_t 
-	double* Beta_2Curve = (double*)malloc(sizeof(double) * NGreed);
-	double* Gamma_2Curve = (double*)malloc(sizeof(double) * NGreed);
+	double* Alpha_2Curve = (double*)malloc(sizeof(double) * NGreed);		// OS y_t 											// 할당 85
+	double* Beta_2Curve = (double*)malloc(sizeof(double) * NGreed);																// 할당 86
+	double* Gamma_2Curve = (double*)malloc(sizeof(double) * NGreed);															// 할당 87
 
-	double* FDMValue_1F = (double*)malloc(sizeof(double) * NGreed);
-	double** FDMValue_2F = (double**)malloc(sizeof(double*) * NGreed);
-	for (i = 0; i < NGreed; i++) FDMValue_2F[i] = (double*)malloc(sizeof(double) * NGreed);
-	double** RHSValue_2F = (double**)malloc(sizeof(double*) * NGreed);
-	for (i = 0; i < NGreed; i++) RHSValue_2F[i] = (double*)malloc(sizeof(double) * NGreed);
+	double* FDMValue_1F = (double*)malloc(sizeof(double) * NGreed);																// 할당 88
+	double* FDMValue_2F_Reshaped = (double*)malloc(sizeof(double) * NGreed * NGreed);											// 할당 89
+	double** FDMValue_2F = (double**)malloc(sizeof(double*) * NGreed);															// 할당 90	
+	for (i = 0; i < NGreed; i++) FDMValue_2F[i] = FDMValue_2F_Reshaped + i * NGreed; 
+	double* RHSValue_2F_Reshaped = (double*)malloc(sizeof(double) * NGreed * NGreed);											// 할당 91
+	double** RHSValue_2F = (double**)malloc(sizeof(double*) * NGreed);															// 할당 92		
+	for (i = 0; i < NGreed; i++) RHSValue_2F[i] = RHSValue_2F_Reshaped + i * NGreed;
 
-	double* TempAlphaArray = (double*)malloc(sizeof(double) * NGreed);
-	double* TempBetaArray = (double*)malloc(sizeof(double) * NGreed);
-	double* TempGammaArray = (double*)malloc(sizeof(double) * NGreed);
-	double* TempCpnArrayRcv_1F = (double*)malloc(sizeof(double) * NGreed);
-	double* TempCpnArrayPay_1F = (double*)malloc(sizeof(double) * NGreed);
-	double** TempCpnArrayRcv_2F = (double**)malloc(sizeof(double*) * NGreed);
-	double** TempCpnArrayPay_2F = (double**)malloc(sizeof(double*) * NGreed);
+	double* TempAlphaArray = (double*)malloc(sizeof(double) * NGreed);															// 할당 93
+	double* TempBetaArray = (double*)malloc(sizeof(double) * NGreed);															// 할당 94
+	double* TempGammaArray = (double*)malloc(sizeof(double) * NGreed);															// 할당 95
+	double* TempCpnArrayRcv_1F = (double*)malloc(sizeof(double) * NGreed);														// 할당 96
+	double* TempCpnArrayPay_1F = (double*)malloc(sizeof(double) * NGreed);														// 할당 97
+	double* TempCpnArrayRcv_2F_Reshaped = (double*)malloc(sizeof(double) * NGreed * NGreed);									// 할당 98
+	double* TempCpnArrayPay_2F_Reshaped = (double*)malloc(sizeof(double) * NGreed * NGreed);									// 할당 99
+	double** TempCpnArrayRcv_2F = (double**)malloc(sizeof(double*) * NGreed);													// 할당 100
+	double** TempCpnArrayPay_2F = (double**)malloc(sizeof(double*) * NGreed);													// 할당 101
 	for (i = 0; i < NGreed; i++)
 	{
-		TempCpnArrayRcv_2F[i] = (double*)malloc(sizeof(double) * NGreed);
-		TempCpnArrayPay_2F[i] = (double*)malloc(sizeof(double) * NGreed);
+		TempCpnArrayRcv_2F[i] = TempCpnArrayRcv_2F_Reshaped + i * NGreed;
+		TempCpnArrayPay_2F[i] = TempCpnArrayPay_2F_Reshaped + i * NGreed;
 	}
 
-	double vol1 = 0., vol2 = 0., b0, c0, bN, aN, fwdvar, vols, volt;
+	double vol1 = 0., vol2 = 0., b0, c0, bN, aN, vols, volt;
 	double Rate_Rcv, Rate_Pay, Rate_Rcv_p, Rate_Pay_p, RcvCpn, PayCpn, RgCpnRcv, RgCpnPay;
-	double Instant_FwdDF, Instant_B_s_t, Instant_QVTerm, Instant_B_s_t_2F, Instant_QVTerm_2F, Instant_Cross_QVTerm_2F, R, PtT;
-	long LastFixingDateRcv, LastFixingDatePay, LastFixingIdxRcv = 0, LastFixingIdxPay = 0, idxrcv = 0, idxpay = 0, idxrcvfix = 0, idxpayfix = 0, idxhist = 0;
+	double Instant_FwdDF, Instant_B_s_t, Instant_QVTerm, Instant_B_s_t_2F, Instant_QVTerm_2F, Instant_Cross_QVTerm_2F, PtT;
+	long LastFixingDateRcv, LastFixingDatePay, LastFixingIdxRcv = 0, LastFixingIdxPay = 0, idxrcvfix = 0, idxpayfix = 0, idxhist = 0;
 
-	long** OptionExerciseFlag_2F = (long**)malloc(sizeof(long*) * NGreed);
-	for (i = 0; i < NGreed; i++) OptionExerciseFlag_2F[i] = (long*)malloc(sizeof(long) * NGreed);
-	long* OptionExerciseFlag_1F = (long*)malloc(sizeof(long) * NGreed);
+	long* OptionExerciseFlag_2F_Reshaped = (long*)malloc(sizeof(long) * NGreed * NGreed);										// 할당 102
+	long** OptionExerciseFlag_2F = (long**)malloc(sizeof(long*) * NGreed);														// 할당 103
+	for (i = 0; i < NGreed; i++) OptionExerciseFlag_2F[i] = OptionExerciseFlag_2F_Reshaped + i * NGreed;
+	long* OptionExerciseFlag_1F = (long*)malloc(sizeof(long) * NGreed);															// 할당 104
 
-	double* ForPrintVariable = (double*)malloc(sizeof(double) * 4);
+	double* ForPrintVariable = (double*)malloc(sizeof(double) * 4);																// 할당 105
 	double deltat_fixing_to_pay = 0.;
 	LastFixingDateRcv = RcvFixingDate[NCpnDateRcv - 1];
 	LastFixingDatePay = PayFixingDate[NCpnDatePay - 1];
@@ -1716,7 +1857,14 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 							if (Structured_Rcv[NCpnDateRcv - 1] > 0)
 							{
 								Rate = SlopeOfFixingRate_Rcv[NCpnDateRcv - 1] * Rate_Rcv;
-								if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * Rate_Rcv) + RangeCpn_Rcv[NCpnDateRcv - 1];
+								if (RcvRangeAccrualFlag == 0)
+								{
+									if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * Rate_Rcv) + RangeCpn_Rcv[NCpnDateRcv - 1];
+								}
+								else
+								{
+									if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * Rate_Rcv) + RangeCpn_Rcv[NCpnDateRcv - 1] / (double)NBD_Fixing_to_End_Rcv[NCpnDateRcv - 1];
+								}
 							}
 							
 							if (ZeroCouponFlagRcv[NCpnDateRcv - 1] == 0)
@@ -1739,6 +1887,10 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					}
 					ResultFixingRateCpnRcv[NCpnDateRcv - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Rcv_2F[LastFixingIdxRcv], 0.0, 0.0);
 					ResultFixingRateCpnRcv[2 * NCpnDateRcv - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayRcv_2F, 0.0, 0.0);
+					if (RcvRangeAccrualFlag == 1)
+					{
+						ResultFixingRateCpnRcv[NCpnDateRcv - 1] /= (double)NBD_Fixing_to_End_Rcv[NCpnDateRcv - 1];
+					}
 				}
 				else
 				{
@@ -1752,7 +1904,14 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 							if (Structured_Rcv[NCpnDateRcv - 1] > 0)
 							{
 								Rate = SlopeOfFixingRate_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p);
-								if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p)) + RangeCpn_Rcv[NCpnDateRcv - 1];
+								if (RcvRangeAccrualFlag == 0)
+								{
+									if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p)) + RangeCpn_Rcv[NCpnDateRcv - 1];
+								}
+								else
+								{
+									if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p)) + RangeCpn_Rcv[NCpnDateRcv - 1] / (double)NBD_Fixing_to_End_Rcv[NCpnDateRcv - 1];
+								}
 							}
 
 							if (ZeroCouponFlagRcv[NCpnDateRcv - 1] == 0)
@@ -1775,6 +1934,11 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					}
 					ResultFixingRateCpnRcv[NCpnDateRcv - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Rcv_2F[LastFixingIdxRcv], 0.0, 0.0) - Calc_Volatility(NGreed, NGreed, xt, yt, Rate_RcvPowerSpread_2F[LastFixingIdxRcv], 0.0, 0.0);
 					ResultFixingRateCpnRcv[2 * NCpnDateRcv - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayRcv_2F, 0.0, 0.0);
+					if (RcvRangeAccrualFlag == 1)
+					{
+						ResultFixingRateCpnRcv[NCpnDateRcv - 1] /= (double)NBD_Fixing_to_End_Rcv[NCpnDateRcv - 1];
+					}
+
 				}
 
 				if (PowerSpreadFlagPay == 0)
@@ -1788,7 +1952,14 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 							if (Structured_Pay[NCpnDatePay - 1] > 0)
 							{
 								Rate = SlopeOfFixingRate_Pay[NCpnDatePay - 1] * Rate_Pay;
-								if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * Rate_Pay) + RangeCpn_Pay[NCpnDatePay - 1];
+								if (PayRangeAccrualFlag == 0)
+								{
+									if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * Rate_Pay) + RangeCpn_Pay[NCpnDatePay - 1];
+								}
+								else
+								{
+									if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * Rate_Pay) + RangeCpn_Pay[NCpnDatePay - 1] / (double)NBD_Fixing_to_End_Pay[NCpnDatePay - 1] ;
+								}
 							}
 
 							if (ZeroCouponFlagPay[NCpnDatePay - 1] == 0)
@@ -1811,6 +1982,10 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					}
 					ResultFixingRateCpnPay[NCpnDatePay - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Pay_2F[LastFixingIdxPay], 0.0, 0.0);
 					ResultFixingRateCpnPay[2 * NCpnDatePay - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayPay_2F, 0.0, 0.0);
+					if (PayRangeAccrualFlag == 1)
+					{
+						ResultFixingRateCpnPay[NCpnDatePay - 1] /= (double)NBD_Fixing_to_End_Pay[NCpnDatePay - 1];
+					}
 				}
 				else
 				{
@@ -1824,7 +1999,14 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 							if (Structured_Pay[NCpnDatePay - 1] > 0)
 							{
 								Rate = SlopeOfFixingRate_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p);
-								if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p)) + RangeCpn_Pay[NCpnDatePay - 1];
+								if (PayRangeAccrualFlag == 0)
+								{
+									if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p)) + RangeCpn_Pay[NCpnDatePay - 1];
+								}
+								else
+								{
+									if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p)) + RangeCpn_Pay[NCpnDatePay - 1]/ (double)NBD_Fixing_to_End_Pay[NCpnDatePay - 1];
+								}
 							}
 
 							if (ZeroCouponFlagPay[NCpnDatePay - 1] == 0)
@@ -1847,6 +2029,10 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					}
 					ResultFixingRateCpnPay[NCpnDatePay - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Pay_2F[LastFixingIdxPay], 0.0, 0.0) - Calc_Volatility(NGreed, NGreed, xt, yt, Rate_PayPowerSpread_2F[LastFixingIdxPay], 0.0, 0.0);
 					ResultFixingRateCpnPay[2 * NCpnDatePay - 1] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayPay_2F, 0.0, 0.0);
+					if (PayRangeAccrualFlag == 1)
+					{
+						ResultFixingRateCpnPay[NCpnDatePay - 1] /= (double)NBD_Fixing_to_End_Pay[NCpnDatePay - 1];
+					}
 				}
 			}
 			else
@@ -1860,7 +2046,14 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 						if (Structured_Rcv[NCpnDateRcv - 1] > 0)
 						{
 							Rate = SlopeOfFixingRate_Rcv[NCpnDateRcv - 1] * Rate_Rcv;
-							if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * Rate_Rcv) + RangeCpn_Rcv[NCpnDateRcv - 1];
+							if (RcvRangeAccrualFlag == 0)
+							{
+								if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * Rate_Rcv) + RangeCpn_Rcv[NCpnDateRcv - 1];
+							}
+							else
+							{
+								if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * Rate_Rcv) + RangeCpn_Rcv[NCpnDateRcv - 1] / (double)NBD_Fixing_to_End_Rcv[NCpnDateRcv - 1] ;
+							}
 						}
 
 						if (ZeroCouponFlagRcv[NCpnDateRcv - 1] == 0)
@@ -1882,6 +2075,10 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					}
 					ResultFixingRateCpnRcv[NCpnDateRcv - 1] = Interpolate_Linear(xt, Rate_Rcv_1F[LastFixingIdxRcv], NGreed, 0.0);
 					ResultFixingRateCpnRcv[2 * NCpnDateRcv - 1] = Interpolate_Linear(xt, TempCpnArrayRcv_1F, NGreed, 0.0);
+					if (RcvRangeAccrualFlag == 1)
+					{
+						ResultFixingRateCpnRcv[NCpnDateRcv - 1] /= (double)NBD_Fixing_to_End_Rcv[NCpnDateRcv - 1];
+					}
 				}
 				else
 				{
@@ -1893,7 +2090,14 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 						if (Structured_Rcv[NCpnDateRcv - 1] > 0)
 						{
 							Rate = SlopeOfFixingRate_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p);
-							if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p)) + RangeCpn_Rcv[NCpnDateRcv - 1];
+							if (RcvRangeAccrualFlag == 0)
+							{
+								if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p)) + RangeCpn_Rcv[NCpnDateRcv - 1];
+							}
+							else
+							{
+								if ((Rate < RangeMaxMinRcv[0]) && (Rate > RangeMaxMinRcv[1])) RgCpnRcv = (SlopeOfPayoff_Rcv[NCpnDateRcv - 1] * (Rate_Rcv - Rate_Rcv_p)) + RangeCpn_Rcv[NCpnDateRcv - 1] / (double)NBD_Fixing_to_End_Rcv[NCpnDateRcv - 1];
+							}
 						}
 
 						if (ZeroCouponFlagRcv[NCpnDateRcv - 1] == 0)
@@ -1916,6 +2120,10 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					}
 					ResultFixingRateCpnRcv[NCpnDateRcv - 1] = Interpolate_Linear(xt, Rate_Rcv_1F[LastFixingIdxRcv], NGreed, 0.0) - Interpolate_Linear(xt, Rate_RcvPowerSpread_1F[LastFixingIdxRcv], NGreed, 0.0);
 					ResultFixingRateCpnRcv[2 * NCpnDateRcv - 1] = Interpolate_Linear(xt, TempCpnArrayRcv_1F, NGreed, 0.0);
+					if (RcvRangeAccrualFlag == 1)
+					{
+						ResultFixingRateCpnRcv[NCpnDateRcv - 1] /= (double)NBD_Fixing_to_End_Rcv[NCpnDateRcv - 1];
+					}
 				}
 
 				if (PowerSpreadFlagPay == 0)
@@ -1927,7 +2135,14 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 						if (Structured_Pay[NCpnDatePay - 1] > 0)
 						{
 							Rate = SlopeOfFixingRate_Pay[NCpnDatePay - 1] * Rate_Pay;
-							if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * Rate_Pay) + RangeCpn_Pay[NCpnDatePay - 1];
+							if (PayRangeAccrualFlag == 0)
+							{
+								if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * Rate_Pay) + RangeCpn_Pay[NCpnDatePay - 1];
+							}
+							else
+							{
+								if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * Rate_Pay) + RangeCpn_Pay[NCpnDatePay - 1] / (double)NBD_Fixing_to_End_Pay[NCpnDatePay - 1];
+							}
 						}
 
 						if (ZeroCouponFlagPay[NCpnDatePay - 1] == 0)
@@ -1949,6 +2164,10 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					}
 					ResultFixingRateCpnPay[NCpnDatePay - 1] = Interpolate_Linear(xt, Rate_Pay_1F[LastFixingIdxPay], NGreed, 0.0);
 					ResultFixingRateCpnPay[2 * NCpnDatePay - 1] = Interpolate_Linear(xt, TempCpnArrayPay_1F, NGreed, 0.0);
+					if (PayRangeAccrualFlag == 1)
+					{
+						ResultFixingRateCpnPay[NCpnDatePay - 1] /= (double)NBD_Fixing_to_End_Pay[NCpnDatePay - 1];
+					}
 				}
 				else
 				{
@@ -1960,7 +2179,14 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 						if (Structured_Pay[NCpnDatePay - 1] > 0)
 						{
 							Rate = SlopeOfFixingRate_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p);
-							if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p)) + RangeCpn_Pay[NCpnDatePay - 1];
+							if (PayRangeAccrualFlag == 0)
+							{
+								if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p)) + RangeCpn_Pay[NCpnDatePay - 1];
+							}
+							else
+							{
+								if ((Rate < RangeMaxMinPay[0]) && (Rate > RangeMaxMinPay[1])) RgCpnPay = (SlopeOfPayoff_Pay[NCpnDatePay - 1] * (Rate_Pay - Rate_Pay_p)) + RangeCpn_Pay[NCpnDatePay - 1]  / (double)NBD_Fixing_to_End_Pay[NCpnDatePay - 1];
+							}
 						}
 
 						if (ZeroCouponFlagPay[NCpnDatePay - 1] == 0)
@@ -1982,6 +2208,10 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 					}
 					ResultFixingRateCpnPay[NCpnDatePay - 1] = Interpolate_Linear(xt, Rate_Pay_1F[LastFixingIdxPay], NGreed, 0.0) - Interpolate_Linear(xt, Rate_PayPowerSpread_1F[LastFixingIdxPay], NGreed, 0.0);
 					ResultFixingRateCpnPay[2 * NCpnDatePay - 1] = Interpolate_Linear(xt, TempCpnArrayPay_1F, NGreed, 0.0);
+					if (PayRangeAccrualFlag == 1)
+					{
+						ResultFixingRateCpnPay[NCpnDatePay - 1] /= (double)NBD_Fixing_to_End_Pay[NCpnDatePay - 1];
+					}
 				}
 			}
 		}
@@ -2081,14 +2311,395 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				Tri_diagonal_Fast(Alpha_1Curve, Beta_1Curve, Gamma_1Curve, FDMValue_1F, NGreed, TempAlphaArray, TempBetaArray, TempGammaArray);
 			}
 
+			if (RcvRangeAccrualFlag == 1)
+			{
+				// Range Accrual Swap일 경우 추가 2026.05.26
+				idxrcv = -1;
+
+				for (j = 0; j < NCpnDateRcv; j++)
+				{
+					if (RcvFixingDate[j] <= Today && CpnDateRcv[j] > Today)
+					{
+						idxrcv = j;
+						break;
+					}
+				}
+				t2 = ((double)DayCountAtoB(PriceDate, RcvPaymentDate[idxrcv]))/365.;
+				df_T = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, t2);
+				Instant_FwdDF = df_T / df_t;
+
+				if (HW2FFlag > 0)
+				{
+					if (PowerSpreadFlagRcv == 0)
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++)
+						{
+							for (idx2 = 0; idx2 < NGreed; idx2++)
+							{
+								Rate_Rcv = Rate_Rcv_2F[NTotalSimul - 1 - i][idx1][idx2];
+								RgCpnRcv = 0.;
+								if (Structured_Rcv[idxrcv] > 0)
+								{
+									Rate = SlopeOfFixingRate_Rcv[idxrcv] * Rate_Rcv;
+									if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * Rate_Rcv + RangeCpn_Rcv[idxrcv]/ (double)NBD_Fixing_to_End_Rcv[idxrcv];//임시삭제 * Instant_FwdDF ;
+								}
+
+								if (ZeroCouponFlagRcv[idxrcv] == 0)
+								{
+									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])), RoundingRcv);
+								}
+								else if (ZeroCouponFlagRcv[idxrcv] == 1)
+								{
+									deltat_fixing_to_pay = DeltatRcv[idxrcv];
+									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+								}
+								else
+								{
+									deltat_fixing_to_pay = DeltatRcv[idxrcv];
+									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
+								}
+								TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
+								FDMValue_2F[idx1][idx2] += RcvCpn * Instant_FwdDF;
+							}
+						}
+						ResultFixingRateCpnRcv[idxrcv] += Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Rcv_2F[NTotalSimul - 1 - i], 0.0, 0.0) / (double)NBD_Fixing_to_End_Rcv[idxrcv];
+						ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] += Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayRcv_2F, 0.0, 0.0);
+					}
+					else
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++)
+						{
+							for (idx2 = 0; idx2 < NGreed; idx2++)
+							{
+								Rate_Rcv = Rate_Rcv_2F[NTotalSimul - 1 - i][idx1][idx2];
+								Rate_Rcv_p = Rate_RcvPowerSpread_2F[NTotalSimul - 1 - i][idx1][idx2];
+								RgCpnRcv = 0.;
+								if (Structured_Rcv[idxrcv] > 0)
+								{
+									Rate = SlopeOfFixingRate_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p);
+									if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[idxrcv] / (double)NBD_Fixing_to_End_Rcv[idxrcv];//임시삭제 * Instant_FwdDF ;
+								}
+
+								if (ZeroCouponFlagRcv[idxrcv] == 0)
+								{
+									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])), RoundingRcv);
+								}
+								else if (ZeroCouponFlagRcv[idxrcv] == 1)
+								{
+									deltat_fixing_to_pay = DeltatRcv[idxrcv];
+									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+								}
+								else
+								{
+									deltat_fixing_to_pay = DeltatRcv[idxrcv];
+									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
+								}
+								TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
+								FDMValue_2F[idx1][idx2] += RcvCpn * Instant_FwdDF;
+							}
+						}
+						ResultFixingRateCpnRcv[idxrcv] += (Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Rcv_2F[NTotalSimul - 1 - i], 0.0, 0.0) - Calc_Volatility(NGreed, NGreed, xt, yt, Rate_RcvPowerSpread_2F[NTotalSimul - 1 - i], 0.0, 0.0)) / (double)NBD_Fixing_to_End_Rcv[idxrcv];
+						ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] += Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayRcv_2F, 0.0, 0.0) ;
+					}
+				}
+				else
+				{
+					if (PowerSpreadFlagRcv == 0)
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++)
+						{
+							Rate_Rcv = Rate_Rcv_1F[NTotalSimul - 1 - i][idx1];
+							RgCpnRcv = 0.;
+							if (Structured_Rcv[idxrcv] > 0)
+							{
+								Rate = SlopeOfFixingRate_Rcv[idxrcv] * Rate_Rcv;
+								if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * Rate_Rcv + RangeCpn_Rcv[idxrcv] / (double)NBD_Fixing_to_End_Rcv[idxrcv];//임시삭제 * Instant_FwdDF;
+							}
+
+							if (ZeroCouponFlagRcv[idxrcv] == 0)
+							{
+								RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])), RoundingRcv);
+							}
+							else if (ZeroCouponFlagRcv[idxrcv] == 1)
+							{
+								deltat_fixing_to_pay = DeltatRcv[idxrcv];
+								RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+							}
+							else
+							{
+								deltat_fixing_to_pay = DeltatRcv[idxrcv];
+								RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
+							}
+							TempCpnArrayRcv_1F[idx1] = RcvCpn;
+							FDMValue_1F[idx1] += RcvCpn * Instant_FwdDF;
+						}
+						ResultFixingRateCpnRcv[idxrcv] += Interpolate_Linear(xt, Rate_Rcv_1F[NTotalSimul - 1 - i], NGreed, 0.0) / (double)NBD_Fixing_to_End_Rcv[idxrcv];
+						ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] += Interpolate_Linear(xt, TempCpnArrayRcv_1F, NGreed, 0.0);
+					}
+					else
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++)
+						{
+							Rate_Rcv = Rate_Rcv_1F[NTotalSimul - 1 - i][idx1];
+							Rate_Rcv_p = Rate_RcvPowerSpread_1F[NTotalSimul - 1 - i][idx1];
+							RgCpnRcv = 0.;
+							if (Structured_Rcv[idxrcv] > 0)
+							{
+								Rate = SlopeOfFixingRate_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p);
+								if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[idxrcv]  / (double)NBD_Fixing_to_End_Rcv[idxrcv];//임시삭제 * Instant_FwdDF;
+							}
+
+							if (ZeroCouponFlagRcv[idxrcv] == 0)
+							{
+								RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])), RoundingRcv);
+							}
+							else if (ZeroCouponFlagRcv[idxrcv] == 1)
+							{
+								deltat_fixing_to_pay = DeltatRcv[idxrcv];
+								RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+							}
+							else
+							{
+								deltat_fixing_to_pay = DeltatRcv[idxrcv];
+								RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
+							}
+
+							TempCpnArrayRcv_1F[idx1] = RcvCpn;
+							FDMValue_1F[idx1] += RcvCpn * Instant_FwdDF;
+						}
+						ResultFixingRateCpnRcv[idxrcv] += Interpolate_Linear(xt, Rate_Rcv_1F[NTotalSimul - 1 - i], NGreed, 0.0) / (double)NBD_Fixing_to_End_Rcv[idxrcv];
+						ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] += Interpolate_Linear(xt, TempCpnArrayRcv_1F, NGreed, 0.0) ;
+					}
+				}
+				temp = 0.;
+			}
+
+			if (PayRangeAccrualFlag == 1)
+			{
+				// Range Accrual Swap일 경우 추가 2026.05.26
+				idxpay = -1;
+
+				for (j = 0; j < NCpnDatePay; j++)
+				{
+					if (PayFixingDate[j] <= Today && CpnDatePay[j] > Today)
+					{
+						idxpay = j;
+						break;
+					}
+				}
+				t2 = ((double)DayCountAtoB(PriceDate, PayPaymentDate[idxpay])) / 365.;
+				df_T = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, t2);
+				Instant_FwdDF = df_T / df_t;
+
+				if (HW2FFlag > 0)
+				{
+					if (PowerSpreadFlagPay == 0)
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++)
+						{
+							for (idx2 = 0; idx2 < NGreed; idx2++)
+							{
+								Rate_Pay = Rate_Pay_2F[NTotalSimul - 1 - i][idx1][idx2];
+								RgCpnPay = 0.;
+								if (Structured_Pay[idxpay] > 0)
+								{
+									Rate = SlopeOfFixingRate_Pay[idxpay] * Rate_Pay;
+									if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * Rate_Pay + RangeCpn_Pay[idxpay] / (double)NBD_Fixing_to_End_Pay[idxpay];//임시삭제 * Instant_FwdDF ;
+								}
+
+								if (ZeroCouponFlagPay[idxpay] == 0)
+								{
+									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])), RoundingPay);
+								}
+								else if (ZeroCouponFlagPay[idxpay] == 1)
+								{
+									deltat_fixing_to_pay = DeltatPay[idxpay];
+									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
+								}
+								else
+								{
+									deltat_fixing_to_pay = DeltatPay[idxpay];
+									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
+								}
+								TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
+								FDMValue_2F[idx1][idx2] += PayCpn * Instant_FwdDF;
+							}
+						}
+						ResultFixingRateCpnPay[idxpay] += Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Pay_2F[NTotalSimul - 1 - i], 0.0, 0.0) / (double)NBD_Fixing_to_End_Pay[idxpay];
+						ResultFixingRateCpnPay[NCpnDatePay + idxpay] += Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayPay_2F, 0.0, 0.0) ;
+					}
+					else
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++)
+						{
+							for (idx2 = 0; idx2 < NGreed; idx2++)
+							{
+								Rate_Pay = Rate_Pay_2F[NTotalSimul - 1 - i][idx1][idx2];
+								Rate_Pay_p = Rate_PayPowerSpread_2F[NTotalSimul - 1 - i][idx1][idx2];
+								RgCpnPay = 0.;
+								if (Structured_Pay[idxpay] > 0)
+								{
+									Rate = SlopeOfFixingRate_Pay[idxpay] * (Rate_Pay - Rate_Pay_p);
+									if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[idxpay] / (double)NBD_Fixing_to_End_Pay[idxpay];//임시삭제 * Instant_FwdDF ;
+								}
+
+								if (ZeroCouponFlagPay[idxpay] == 0)
+								{
+									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])), RoundingPay);
+								}
+								else if (ZeroCouponFlagPay[idxpay] == 1)
+								{
+									deltat_fixing_to_pay = DeltatPay[idxpay];
+									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
+								}
+								else
+								{
+									deltat_fixing_to_pay = DeltatPay[idxpay];
+									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
+								}
+								TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
+								FDMValue_2F[idx1][idx2] += PayCpn * Instant_FwdDF;
+							}
+						}
+						ResultFixingRateCpnPay[idxpay] += (Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Pay_2F[NTotalSimul - 1 - i], 0.0, 0.0) - Calc_Volatility(NGreed, NGreed, xt, yt, Rate_PayPowerSpread_2F[NTotalSimul - 1 - i], 0.0, 0.0)) / (double)NBD_Fixing_to_End_Pay[idxpay];
+						ResultFixingRateCpnPay[NCpnDatePay + idxpay] += Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayPay_2F, 0.0, 0.0);
+					}
+				}
+				else
+				{
+					if (PowerSpreadFlagPay == 0)
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++)
+						{
+							Rate_Pay = Rate_Pay_1F[NTotalSimul - 1 - i][idx1];
+							RgCpnPay = 0.;
+							if (Structured_Pay[idxpay] > 0)
+							{
+								Rate = SlopeOfFixingRate_Pay[idxpay] * Rate_Pay;
+								if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * Rate_Pay + RangeCpn_Pay[idxpay] / (double)NBD_Fixing_to_End_Pay[idxpay];//임시삭제 * Instant_FwdDF ;
+							}
+
+							if (ZeroCouponFlagPay[idxpay] == 0)
+							{
+								PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])), RoundingPay);
+							}
+							else if (ZeroCouponFlagPay[idxpay] == 1)
+							{
+								deltat_fixing_to_pay = DeltatPay[idxpay];
+								PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
+							}
+							else
+							{
+								deltat_fixing_to_pay = DeltatPay[idxpay];
+								PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
+							}
+							TempCpnArrayPay_1F[idx1] = PayCpn;
+							FDMValue_1F[idx1] += PayCpn * Instant_FwdDF;
+						}
+						ResultFixingRateCpnPay[idxpay] += Interpolate_Linear(xt, Rate_Pay_1F[NTotalSimul - 1 - i], NGreed, 0.0) / (double)NBD_Fixing_to_End_Pay[idxpay];
+						ResultFixingRateCpnPay[NCpnDatePay + idxpay] += Interpolate_Linear(xt, TempCpnArrayPay_1F, NGreed, 0.0);
+					}
+					else
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++)
+						{
+							Rate_Pay = Rate_Pay_1F[NTotalSimul - 1 - i][idx1];
+							Rate_Pay_p = Rate_PayPowerSpread_1F[NTotalSimul - 1 - i][idx1];
+							RgCpnPay = 0.;
+							if (Structured_Pay[idxpay] > 0)
+							{
+								Rate = SlopeOfFixingRate_Pay[idxpay] * (Rate_Pay - Rate_Pay_p);
+								if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[idxpay] / (double)NBD_Fixing_to_End_Pay[idxpay];//임시삭제 *Instant_FwdDF;
+							}
+
+							if (ZeroCouponFlagPay[idxpay] == 0)
+							{
+								PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])), RoundingPay);
+							}
+							else if (ZeroCouponFlagPay[idxpay] == 1)
+							{
+								deltat_fixing_to_pay = DeltatPay[idxpay];
+								PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
+							}
+							else
+							{
+								deltat_fixing_to_pay = DeltatPay[idxpay];
+								PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
+							}
+
+							TempCpnArrayPay_1F[idx1] = PayCpn;
+							FDMValue_1F[idx1] += PayCpn * Instant_FwdDF;
+						}
+						ResultFixingRateCpnPay[idxpay] += Interpolate_Linear(xt, Rate_Pay_1F[NTotalSimul - 1 - i], NGreed, 0.0) / (double)NBD_Fixing_to_End_Pay[idxpay];
+						ResultFixingRateCpnPay[NCpnDatePay + idxpay] += Interpolate_Linear(xt, TempCpnArrayPay_1F, NGreed, 0.0);
+					}
+				}
+				temp = 0.;
+			}
+
 			if (Today <= PriceDate)
 			{
 				// 만약 오늘이 평가일이라면 FDM 종료
+				if (RcvRangeAccrualFlag == 1)
+				{
+					idxrcv = -1;
+					// RA인 경우 이미 Fixing된 RA 쿠폰정도만 계산하고 종료
+					for (i = 0; i < NCpnDateRcv; i++)
+					{
+						if (RcvFixingDate[i] < PriceDate && RcvPaymentDate[i] > PriceDate)
+						{
+							idxrcv = i;
+							break;
+						}
+					}
+					NHist = 0;
+					n = 0;
+					for (j = 0; j < NRcvRateHistory; j++)
+					{
+						if (RcvRateHistoryDate[j] > RcvFixingDate[idxrcv] && RcvRateHistoryDate[j] < PriceDate)
+						{
+							if (RcvRateHistory[j] < RangeMaxMinRcv[0] && RcvRateHistory[j]> RangeMaxMinRcv[1]) n += 1;
+							NHist += 1;
+						}
+					}
+					w1 = ((double)DayCountAtoB(RcvFixingDate[idxrcv], PriceDate)) / ((double)DayCountAtoB(RcvFixingDate[idxrcv], CpnDateRcv[idxrcv]));
+					w2 = ((double)DayCountAtoB(PriceDate, CpnDateRcv[idxrcv])) / ((double)DayCountAtoB(RcvFixingDate[idxrcv], CpnDateRcv[idxrcv]));
+					if (NHist > 0)
+					{
+						ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RangeCpn_Rcv[idxrcv]) * DeltatRcv[idxrcv])), RoundingRcv) * w1 * ((double)n) / ((double)NHist) + ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] * w2;
+					}
+
+					idxpay = -1;
+					for (i = 0; i < NCpnDatePay; i++)
+					{
+						if (PayFixingDate[i] < PriceDate && PayPaymentDate[i] > PriceDate)
+						{
+							idxpay = i;
+							break;
+						}
+					}
+					NHist = 0;
+					n = 0;
+					for (j = 0; j < NPayRateHistory; j++)
+					{
+						if (PayRateHistoryDate[j] > PayFixingDate[idxpay] && PayRateHistoryDate[j] < PriceDate)
+						{
+							if (PayRateHistory[j] < RangeMaxMinPay[0] && PayRateHistory[j]> RangeMaxMinPay[1]) n += 1;
+							NHist += 1;
+						}
+					}
+					w1 = ((double)DayCountAtoB(PayFixingDate[idxpay], PriceDate)) / ((double)DayCountAtoB(PayFixingDate[idxpay], CpnDatePay[idxpay]));
+					w2 = ((double)DayCountAtoB(PriceDate, CpnDatePay[idxpay])) / ((double)DayCountAtoB(PayFixingDate[idxpay], CpnDatePay[idxpay]));
+					if (NHist > 0)
+					{
+						ResultFixingRateCpnPay[NCpnDatePay + idxpay] = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RangeCpn_Pay[idxpay]) * DeltatPay[idxpay])), RoundingPay) * w1 * ((double)n) / ((double)NHist) + ResultFixingRateCpnPay[NCpnDatePay + idxpay] * w2;
+					}
+				}
+
 				break;
 			}
 
-
-			if (i != 0 && isin_Longtype(Today, RcvPaymentDate, NCpnDateRcv))
+			if (i != 0 && isin_Longtype(Today, RcvPaymentDate, NCpnDateRcv) && RcvRangeAccrualFlag == 0)
 			{
 				idxrcv = -1;
 				for (idxrcv = 0; idxrcv < NCpnDateRcv; idxrcv++)
@@ -2100,27 +2711,102 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				}
 
 				idxrcvfix = -1;
-				for (idxrcvfix = 0; idxrcvfix < NTotalSimul; idxrcvfix++)
+				for (j = 0; j < NTotalSimul; j++)
 				{
-					if (TotalArrayDateSimul[idxrcvfix] == RcvFixingDate[idxrcv])
+					if (TotalArrayDateSimul[j] == RcvFixingDate[idxrcv])
 					{
+						idxrcvfix = j;
 						break;
 					}
 				}
 
 				if (RcvPaymentDate[idxrcv] > PriceDate)
 				{
-					if (TotalArrayDateSimul[idxrcvfix] >= PriceDate)
+					if (idxrcvfix >= 0)
 					{
-						if (HW2FFlag > 0)
+						if (TotalArrayDateSimul[idxrcvfix] >= PriceDate)
 						{
-							if (PowerSpreadFlagRcv == 0)
+							if (HW2FFlag > 0)
 							{
-								for (idx1 = 0; idx1 < NGreed; idx1++)
+								if (PowerSpreadFlagRcv == 0)
 								{
-									for (idx2 = 0; idx2 < NGreed; idx2++)
+									for (idx1 = 0; idx1 < NGreed; idx1++)
 									{
-										Rate_Rcv = Rate_Rcv_2F[idxrcvfix][idx1][idx2];
+										for (idx2 = 0; idx2 < NGreed; idx2++)
+										{
+											Rate_Rcv = Rate_Rcv_2F[idxrcvfix][idx1][idx2];
+											RgCpnRcv = 0.;
+											if (Structured_Rcv[idxrcv] > 0)
+											{
+												Rate = SlopeOfFixingRate_Rcv[idxrcv] * Rate_Rcv;
+												if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * Rate_Rcv + RangeCpn_Rcv[idxrcv];
+											}
+
+											if (ZeroCouponFlagRcv[idxrcv] == 0)
+											{
+												RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])), RoundingRcv);
+											}
+											else if (ZeroCouponFlagRcv[idxrcv] == 1)
+											{
+												deltat_fixing_to_pay = DeltatRcv[idxrcv];
+												RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+											}
+											else
+											{
+												deltat_fixing_to_pay = DeltatRcv[idxrcv];
+												RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
+											}
+											TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
+											FDMValue_2F[idx1][idx2] += RcvCpn;
+										}
+									}
+									ResultFixingRateCpnRcv[idxrcv] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Rcv_2F[idxrcvfix], 0.0, 0.0);
+									ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayRcv_2F, 0.0, 0.0);
+								}
+								else
+								{
+									for (idx1 = 0; idx1 < NGreed; idx1++)
+									{
+										for (idx2 = 0; idx2 < NGreed; idx2++)
+										{
+											Rate_Rcv = Rate_Rcv_2F[idxrcvfix][idx1][idx2];
+											Rate_Rcv_p = Rate_RcvPowerSpread_2F[idxrcvfix][idx1][idx2];
+											RgCpnRcv = 0.;
+											if (Structured_Rcv[idxrcv] > 0)
+											{
+												Rate = SlopeOfFixingRate_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p);
+												if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[idxrcv];
+											}
+
+											if (ZeroCouponFlagRcv[idxrcv] == 0)
+											{
+												RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])), RoundingRcv);
+											}
+											else if (ZeroCouponFlagRcv[idxrcv] == 1)
+											{
+												deltat_fixing_to_pay = DeltatRcv[idxrcv];
+												RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
+											}
+											else
+											{
+												deltat_fixing_to_pay = DeltatRcv[idxrcv];
+												RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
+											}
+											TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
+											FDMValue_2F[idx1][idx2] += RcvCpn;
+										}
+									}
+									ResultFixingRateCpnRcv[idxrcv] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Rcv_2F[idxrcvfix], 0.0, 0.0) - Calc_Volatility(NGreed, NGreed, xt, yt, Rate_RcvPowerSpread_2F[idxrcvfix], 0.0, 0.0);
+									ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayRcv_2F, 0.0, 0.0);
+								}
+							}
+							else
+							{
+								if (PowerSpreadFlagRcv == 0)
+								{
+									for (idx1 = 0; idx1 < NGreed; idx1++)
+									{
+										Rate_Rcv = Rate_Rcv_1F[idxrcvfix][idx1];
 										RgCpnRcv = 0.;
 										if (Structured_Rcv[idxrcv] > 0)
 										{
@@ -2142,21 +2828,18 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 											deltat_fixing_to_pay = DeltatRcv[idxrcv];
 											RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
 										}
-										TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
-										FDMValue_2F[idx1][idx2] += RcvCpn;
+										TempCpnArrayRcv_1F[idx1] = RcvCpn;
+										FDMValue_1F[idx1] += RcvCpn;
 									}
+									ResultFixingRateCpnRcv[idxrcv] = Interpolate_Linear(xt, Rate_Rcv_1F[idxrcvfix], NGreed, 0.0);
+									ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = Interpolate_Linear(xt, TempCpnArrayRcv_1F, NGreed, 0.0);
 								}
-								ResultFixingRateCpnRcv[idxrcv] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Rcv_2F[idxrcvfix], 0.0, 0.0);
-								ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayRcv_2F, 0.0, 0.0);
-							}
-							else
-							{
-								for (idx1 = 0; idx1 < NGreed; idx1++)
+								else
 								{
-									for (idx2 = 0; idx2 < NGreed; idx2++)
+									for (idx1 = 0; idx1 < NGreed; idx1++)
 									{
-										Rate_Rcv = Rate_Rcv_2F[idxrcvfix][idx1][idx2];
-										Rate_Rcv_p = Rate_RcvPowerSpread_2F[idxrcvfix][idx1][idx2];
+										Rate_Rcv = Rate_Rcv_1F[idxrcvfix][idx1];
+										Rate_Rcv_p = Rate_RcvPowerSpread_1F[idxrcvfix][idx1];
 										RgCpnRcv = 0.;
 										if (Structured_Rcv[idxrcv] > 0)
 										{
@@ -2178,89 +2861,57 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 											deltat_fixing_to_pay = DeltatRcv[idxrcv];
 											RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
 										}
-										TempCpnArrayRcv_2F[idx1][idx2] = RcvCpn;
-										FDMValue_2F[idx1][idx2] += RcvCpn;
+
+										TempCpnArrayRcv_1F[idx1] = RcvCpn;
+										FDMValue_1F[idx1] += RcvCpn;
 									}
+									ResultFixingRateCpnRcv[idxrcv] = Interpolate_Linear(xt, Rate_Rcv_1F[idxrcvfix], NGreed, 0.0);
+									ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = Interpolate_Linear(xt, TempCpnArrayRcv_1F, NGreed, 0.0);
 								}
-								ResultFixingRateCpnRcv[idxrcv] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Rcv_2F[idxrcvfix], 0.0, 0.0) - Calc_Volatility(NGreed, NGreed, xt, yt, Rate_RcvPowerSpread_2F[idxrcvfix], 0.0, 0.0);
-								ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayRcv_2F, 0.0, 0.0);
 							}
 						}
-						else
+						else if (isin_Longtype(TotalArrayDateSimul[idxrcvfix], RcvRateHistoryDate, NRcvRateHistory))
 						{
-							if (PowerSpreadFlagRcv == 0)
+							for (idxhist = 0; idxhist < NRcvRateHistory; idxhist++)
 							{
-								for (idx1 = 0; idx1 < NGreed; idx1++)
+								if (TotalArrayDateSimul[idxrcvfix] == RcvRateHistoryDate[idxhist])
 								{
-									Rate_Rcv = Rate_Rcv_1F[idxrcvfix][idx1];
-									RgCpnRcv = 0.;
-									if (Structured_Rcv[idxrcv] > 0)
-									{
-										Rate = SlopeOfFixingRate_Rcv[idxrcv] * Rate_Rcv;
-										if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * Rate_Rcv + RangeCpn_Rcv[idxrcv];
-									}
-
-									if (ZeroCouponFlagRcv[idxrcv] == 0)
-									{
-										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])), RoundingRcv);
-									}
-									else if (ZeroCouponFlagRcv[idxrcv] == 1)
-									{
-										deltat_fixing_to_pay = DeltatRcv[idxrcv];
-										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
-									}
-									else
-									{
-										deltat_fixing_to_pay = DeltatRcv[idxrcv];
-										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
-									}
-									TempCpnArrayRcv_1F[idx1] = RcvCpn;
-									FDMValue_1F[idx1] += RcvCpn;
+									break;
 								}
-								ResultFixingRateCpnRcv[idxrcv] = Interpolate_Linear(xt, Rate_Rcv_1F[idxrcvfix], NGreed, 0.0);
-								ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = Interpolate_Linear(xt, TempCpnArrayRcv_1F, NGreed, 0.0);
+							}
+							Rate_Rcv = RcvRateHistory[idxhist];
+							RgCpnRcv = 0.;
+							if (Structured_Rcv[idxrcv] > 0)
+							{
+								Rate = SlopeOfFixingRate_Rcv[idxrcv] * Rate_Rcv;
+								if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * Rate_Rcv + RangeCpn_Rcv[idxrcv];
+							}
+
+							if (ZeroCouponFlagRcv[idxrcv] == 0)
+							{
+								RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])), RoundingRcv);
+							}
+							else if (ZeroCouponFlagRcv[idxrcv] == 1)
+							{
+								deltat_fixing_to_pay = DeltatRcv[idxrcv];
+								RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
 							}
 							else
 							{
-								for (idx1 = 0; idx1 < NGreed; idx1++)
-								{
-									Rate_Rcv = Rate_Rcv_1F[idxrcvfix][idx1];
-									Rate_Rcv_p = Rate_RcvPowerSpread_1F[idxrcvfix][idx1];
-									RgCpnRcv = 0.;
-									if (Structured_Rcv[idxrcv] > 0)
-									{
-										Rate = SlopeOfFixingRate_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p);
-										if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[idxrcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[idxrcv];
-									}
-
-									if (ZeroCouponFlagRcv[idxrcv] == 0)
-									{
-										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])),RoundingRcv);
-									}
-									else if (ZeroCouponFlagRcv[idxrcv] == 1)
-									{
-										deltat_fixing_to_pay = DeltatRcv[idxrcv];
-										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)),RoundingRcv);
-									}
-									else
-									{
-										deltat_fixing_to_pay = DeltatRcv[idxrcv];
-										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
-									}
-
-									TempCpnArrayRcv_1F[idx1] = RcvCpn;
-									FDMValue_1F[idx1] += RcvCpn;
-								}
-								ResultFixingRateCpnRcv[idxrcv] = Interpolate_Linear(xt, Rate_Rcv_1F[idxrcvfix], NGreed, 0.0);
-								ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = Interpolate_Linear(xt, TempCpnArrayRcv_1F, NGreed, 0.0);
+								deltat_fixing_to_pay = DeltatRcv[idxrcv];
+								RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
 							}
+							if (HW2FFlag == 0) for (idx1 = 0; idx1 < NGreed; idx1++) FDMValue_1F[idx1] += RcvCpn;
+							else for (idx1 = 0; idx1 < NGreed; idx1++) for (idx2 = 0; idx2 < NGreed; idx2++) FDMValue_2F[idx1][idx2] += RcvCpn;
+							ResultFixingRateCpnRcv[idxrcv] = Rate_Rcv;
+							ResultFixingRateCpnRcv[NCpnDateRcv + idxrcv] = RcvCpn;
 						}
 					}
-					else if (isin_Longtype(TotalArrayDateSimul[idxrcvfix], RcvRateHistoryDate, NRcvRateHistory))
+					else if (idxrcvfix == -1 && RcvFixingDate[idxrcv] < PriceDate && RcvPaymentDate[idxrcv] > PriceDate && isin_Longtype(RcvFixingDate[idxrcv], RcvRateHistoryDate, NRcvRateHistory))
 					{
 						for (idxhist = 0; idxhist < NRcvRateHistory; idxhist++)
 						{
-							if (TotalArrayDateSimul[idxrcvfix] == RcvRateHistoryDate[idxhist])
+							if (RcvFixingDate[idxrcv] == RcvRateHistoryDate[idxhist])
 							{
 								break;
 							}
@@ -2275,12 +2926,12 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 
 						if (ZeroCouponFlagRcv[idxrcv] == 0)
 						{
-							RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])),RoundingRcv);
+							RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[idxrcv] + RgCpnRcv) * DeltatRcv[idxrcv])), RoundingRcv);
 						}
 						else if (ZeroCouponFlagRcv[idxrcv] == 1)
 						{
 							deltat_fixing_to_pay = DeltatRcv[idxrcv];
-							RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)),RoundingRcv);
+							RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], pow(1.0 + FixedRate_Rcv[idxrcv] + RgCpnRcv, deltat_fixing_to_pay) - 1.0)), RoundingRcv);
 						}
 						else
 						{
@@ -2299,7 +2950,7 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				}
 			}
 
-			if (i != 0 && isin_Longtype(Today, PayPaymentDate, NCpnDatePay))
+			if (i != 0 && isin_Longtype(Today, PayPaymentDate, NCpnDatePay) && PayRangeAccrualFlag == 0)
 			{
 				idxpay = -1;
 				for (idxpay = 0; idxpay < NCpnDatePay; idxpay++)
@@ -2311,34 +2962,109 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				}
 
 				idxpayfix = -1;
-				for (idxpayfix = 0; idxpayfix < NTotalSimul; idxpayfix++)
+				for (j = 0; j < NTotalSimul; j++)
 				{
-					if (TotalArrayDateSimul[idxpayfix] == PayFixingDate[idxpay])
+					if (TotalArrayDateSimul[j] == PayFixingDate[idxpay])
 					{
+						idxpayfix = j;
 						break;
 					}
 				}
 
 				if (PayPaymentDate[idxpay] > PriceDate)
 				{
-					if (TotalArrayDateSimul[idxpayfix] >= PriceDate)
+					if (idxpayfix >= 0)
 					{
-						if (HW2FFlag > 0)
+						if (TotalArrayDateSimul[idxpayfix] >= PriceDate)
 						{
-							if (PowerSpreadFlagPay == 0)
+							if (HW2FFlag > 0)
 							{
-								for (idx1 = 0; idx1 < NGreed; idx1++)
+								if (PowerSpreadFlagPay == 0)
 								{
-									for (idx2 = 0; idx2 < NGreed; idx2++)
+									for (idx1 = 0; idx1 < NGreed; idx1++)
 									{
-										Rate_Pay = Rate_Pay_2F[idxpayfix][idx1][idx2];
+										for (idx2 = 0; idx2 < NGreed; idx2++)
+										{
+											Rate_Pay = Rate_Pay_2F[idxpayfix][idx1][idx2];
+											RgCpnPay = 0.;
+											if (Structured_Pay[idxpay] > 0)
+											{
+												Rate = SlopeOfFixingRate_Pay[idxpay] * Rate_Pay;
+												if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * Rate_Pay + RangeCpn_Pay[idxpay];
+											}
+
+											if (ZeroCouponFlagPay[idxpay] == 0)
+											{
+												PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])), RoundingPay);
+											}
+											else if (ZeroCouponFlagPay[idxpay] == 1)
+											{
+												deltat_fixing_to_pay = DeltatPay[idxpay];
+												PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
+											}
+											else
+											{
+												deltat_fixing_to_pay = DeltatPay[idxpay];
+												PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
+											}
+											TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
+											if (BondFlag == 0) FDMValue_2F[idx1][idx2] -= PayCpn;
+										}
+									}
+									ResultFixingRateCpnPay[idxpay] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Pay_2F[idxpayfix], 0.0, 0.0);
+									ResultFixingRateCpnPay[NCpnDatePay + idxpay] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayPay_2F, 0.0, 0.0);
+								}
+								else
+								{
+									for (idx1 = 0; idx1 < NGreed; idx1++)
+									{
+										for (idx2 = 0; idx2 < NGreed; idx2++)
+										{
+											Rate_Pay = Rate_Pay_2F[idxpayfix][idx1][idx2];
+											Rate_Pay_p = Rate_PayPowerSpread_2F[idxpayfix][idx1][idx2];
+											RgCpnPay = 0.;
+											if (Structured_Pay[idxpay] > 0)
+											{
+												Rate = SlopeOfFixingRate_Pay[idxpay] * (Rate_Pay - Rate_Pay_p);
+												if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[idxpay];
+											}
+
+											if (ZeroCouponFlagPay[idxpay] == 0)
+											{
+												PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])), RoundingPay);
+											}
+											else if (ZeroCouponFlagPay[idxpay] == 1)
+											{
+												deltat_fixing_to_pay = DeltatPay[idxpay];
+												PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
+											}
+											else
+											{
+												deltat_fixing_to_pay = DeltatPay[idxpay];
+												PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
+											}
+											TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
+											if (BondFlag == 0) FDMValue_2F[idx1][idx2] -= PayCpn;
+										}
+									}
+									ResultFixingRateCpnPay[idxpay] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Pay_2F[idxpayfix], 0.0, 0.0) - Calc_Volatility(NGreed, NGreed, xt, yt, Rate_PayPowerSpread_2F[idxpayfix], 0.0, 0.0);
+									ResultFixingRateCpnPay[NCpnDatePay + idxpay] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayPay_2F, 0.0, 0.0);
+								}
+							}
+							else
+							{
+								if (PowerSpreadFlagPay == 0)
+								{
+									for (idx1 = 0; idx1 < NGreed; idx1++)
+									{
+										Rate_Pay = Rate_Pay_1F[idxpayfix][idx1];
 										RgCpnPay = 0.;
 										if (Structured_Pay[idxpay] > 0)
 										{
 											Rate = SlopeOfFixingRate_Pay[idxpay] * Rate_Pay;
 											if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * Rate_Pay + RangeCpn_Pay[idxpay];
 										}
-										
+
 										if (ZeroCouponFlagPay[idxpay] == 0)
 										{
 											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])), RoundingPay);
@@ -2346,131 +3072,96 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										else if (ZeroCouponFlagPay[idxpay] == 1)
 										{
 											deltat_fixing_to_pay = DeltatPay[idxpay];
-											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
 										}
 										else
 										{
 											deltat_fixing_to_pay = DeltatPay[idxpay];
 											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
 										}
-										TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
-										if (BondFlag == 0) FDMValue_2F[idx1][idx2] -= PayCpn;
+										TempCpnArrayPay_1F[idx1] = PayCpn;
+										if (BondFlag == 0) FDMValue_1F[idx1] -= PayCpn;
 									}
+									ResultFixingRateCpnPay[idxpay] = Interpolate_Linear(xt, Rate_Pay_1F[idxpayfix], NGreed, 0.0);
+									ResultFixingRateCpnPay[NCpnDatePay + idxpay] = Interpolate_Linear(xt, TempCpnArrayPay_1F, NGreed, 0.0);
 								}
-								ResultFixingRateCpnPay[idxpay] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Pay_2F[idxpayfix], 0.0, 0.0);
-								ResultFixingRateCpnPay[NCpnDatePay + idxpay] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayPay_2F, 0.0, 0.0);
-							}
-							else
-							{
-								for (idx1 = 0; idx1 < NGreed; idx1++)
+								else
 								{
-									for (idx2 = 0; idx2 < NGreed; idx2++)
+									for (idx1 = 0; idx1 < NGreed; idx1++)
 									{
-										Rate_Pay = Rate_Pay_2F[idxpayfix][idx1][idx2];
-										Rate_Pay_p = Rate_PayPowerSpread_2F[idxpayfix][idx1][idx2];
+										Rate_Pay = Rate_Pay_1F[idxpayfix][idx1];
+										Rate_Pay_p = Rate_PayPowerSpread_1F[idxpayfix][idx1];
 										RgCpnPay = 0.;
 										if (Structured_Pay[idxpay] > 0)
 										{
 											Rate = SlopeOfFixingRate_Pay[idxpay] * (Rate_Pay - Rate_Pay_p);
 											if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[idxpay];
 										}
-										
+
 										if (ZeroCouponFlagPay[idxpay] == 0)
 										{
-											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])),RoundingPay);
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])), RoundingPay);
 										}
 										else if (ZeroCouponFlagPay[idxpay] == 1)
 										{
 											deltat_fixing_to_pay = DeltatPay[idxpay];
-											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
 										}
 										else
 										{
 											deltat_fixing_to_pay = DeltatPay[idxpay];
 											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
 										}
-										TempCpnArrayPay_2F[idx1][idx2] = PayCpn;
-										if (BondFlag == 0) FDMValue_2F[idx1][idx2] -= PayCpn;
+										TempCpnArrayPay_1F[idx1] = PayCpn;
+										if (BondFlag == 0) FDMValue_1F[idx1] -= PayCpn;
 									}
+									ResultFixingRateCpnPay[idxpay] = Interpolate_Linear(xt, Rate_Pay_1F[idxpayfix], NGreed, 0.0);
+									ResultFixingRateCpnPay[NCpnDatePay + idxpay] = Interpolate_Linear(xt, TempCpnArrayPay_1F, NGreed, 0.0);
 								}
-								ResultFixingRateCpnPay[idxpay] = Calc_Volatility(NGreed, NGreed, xt, yt, Rate_Pay_2F[idxpayfix], 0.0, 0.0) - Calc_Volatility(NGreed, NGreed, xt, yt, Rate_PayPowerSpread_2F[idxpayfix], 0.0, 0.0);
-								ResultFixingRateCpnPay[NCpnDatePay + idxpay] = Calc_Volatility(NGreed, NGreed, xt, yt, TempCpnArrayPay_2F, 0.0, 0.0);
 							}
 						}
-						else
+						else if (isin_Longtype(TotalArrayDateSimul[idxpayfix], PayRateHistoryDate, NPayRateHistory))// History 참고
 						{
-							if (PowerSpreadFlagPay == 0)
+							for (idxhist = 0; idxhist < NPayRateHistory; idxhist++)
 							{
-								for (idx1 = 0; idx1 < NGreed; idx1++)
+								if (TotalArrayDateSimul[idxpayfix] == PayRateHistoryDate[idxhist])
 								{
-									Rate_Pay = Rate_Pay_1F[idxpayfix][idx1];
-									RgCpnPay = 0.;
-									if (Structured_Pay[idxpay] > 0)
-									{
-										Rate = SlopeOfFixingRate_Pay[idxpay] * Rate_Pay;
-										if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * Rate_Pay + RangeCpn_Pay[idxpay];
-									}
-
-									if (ZeroCouponFlagPay[idxpay] == 0)
-									{
-										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])),RoundingPay);
-									}
-									else if (ZeroCouponFlagPay[idxpay] == 1)
-									{
-										deltat_fixing_to_pay = DeltatPay[idxpay];
-										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
-									}
-									else
-									{
-										deltat_fixing_to_pay = DeltatPay[idxpay];
-										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
-									}
-									TempCpnArrayPay_1F[idx1] = PayCpn;
-									if (BondFlag == 0) FDMValue_1F[idx1] -= PayCpn;
+									break;
 								}
-								ResultFixingRateCpnPay[idxpay] = Interpolate_Linear(xt, Rate_Pay_1F[idxpayfix], NGreed, 0.0);
-								ResultFixingRateCpnPay[NCpnDatePay + idxpay] = Interpolate_Linear(xt, TempCpnArrayPay_1F, NGreed, 0.0);
+							}
+							Rate_Pay = PayRateHistory[idxhist];
+							RgCpnPay = 0.;
+							if (Structured_Pay[idxpay] > 0)
+							{
+								Rate = SlopeOfFixingRate_Pay[idxpay] * Rate_Pay;
+								if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * Rate_Pay + RangeCpn_Pay[idxpay];
+							}
+
+							if (ZeroCouponFlagPay[idxpay] == 0)
+							{
+								PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])), RoundingPay);
+							}
+							else if (ZeroCouponFlagPay[idxpay] == 1)
+							{
+								deltat_fixing_to_pay = DeltatPay[idxpay];
+								PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
 							}
 							else
 							{
-								for (idx1 = 0; idx1 < NGreed; idx1++)
-								{
-									Rate_Pay = Rate_Pay_1F[idxpayfix][idx1];
-									Rate_Pay_p = Rate_PayPowerSpread_1F[idxpayfix][idx1];
-									RgCpnPay = 0.;
-									if (Structured_Pay[idxpay] > 0)
-									{
-										Rate = SlopeOfFixingRate_Pay[idxpay] * (Rate_Pay - Rate_Pay_p);
-										if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[idxpay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[idxpay];
-									}
-
-									if (ZeroCouponFlagPay[idxpay] == 0)
-									{
-										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])),RoundingPay);
-									}
-									else if (ZeroCouponFlagPay[idxpay] == 1)
-									{
-										deltat_fixing_to_pay = DeltatPay[idxpay];
-										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
-									}
-									else
-									{
-										deltat_fixing_to_pay = DeltatPay[idxpay];
-										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
-									}
-									TempCpnArrayPay_1F[idx1] = PayCpn;
-									if (BondFlag == 0) FDMValue_1F[idx1] -= PayCpn;
-								}
-								ResultFixingRateCpnPay[idxpay] = Interpolate_Linear(xt, Rate_Pay_1F[idxpayfix], NGreed, 0.0);
-								ResultFixingRateCpnPay[NCpnDatePay + idxpay] = Interpolate_Linear(xt, TempCpnArrayPay_1F, NGreed, 0.0);
+								deltat_fixing_to_pay = DeltatPay[idxpay];
+								PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
 							}
+							if (HW2FFlag == 0) for (idx1 = 0; idx1 < NGreed; idx1++) FDMValue_1F[idx1] -= PayCpn * (double)(BondFlag == 0);
+							else for (idx1 = 0; idx1 < NGreed; idx1++) for (idx2 = 0; idx2 < NGreed; idx2++) FDMValue_2F[idx1][idx2] -= PayCpn * (double)(BondFlag == 0);
+							ResultFixingRateCpnPay[idxpay] = Rate_Pay;
+							ResultFixingRateCpnPay[NCpnDatePay + idxpay] = PayCpn;
 						}
 					}
-					else if (isin_Longtype(TotalArrayDateSimul[idxpayfix], PayRateHistoryDate, NPayRateHistory))// History 참고
+					else if (idxpayfix == -1 && PayFixingDate[idxpay] < PriceDate && PayPaymentDate[idxpay] > PriceDate && isin_Longtype(PayFixingDate[idxpay], PayRateHistoryDate, NPayRateHistory))
 					{
 						for (idxhist = 0; idxhist < NPayRateHistory; idxhist++)
 						{
-							if (TotalArrayDateSimul[idxpayfix] == PayRateHistoryDate[idxhist])
+							if (PayFixingDate[idxpay] == PayRateHistoryDate[idxhist])
 							{
 								break;
 							}
@@ -2485,12 +3176,12 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 
 						if (ZeroCouponFlagPay[idxpay] == 0)
 						{
-							PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])),RoundingPay);
+							PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[idxpay] + RgCpnPay) * DeltatPay[idxpay])), RoundingPay);
 						}
 						else if (ZeroCouponFlagPay[idxpay] == 1)
 						{
 							deltat_fixing_to_pay = DeltatPay[idxpay];
-							PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)),RoundingPay);
+							PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], pow(1.0 + FixedRate_Pay[idxpay] + RgCpnPay, deltat_fixing_to_pay) - 1.0)), RoundingPay);
 						}
 						else
 						{
@@ -2509,83 +3200,156 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 				}
 			}
 
-			if (i != 0 && NOption > 0 && (Today <= OptionPayDate[nextoptidx] && Today >= OptionDate[nextoptidx]))
+			//if (RcvRangeAccrualFlag == 0 || PayRangeAccrualFlag == 0)
+			TodayIsOptionDate = (Today <= OptionPayDate[nextoptidx] && Today >= OptionDate[nextoptidx]);
+			if (i != 0 && NOption > 0 && TodayIsOptionDate)
 			{
-				if (Today == OptionPayDate[nextoptidx])
+				if (RcvRangeAccrualFlag == 0 && PayRangeAccrualFlag == 0)
 				{
-					if (HW2FFlag == 0)
+					if (Today == OptionPayDate[nextoptidx])
 					{
-						for (idx1 = 0; idx1 < NGreed; idx1++) OptionExerciseFlag_1F[idx1] = 0;
-					}
-					else
-					{
-						for (idx1 = 0; idx1 < NGreed; idx1++) for (idx2 = 0; idx2 < NGreed; idx2++) OptionExerciseFlag_2F[idx1][idx2] = 0;
-					}
-				}
-
-				t1 = t;
-				t2 = ((double)DayCountAtoB(PriceDate, OptionPayDate[nextoptidx])) / 365.;
-				df_T = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroRate, t2);
-				df_t = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroRate, t1);
-
-				LastFixingIdxRcv = -1;
-				for (idx1 = 0; idx1 < NCpnDateRcv; idx1++)
-				{
-					if (OptionDate[nextoptidx] <= RcvPaymentDate[idx1] && RcvFixingDate[idx1] <= OptionDate[nextoptidx])
-					{
-						LastFixingIdxRcv = idx1;
-						break;
-					}
-				}
-
-				idxrcv = -1;
-				if (LastFixingIdxRcv >= 0)
-				{
-					for (idx1 = 0; idx1 < NTotalSimul; idx1++)
-					{
-						if (RcvFixingDate[LastFixingIdxRcv] == TotalArrayDateSimul[idx1])
+						if (HW2FFlag == 0)
 						{
-							idxrcv = idx1;
+							for (idx1 = 0; idx1 < NGreed; idx1++) OptionExerciseFlag_1F[idx1] = 0;
+						}
+						else
+						{
+							for (idx1 = 0; idx1 < NGreed; idx1++) for (idx2 = 0; idx2 < NGreed; idx2++) OptionExerciseFlag_2F[idx1][idx2] = 0;
+						}
+					}
+
+					t1 = t;
+					t2 = ((double)DayCountAtoB(PriceDate, OptionPayDate[nextoptidx])) / 365.;
+					df_T = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroRate, t2);
+					df_t = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroRate, t1);
+
+					LastFixingIdxRcv = -1;
+					for (idx1 = 0; idx1 < NCpnDateRcv; idx1++)
+					{
+						if (OptionDate[nextoptidx] <= RcvPaymentDate[idx1] && RcvFixingDate[idx1] <= OptionDate[nextoptidx])
+						{
+							LastFixingIdxRcv = idx1;
 							break;
 						}
 					}
-				}
 
-				DF_to_LastPayDate_Rcv = df_T;
-				AccCpnDFRcv = df_T;
-				AccZeroCpnRcv = 0.;
-				if (LastFixingIdxRcv >= 0)
-				{					
-					if (ZeroCouponFlagRcv[LastFixingIdxRcv] > 0)
+					idxrcv = -1;
+					if (LastFixingIdxRcv >= 0)
 					{
-						// ZeroCouponCallable Swap 관련 보정
-						//DF_to_LastPayDate_Rcv = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, DayCountFractionAtoB(PriceDate, RcvPaymentDate[NCpnDateRcv - 1], 0));
-						AccCpnDFRcv = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, DayCountFractionAtoB(PriceDate, RcvPaymentDate[NCpnDateRcv - 1], 0));
-						if (nextoptidx > 0)
+						for (idx1 = 0; idx1 < NTotalSimul; idx1++)
 						{
-							if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 1)
+							if (RcvFixingDate[LastFixingIdxRcv] == TotalArrayDateSimul[idx1])
 							{
-								deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx-1], 3));
-								cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv], deltat_fixing_to_pay);
-								AccZeroCpnRcv = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], cmpv - 1.0)), RoundingRcv);
-							}
-							else if (ZeroCouponFlagRcv[LastFixingIdxRcv] >= 1)
-							{
-								deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx-1], 3));
-								AccZeroCpnRcv = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], FixedRate_Rcv[LastFixingIdxRcv] * deltat_fixing_to_pay)), RoundingRcv);
+								idxrcv = idx1;
+								break;
 							}
 						}
 					}
 
-					if (HW2FFlag > 0)
+					DF_to_LastPayDate_Rcv = df_T;
+					AccCpnDFRcv = df_T;
+					AccZeroCpnRcv = 0.;
+					if (LastFixingIdxRcv >= 0)
 					{
-						if (PowerSpreadFlagRcv == 0)
+						if (ZeroCouponFlagRcv[LastFixingIdxRcv] > 0)
 						{
-							for (idx1 = 0; idx1 < NGreed; idx1++)
+							// ZeroCouponCallable Swap 관련 보정
+							AccCpnDFRcv = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, DayCountFractionAtoB(PriceDate, RcvPaymentDate[NCpnDateRcv - 1], 0));
+							if (nextoptidx > 0)
 							{
-								for (idx2 = 0; idx2 < NGreed; idx2++)
+								if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 1)
 								{
-									Rate_Rcv = Rate_Rcv_2F[idxrcv][idx1][idx2];
+									deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx - 1], 3));
+									cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv], deltat_fixing_to_pay);
+									AccZeroCpnRcv = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], cmpv - 1.0)), RoundingRcv);
+								}
+								else if (ZeroCouponFlagRcv[LastFixingIdxRcv] >= 1)
+								{
+									deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx - 1], 3));
+									AccZeroCpnRcv = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], FixedRate_Rcv[LastFixingIdxRcv] * deltat_fixing_to_pay)), RoundingRcv);
+								}
+							}
+						}
+
+						if (HW2FFlag > 0)
+						{
+							if (PowerSpreadFlagRcv == 0)
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									for (idx2 = 0; idx2 < NGreed; idx2++)
+									{
+										Rate_Rcv = Rate_Rcv_2F[idxrcv][idx1][idx2];
+										RgCpnRcv = 0.;
+										if (Structured_Rcv[LastFixingIdxRcv] > 0)
+										{
+											Rate = SlopeOfFixingRate_Rcv[LastFixingIdxRcv] * Rate_Rcv;
+											if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[LastFixingIdxRcv] * Rate_Rcv + RangeCpn_Rcv[LastFixingIdxRcv];
+										}
+
+										if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 0)
+										{
+											RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv])), RoundingRcv);
+										}
+										else if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 1)
+										{
+											deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx], 3));
+											cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay);
+											RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], cmpv - 1.0)), RoundingRcv);
+										}
+										else
+										{
+											deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx], 3));
+											cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay);
+											RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
+										}
+										RcvLastFixingPayoff_2F[idx1][idx2] = RcvCpn;
+									}
+								}
+							}
+							else
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									for (idx2 = 0; idx2 < NGreed; idx2++)
+									{
+										Rate_Rcv = Rate_Rcv_2F[idxrcv][idx1][idx2];
+										Rate_Rcv_p = Rate_RcvPowerSpread_2F[idxrcv][idx1][idx2];
+										RgCpnRcv = 0.;
+										if (Structured_Rcv[LastFixingIdxRcv] > 0)
+										{
+											Rate = SlopeOfFixingRate_Rcv[LastFixingIdxRcv] * (Rate_Rcv - Rate_Rcv_p);
+											if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[LastFixingIdxRcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[LastFixingIdxRcv];
+										}
+
+										if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 0)
+										{
+											RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv])), RoundingRcv);
+										}
+										else if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 1)
+										{
+											deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx], 3));
+											cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay);
+											RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], cmpv - 1.0)), RoundingRcv);
+										}
+										else
+										{
+											deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx], 3));
+											cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay);
+											RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
+										}
+										RcvLastFixingPayoff_2F[idx1][idx2] = RcvCpn;
+									}
+								}
+							}
+						}
+						else
+						{
+							if (PowerSpreadFlagRcv == 0)
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									Rate_Rcv = Rate_Rcv_1F[idxrcv][idx1];
 									RgCpnRcv = 0.;
 									if (Structured_Rcv[LastFixingIdxRcv] > 0)
 									{
@@ -2595,13 +3359,13 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 
 									if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 0)
 									{
-										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv])),RoundingRcv);
+										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv])), RoundingRcv);
 									}
 									else if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 1)
 									{
 										deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx], 3));
 										cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay);
-										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], cmpv - 1.0)),RoundingRcv);
+										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], cmpv - 1.0)), RoundingRcv);
 									}
 									else
 									{
@@ -2609,34 +3373,31 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay);
 										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
 									}
-									RcvLastFixingPayoff_2F[idx1][idx2] = RcvCpn;
+									RcvLastFixingPayoff_1F[idx1] = RcvCpn;
 								}
 							}
-						}
-						else
-						{
-							for (idx1 = 0; idx1 < NGreed; idx1++)
+							else
 							{
-								for (idx2 = 0; idx2 < NGreed; idx2++)
+								for (idx1 = 0; idx1 < NGreed; idx1++)
 								{
-									Rate_Rcv = Rate_Rcv_2F[idxrcv][idx1][idx2];
-									Rate_Rcv_p = Rate_RcvPowerSpread_2F[idxrcv][idx1][idx2];
+									Rate_Rcv = Rate_Rcv_1F[idxrcv][idx1];
+									Rate_Rcv_p = Rate_RcvPowerSpread_1F[idxrcv][idx1];
 									RgCpnRcv = 0.;
 									if (Structured_Rcv[LastFixingIdxRcv] > 0)
 									{
 										Rate = SlopeOfFixingRate_Rcv[LastFixingIdxRcv] * (Rate_Rcv - Rate_Rcv_p);
 										if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[LastFixingIdxRcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[LastFixingIdxRcv];
 									}
-									
+
 									if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 0)
 									{
 										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv])), RoundingRcv);
 									}
 									else if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 1)
 									{
-										deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx], 3)) ;
+										deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx], 3));
 										cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay);
-										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], cmpv - 1.0)),RoundingRcv);
+										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], cmpv - 1.0)), RoundingRcv);
 									}
 									else
 									{
@@ -2644,170 +3405,172 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay);
 										RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
 									}
-									RcvLastFixingPayoff_2F[idx1][idx2] = RcvCpn;
+									RcvLastFixingPayoff_1F[idx1] = RcvCpn;
 								}
+							}
+
+							if (TextFlag > 0)
+							{
+								DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvLastFixingPayoff_1F", NGreed, RcvLastFixingPayoff_1F);
 							}
 						}
 					}
 					else
 					{
-						if (PowerSpreadFlagRcv == 0)
+						for (idx1 = 0; idx1 < NGreed; idx1++)
 						{
-							for (idx1 = 0; idx1 < NGreed; idx1++)
+							RcvLastFixingPayoff_1F[idx1] = 0.0;
+							for (idx2 = 0; idx2 < NGreed; idx2++)
 							{
-								Rate_Rcv = Rate_Rcv_1F[idxrcv][idx1];
-								RgCpnRcv = 0.;
-								if (Structured_Rcv[LastFixingIdxRcv] > 0)
+								RcvLastFixingPayoff_2F[idx1][idx2] = 0.0;
+							}
+						}
+					}
+
+					LastFixingIdxPay = -1;
+					for (idx1 = 0; idx1 < NCpnDatePay; idx1++)
+					{
+						if (OptionDate[nextoptidx] <= PayPaymentDate[idx1] && PayFixingDate[idx1] <= OptionDate[nextoptidx])
+						{
+							LastFixingIdxPay = idx1;
+							break;
+						}
+					}
+
+					idxpay = -1;
+					if (LastFixingIdxPay >= 0)
+					{
+						for (idx1 = 0; idx1 < NTotalSimul; idx1++)
+						{
+							if (PayFixingDate[LastFixingIdxPay] == TotalArrayDateSimul[idx1])
+							{
+								idxpay = idx1;
+								break;
+							}
+						}
+					}
+
+					DF_to_LastPayDate_Pay = df_T;
+					AccCpnDFPay = df_T;
+					AccZeroCpnPay = 0.;
+					if (LastFixingIdxPay >= 0)
+					{
+						if (ZeroCouponFlagPay[LastFixingIdxPay] > 0)
+						{
+							// ZeroCouponCallable Swap 관련 보정
+							AccCpnDFPay = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, DayCountFractionAtoB(PriceDate, PayPaymentDate[NCpnDatePay - 1], 0));
+							if (nextoptidx > 0)
+							{
+								if (ZeroCouponFlagPay[LastFixingIdxPay] == 1)
 								{
-									Rate = SlopeOfFixingRate_Rcv[LastFixingIdxRcv] * Rate_Rcv;
-									if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[LastFixingIdxRcv] * Rate_Rcv + RangeCpn_Rcv[LastFixingIdxRcv];
+									deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx - 1], 3));
+									cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay], deltat_fixing_to_pay);
+									AccZeroCpnPay = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], cmpv - 1.0)), RoundingPay);
 								}
-								
-								if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 0)
+								else if (ZeroCouponFlagPay[LastFixingIdxPay] >= 1)
 								{
-									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv])), RoundingRcv);
+									deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx - 1], 3));
+									AccZeroCpnPay = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], FixedRate_Pay[LastFixingIdxPay] * deltat_fixing_to_pay)), RoundingPay);
 								}
-								else if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 1)
+							}
+
+						}
+
+						if (HW2FFlag > 0)
+						{
+							if (PowerSpreadFlagPay == 0)
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
 								{
-									deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx], 3)) ;
-									cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay);
-									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], cmpv - 1.0)),RoundingRcv);
+									for (idx2 = 0; idx2 < NGreed; idx2++)
+									{
+										Rate_Pay = Rate_Pay_2F[idxpay][idx1][idx2];
+										RgCpnPay = 0.;
+										if (Structured_Pay[LastFixingIdxPay] > 0)
+										{
+											Rate = SlopeOfFixingRate_Pay[LastFixingIdxPay] * Rate_Pay;
+											if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[LastFixingIdxPay] * Rate_Pay + RangeCpn_Pay[LastFixingIdxPay];
+										}
+
+										if (ZeroCouponFlagPay[LastFixingIdxPay] == 0)
+										{
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay])), RoundingPay);
+										}
+										else if (ZeroCouponFlagPay[LastFixingIdxPay] == 1)
+										{
+											deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx], 3));
+											cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay);
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], cmpv - 1.0)), RoundingPay);
+										}
+										else
+										{
+											deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx], 3));
+											cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay);
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
+										}
+										PayLastFixingPayoff_2F[idx1][idx2] = PayCpn;
+									}
 								}
-								else
+							}
+							else
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
 								{
-									deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx], 3));
-									cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay);
-									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
+									for (idx2 = 0; idx2 < NGreed; idx2++)
+									{
+										Rate_Pay = Rate_Pay_2F[idxpay][idx1][idx2];
+										Rate_Pay_p = Rate_PayPowerSpread_2F[idxpay][idx1][idx2];
+										RgCpnPay = 0.;
+										if (Structured_Pay[LastFixingIdxPay] > 0)
+										{
+											Rate = SlopeOfFixingRate_Pay[LastFixingIdxPay] * (Rate_Pay - Rate_Pay_p);
+											if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[LastFixingIdxPay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[LastFixingIdxPay];
+										}
+
+										if (ZeroCouponFlagPay[LastFixingIdxPay] == 0)
+										{
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay])), RoundingPay);
+										}
+										else if (ZeroCouponFlagPay[LastFixingIdxPay] == 1)
+										{
+											deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx], 3));
+											cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay);
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], cmpv - 1.0)), RoundingPay);
+										}
+										else
+										{
+											deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx], 3));
+											cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay);
+											PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
+										}
+										PayLastFixingPayoff_2F[idx1][idx2] = PayCpn;
+									}
 								}
-								RcvLastFixingPayoff_1F[idx1] = RcvCpn;
 							}
 						}
 						else
 						{
-							for (idx1 = 0; idx1 < NGreed; idx1++)
+							if (PowerSpreadFlagPay == 0)
 							{
-								Rate_Rcv = Rate_Rcv_1F[idxrcv][idx1];
-								Rate_Rcv_p = Rate_RcvPowerSpread_1F[idxrcv][idx1];
-								RgCpnRcv = 0.;
-								if (Structured_Rcv[LastFixingIdxRcv] > 0)
+								for (idx1 = 0; idx1 < NGreed; idx1++)
 								{
-									Rate = SlopeOfFixingRate_Rcv[LastFixingIdxRcv] * (Rate_Rcv - Rate_Rcv_p);
-									if (Rate < RangeMaxMinRcv[0] && Rate > RangeMaxMinRcv[1]) RgCpnRcv = SlopeOfPayoff_Rcv[LastFixingIdxRcv] * (Rate_Rcv - Rate_Rcv_p) + RangeCpn_Rcv[LastFixingIdxRcv];
-								}
-
-								if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 0)
-								{
-									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * DeltatRcv[LastFixingIdxRcv])),RoundingRcv);
-								}
-								else if (ZeroCouponFlagRcv[LastFixingIdxRcv] == 1)
-								{
-									deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx], 3)) ;
-									cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay);
-									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], cmpv - 1.0)),RoundingRcv);
-								}
-								else
-								{
-									deltat_fixing_to_pay = (DayCountFractionAtoB(RcvFixingDate[LastFixingIdxRcv], OptionPayDate[nextoptidx], 3));
-									cmpv = pow(1.0 + FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv, deltat_fixing_to_pay);
-									RcvCpn = NA * rounding_double(min(MaxLossRetRcv[1], max(-MaxLossRetRcv[0], (FixedRate_Rcv[LastFixingIdxRcv] + RgCpnRcv) * deltat_fixing_to_pay)), RoundingRcv);
-								}
-								RcvLastFixingPayoff_1F[idx1] = RcvCpn;
-							}
-						}
-
-						if (TextFlag > 0)
-						{
-							DumppingTextDataArray(CalcFunctionName, SaveFileName, "RcvLastFixingPayoff_1F", NGreed, RcvLastFixingPayoff_1F);
-						}
-					}
-				}
-				else
-				{
-					for (idx1 = 0; idx1 < NGreed; idx1++)
-					{
-						RcvLastFixingPayoff_1F[idx1] = 0.0;
-						for (idx2 = 0; idx2 < NGreed; idx2++)
-						{
-							RcvLastFixingPayoff_2F[idx1][idx2] = 0.0;
-						}
-					}
-				}
-
-				LastFixingIdxPay = -1;
-				for (idx1 = 0; idx1 < NCpnDatePay; idx1++)
-				{
-					if (OptionDate[nextoptidx] <= PayPaymentDate[idx1] && PayFixingDate[idx1] <= OptionDate[nextoptidx])
-					{
-						LastFixingIdxPay = idx1;
-						break;
-					}
-				}
-
-				idxpay = -1;
-				if (LastFixingIdxPay >= 0)
-				{
-					for (idx1 = 0; idx1 < NTotalSimul; idx1++)
-					{
-						if (PayFixingDate[LastFixingIdxPay] == TotalArrayDateSimul[idx1])
-						{
-							idxpay = idx1;
-							break;
-						}
-					}
-				}
-
-				DF_to_LastPayDate_Pay = df_T;
-				AccCpnDFPay = df_T;
-				AccZeroCpnPay = 0.;
-				if (LastFixingIdxPay >= 0)
-				{
-					if (ZeroCouponFlagPay[LastFixingIdxPay] > 0)
-					{
-						// ZeroCouponCallable Swap 관련 보정
-						//DF_to_LastPayDate_Pay = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, DayCountFractionAtoB(PriceDate, PayPaymentDate[NCpnDatePay - 1], 0));
-						AccCpnDFPay = Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, DayCountFractionAtoB(PriceDate, PayPaymentDate[NCpnDatePay - 1], 0));
-						if (nextoptidx > 0)
-						{
-							if (ZeroCouponFlagPay[LastFixingIdxPay] == 1)
-							{
-								deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx - 1], 3));
-								cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay], deltat_fixing_to_pay);
-								AccZeroCpnPay = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], cmpv - 1.0)), RoundingPay);
-							}
-							else if (ZeroCouponFlagPay[LastFixingIdxPay] >= 1)
-							{
-								deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx - 1], 3));
-								AccZeroCpnPay = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], FixedRate_Pay[LastFixingIdxPay] * deltat_fixing_to_pay)), RoundingPay);
-							}
-						}
-
-					}
-
-					if (HW2FFlag > 0)
-					{
-						if (PowerSpreadFlagPay == 0)
-						{
-							for (idx1 = 0; idx1 < NGreed; idx1++)
-							{
-								for (idx2 = 0; idx2 < NGreed; idx2++)
-								{
-									Rate_Pay = Rate_Pay_2F[idxpay][idx1][idx2];
+									Rate_Pay = Rate_Pay_1F[idxpay][idx1];
 									RgCpnPay = 0.;
 									if (Structured_Pay[LastFixingIdxPay] > 0)
 									{
 										Rate = SlopeOfFixingRate_Pay[LastFixingIdxPay] * Rate_Pay;
 										if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[LastFixingIdxPay] * Rate_Pay + RangeCpn_Pay[LastFixingIdxPay];
 									}
-									
+
 									if (ZeroCouponFlagPay[LastFixingIdxPay] == 0)
 									{
-										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay])),RoundingPay);
+										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay])), RoundingPay);
 									}
 									else if (ZeroCouponFlagPay[LastFixingIdxPay] == 1)
 									{
 										deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx], 3));
 										cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay);
-										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], cmpv - 1.0)),RoundingPay);
+										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], cmpv - 1.0)), RoundingPay);
 									}
 									else
 									{
@@ -2815,34 +3578,31 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay);
 										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
 									}
-									PayLastFixingPayoff_2F[idx1][idx2] = PayCpn;
+									PayLastFixingPayoff_1F[idx1] = PayCpn;
 								}
 							}
-						}
-						else
-						{
-							for (idx1 = 0; idx1 < NGreed; idx1++)
+							else
 							{
-								for (idx2 = 0; idx2 < NGreed; idx2++)
+								for (idx1 = 0; idx1 < NGreed; idx1++)
 								{
-									Rate_Pay = Rate_Pay_2F[idxpay][idx1][idx2];
-									Rate_Pay_p = Rate_PayPowerSpread_2F[idxpay][idx1][idx2];
+									Rate_Pay = Rate_Pay_1F[idxpay][idx1];
+									Rate_Pay_p = Rate_PayPowerSpread_1F[idxpay][idx1];
 									RgCpnPay = 0.;
 									if (Structured_Pay[LastFixingIdxPay] > 0)
 									{
 										Rate = SlopeOfFixingRate_Pay[LastFixingIdxPay] * (Rate_Pay - Rate_Pay_p);
 										if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[LastFixingIdxPay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[LastFixingIdxPay];
 									}
-									
+
 									if (ZeroCouponFlagPay[LastFixingIdxPay] == 0)
 									{
-										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay])),RoundingPay);
+										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay])), RoundingPay);
 									}
 									else if (ZeroCouponFlagPay[LastFixingIdxPay] == 1)
 									{
-										deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx], 3)) ;
+										deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx], 3));
 										cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay);
-										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], cmpv - 1.0)),RoundingPay);
+										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], cmpv - 1.0)), RoundingPay);
 									}
 									else
 									{
@@ -2850,226 +3610,280 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 										cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay);
 										PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
 									}
-									PayLastFixingPayoff_2F[idx1][idx2] = PayCpn;
+									PayLastFixingPayoff_1F[idx1] = PayCpn;
+								}
+							}
+
+							if (TextFlag > 0)
+							{
+								DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayLastFixingPayoff_1F", NGreed, PayLastFixingPayoff_1F);
+							}
+						}
+					}
+					else
+					{
+						for (idx1 = 0; idx1 < NGreed; idx1++)
+						{
+							PayLastFixingPayoff_1F[idx1] = 0.0;
+							for (idx2 = 0; idx2 < NGreed; idx2++)
+							{
+								PayLastFixingPayoff_2F[idx1][idx2] = 0.0;
+							}
+						}
+					}
+
+					if (HW2FFlag > 0)
+					{
+						if (Today == OptionPayDate[nextoptidx])
+						{
+							for (idx1 = 0; idx1 < NGreed; idx1++)
+							{
+								for (idx2 = 0; idx2 < NGreed; idx2++)
+								{
+									if (BondFlag == 0)
+									{
+										if (OptionType == 0)
+										{
+											if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnPay) > FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
+											else OptionExerciseFlag_2F[idx1][idx2] = 0;
+										}
+										else
+										{
+											if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnPay) < FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
+											else OptionExerciseFlag_2F[idx1][idx2] = 0;
+										}
+									}
+									else
+									{
+										if (OptionType == 0)
+										{
+											if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnRcv + NA) > FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
+											else OptionExerciseFlag_2F[idx1][idx2] = 0;
+										}
+										else
+										{
+											if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnRcv + NA) < FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
+											else OptionExerciseFlag_2F[idx1][idx2] = 0;
+										}
+
+									}
+								}
+							}
+						}
+
+						for (idx1 = 0; idx1 < NGreed; idx1++)
+						{
+							for (idx2 = 0; idx2 < NGreed; idx2++)
+							{
+								if (OptionExerciseFlag_2F[idx1][idx2] == 1)
+								{
+									if (BondFlag == 0) FDMValue_2F[idx1][idx2] = AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnPay);
+									else FDMValue_2F[idx1][idx2] = AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnRcv) + NA;
 								}
 							}
 						}
 					}
 					else
 					{
-						if (PowerSpreadFlagPay == 0)
+						if (Today == OptionPayDate[nextoptidx])
 						{
 							for (idx1 = 0; idx1 < NGreed; idx1++)
-							{
-								Rate_Pay = Rate_Pay_1F[idxpay][idx1];
-								RgCpnPay = 0.;
-								if (Structured_Pay[LastFixingIdxPay] > 0)
-								{
-									Rate = SlopeOfFixingRate_Pay[LastFixingIdxPay] * Rate_Pay;
-									if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[LastFixingIdxPay] * Rate_Pay + RangeCpn_Pay[LastFixingIdxPay];
-								}
-								
-								if (ZeroCouponFlagPay[LastFixingIdxPay] == 0)
-								{
-									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay])),RoundingPay);
-								}
-								else if (ZeroCouponFlagPay[LastFixingIdxPay] == 1)
-								{
-									deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx], 3));
-									cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay);
-									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], cmpv - 1.0)),RoundingPay);
-								}
-								else
-								{
-									deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx], 3));
-									cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay);
-									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
-								}
-								PayLastFixingPayoff_1F[idx1]= PayCpn;
-							}
-						}
-						else
-						{
-							for (idx1 = 0; idx1 < NGreed; idx1++)
-							{
-								Rate_Pay = Rate_Pay_1F[idxpay][idx1];
-								Rate_Pay_p = Rate_PayPowerSpread_1F[idxpay][idx1];
-								RgCpnPay = 0.;
-								if (Structured_Pay[LastFixingIdxPay] > 0)
-								{
-									Rate = SlopeOfFixingRate_Pay[LastFixingIdxPay] * (Rate_Pay - Rate_Pay_p);
-									if (Rate < RangeMaxMinPay[0] && Rate > RangeMaxMinPay[1]) RgCpnPay = SlopeOfPayoff_Pay[LastFixingIdxPay] * (Rate_Pay - Rate_Pay_p) + RangeCpn_Pay[LastFixingIdxPay];
-								}
-
-								if (ZeroCouponFlagPay[LastFixingIdxPay] == 0)
-								{
-									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * DeltatPay[LastFixingIdxPay])),RoundingPay);
-								}
-								else if (ZeroCouponFlagPay[LastFixingIdxPay] == 1)
-								{
-									deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx], 3));
-									cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay);
-									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], cmpv - 1.0)),RoundingPay);
-								}
-								else
-								{
-									deltat_fixing_to_pay = (DayCountFractionAtoB(PayFixingDate[LastFixingIdxPay], OptionPayDate[nextoptidx], 3));
-									cmpv = pow(1.0 + FixedRate_Pay[LastFixingIdxPay] + RgCpnPay, deltat_fixing_to_pay);
-									PayCpn = NA * rounding_double(min(MaxLossRetPay[1], max(-MaxLossRetPay[0], (FixedRate_Pay[LastFixingIdxPay] + RgCpnPay) * deltat_fixing_to_pay)), RoundingPay);
-								}
-								PayLastFixingPayoff_1F[idx1] = PayCpn;
-							}
-						}
-
-						if (TextFlag > 0)
-						{
-							DumppingTextDataArray(CalcFunctionName, SaveFileName, "PayLastFixingPayoff_1F", NGreed, PayLastFixingPayoff_1F);
-						}
-					}
-				}
-				else
-				{
-					for (idx1 = 0; idx1 < NGreed; idx1++)
-					{
-						PayLastFixingPayoff_1F[idx1] = 0.0;
-						for (idx2 = 0; idx2 < NGreed; idx2++)
-						{
-							PayLastFixingPayoff_2F[idx1][idx2] = 0.0;
-						}
-					}
-				}
-
-				if (HW2FFlag > 0)
-				{
-					if (Today == OptionPayDate[nextoptidx])
-					{
-						for (idx1 = 0; idx1 < NGreed; idx1++)
-						{
-							for (idx2 = 0; idx2 < NGreed; idx2++)
 							{
 								if (BondFlag == 0)
 								{
 									if (OptionType == 0)
 									{
-										if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnPay) > FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
-										else OptionExerciseFlag_2F[idx1][idx2] = 0;
+										if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_1F[idx1] - AccZeroCpnPay) > FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
+										else OptionExerciseFlag_1F[idx1] = 0;
 									}
 									else
 									{
-										if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnPay) < FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
-										else OptionExerciseFlag_2F[idx1][idx2] = 0;
+										if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_1F[idx1] - AccZeroCpnPay) < FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
+										else OptionExerciseFlag_1F[idx1] = 0;
 									}
 								}
 								else
 								{
 									if (OptionType == 0)
 									{
-										if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnRcv + NA) > FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
-										else OptionExerciseFlag_2F[idx1][idx2] = 0;
+										if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) + NA > FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
+										else OptionExerciseFlag_1F[idx1] = 0;
 									}
 									else
 									{
-										if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnRcv + NA) < FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
-										else OptionExerciseFlag_2F[idx1][idx2] = 0;
+										if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) + NA < FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
+										else OptionExerciseFlag_1F[idx1] = 0;
 									}
 
 								}
 							}
 						}
-					}
 
-					for (idx1 = 0; idx1 < NGreed; idx1++)
-					{
-						for (idx2 = 0; idx2 < NGreed; idx2++)
+						if (TextFlag == 1)
 						{
-							if (OptionExerciseFlag_2F[idx1][idx2] == 1)
-							{
-								if (BondFlag == 0) FDMValue_2F[idx1][idx2] = AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnPay);
-								else FDMValue_2F[idx1][idx2] = AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_2F[idx1][idx2] - AccZeroCpnRcv) + NA;
-							}
+							DumppingTextData(CalcFunctionName, SaveFileName, "Today", Today);
+							DumppingTextDataArray(CalcFunctionName, SaveFileName, "FDMValue_1F_OptDate_Before", NGreed, FDMValue_1F);
 						}
-					}
 
-					//for (idx1 = 0; idx1 < NGreed; idx1++)
-					//{
-					//	for (idx2 = 0; idx2 < NGreed; idx2++)
-					//	{
-					//		if (OptionType == 0) FDMValue_2F[idx1][idx2] = max((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
-					//		else FDMValue_2F[idx1][idx2] = min((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_2F[idx1][idx2] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_2F[idx1][idx2]), FDMValue_2F[idx1][idx2]);
-					//	}
-					//}
-				}
-				else
-				{
-					if (Today == OptionPayDate[nextoptidx])
-					{
 						for (idx1 = 0; idx1 < NGreed; idx1++)
 						{
 							if (BondFlag == 0)
 							{
-								if (OptionType == 0)
+								if (OptionExerciseFlag_1F[idx1] == 1) FDMValue_1F[idx1] = AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_1F[idx1] - AccZeroCpnPay);
+							}
+							else
+							{
+								if (OptionExerciseFlag_1F[idx1] == 1) FDMValue_1F[idx1] = AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) + NA;
+							}
+						}
+
+						if (TextFlag == 1)
+						{
+							DumppingTextDataArray(CalcFunctionName, SaveFileName, "FDMValue_1F_OptDate", NGreed, FDMValue_1F);
+						}
+					}
+
+					if (Today == min(OptionDate[nextoptidx], OptionPayDate[nextoptidx]))
+					{
+						nextoptidx = max(0, nextoptidx - 1);
+					}
+				}
+				else
+				{
+					if (RcvRangeAccrualFlag == 1 || PayRangeAccrualFlag == 1)
+					{
+						if (Today == OptionPayDate[nextoptidx])
+						{
+							if (HW2FFlag == 0)
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++) OptionExerciseFlag_1F[idx1] = 0;
+							}
+							else
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++) for (idx2 = 0; idx2 < NGreed; idx2++) OptionExerciseFlag_2F[idx1][idx2] = 0;
+							}
+						}
+
+						if (HW2FFlag == 1)
+						{
+							if (Today == OptionPayDate[nextoptidx])
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
 								{
-									if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_1F[idx1] - AccZeroCpnPay) > FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
-									else OptionExerciseFlag_1F[idx1] = 0;
+									for (idx2 = 0; idx2 < NGreed; idx2++)
+									{
+										if (BondFlag == 0)
+										{
+											if (OptionType == 0)
+											{
+												if (0. > FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
+												else OptionExerciseFlag_2F[idx1][idx2] = 0;
+											}
+											else
+											{
+												if (0. < FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
+												else OptionExerciseFlag_2F[idx1][idx2] = 0;
+											}
+										}
+										else
+										{
+											if (OptionType == 0)
+											{
+												if (NA > FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
+												else OptionExerciseFlag_2F[idx1][idx2] = 0;
+											}
+											else
+											{
+												if (NA < FDMValue_2F[idx1][idx2]) OptionExerciseFlag_2F[idx1][idx2] = 1;
+												else OptionExerciseFlag_2F[idx1][idx2] = 0;
+											}
+
+										}
+									}
 								}
-								else
+							}
+
+							for (idx1 = 0; idx1 < NGreed; idx1++)
+							{
+								for (idx2 = 0; idx2 < NGreed; idx2++)
 								{
-									if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_1F[idx1] - AccZeroCpnPay) < FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
-									else OptionExerciseFlag_1F[idx1] = 0;
+									if (OptionExerciseFlag_2F[idx1][idx2] == 1)
+									{
+										if (BondFlag == 0) FDMValue_2F[idx1][idx2] = 0.;
+										else FDMValue_2F[idx1][idx2] = NA;
+									}
+								}
+							}
+						}
+						else
+						{
+							if (Today == OptionPayDate[nextoptidx])
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									if (BondFlag == 0)
+									{
+										if (OptionType == 0)
+										{
+											if (0. > FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
+											else OptionExerciseFlag_1F[idx1] = 0;
+										}
+										else
+										{
+											if (0. < FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
+											else OptionExerciseFlag_1F[idx1] = 0;
+										}
+									}
+									else
+									{
+										if (OptionType == 0)
+										{
+											if (NA > FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
+											else OptionExerciseFlag_1F[idx1] = 0;
+										}
+										else
+										{
+											if (NA < FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
+											else OptionExerciseFlag_1F[idx1] = 0;
+										}
+									}
+								}
+							}
+
+							if (TextFlag == 1)
+							{
+								DumppingTextData(CalcFunctionName, SaveFileName, "Today", Today);
+								DumppingTextDataArray(CalcFunctionName, SaveFileName, "FDMValue_1F_OptDate_Before", NGreed, FDMValue_1F);
+							}
+
+							if (BondFlag == 0)
+							{
+								for (idx1 = 0; idx1 < NGreed; idx1++)
+								{
+									if (OptionExerciseFlag_1F[idx1] == 1) FDMValue_1F[idx1] = 0.;
 								}
 							}
 							else
 							{
-								if (OptionType == 0)
+								for (idx1 = 0; idx1 < NGreed; idx1++)
 								{
-									if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) + NA > FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
-									else OptionExerciseFlag_1F[idx1] = 0;
+									if (OptionExerciseFlag_1F[idx1] == 1) FDMValue_1F[idx1] = NA;
 								}
-								else
-								{
-									if (AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) + NA < FDMValue_1F[idx1]) OptionExerciseFlag_1F[idx1] = 1;
-									else OptionExerciseFlag_1F[idx1] = 0;
-								}
+							}
 
+							if (TextFlag == 1)
+							{
+								DumppingTextDataArray(CalcFunctionName, SaveFileName, "FDMValue_1F_OptDate", NGreed, FDMValue_1F);
 							}
 						}
-					}
 
-					if (TextFlag == 1)
-					{
-						DumppingTextData(CalcFunctionName, SaveFileName, "Today", Today);
-						DumppingTextDataArray(CalcFunctionName, SaveFileName, "FDMValue_1F_OptDate_Before", NGreed, FDMValue_1F);
-					}
-
-					for (idx1 = 0; idx1 < NGreed; idx1++)
-					{
-						if (BondFlag == 0)
+						if (Today == min(OptionDate[nextoptidx], OptionPayDate[nextoptidx]))
 						{
-							if (OptionExerciseFlag_1F[idx1] == 1) FDMValue_1F[idx1] = AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) - AccZeroCpnPay * AccCpnDFPay / df_t - DF_to_LastPayDate_Pay / df_t * (PayLastFixingPayoff_1F[idx1] - AccZeroCpnPay);
-						}
-						else
-						{
-							if (OptionExerciseFlag_1F[idx1] == 1) FDMValue_1F[idx1] = AccZeroCpnRcv * AccCpnDFRcv / df_t + DF_to_LastPayDate_Rcv / df_t * (RcvLastFixingPayoff_1F[idx1] - AccZeroCpnRcv) + NA;
+							nextoptidx = max(0, nextoptidx - 1);
 						}
 					}
-
-					//for (idx1 = 0; idx1 < NGreed; idx1++)
-					//{
-					//	if (OptionType == 0) FDMValue_1F[idx1] = max((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
-					//	else FDMValue_1F[idx1] = min((DF_to_LastPayDate_Rcv / df_t * RcvLastFixingPayoff_1F[idx1] - DF_to_LastPayDate_Pay / df_t * PayLastFixingPayoff_1F[idx1]), FDMValue_1F[idx1]);
-					//}
-					if (TextFlag == 1)
-					{
-						DumppingTextDataArray(CalcFunctionName, SaveFileName, "FDMValue_1F_OptDate", NGreed, FDMValue_1F);
-					}
-				}
-
-				if (Today == min(OptionDate[nextoptidx], OptionPayDate[nextoptidx]))
-				{
-					nextoptidx = max(0, nextoptidx - 1);
 				}
 			}
-
 		}
 
 		n += 1;
@@ -3078,58 +3892,75 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 	if (HW2FFlag == 0) ResultValue = Interpolate_Linear(xt, FDMValue_1F, NGreed, 0.0);
 	else ResultValue = Calc_Volatility(NGreed, NGreed, xt, yt, FDMValue_2F, 0.0, 0.0);
 	ResultFixingRateCpn[0] = ResultValue;
+	double RcvValueNotOpt, PayValueNotOpt;
+	RcvValueNotOpt = 0.;
+	PayValueNotOpt = 0.;
+
+	for (i = 0; i < NCpnDateRcv; i++)
+	{
+		t = ((double)DayCountAtoB(PriceDate, RcvPaymentDate[i]))/365.;
+		RcvValueNotOpt += Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, t) * ResultFixingRateCpnRcv[NCpnDateRcv + i];
+	}
+
+	for (i = 0; i < NCpnDatePay; i++)
+	{
+		t = ((double)DayCountAtoB(PriceDate, PayPaymentDate[i])) / 365.;
+		PayValueNotOpt += Calc_Discount_Factor(ZeroDiscTerm, ZeroDiscRate, NZeroDiscRate, t) * ResultFixingRateCpnPay[NCpnDatePay + i];
+	}
+	ResultFixingRateCpn[1] = RcvValueNotOpt;
+	if (BondFlag == 0) ResultFixingRateCpn[2] = PayValueNotOpt;
+	else ResultFixingRateCpn[2] = 0.;
+
 	for (i = 0; i < 2; i++) free(TotalHolidays[i]);
-	free(TotalHolidays);
-	for (i = 0; i < 2; i++) free(CpnDate[i]);
+	free(TotalHolidays);																						// 할당해제 1
+	for (i = 0; i < 2; i++) free(CpnDate[i]);																	// 할당해제 2
 	free(CpnDate);
-	for (i = 0; i < 2; i++) free(CpnPayDate[i]);
+	for (i = 0; i < 2; i++) free(CpnPayDate[i]);																// 할당해제 3
 	free(CpnPayDate);
-	free(TotalArraySimulNotAdj);
-	free(TotalArrayDateSimul);
-	free(dtime);
-	free(Time);
-	free(xt);
-	free(yt);
+	free(TotalArraySimulNotAdj);																				// 할당해제 4
+	free(TotalArrayDateSimul);																					// 할당해제 5
+	free(dtime);																								// 할당해제 6
+	free(Time);																									// 할당해제 7
+	free(xt);																									// 할당해제 8
+	free(yt);																									// 할당해제 9
 
+	free(RcvLastFixingPayoff_1F);																				// 할당해제 10
+	free(RcvLastFixingPayoff_2F_Reshaped);																		// 할당해제 11
+	free(RcvLastFixingPayoff_2F);																				// 할당해제 12
+
+	free(PayLastFixingPayoff_1F);																				// 할당해제 13
+	free(PayLastFixingPayoff_2F_Reshaped);																		// 할당해제 14
+	free(PayLastFixingPayoff_2F);																				// 할당해제 15
+
+	free(Rate_Rcv_1F_Reshaped);																					// 할당해제 16
+	free(Rate_Rcv_1F);																							// 할당해제 17
+	free(Rate_RcvPowerSpread_1F_Reshaped);																		// 할당해제 18
+	free(Rate_RcvPowerSpread_1F);																				// 할당해제 19	
+
+	free(Rate_Rcv_2F_Reshaped);																					// 할당해제 20
+	free(Rate_Rcv_2F_Reshaped2);																				// 할당해제 21
+	free(Rate_Rcv_2F);																							// 할당해제 22
+	free(Rate_RcvPowerSpread_2F_Reshaped);																		// 할당해제 23
+	free(Rate_RcvPowerSpread_2F_Reshaped2);																		// 할당해제 24
+	free(Rate_RcvPowerSpread_2F);																				// 할당해제 25
+
+	free(Rate_Pay_1F_Reshaped);																					// 할당해제 26
+	free(Rate_Pay_1F);																							// 할당해제 27
+	free(Rate_PayPowerSpread_1F_Reshaped);																		// 할당해제 28
+	free(Rate_PayPowerSpread_1F);																				// 할당해제 29
+
+	free(Rate_Pay_2F_Reshaped);																					// 할당해제 30
+	free(Rate_Pay_2F_Reshaped2);																				// 할당해제 31
+	free(Rate_Pay_2F);																							// 할당해제 32
+	free(Rate_PayPowerSpread_2F_Reshaped);																		// 할당해제 33
+	free(Rate_PayPowerSpread_2F_Reshaped2);																		// 할당해제 34
+	free(Rate_PayPowerSpread_2F);																				// 할당해제 35
+
+	free(Rcv_ncpn);																								// 할당해제 36
+	free(RcvPowerSpread_ncpn);																					// 할당해제 37
 	for (i = 0; i < NTotalSimul; i++)
 	{
-		for (j = 0; j < NGreed; j++)
-		{
-			free(Rate_Rcv_2F[i][j]);
-			free(Rate_RcvPowerSpread_2F[i][j]);
-		}
-		free(Rate_Rcv_1F[i]);
-		free(Rate_RcvPowerSpread_1F[i]);
-		free(Rate_Rcv_2F[i]);
-		free(Rate_RcvPowerSpread_2F[i]);
-	}
-	free(Rate_Rcv_2F);
-	free(Rate_RcvPowerSpread_2F);
-	free(Rate_Rcv_1F);
-	free(Rate_RcvPowerSpread_1F);
-
-	for (i = 0; i < NTotalSimul; i++)
-	{
-		for (j = 0; j < NGreed; j++)
-		{
-			free(Rate_Pay_2F[i][j]);
-			free(Rate_PayPowerSpread_2F[i][j]);
-		}
-		free(Rate_Pay_1F[i]);
-		free(Rate_PayPowerSpread_1F[i]);
-		free(Rate_Pay_2F[i]);
-		free(Rate_PayPowerSpread_2F[i]);
-	}
-	free(Rate_Pay_2F);
-	free(Rate_PayPowerSpread_2F);
-	free(Rate_Pay_1F);
-	free(Rate_PayPowerSpread_1F);
-
-	free(Rcv_ncpn);
-	free(RcvPowerSpread_ncpn);
-	for (i = 0; i < NTotalSimul; i++)
-	{
-		free(Rcv_DF_t_T[i]);
+		free(Rcv_DF_t_T[i]);																					
 		free(Rcv_B_t_T[i]);
 		free(Rcv_QVTerm[i]);
 		free(Rcv_dt[i]);
@@ -3144,23 +3975,23 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 		free(Rcv_Cross_t_T_2F[i]);
 		free(RcvPowerSpread_Cross_t_T_2F[i]);
 	}
-	free(Rcv_DF_t_T);
-	free(Rcv_B_t_T);
-	free(Rcv_QVTerm);
-	free(Rcv_dt);
-	free(RcvPowerSpread_DF_t_T);
-	free(RcvPowerSpread_B_t_T);
-	free(RcvPowerSpread_QVTerm);
-	free(RcvPowerSpread_dt);
-	free(Rcv_B_t_T_2F);
-	free(Rcv_QVTerm_2F);
-	free(RcvPowerSpread_B_t_T_2F);
-	free(RcvPowerSpread_QVTerm_2F);
-	free(Rcv_Cross_t_T_2F);
-	free(RcvPowerSpread_Cross_t_T_2F);
+	free(Rcv_DF_t_T);																							// 할당해제 38
+	free(Rcv_B_t_T);																							// 할당해제 39
+	free(Rcv_QVTerm);																							// 할당해제 40
+	free(Rcv_dt);																								// 할당해제 41
+	free(RcvPowerSpread_DF_t_T);																				// 할당해제 42
+	free(RcvPowerSpread_B_t_T);																					// 할당해제 43
+	free(RcvPowerSpread_QVTerm);																				// 할당해제 44
+	free(RcvPowerSpread_dt);																					// 할당해제 45
+	free(Rcv_B_t_T_2F);																							// 할당해제 46
+	free(Rcv_QVTerm_2F);																						// 할당해제 47
+	free(RcvPowerSpread_B_t_T_2F);																				// 할당해제 48
+	free(RcvPowerSpread_QVTerm_2F);																				// 할당해제 49
+	free(Rcv_Cross_t_T_2F);																						// 할당해제 50
+	free(RcvPowerSpread_Cross_t_T_2F);																			// 할당해제 51
 
-	free(Pay_ncpn);
-	free(PayPowerSpread_ncpn);
+	free(Pay_ncpn);																								// 할당해제 52 
+	free(PayPowerSpread_ncpn);																					// 할당해제 53
 	for (i = 0; i < NTotalSimul; i++)
 	{
 		free(Pay_DF_t_T[i]);
@@ -3178,72 +4009,65 @@ DLLEXPORT(long) IRStructuredSwapFDM(
 		free(Pay_Cross_t_T_2F[i]);
 		free(PayPowerSpread_Cross_t_T_2F[i]);
 	}
-	free(Pay_DF_t_T);
-	free(Pay_B_t_T);
-	free(Pay_QVTerm);
-	free(Pay_dt);
-	free(PayPowerSpread_DF_t_T);
-	free(PayPowerSpread_B_t_T);
-	free(PayPowerSpread_QVTerm);
-	free(PayPowerSpread_dt);
-	free(Pay_B_t_T_2F);
-	free(Pay_QVTerm_2F);
-	free(PayPowerSpread_B_t_T_2F);
-	free(PayPowerSpread_QVTerm_2F);
-	free(Pay_Cross_t_T_2F);
-	free(PayPowerSpread_Cross_t_T_2F);
+	free(Pay_DF_t_T);																							// 할당해제 54
+	free(Pay_B_t_T);																							// 할당해제 55
+	free(Pay_QVTerm);																							// 할당해제 56
+	free(Pay_dt);																								// 할당해제 57
+	free(PayPowerSpread_DF_t_T);																				// 할당해제 58
+	free(PayPowerSpread_B_t_T);																					// 할당해제 59
+	free(PayPowerSpread_QVTerm);																				// 할당해제 60
+	free(PayPowerSpread_dt);																					// 할당해제 61
+	free(Pay_B_t_T_2F);																							// 할당해제 62
+	free(Pay_QVTerm_2F);																						// 할당해제 63
+	free(PayPowerSpread_B_t_T_2F);																				// 할당해제 64
+	free(PayPowerSpread_QVTerm_2F);																				// 할당해제 65
+	free(Pay_Cross_t_T_2F);																						// 할당해제 66
+	free(PayPowerSpread_Cross_t_T_2F);																			// 할당해제 67
 
-	free(SlopeOfFixingRate_Rcv);
-	free(SlopeOfPayoff_Rcv);
-	free(FixedRate_Rcv);
-	free(Structured_Rcv);
-	free(RangeCpn_Rcv);
-	free(DeltatRcv);
-	free(ZeroCouponFlagRcv);
-	free(SlopeOfFixingRate_Pay);
-	free(SlopeOfPayoff_Pay);
-	free(FixedRate_Pay);
-	free(Structured_Pay);
-	free(RangeCpn_Pay);
-	free(DeltatPay);
-	free(ZeroCouponFlagPay);
+	free(SlopeOfFixingRate_Rcv);																				// 할당해제 68
+	free(SlopeOfPayoff_Rcv);																					// 할당해제 69
+	free(FixedRate_Rcv);																						// 할당해제 70
+	free(Structured_Rcv);																						// 할당해제 71
+	free(RangeCpn_Rcv);																							// 할당해제 72
+	free(DeltatRcv);																							// 할당해제 73
+	free(ZeroCouponFlagRcv);																					// 할당해제 74
+	free(SlopeOfFixingRate_Pay);																				// 할당해제 75
+	free(SlopeOfPayoff_Pay);																					// 할당해제 76
+	free(FixedRate_Pay);																						// 할당해제 77
+	free(Structured_Pay);																						// 할당해제 78
+	free(RangeCpn_Pay);																							// 할당해제 79
+	free(DeltatPay);																							// 할당해제 80
+	free(ZeroCouponFlagPay);																					// 할당해제 81
 
-	free(Alpha_1Curve);
-	free(Beta_1Curve);
-	free(Gamma_1Curve);
-	free(Alpha_2Curve);
-	free(Beta_2Curve);
-	free(Gamma_2Curve);
-	free(FDMValue_1F);
-	for (i = 0; i < NGreed; i++) free(FDMValue_2F[i]);
-	free(FDMValue_2F);
-	for (i = 0; i < NGreed; i++) free(RHSValue_2F[i]);
-	free(RHSValue_2F);
+	free(Alpha_1Curve);																							// 할당해제 82
+	free(Beta_1Curve);																							// 할당해제 83
+	free(Gamma_1Curve);																							// 할당해제 84
+	free(Alpha_2Curve);																							// 할당해제 85
+	free(Beta_2Curve);																							// 할당해제 86
+	free(Gamma_2Curve);																							// 할당해제 87
+	free(FDMValue_1F);																							// 할당해제 88
+	free(FDMValue_2F_Reshaped);																					// 할당해제 89
+	free(FDMValue_2F);																							// 할당해제 90
+	free(RHSValue_2F_Reshaped);																					// 할당해제 91
+	free(RHSValue_2F);																							// 할당해제 92
 
-	free(TempAlphaArray);
-	free(TempBetaArray);
-	free(TempGammaArray);
-	for (i = 0; i < NGreed; i++)
-	{
-		free(TempCpnArrayRcv_2F[i]);
-		free(TempCpnArrayPay_2F[i]);
-	}
-	free(TempCpnArrayRcv_2F);
-	free(TempCpnArrayPay_2F);
-	free(TempCpnArrayRcv_1F);
-	free(TempCpnArrayPay_1F);
+	free(TempAlphaArray);																						// 할당해제 93
+	free(TempBetaArray);																						// 할당해제 94
+	free(TempGammaArray);																						// 할당해제 95
+	free(TempCpnArrayRcv_1F);																					// 할당해제 96
+	free(TempCpnArrayPay_1F);																					// 할당해제 97
+	free(TempCpnArrayRcv_2F_Reshaped);																			// 할당해제 98
+	free(TempCpnArrayPay_2F_Reshaped);																			// 할당해제 99
+	free(TempCpnArrayRcv_2F);																					// 할당해제 100										
+	free(TempCpnArrayPay_2F);																					// 할당해제 101
 
-	for (i = 0; i < NGreed; i++) free(OptionExerciseFlag_2F[i]);
-	free(OptionExerciseFlag_2F);
-	free(OptionExerciseFlag_1F);
+	free(OptionExerciseFlag_2F_Reshaped);																		// 할당해제 102
+	free(OptionExerciseFlag_2F);																				// 할당해제 103
+	free(OptionExerciseFlag_1F);																				// 할당해제 104
 
-	free(ForPrintVariable);
-	free(RcvLastFixingPayoff_1F);
-	free(PayLastFixingPayoff_1F);
-	for (i = 0; i < NGreed; i++) free(RcvLastFixingPayoff_2F[i]);
-	for (i = 0; i < NGreed; i++) free(PayLastFixingPayoff_2F[i]);
-	free(RcvLastFixingPayoff_2F);
-	free(PayLastFixingPayoff_2F);
+	free(ForPrintVariable);																						// 할당해제 105
+	free(NBD_Fixing_to_End_Rcv);																				// 할당해제 106
+	free(NBD_Fixing_to_End_Pay);																				// 할당해제 107
 
 	//_CrtDumpMemoryLeaks();
 	return 1;

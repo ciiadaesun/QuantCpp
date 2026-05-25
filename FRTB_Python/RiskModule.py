@@ -1955,7 +1955,7 @@ def Calc_EQRDelta_KB(DataByBucket, CorrScenario = 'm') :
         return 0
     ScenarioFlag = 0 if 'm' in str(CorrScenario) else (1 if 'u' in str(CorrScenario) else 2)
     c = EquityDeltaInBucketSensiCorr(groupped["BucketCopy"].iloc[0], groupped["Type"], groupped["StockName"])
-    KB = Calc_Kb_DeltaVega(groupped["WeightedSensi"].values.astype(np.float64), c, ScenarioFlag)
+    KB = Calc_Kb_DeltaVega(groupped["WeightedSensi"].values.astype(np.float64), c, ScenarioFlag) if int(float(groupped["BucketCopy"].iloc[0])) != 11 else np.abs(groupped["WeightedSensi"].values.astype(np.float64)).sum()
     return KB
 
 def Calc_EQRDelta(DeltaData, SensitivityColumnName = "Delta") : 
