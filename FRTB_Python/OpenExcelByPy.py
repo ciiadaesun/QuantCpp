@@ -204,6 +204,8 @@ number_format_list = []
 value_type_list = []
 fill_info_list = []
 border_info_list = []
+formula_info_list = []
+
 for ws in wb.Worksheets:
     sheet_name_list.append(ws.Name)
 
@@ -224,6 +226,7 @@ for n in range(len(sheet_name_list)):
     value_type_infos = []
     fill_infos = []
     border_infos = []    
+    formula_infos = []
     for r in range(start_row, start_row + nrows):
         row = []
         font_row = []
@@ -231,7 +234,8 @@ for n in range(len(sheet_name_list)):
         number_format_row = []
         value_type_row = []
         fill_row = []
-        border_row = []        
+        border_row = []      
+        formula_row = []  
         for c in range(start_col, start_col + ncols):
             cell = ws.Cells(r, c)
             font = cell.Font
@@ -285,6 +289,8 @@ for n in range(len(sheet_name_list)):
                 }
             })
 
+            formula_row.append(bool(cell.HasFormula))
+
             # 병합셀 내부 셀은 pandas 저장 시 값 중복 방지
             if cell.MergeCells:
                 ma = cell.MergeArea
@@ -324,6 +330,7 @@ for n in range(len(sheet_name_list)):
         value_type_infos.append(value_type_row)
         fill_infos.append(fill_row)
         border_infos.append(border_row)
+        formula_infos.append(formula_row)
 
         data.append(row)
     font_info_list.append(font_infos)
@@ -331,7 +338,9 @@ for n in range(len(sheet_name_list)):
     number_format_list.append(number_format_infos)
     value_type_list.append(value_type_infos)
     fill_info_list.append(fill_infos)
-    border_info_list.append(border_infos)    
+    border_info_list.append(border_infos) 
+    formula_info_list.append(formula_infos)
+
     df = pd.DataFrame(data)
     df = remove_timezone_from_df(df)
     data_list.append(df)
@@ -492,13 +501,16 @@ for n, sheet_name in enumerate(sheet_name_list):
         for c_idx, fmt in enumerate(format_row, start=1):
 
             out_cell = out_ws.cell(row=r_idx, column=c_idx)
-
+            is_formula = formula_info_list[n][r_idx - 1][c_idx - 1]
             if out_cell.__class__.__name__ == "MergedCell":
                 continue
 
             try:
-                cell_type = value_type_list[n][r_idx - 1][c_idx - 1]
-                out_cell.number_format = normalize_number_format(fmt, cell_type)
+                if is_formula :     
+                    out_cell.number_format = str(fmt) if fmt is not None else "General"
+                else : 
+                    cell_type = value_type_list[n][r_idx - 1][c_idx - 1]
+                    out_cell.number_format = normalize_number_format(fmt, cell_type)
             except:
                 out_cell.number_format = "General"
 
