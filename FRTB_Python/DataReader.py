@@ -68,37 +68,102 @@ def ReadtxtByApplication(filepath, seperateby = ',', header_idx = -1, curdir = o
 
     rows = [row.split(seperateby) for row in txt.splitlines()]
     df = pd.DataFrame(rows)
-    if header_idx > 0 : 
+    if header_idx >= 0 : 
         df.columns = df.iloc[0]
         df = df.iloc[1:]
     return df
 
-#df_xlsx = ReadxlsxByApplication(targetfilepath, sheet_idx = 0, curdir = os.getcwd())
-#df_csv = ReadcsvByApplication('FRTB_RAW', sheet_idx = 0, curdir = os.getcwd())
+def DataFrameTotxt(df, header = False, seperateby = ',', saveflag = False) : 
 
-def DataFrameTotxt(df, header = False, seperateby = ',') : 
-    if header == False : 
-        txt = '\n'.join(
-            seperateby.join(map(str, row))
-            for row in df.values
-        )
+    MyName = input("저장할 텍스트파일 이름은? -> ") if saveflag == True else ""
+    if '.dat' in MyName : 
+        seperateby = "|"
+    if header == False :
+        lines = []
+        for i, row in enumerate(df.values):
+            line = seperateby.join(map(str, row))
+            if i % 200 == 0: 
+                print(str(i) + 'Lines')
+            lines.append(line)
+        txt = "\n".join(lines)
+        #txt = '\n'.join(seperateby.join(map(str, row)) for row in df.values)
     else : 
-        txt = (
-            ','.join(map(str, df.columns))
-            + '\n'
-            + '\n'.join(
-                seperateby.join(map(str, row))
-                for row in df.values
-            )
-        )    
-    MyName = input("저장할 텍스트파일 이름은? -> ")
-    if '.txt' not in MyName and '.dat' not in MyName : 
-        if '.txt' not in MyName : 
-            MyName += '.txt'
-        elif '.dat' not in MyName : 
-            MyName += '.dat'
+        lines = []
 
-    with open(MyName, "w", encoding="utf-8") as f:
-        f.write(txt)
-    print("저장완료")
+        header = seperateby.join(map(str, df.columns))
+        print("Header :", header)
+        lines.append(header)
+        for row_idx, row in enumerate(df.values):
+            line = seperateby.join(map(str, row))
+            if row_idx % 200 == 0: 
+                print(str(row_idx) + 'Lines')
+            lines.append(line)
+        txt = "\n".join(lines)
+        #txt = (','.join(map(str, df.columns)) + '\n' + '\n'.join(seperateby.join(map(str, row)) for row in df.values))    
+
+    if saveflag == True : 
+        if '.txt' not in MyName and '.dat' not in MyName : 
+            if '.txt' not in MyName : 
+                MyName += '.txt'
+            elif '.dat' not in MyName : 
+                MyName += '.dat'
+            with open(MyName, "w", encoding="utf-8") as f:
+                f.write(txt)
+            print("저장완료")
+        else : 
+            with open(MyName, "w", encoding="utf-8") as f:
+                f.write(txt)
+            print("저장완료")
+
+    return txt
+
+def AddNewColumnOnDF(df, col_idx = -1, insertflag = True, value = None, colname = "NEW_COL") : 
+    if colname in df.columns : 
+        colname += "_"
+
+    if col_idx < 0 : 
+        col_idx = len(df.columns) + col_idx + 1
+
+    if 'th' in str(value).lower() and 'col' in str(value).lower() : 
+        value = df[df.columns[int(value.lower().split('th')[0])]]
+        if insertflag == True : 
+            df.insert(loc = col_idx + 1, column = colname, value = value)
+        else : 
+            df[df.columns[col_idx]] = value
+    else :        
+        if insertflag == True : 
+            df.insert(loc=col_idx + 1,column=colname,value=value)
+        else : 
+            df[df.columns[col_idx]] = value
+    return df
+
+def CopyTextFile(curdir = os.getcwd()) : 
+
+    targetfilename = input("복호화할 텍스트파일명을 입력하시오(.txt 또는 .dat 포함)\n -> ")
+    if '.txt' not in targetfilename and '.dat' not in targetfilename : 
+        if (targetfilename + '.txt') in os.listdir(curdir) : 
+            targetfilename += '.txt'
+        elif (targetfilename + '.dat') in os.listdir(curdir) : 
+            targetfilename += '.dat'
+
+    seperatebystr = input("해당 파일은 쉼표(,)로 나뉜 파일입니까? (|)로 나뉜 파일입니까? \n  -> "  )
+    seperateby = ',' if len(str(seperatebystr)) == 0 or str(seperatebystr) in [',','0'] else '|'
+    columnaddflag = input("해당 파일에 컬럼을 더 추가하시겠습니까? (y/n) \n -> ") 
+    df = ReadtxtByApplication(targetfilename, seperateby = seperateby, header_idx = -1, curdir = os.getcwd())
+
+    if len(str(columnaddflag)) == 0 or columnaddflag.lower() == 'n' :
+        DataFrameTotxt(df, header = False, seperateby = seperateby, saveflag=True)
+
+    else : 
+        col_idxstr = input("몇 번째 Column에 새 값을 추가합니까? \n -> ")    
+        col_idx = -1 if len(str(col_idxstr)) == 0 else int(col_idxstr)
+        insertflagstr = input("삽입하려면 0 수정하려면 1 ->")
+        insertflag = True if len(str(insertflagstr)) == 0 or str(insertflagstr) == '0' else False
+        value = input("어떤 글자를 추가하겠습니까? enter를 입력하면 공백을 입력 ->")
+        df = AddNewColumnOnDF(df, col_idx = col_idx, insertflag = insertflag, value = value)        
+        DataFrameTotxt(df, header = False, seperateby = seperateby, saveflag=True)
+
+if __name__ == '__main__' : 
+    CopyTextFile()
+
 # %%
