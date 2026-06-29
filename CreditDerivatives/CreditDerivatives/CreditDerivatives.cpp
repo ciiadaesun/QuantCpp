@@ -45,6 +45,71 @@ DLLEXPORT(long) Calc_Hazard_Rate_From_CDSCurve(
 	double* ResultHazard			// OutPut Hazard Rate
 );
 
+double combinationfunc(long A, long B)
+{
+	if (B < 0 || B > A)
+		return 0.0;
+	long i;
+	double result = 1.0;
+
+	if (B > A - B) B = A - B;
+
+	for (i = 1; i <= B; i++)
+	{
+		result *= (double)(A - B + i);
+		result /= (double)i;
+	}
+	return result;
+}
+
+double conditional_prob_default_on_Z(
+	double prob_def,
+	double rho,
+	double Z
+)
+{
+	return CDF_N((INV_CDF_N(prob_def) - sqrt(rho) * Z) / (sqrt(1 - rho)));
+}
+
+double Prob_N_Default_on_Z(long NTotal, long NDefault, double Z, double Individual_PD, double port_corr)
+{
+	if (NDefault < 0 || NDefault > NTotal) return 0.0;
+	long i;
+	double PD = conditional_prob_default_on_Z(Individual_PD, port_corr, Z);
+	double PND = 1.0 - PD;
+	double p = 1.0;
+	for (i = 0; i < NDefault; i++) p *= PD;
+	for (i = 0; i < NTotal - NDefault; i++) p *= PND;
+	return combinationfunc(NTotal, NDefault)* p;
+}
+
+double Prob_N_Default(long NTotal, long NDefault, double Individual_PD, double port_corr)
+{
+	long i;
+	double x[13] = { 0. };
+	double w[13] = { 0. };
+	double s = 0.;
+	gauss_hermite_normal(x, w, 0., 1.0, 13);
+	for (i = 0; i < 13; i++)
+	{
+		s += w[i] * Prob_N_Default_on_Z(NTotal, NDefault, x[i], Individual_PD, port_corr);
+	}
+	return s;
+}
+
+double Prob_Nth_Default(long NTotal, long Nth_Default, double Individual_PD, double port_corr)
+{
+	long k;
+	double p = 1.0;
+
+	for (k = 0; k < Nth_Default; k++)
+	{
+		p -= Prob_N_Default(NTotal, k, Individual_PD, port_corr);
+	}
+
+	return p;
+}
+
 double Calc_RiskyZeroBond(
 	double Lambda,
 	double rf_rate,
@@ -1619,7 +1684,11 @@ double Calc_CDS_From_CreditSpread(
 	double OLD_CDS_Spread,
 	double NotionalAmount,
 	long NHoliday,
-	long* HolidayYYYYMMDD
+	long* HolidayYYYYMMDD,
+	long BasketFlag,
+	long BasketNTotalAsset,
+	long BasketNthDefault,
+	double BasketAssetCorrelation
 )
 {
 	long i;
@@ -1642,6 +1711,10 @@ double Calc_CDS_From_CreditSpread(
 
 	long NHazardRate = NRefZero;
 	double* HazardRateTerm = RefZeroTerm;
+	if (BasketFlag)
+	{
+		for (i = 0; i < NHazardRate; i++) HazardRate[i] = Prob_Nth_Default(BasketNTotalAsset, BasketNthDefault, HazardRate[i], BasketAssetCorrelation);
+	}
 
 	ResultSpread = Calc_CDS_From_Hazard(NPremiumCurve, PremiumCurveTerm, PremiumCurve,
 		NProtectionCurve, ProtectionCurveTerm, ProtectionCurve,
@@ -1856,6 +1929,11 @@ DLLEXPORT(long) Calc_CDS_Spread(
 	long NHoliday,
 	long* HolidayYYYYMMDD,
 
+	long BasketCDSFlag,				// Basket CDS Flag
+	long BasketNTotalAsset,			// Basket NTotal Asset
+	long BasketNthDefault,			// Basket number of Nth Default
+	double BasketAssetCorrelation,	// Asset Correlation
+
 	long TextFlag,					// 텍스트DumpFlag (미완성)
 	long GreekFlag,					// Greek산출Flag
 	double* Result_Value,			// 결과 0: Result_Spread 1:Premium_Leg 2:Protection Leg
@@ -1877,6 +1955,8 @@ DLLEXPORT(long) Calc_CDS_Spread(
 		NRefZero, RefZeroTerm, ZeroRiskFree, ZeroRiskyBond, DefaultRateCalcMethod,
 		Recovery, NCPN_Ann, Maturity, 0.01, 1,
 		TextFlag, GreekFlag);
+	Preprocessing_TermAndRate(PricingDateYYYYMMDD, NRefZero, RefZeroTerm, ZeroRiskFree);
+	Preprocessing_TermAndRate(PricingDateYYYYMMDD, NRefZero, RefZeroTerm, ZeroRiskyBond);
 
 	for (i = 0; i < NSchedule; i++)
 	{
@@ -1893,6 +1973,11 @@ DLLEXPORT(long) Calc_CDS_Spread(
 
 	if (DataFlag == 0)
 	{
+		if (BasketCDSFlag)
+		{
+			for (i = 0; i < NHazardRate; i++) HazardRate[i] = Prob_Nth_Default(BasketNTotalAsset, BasketNthDefault, HazardRate[i], BasketAssetCorrelation);
+		}
+
 		Result_Spread = Calc_CDS_From_Hazard(NPremiumCurve, PremiumCurveTerm, PremiumCurve,
 			NProtectionCurve, ProtectionCurveTerm, ProtectionCurve,
 			DataFlag, NHazardRate, HazardRateTerm, HazardRate, CalcQMethod,
@@ -1917,7 +2002,7 @@ DLLEXPORT(long) Calc_CDS_Spread(
 		Result_Spread = Calc_CDS_From_CreditSpread(NPremiumCurve, PremiumCurveTerm, PremiumCurve,
 			NProtectionCurve, ProtectionCurveTerm, ProtectionCurve,
 			DataFlag, NRefZero, RefZeroTerm, ZeroRiskFree, ZeroRiskyBond, DefaultRateCalcMethod,
-			Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateYYYYMMDD, PayDateYYYYMMDD, PricingDateYYYYMMDD, &Premium_Leg, &Protection_Leg, ResultHazardRate, Premium_Schedule, GreekFlag, ResultGreeks, 0.0, NotionalAmount, NHoliday, HolidayYYYYMMDD);
+			Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateYYYYMMDD, PayDateYYYYMMDD, PricingDateYYYYMMDD, &Premium_Leg, &Protection_Leg, ResultHazardRate, Premium_Schedule, GreekFlag, ResultGreeks, 0.0, NotionalAmount, NHoliday, HolidayYYYYMMDD, BasketCDSFlag, BasketNTotalAsset, BasketNthDefault, BasketAssetCorrelation);
 	}
 
 	Result_Value[0] = Result_Spread;
@@ -1964,6 +2049,11 @@ DLLEXPORT(long) Calc_OLD_CDS_Value(
 
 	long NHoliday,
 	long *HolidayYYYYMMDD,
+
+	long BasketCDSFlag,				// Basket CDS Flag
+	long BasketNTotalAsset,			// Basket NTotal Asset
+	long BasketNthDefault,			// Basket number of Nth Default
+	double BasketAssetCorrelation,	// Asset Correlation
 
 	double OLD_CDS_Spread,			// 예전 계약 CDS Spread
 	long Protection_Position,		// 포지션1: 롱 -1: 숏
@@ -2038,6 +2128,10 @@ DLLEXPORT(long) Calc_OLD_CDS_Value(
 		///////////////////////////////////
 		// Value 계산을 위해 현재기준 Premium_Leg, Protection_Leg, CDS Spread 계산
 		///////////////////////////////////
+		if (BasketCDSFlag)
+		{
+			for (i = 0; i < NHazardRate; i++) HazardRate[i] = Prob_Nth_Default(BasketNTotalAsset, BasketNthDefault, HazardRate[i], BasketAssetCorrelation);
+		}
 
 		Result_Spread = Calc_CDS_From_Hazard(NPremiumCurve, PremiumCurveTerm, PremiumCurve,
 			NProtectionCurve, ProtectionCurveTerm, ProtectionCurve,
@@ -2241,7 +2335,7 @@ DLLEXPORT(long) Calc_OLD_CDS_Value(
 		Result_Spread = Calc_CDS_From_CreditSpread(NPremiumCurve, PremiumCurveTerm, PremiumCurve,
 			NProtectionCurve, ProtectionCurveTerm, ProtectionCurve,
 			DataFlag, NRefZero, RefZeroTerm, ZeroRiskFree, ZeroRiskyBond, DefaultRateCalcMethod,
-			Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateYYYYMMDD, PayDateYYYYMMDD, PricingDateYYYYMMDD, &Premium_Leg, &Protection_Leg, ResultHazardRate, Premium_Schedule, GreekFlag, ResultGreeks, OLD_CDS_Spread, NotionalAmount, NHoliday, HolidayYYYYMMDD);
+			Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateYYYYMMDD, PayDateYYYYMMDD, PricingDateYYYYMMDD, &Premium_Leg, &Protection_Leg, ResultHazardRate, Premium_Schedule, GreekFlag, ResultGreeks, OLD_CDS_Spread, NotionalAmount, NHoliday, HolidayYYYYMMDD, BasketCDSFlag, BasketNTotalAsset, BasketNthDefault, BasketAssetCorrelation);
 	}
 
 	Result_Value[0] = Result_Spread;
@@ -2413,7 +2507,7 @@ DLLEXPORT(long) Calc_Hazard_Rate_From_CDSCurve(
 				NProtectionCurve, ProtectionCurveTerm, ProtectionCurve,
 				0, NHazardRate, HazardRateTerm, HazardRate, 0,
 				NRefZero, RefZeroTerm, ZeroRiskFree, ZeroRiskyBond, 0,
-				Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateExcelDate, PayDateExcelDate, PricingDateYYYYMMDD, NHoliday, HolidayYYYYMMDD, 0, 0, TempResultPrice, ResultHazardRate, Premium_Schedule, 1.0);
+				Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateExcelDate, PayDateExcelDate, PricingDateYYYYMMDD, NHoliday, HolidayYYYYMMDD, 0, 100, 1, 0.0, 0, 0, TempResultPrice, ResultHazardRate, Premium_Schedule, 1.0);
 		}
 		else
 		{
@@ -2421,7 +2515,7 @@ DLLEXPORT(long) Calc_Hazard_Rate_From_CDSCurve(
 				NProtectionCurve, ProtectionCurveTerm, ProtectionCurve,
 				0, NHazardRate, HazardRateTerm, HazardRate, 1,
 				NRefZero, RefZeroTerm, ZeroRiskFree, ZeroRiskyBond, 0,
-				Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateExcelDate, PayDateExcelDate, PricingDateYYYYMMDD, NHoliday, HolidayYYYYMMDD, 0, 0, TempResultPrice, ResultHazardRate, Premium_Schedule, 1.0);
+				Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateExcelDate, PayDateExcelDate, PricingDateYYYYMMDD, NHoliday, HolidayYYYYMMDD, 0, 100, 1, 0.0, 0, 0, TempResultPrice, ResultHazardRate, Premium_Schedule, 1.0);
 		}
 
 		Price1 = TempResultPrice[0];
@@ -2439,7 +2533,7 @@ DLLEXPORT(long) Calc_Hazard_Rate_From_CDSCurve(
 				NProtectionCurve, ProtectionCurveTerm, ProtectionCurve,
 				0, NHazardRate, HazardRateTerm, HazardRate, 0,
 				NRefZero, RefZeroTerm, ZeroRiskFree, ZeroRiskyBond, 0,
-				Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateExcelDate, PayDateExcelDate, PricingDateYYYYMMDD, NHoliday, HolidayYYYYMMDD, 0, 0, TempResultPrice, ResultHazardRate, Premium_Schedule, 1.0);
+				Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateExcelDate, PayDateExcelDate, PricingDateYYYYMMDD, NHoliday, HolidayYYYYMMDD, 0, 100, 1, 0.0, 0, 0, TempResultPrice, ResultHazardRate, Premium_Schedule, 1.0);
 		}
 		else
 		{
@@ -2447,7 +2541,7 @@ DLLEXPORT(long) Calc_Hazard_Rate_From_CDSCurve(
 				NProtectionCurve, ProtectionCurveTerm, ProtectionCurve,
 				0, NHazardRate, HazardRateTerm, HazardRate, 1,
 				NRefZero, RefZeroTerm, ZeroRiskFree, ZeroRiskyBond, 0,
-				Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateExcelDate, PayDateExcelDate, PricingDateYYYYMMDD, NHoliday, HolidayYYYYMMDD, 0, 0, TempResultPrice, ResultHazardRate, Premium_Schedule, 1.0);
+				Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateExcelDate, PayDateExcelDate, PricingDateYYYYMMDD, NHoliday, HolidayYYYYMMDD, 0, 100, 1, 0.0, 0, 0, TempResultPrice, ResultHazardRate, Premium_Schedule, 1.0);
 		}
 		Price2 = TempResultPrice[0];
 		Error2 = ObjValue - Price2;
@@ -2467,7 +2561,7 @@ DLLEXPORT(long) Calc_Hazard_Rate_From_CDSCurve(
 					NProtectionCurve, ProtectionCurveTerm, ProtectionCurve,
 					0, NHazardRate, HazardRateTerm, HazardRate, 0,
 					NRefZero, RefZeroTerm, ZeroRiskFree, ZeroRiskyBond, 0,
-					Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateExcelDate, PayDateExcelDate, PricingDateYYYYMMDD, NHoliday, HolidayYYYYMMDD, 0, 0, TempResultPrice, ResultHazardRate, Premium_Schedule, 1.0);
+					Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateExcelDate, PayDateExcelDate, PricingDateYYYYMMDD, NHoliday, HolidayYYYYMMDD, 0, 100, 1, 0.0, 0, 0, TempResultPrice, ResultHazardRate, Premium_Schedule, 1.0);
 			}
 			else
 			{
@@ -2475,7 +2569,7 @@ DLLEXPORT(long) Calc_Hazard_Rate_From_CDSCurve(
 					NProtectionCurve, ProtectionCurveTerm, ProtectionCurve,
 					0, NHazardRate, HazardRateTerm, HazardRate, 1,
 					NRefZero, RefZeroTerm, ZeroRiskFree, ZeroRiskyBond, 0,
-					Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateExcelDate, PayDateExcelDate, PricingDateYYYYMMDD, NHoliday, HolidayYYYYMMDD, 0, 0, TempResultPrice, ResultHazardRate, Premium_Schedule, 1.0);
+					Recovery, ScheduleInputFlag, NCPN_Ann, Maturity, NSchedule, ResetDateExcelDate, PayDateExcelDate, PricingDateYYYYMMDD, NHoliday, HolidayYYYYMMDD, 0, 100, 1, 0.0, 0, 0, TempResultPrice, ResultHazardRate, Premium_Schedule, 1.0);
 			}
 
 			Price = TempResultPrice[0];

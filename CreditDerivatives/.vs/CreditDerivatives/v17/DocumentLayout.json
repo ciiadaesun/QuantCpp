@@ -5,6 +5,10 @@
     {
       "AbsoluteMoniker": "D:0:0:{69B19BE3-6072-4319-AF6C-999BD8FBC3F7}|CreditDerivatives\\CreditDerivatives.vcxproj|C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\CreditDerivatives\\CreditDerivatives\\CreditDerivatives.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
       "RelativeMoniker": "D:0:0:{69B19BE3-6072-4319-AF6C-999BD8FBC3F7}|CreditDerivatives\\CreditDerivatives.vcxproj|solutionrelative:CreditDerivatives\\CreditDerivatives.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{69B19BE3-6072-4319-AF6C-999BD8FBC3F7}|CreditDerivatives\\CreditDerivatives.vcxproj|C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\CreditDerivatives\\CreditDerivatives\\Util.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{69B19BE3-6072-4319-AF6C-999BD8FBC3F7}|CreditDerivatives\\CreditDerivatives.vcxproj|solutionrelative:CreditDerivatives\\Util.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     }
   ],
   "DocumentGroupContainers": [
@@ -24,9 +28,22 @@
               "RelativeDocumentMoniker": "CreditDerivatives\\CreditDerivatives.cpp",
               "ToolTip": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\CreditDerivatives\\CreditDerivatives\\CreditDerivatives.cpp",
               "RelativeToolTip": "CreditDerivatives\\CreditDerivatives.cpp",
-              "ViewState": "AgIAAAYFAAAAAAAAAAAmwDsFAAAbAAAAAAAAAA==",
+              "ViewState": "AgIAAK0GAAAAAAAAAAAuwLEGAAAPAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
               "WhenOpened": "2026-05-13T10:47:40.762Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Util.h",
+              "DocumentMoniker": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\CreditDerivatives\\CreditDerivatives\\Util.h",
+              "RelativeDocumentMoniker": "CreditDerivatives\\Util.h",
+              "ToolTip": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\CreditDerivatives\\CreditDerivatives\\Util.h",
+              "RelativeToolTip": "CreditDerivatives\\Util.h",
+              "ViewState": "AgIAAPUOAAAAAAAAAAAuwP8OAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
+              "WhenOpened": "2026-06-28T12:21:30.762Z",
               "EditorCaption": ""
             }
           ]
