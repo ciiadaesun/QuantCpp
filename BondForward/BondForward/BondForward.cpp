@@ -2175,6 +2175,121 @@ DLLEXPORT(long) Calc_BondForward(
     return 1;
 }
 
+DLLEXPORT(long) BondOptionPricing(
+    double Nominal,
+    long Fix0Flo1Flag,
+    long PriceDate,
+    long RefBondEffectiveDate,
+    long RefBondMaturityDate,
+
+    long RefBondNumCpnOneYear,
+    double RefBondCpnRate,
+    long NDayFromBondEndToPay,
+    long OptionMaturityDate,
+    long NBondZeroCurveTerm,
+
+    double* BondZeroCurveTerm,
+    double* BondZeroCurveRate,
+    long BondYTMFlag,
+    long BondMarketPriceFlag,
+    double BondMarketPrice,
+
+    double ExercisePrice,
+    long NRiskfreeCurveTerm,
+    double* RiskfreeCurveTerm,
+    double* RiskfreeCurveRate,    
+    long VolFlag0Black1Normal,
+
+    double Vol,
+    long DayCountFlag,
+    double FixingRateFloatLeg,
+    long NHolidays,
+    long* Holidays,
+
+    long Call0Put1,
+    long TextFlag,
+    long NMaxResultSchedule,
+    double* ResultPriceArray,           // Len = 6
+    double* ResultSchedule,             // Len = NMaxResultSchedule * 4
+    double* ResultGreek                 // Len = NBondZeroCurveTerm * 2 + NRiskfreeCurveTerm * 2
+)
+{
+    long i, j, nschd;
+    double t, r, v, D;
+    double deltabondyield, deltairs, theta;
+    double Temp[10] = { 0. , };
+    double Temp2[500] = { 0., };
+    double Temp3[500] = { 0., };
+    double F = 0.;
+    double B = 0.;
+    double K = ExercisePrice;
+    double price;
+    long NFXTemp = 1;
+    double FXTermTemp = 1.;
+    double FXRateTemp = 1.;
+    double d1, d2;
+    long ForwardMaturityDate = OptionMaturityDate;
+    if (PriceDate < 19000101) PriceDate = ExcelDateToCDate(PriceDate);
+    if (RefBondEffectiveDate < 19000101) RefBondEffectiveDate = ExcelDateToCDate(RefBondEffectiveDate);
+    if (RefBondMaturityDate < 19000101) RefBondMaturityDate = ExcelDateToCDate(RefBondMaturityDate);
+    if (OptionMaturityDate< 19000101) OptionMaturityDate = ExcelDateToCDate(OptionMaturityDate);
+    for (i = 0; i < NHolidays; i++) if (Holidays[i] < 19000101) Holidays[i] = ExcelDateToCDate(Holidays[i]);
+
+    Calc_BondForward(
+        Nominal, Fix0Flo1Flag, PriceDate, RefBondEffectiveDate, RefBondMaturityDate,
+        RefBondNumCpnOneYear, RefBondCpnRate, NDayFromBondEndToPay, ForwardMaturityDate, NBondZeroCurveTerm,
+        BondZeroCurveTerm, BondZeroCurveRate, BondYTMFlag, BondMarketPriceFlag, BondMarketPrice,
+        ExercisePrice, NRiskfreeCurveTerm, RiskfreeCurveTerm, RiskfreeCurveRate, NFXTemp,
+        &FXTermTemp, &FXRateTemp, DayCountFlag, FixingRateFloatLeg, NHolidays,
+        Holidays, 1, 0, 500, Temp, Temp2, Temp3);
+    long n = min(500, Temp[4]);
+    for (i = 0; i < n; i++) 
+    {
+        ResultSchedule[i] = Temp2[i];
+        ResultSchedule[i + n] = Temp2[i + n];
+        ResultSchedule[i + 2 * n] = Temp2[i + 2 * n];
+        ResultSchedule[i + 3 * n] = Temp2[i + 3 * n];
+        ResultSchedule[i + 4 * n] = Temp2[i + 4 * n];
+    }
+
+    F = Temp[0];
+    B = Temp[1];
+    D = 0.;
+    for (i = 0; i < NBondZeroCurveTerm; i++) D += -(Temp3[i] / 0.0001) / F;
+
+    t = max(0.002739726, ((double)DayCountAtoB(PriceDate, OptionMaturityDate)) / 365.);
+    r = Interpolate_Linear(RiskfreeCurveTerm, RiskfreeCurveRate, NRiskfreeCurveTerm, t);
+
+    if (VolFlag0Black1Normal == 0) v = r * Vol * D;
+    else v = Vol * D;
+    
+    d1 = (log(F / K) + 0.5 * v * v * t) / (v * sqrt(t));
+    d2 = d1 - v * sqrt(t);
+    if (Call0Put1 == 0)
+    {
+        price = exp(-r * t) * (F * CDF_N(d1) - K * CDF_N(d2));
+        deltabondyield = -exp(-r * t) * CDF_N(d1) * D * F;
+        deltairs = -t * price + exp(-r * t) * F * CDF_N(d1) * t;
+        theta = r * price - exp(-r * t) * F * PDF_N(d1) * v / (2.0 * sqrt(t)) - exp(-r * t) * CDF_N(d1) * r * F;
+    }
+    else
+    {
+        price = exp(-r * t) * (K * CDF_N(-d2) - F * CDF_N(-d1));
+        deltabondyield = exp(-r * t) * CDF_N(-d1) * D * F;
+        deltairs = -t * price -  exp(-r * t) * F * CDF_N(-d1) * t;
+        theta = r * price - exp(-r * t) * F * PDF_N(d1) * v / (2.0 * sqrt(t)) + exp(-r * t) * CDF_N(-d1) * r * F;
+    }
+    ResultPriceArray[0] = F;
+    ResultPriceArray[1] = B;
+    ResultPriceArray[2] = Temp[2];
+    ResultPriceArray[3] = price;
+    ResultPriceArray[4] = Temp[4];
+    ResultGreek[0] = deltabondyield;
+    ResultGreek[1] = deltairs;
+    ResultGreek[2] = theta;
+    return 1;
+}
+
 int main()
 {   
     double Nominal = 100.;
