@@ -5,6 +5,10 @@
     {
       "AbsoluteMoniker": "D:0:0:{2D30E091-3FD4-4171-A249-81F894A20742}|HiFive_ELS\\HiFive_ELS.vcxproj|C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\HiFive_ELS\\HiFive_ELS\\HiFive_ELS.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
       "RelativeMoniker": "D:0:0:{2D30E091-3FD4-4171-A249-81F894A20742}|HiFive_ELS\\HiFive_ELS.vcxproj|solutionrelative:HiFive_ELS\\HiFive_ELS.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2D30E091-3FD4-4171-A249-81F894A20742}|HiFive_ELS\\HiFive_ELS.vcxproj|C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\HiFive_ELS\\HiFive_ELS\\SABR.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{2D30E091-3FD4-4171-A249-81F894A20742}|HiFive_ELS\\HiFive_ELS.vcxproj|solutionrelative:HiFive_ELS\\SABR.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     }
   ],
   "DocumentGroupContainers": [
@@ -14,8 +18,21 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 1,
           "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "SABR.h",
+              "DocumentMoniker": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\HiFive_ELS\\HiFive_ELS\\SABR.h",
+              "RelativeDocumentMoniker": "HiFive_ELS\\SABR.h",
+              "ToolTip": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\HiFive_ELS\\HiFive_ELS\\SABR.h",
+              "RelativeToolTip": "HiFive_ELS\\SABR.h",
+              "ViewState": "AgIAAPUBAAAAAAAAAADwvwAAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
+              "WhenOpened": "2026-07-23T10:56:53.225Z",
+              "EditorCaption": ""
+            },
             {
               "$type": "Document",
               "DocumentIndex": 0,
@@ -24,7 +41,7 @@
               "RelativeDocumentMoniker": "HiFive_ELS\\HiFive_ELS.cpp",
               "ToolTip": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\HiFive_ELS\\HiFive_ELS\\HiFive_ELS.cpp",
               "RelativeToolTip": "HiFive_ELS\\HiFive_ELS.cpp",
-              "ViewState": "AgIAACgHAAAAAAAAAAASwAwHAAASAAAAAAAAAA==",
+              "ViewState": "AgIAABkGAAAAAAAAAAAuwC0GAAAbAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
               "WhenOpened": "2025-12-11T11:56:16.867Z",
               "EditorCaption": ""

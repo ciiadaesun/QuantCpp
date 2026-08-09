@@ -396,43 +396,6 @@ double HullWhite2F_CrossTerm(
     return RHS;
 }
 
-
-void bubble_sort_long(long* arr, long count, long ascending)
-{
-    long temp;
-    long i, j;
-    if (ascending == 1)
-    {
-        for (i = 0; i < count; i++)
-        {
-            for (j = 0; j < count - 1; j++)
-            {
-                if (arr[j] > arr[j + 1])          // 이전 값이 더 크면
-                {                                 // 이전 값을 다음 요소로 보내고 다음 요소를 이전 요소 자리로
-                    temp = arr[j];
-                    arr[j] = arr[j + 1];
-                    arr[j + 1] = temp;
-                }
-            }
-        }
-    }
-    else
-    {
-        for (i = 0; i < count; i++)
-        {
-            for (j = 0; j < count - 1; j++)
-            {
-                if (arr[j] < arr[j + 1])
-                {
-                    temp = arr[j];
-                    arr[j] = arr[j + 1];
-                    arr[j + 1] = temp;
-                }
-            }
-        }
-    }
-}
-
 long* Make_Unique_Array(long n_array, long* Sorted_Array, long& target_length)
 {
     long i;

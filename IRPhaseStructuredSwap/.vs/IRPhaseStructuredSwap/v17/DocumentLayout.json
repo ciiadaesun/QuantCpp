@@ -5,6 +5,10 @@
     {
       "AbsoluteMoniker": "D:0:0:{BBCA6E0A-BE5F-428D-A8A0-599FED486802}|IRPhaseStructuredSwap\\IRPhaseStructuredSwap.vcxproj|C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
       "RelativeMoniker": "D:0:0:{BBCA6E0A-BE5F-428D-A8A0-599FED486802}|IRPhaseStructuredSwap\\IRPhaseStructuredSwap.vcxproj|solutionrelative:IRPhaseStructuredSwap\\IRPhaseStructuredSwap.cpp||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{BBCA6E0A-BE5F-428D-A8A0-599FED486802}|IRPhaseStructuredSwap\\IRPhaseStructuredSwap.vcxproj|C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap\\Util.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}",
+      "RelativeMoniker": "D:0:0:{BBCA6E0A-BE5F-428D-A8A0-599FED486802}|IRPhaseStructuredSwap\\IRPhaseStructuredSwap.vcxproj|solutionrelative:IRPhaseStructuredSwap\\Util.h||{D0E1A5C6-B359-4E41-9B60-3365922C2A22}"
     }
   ],
   "DocumentGroupContainers": [
@@ -14,8 +18,20 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 0,
+          "SelectedChildIndex": 1,
           "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
+              "Title": "Util.h",
+              "DocumentMoniker": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap\\Util.h",
+              "RelativeDocumentMoniker": "IRPhaseStructuredSwap\\Util.h",
+              "ToolTip": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap\\Util.h",
+              "RelativeToolTip": "IRPhaseStructuredSwap\\Util.h",
+              "ViewState": "AgIAAOEFAAAAAAAAAAAuwPMFAAARAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000680|",
+              "WhenOpened": "2026-07-17T05:24:37.938Z"
+            },
             {
               "$type": "Document",
               "DocumentIndex": 0,
@@ -24,7 +40,7 @@
               "RelativeDocumentMoniker": "IRPhaseStructuredSwap\\IRPhaseStructuredSwap.cpp",
               "ToolTip": "C:\\Users\\\uC784\uB300\uC120\\Desktop\\\uC0C8 \uD3F4\uB354\\github5\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap\\IRPhaseStructuredSwap.cpp",
               "RelativeToolTip": "IRPhaseStructuredSwap\\IRPhaseStructuredSwap.cpp",
-              "ViewState": "AgIAAKwJAAAAAAAAAAAmwIgJAAAMAAAAAAAAAA==",
+              "ViewState": "AgIAAIMBAAAAAAAAAAAcwIwBAAABAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000677|",
               "WhenOpened": "2026-04-04T06:58:10.405Z",
               "EditorCaption": ""
