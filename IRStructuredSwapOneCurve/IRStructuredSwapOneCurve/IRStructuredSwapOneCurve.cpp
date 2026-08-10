@@ -4143,7 +4143,7 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 	long* ResultCpnDatePay,
 	double* ResultFixingRateCpn,
 	double* Greek,	// Delta = (NZeroRate + NZeroDiscRate) + Gamma = (NZeroRate + NZeroDiscRate) + Vega = NHWVol + 2(For FRTBGamma)
-	long GreekFlag, // 0: None Greek, 1: PV01, Gamma, 2: PV01, Gamma, Vega 2: FRTB Delta, Curvature, Vega
+	long GreekFlag, // 0: None Greek, 1: Greek ªÍ√‚
 	long TextFlag
 )
 {
@@ -4233,17 +4233,412 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 		TextFlag
 	);
 	Price = ResultFixingRateCpn[0];
-	for (i = 0; i < NZeroRate; i++)
+	if (GreekFlag)
 	{
-		for (j = 0; j < NZeroRate; j++)
+		for (i = 0; i < NZeroRate; i++)
 		{
-			if (i == j) ZeroRateUp[j] = ZeroRate[j] + 0.0001;
-			else ZeroRateUp[j] = ZeroRate[j];
+			for (j = 0; j < NZeroRate; j++)
+			{
+				if (i == j) ZeroRateUp[j] = ZeroRate[j] + 0.0001;
+				else ZeroRateUp[j] = ZeroRate[j];
 
-			if (i == j) ZeroRateDn[j] = ZeroRate[j] - 0.0001;
-			else ZeroRateDn[j] = ZeroRate[j];
+				if (i == j) ZeroRateDn[j] = ZeroRate[j] - 0.0001;
+				else ZeroRateDn[j] = ZeroRate[j];
+			}
+
+			ResultCode = IRStructuredSwapFDM(
+				PriceDate,							// PricingDate As YYYYMMDD
+				EffectiveDate,						// EffeciveDate As YYYYMMDD
+				Maturity,							// Maturity As YYYYMMDD
+				NAFlag,							// Notional Use Flag
+				NA,								// Notional Amount
+
+				NAdditionalHolidays,				// RcvLeg, PayLeg Additional NHolidays Custom(len = 2)
+				AdditionalHolidays,				// RcvLeg, PayLeg Additional Holidays Custom(len = 2)
+				NationFlag,						// RcvLeg, PayLeg Nation Flag 0 : KRW, 1 : USD, ...
+				NumCpnAnn,						// Number Coupon of 1y (len = 2)
+				MaxLossRetRcvPay,				// MaxLossRet of Rcv, Pay Leg (len = 4)
+
+				MultipleRatefixPayoffRcvPay,	// Slope of Fixing And Payoff of Rcv, PayLeg(len = 4)
+				DayCountRcvPay,					// DayCountFraction of Rcv, PayLeg (len = 2)
+				PowerSpreadFlagRcvPay,			// PowerSpreadFlag Rcv, PayLeg (len = 2)
+				RangeMaxMinRcvPay,				// FixingRate Max and Min (len = 4)
+				InfoRefRateRcvPay,				// RefRate NCpnAn, T, T1, T2 of Rcv, PayLeg(len = 8)
+
+				RcvLegFixedRate,					// Receive Leg Fixed Coupon Rate
+				RcvLegRangeCoupon,				// Rcv Leg Range OK FixedCoupon Rate
+				RcvLegStructuredFlag,				// Rcv Leg Structured Coupon Flag
+				PayLegFixedRate,					// Pay Leg Fixed Coupon Rate
+				PayLegRangeCoupon,				// Pay Leg Range OK FixedCoupon Rate
+
+				PayLegStructuredFlag,				// Pay Leg Structured Coupon Flag
+				Phase2UseFlag,						// Phase2UseFlag
+				Phase2Date,						// Phase2Date
+				Phase2RcvLegFixedRate,			// Receive Leg Fixed Coupon Rate
+				Phase2RcvLegRangeCoupon,			// Rcv Leg Range OK FixedCoupon Rate
+
+				Phase2RcvLegStructuredFlag,		// Rcv Leg Structured Coupon Flag
+				Phase2PayLegFixedRate,			// Pay Leg Fixed Coupon Rate
+				Phase2PayLegRangeCoupon,			// Pay Leg Range OK FixedCoupon Rate
+				Phase2PayLegStructuredFlag,		// Pay Leg Structured Coupon Flag
+				NumCpnAnnPhase2RcvPay,			// RcvPay Phase2 NumCpnAnn
+
+				NOption,							// Number of Option
+				OptionDate,						// OptionDateArray As YYYYMMDD
+				OptionPayDate,					// OptionPayDateArray
+				OptionType,						// 0 : Payer have option, 1: Receiver
+				NRcvRateHistory,					// Number of RcvRate History
+
+				RcvRateHistoryDate,				// Rcv FixingRate HistoryDate Array
+				RcvRateHistory,					// Rcv FixingRate History Array
+				NPayRateHistory,					// Number of RcvRate History
+				PayRateHistoryDate,				// Pay FixingRate HistoryDate Array
+				PayRateHistory,					// Pay FixingRate History Array
+
+				NZeroRate,
+				ZeroTerm,
+				ZeroRateUp,
+				NZeroDiscRate,
+				ZeroDiscTerm,
+
+				ZeroDiscRate,
+				HW2FFlag,
+				NHWVol,
+				HWVolTerm,
+				HWVol,
+
+				kappa,
+				FactorCorrelation,
+				RangeAccrualFlagRcvPay,
+				InterestRateRoundingRcvPay,
+				Temp_ResultCpnDateRcv,
+				Temp_ResultCpnDatePay,
+				Temp_ResultFixingRateCpn,
+				TextFlag
+			);
+			Price2 = Temp_ResultFixingRateCpn[0];
+			Greek[i] = (Price2 - Price);
+
+			ResultCode = IRStructuredSwapFDM(
+				PriceDate,							// PricingDate As YYYYMMDD
+				EffectiveDate,						// EffeciveDate As YYYYMMDD
+				Maturity,							// Maturity As YYYYMMDD
+				NAFlag,							// Notional Use Flag
+				NA,								// Notional Amount
+
+				NAdditionalHolidays,				// RcvLeg, PayLeg Additional NHolidays Custom(len = 2)
+				AdditionalHolidays,				// RcvLeg, PayLeg Additional Holidays Custom(len = 2)
+				NationFlag,						// RcvLeg, PayLeg Nation Flag 0 : KRW, 1 : USD, ...
+				NumCpnAnn,						// Number Coupon of 1y (len = 2)
+				MaxLossRetRcvPay,				// MaxLossRet of Rcv, Pay Leg (len = 4)
+
+				MultipleRatefixPayoffRcvPay,	// Slope of Fixing And Payoff of Rcv, PayLeg(len = 4)
+				DayCountRcvPay,					// DayCountFraction of Rcv, PayLeg (len = 2)
+				PowerSpreadFlagRcvPay,			// PowerSpreadFlag Rcv, PayLeg (len = 2)
+				RangeMaxMinRcvPay,				// FixingRate Max and Min (len = 4)
+				InfoRefRateRcvPay,				// RefRate NCpnAn, T, T1, T2 of Rcv, PayLeg(len = 8)
+
+				RcvLegFixedRate,					// Receive Leg Fixed Coupon Rate
+				RcvLegRangeCoupon,				// Rcv Leg Range OK FixedCoupon Rate
+				RcvLegStructuredFlag,				// Rcv Leg Structured Coupon Flag
+				PayLegFixedRate,					// Pay Leg Fixed Coupon Rate
+				PayLegRangeCoupon,				// Pay Leg Range OK FixedCoupon Rate
+
+				PayLegStructuredFlag,				// Pay Leg Structured Coupon Flag
+				Phase2UseFlag,						// Phase2UseFlag
+				Phase2Date,						// Phase2Date
+				Phase2RcvLegFixedRate,			// Receive Leg Fixed Coupon Rate
+				Phase2RcvLegRangeCoupon,			// Rcv Leg Range OK FixedCoupon Rate
+
+				Phase2RcvLegStructuredFlag,		// Rcv Leg Structured Coupon Flag
+				Phase2PayLegFixedRate,			// Pay Leg Fixed Coupon Rate
+				Phase2PayLegRangeCoupon,			// Pay Leg Range OK FixedCoupon Rate
+				Phase2PayLegStructuredFlag,		// Pay Leg Structured Coupon Flag
+				NumCpnAnnPhase2RcvPay,			// RcvPay Phase2 NumCpnAnn
+
+				NOption,							// Number of Option
+				OptionDate,						// OptionDateArray As YYYYMMDD
+				OptionPayDate,					// OptionPayDateArray
+				OptionType,						// 0 : Payer have option, 1: Receiver
+				NRcvRateHistory,					// Number of RcvRate History
+
+				RcvRateHistoryDate,				// Rcv FixingRate HistoryDate Array
+				RcvRateHistory,					// Rcv FixingRate History Array
+				NPayRateHistory,					// Number of RcvRate History
+				PayRateHistoryDate,				// Pay FixingRate HistoryDate Array
+				PayRateHistory,					// Pay FixingRate History Array
+
+				NZeroRate,
+				ZeroTerm,
+				ZeroRateDn,
+				NZeroDiscRate,
+				ZeroDiscTerm,
+
+				ZeroDiscRate,
+				HW2FFlag,
+				NHWVol,
+				HWVolTerm,
+				HWVol,
+
+				kappa,
+				FactorCorrelation,
+				RangeAccrualFlagRcvPay,
+				InterestRateRoundingRcvPay,
+				Temp_ResultCpnDateRcv,
+				Temp_ResultCpnDatePay,
+				Temp_ResultFixingRateCpn,
+				TextFlag
+			);
+			Price3 = Temp_ResultFixingRateCpn[0];
+			Greek[i + (NZeroRate + NZeroDiscRate)] = (Price2 + Price3 - 2.0 * Price);
 		}
 
+		for (i = 0; i < NZeroDiscRate; i++)
+		{
+			for (j = 0; j < NZeroDiscRate; j++)
+			{
+				if (i == j) ZeroDiscRateUp[j] = ZeroDiscRate[j] + 0.0001;
+				else ZeroDiscRateUp[j] = ZeroDiscRate[j];
+
+				if (i == j) ZeroDiscRateDn[j] = ZeroDiscRate[j] - 0.0001;
+				else ZeroDiscRateDn[j] = ZeroDiscRate[j];
+
+			}
+
+			ResultCode = IRStructuredSwapFDM(
+				PriceDate,							// PricingDate As YYYYMMDD
+				EffectiveDate,						// EffeciveDate As YYYYMMDD
+				Maturity,							// Maturity As YYYYMMDD
+				NAFlag,							// Notional Use Flag
+				NA,								// Notional Amount
+
+				NAdditionalHolidays,				// RcvLeg, PayLeg Additional NHolidays Custom(len = 2)
+				AdditionalHolidays,				// RcvLeg, PayLeg Additional Holidays Custom(len = 2)
+				NationFlag,						// RcvLeg, PayLeg Nation Flag 0 : KRW, 1 : USD, ...
+				NumCpnAnn,						// Number Coupon of 1y (len = 2)
+				MaxLossRetRcvPay,				// MaxLossRet of Rcv, Pay Leg (len = 4)
+
+				MultipleRatefixPayoffRcvPay,	// Slope of Fixing And Payoff of Rcv, PayLeg(len = 4)
+				DayCountRcvPay,					// DayCountFraction of Rcv, PayLeg (len = 2)
+				PowerSpreadFlagRcvPay,			// PowerSpreadFlag Rcv, PayLeg (len = 2)
+				RangeMaxMinRcvPay,				// FixingRate Max and Min (len = 4)
+				InfoRefRateRcvPay,				// RefRate NCpnAn, T, T1, T2 of Rcv, PayLeg(len = 8)
+
+				RcvLegFixedRate,					// Receive Leg Fixed Coupon Rate
+				RcvLegRangeCoupon,				// Rcv Leg Range OK FixedCoupon Rate
+				RcvLegStructuredFlag,				// Rcv Leg Structured Coupon Flag
+				PayLegFixedRate,					// Pay Leg Fixed Coupon Rate
+				PayLegRangeCoupon,				// Pay Leg Range OK FixedCoupon Rate
+
+				PayLegStructuredFlag,				// Pay Leg Structured Coupon Flag
+				Phase2UseFlag,						// Phase2UseFlag
+				Phase2Date,						// Phase2Date
+				Phase2RcvLegFixedRate,			// Receive Leg Fixed Coupon Rate
+				Phase2RcvLegRangeCoupon,			// Rcv Leg Range OK FixedCoupon Rate
+
+				Phase2RcvLegStructuredFlag,		// Rcv Leg Structured Coupon Flag
+				Phase2PayLegFixedRate,			// Pay Leg Fixed Coupon Rate
+				Phase2PayLegRangeCoupon,			// Pay Leg Range OK FixedCoupon Rate
+				Phase2PayLegStructuredFlag,		// Pay Leg Structured Coupon Flag
+				NumCpnAnnPhase2RcvPay,			// RcvPay Phase2 NumCpnAnn
+
+				NOption,							// Number of Option
+				OptionDate,						// OptionDateArray As YYYYMMDD
+				OptionPayDate,					// OptionPayDateArray
+				OptionType,						// 0 : Payer have option, 1: Receiver
+				NRcvRateHistory,					// Number of RcvRate History
+
+				RcvRateHistoryDate,				// Rcv FixingRate HistoryDate Array
+				RcvRateHistory,					// Rcv FixingRate History Array
+				NPayRateHistory,					// Number of RcvRate History
+				PayRateHistoryDate,				// Pay FixingRate HistoryDate Array
+				PayRateHistory,					// Pay FixingRate History Array
+
+				NZeroRate,
+				ZeroTerm,
+				ZeroRate,
+				NZeroDiscRate,
+				ZeroDiscTerm,
+
+				ZeroDiscRateUp,
+				HW2FFlag,
+				NHWVol,
+				HWVolTerm,
+				HWVol,
+
+				kappa,
+				FactorCorrelation,
+				RangeAccrualFlagRcvPay,
+				InterestRateRoundingRcvPay,
+				Temp_ResultCpnDateRcv,
+				Temp_ResultCpnDatePay,
+				Temp_ResultFixingRateCpn,
+				TextFlag
+			);
+			Price2 = Temp_ResultFixingRateCpn[0];
+			Greek[i + NZeroRate] = (Price2 - Price);
+
+			ResultCode = IRStructuredSwapFDM(
+				PriceDate,							// PricingDate As YYYYMMDD
+				EffectiveDate,						// EffeciveDate As YYYYMMDD
+				Maturity,							// Maturity As YYYYMMDD
+				NAFlag,							// Notional Use Flag
+				NA,								// Notional Amount
+
+				NAdditionalHolidays,				// RcvLeg, PayLeg Additional NHolidays Custom(len = 2)
+				AdditionalHolidays,				// RcvLeg, PayLeg Additional Holidays Custom(len = 2)
+				NationFlag,						// RcvLeg, PayLeg Nation Flag 0 : KRW, 1 : USD, ...
+				NumCpnAnn,						// Number Coupon of 1y (len = 2)
+				MaxLossRetRcvPay,				// MaxLossRet of Rcv, Pay Leg (len = 4)
+
+				MultipleRatefixPayoffRcvPay,	// Slope of Fixing And Payoff of Rcv, PayLeg(len = 4)
+				DayCountRcvPay,					// DayCountFraction of Rcv, PayLeg (len = 2)
+				PowerSpreadFlagRcvPay,			// PowerSpreadFlag Rcv, PayLeg (len = 2)
+				RangeMaxMinRcvPay,				// FixingRate Max and Min (len = 4)
+				InfoRefRateRcvPay,				// RefRate NCpnAn, T, T1, T2 of Rcv, PayLeg(len = 8)
+
+				RcvLegFixedRate,					// Receive Leg Fixed Coupon Rate
+				RcvLegRangeCoupon,				// Rcv Leg Range OK FixedCoupon Rate
+				RcvLegStructuredFlag,				// Rcv Leg Structured Coupon Flag
+				PayLegFixedRate,					// Pay Leg Fixed Coupon Rate
+				PayLegRangeCoupon,				// Pay Leg Range OK FixedCoupon Rate
+
+				PayLegStructuredFlag,				// Pay Leg Structured Coupon Flag
+				Phase2UseFlag,						// Phase2UseFlag
+				Phase2Date,						// Phase2Date
+				Phase2RcvLegFixedRate,			// Receive Leg Fixed Coupon Rate
+				Phase2RcvLegRangeCoupon,			// Rcv Leg Range OK FixedCoupon Rate
+
+				Phase2RcvLegStructuredFlag,		// Rcv Leg Structured Coupon Flag
+				Phase2PayLegFixedRate,			// Pay Leg Fixed Coupon Rate
+				Phase2PayLegRangeCoupon,			// Pay Leg Range OK FixedCoupon Rate
+				Phase2PayLegStructuredFlag,		// Pay Leg Structured Coupon Flag
+				NumCpnAnnPhase2RcvPay,			// RcvPay Phase2 NumCpnAnn
+
+				NOption,							// Number of Option
+				OptionDate,						// OptionDateArray As YYYYMMDD
+				OptionPayDate,					// OptionPayDateArray
+				OptionType,						// 0 : Payer have option, 1: Receiver
+				NRcvRateHistory,					// Number of RcvRate History
+
+				RcvRateHistoryDate,				// Rcv FixingRate HistoryDate Array
+				RcvRateHistory,					// Rcv FixingRate History Array
+				NPayRateHistory,					// Number of RcvRate History
+				PayRateHistoryDate,				// Pay FixingRate HistoryDate Array
+				PayRateHistory,					// Pay FixingRate History Array
+
+				NZeroRate,
+				ZeroTerm,
+				ZeroRate,
+				NZeroDiscRate,
+				ZeroDiscTerm,
+
+				ZeroDiscRateDn,
+				HW2FFlag,
+				NHWVol,
+				HWVolTerm,
+				HWVol,
+
+				kappa,
+				FactorCorrelation,
+				RangeAccrualFlagRcvPay,
+				InterestRateRoundingRcvPay,
+				Temp_ResultCpnDateRcv,
+				Temp_ResultCpnDatePay,
+				Temp_ResultFixingRateCpn,
+				TextFlag
+			);
+
+			Price3 = Temp_ResultFixingRateCpn[0];
+			Greek[i + (NZeroRate + NZeroDiscRate) + NZeroRate] = (Price2 + Price3 - 2.0 * Price);
+		}
+
+		for (i = 0; i < NHWVol; i++)
+		{
+			for (j = 0; j < NHWVol; j++)
+			{
+				if (i == j) HWVolUp[j] = HWVol[j] + 0.0001;
+				else HWVolUp[j] = HWVol[j];
+			}
+
+			ResultCode = IRStructuredSwapFDM(
+				PriceDate,							// PricingDate As YYYYMMDD
+				EffectiveDate,						// EffeciveDate As YYYYMMDD
+				Maturity,							// Maturity As YYYYMMDD
+				NAFlag,							// Notional Use Flag
+				NA,								// Notional Amount
+
+				NAdditionalHolidays,				// RcvLeg, PayLeg Additional NHolidays Custom(len = 2)
+				AdditionalHolidays,				// RcvLeg, PayLeg Additional Holidays Custom(len = 2)
+				NationFlag,						// RcvLeg, PayLeg Nation Flag 0 : KRW, 1 : USD, ...
+				NumCpnAnn,						// Number Coupon of 1y (len = 2)
+				MaxLossRetRcvPay,				// MaxLossRet of Rcv, Pay Leg (len = 4)
+
+				MultipleRatefixPayoffRcvPay,	// Slope of Fixing And Payoff of Rcv, PayLeg(len = 4)
+				DayCountRcvPay,					// DayCountFraction of Rcv, PayLeg (len = 2)
+				PowerSpreadFlagRcvPay,			// PowerSpreadFlag Rcv, PayLeg (len = 2)
+				RangeMaxMinRcvPay,				// FixingRate Max and Min (len = 4)
+				InfoRefRateRcvPay,				// RefRate NCpnAn, T, T1, T2 of Rcv, PayLeg(len = 8)
+
+				RcvLegFixedRate,					// Receive Leg Fixed Coupon Rate
+				RcvLegRangeCoupon,				// Rcv Leg Range OK FixedCoupon Rate
+				RcvLegStructuredFlag,				// Rcv Leg Structured Coupon Flag
+				PayLegFixedRate,					// Pay Leg Fixed Coupon Rate
+				PayLegRangeCoupon,				// Pay Leg Range OK FixedCoupon Rate
+
+				PayLegStructuredFlag,				// Pay Leg Structured Coupon Flag
+				Phase2UseFlag,						// Phase2UseFlag
+				Phase2Date,						// Phase2Date
+				Phase2RcvLegFixedRate,			// Receive Leg Fixed Coupon Rate
+				Phase2RcvLegRangeCoupon,			// Rcv Leg Range OK FixedCoupon Rate
+
+				Phase2RcvLegStructuredFlag,		// Rcv Leg Structured Coupon Flag
+				Phase2PayLegFixedRate,			// Pay Leg Fixed Coupon Rate
+				Phase2PayLegRangeCoupon,			// Pay Leg Range OK FixedCoupon Rate
+				Phase2PayLegStructuredFlag,		// Pay Leg Structured Coupon Flag
+				NumCpnAnnPhase2RcvPay,			// RcvPay Phase2 NumCpnAnn
+
+				NOption,							// Number of Option
+				OptionDate,						// OptionDateArray As YYYYMMDD
+				OptionPayDate,					// OptionPayDateArray
+				OptionType,						// 0 : Payer have option, 1: Receiver
+				NRcvRateHistory,					// Number of RcvRate History
+
+				RcvRateHistoryDate,				// Rcv FixingRate HistoryDate Array
+				RcvRateHistory,					// Rcv FixingRate History Array
+				NPayRateHistory,					// Number of RcvRate History
+				PayRateHistoryDate,				// Pay FixingRate HistoryDate Array
+				PayRateHistory,					// Pay FixingRate History Array
+
+				NZeroRate,
+				ZeroTerm,
+				ZeroRate,
+				NZeroDiscRate,
+				ZeroDiscTerm,
+
+				ZeroDiscRate,
+				HW2FFlag,
+				NHWVol,
+				HWVolTerm,
+				HWVolUp,
+
+				kappa,
+				FactorCorrelation,
+				RangeAccrualFlagRcvPay,
+				InterestRateRoundingRcvPay,
+				Temp_ResultCpnDateRcv,
+				Temp_ResultCpnDatePay,
+				Temp_ResultFixingRateCpn,
+				TextFlag
+			);
+			Price2 = Temp_ResultFixingRateCpn[0];
+			Greek[i + 2 * (NZeroRate + NZeroDiscRate)] = (Price2 - Price);
+		}
+
+		for (i = 0; i < NZeroRate; i++) ZeroRateUp[i] = ZeroRate[i] + 0.011313708499; // FRTB Curvature Up
+		for (i = 0; i < NZeroDiscRate; i++) ZeroDiscRateUp[i] = ZeroDiscRate[i] + 0.011313708499;
+		for (i = 0; i < NZeroRate; i++) ZeroRateDn[i] = ZeroRate[i] - 0.011313708499; // FRTB Curvature Dn
+		for (i = 0; i < NZeroDiscRate; i++) ZeroDiscRateDn[i] = ZeroDiscRate[i] - 0.011313708499;
 		ResultCode = IRStructuredSwapFDM(
 			PriceDate,							// PricingDate As YYYYMMDD
 			EffectiveDate,						// EffeciveDate As YYYYMMDD
@@ -4299,7 +4694,7 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 			NZeroDiscRate,
 			ZeroDiscTerm,
 
-			ZeroDiscRate,
+			ZeroDiscRateUp,
 			HW2FFlag,
 			NHWVol,
 			HWVolTerm,
@@ -4314,8 +4709,9 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 			Temp_ResultFixingRateCpn,
 			TextFlag
 		);
+
 		Price2 = Temp_ResultFixingRateCpn[0];
-		Greek[i] = (Price2 - Price);
+		Greek[2 * (NZeroRate + NZeroDiscRate) + NHWVol + 1] = (Price2);
 
 		ResultCode = IRStructuredSwapFDM(
 			PriceDate,							// PricingDate As YYYYMMDD
@@ -4372,165 +4768,6 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 			NZeroDiscRate,
 			ZeroDiscTerm,
 
-			ZeroDiscRate,
-			HW2FFlag,
-			NHWVol,
-			HWVolTerm,
-			HWVol,
-
-			kappa,
-			FactorCorrelation,
-			RangeAccrualFlagRcvPay,
-			InterestRateRoundingRcvPay,
-			Temp_ResultCpnDateRcv,
-			Temp_ResultCpnDatePay,
-			Temp_ResultFixingRateCpn,
-			TextFlag
-		);
-		Price3 = Temp_ResultFixingRateCpn[0];
-		Greek[i + (NZeroRate + NZeroDiscRate)] = (Price2 + Price3 - 2.0 * Price);
-	}
-
-	for (i = 0; i < NZeroDiscRate; i++)
-	{
-		for (j = 0; j < NZeroDiscRate; j++)
-		{
-			if (i == j) ZeroDiscRateUp[j] = ZeroDiscRate[j] + 0.0001;
-			else ZeroDiscRateUp[j] = ZeroDiscRate[j];
-
-			if (i == j) ZeroDiscRateDn[j] = ZeroDiscRate[j] - 0.0001;
-			else ZeroDiscRateDn[j] = ZeroDiscRate[j];
-
-		}
-
-		ResultCode = IRStructuredSwapFDM(
-			PriceDate,							// PricingDate As YYYYMMDD
-			EffectiveDate,						// EffeciveDate As YYYYMMDD
-			Maturity,							// Maturity As YYYYMMDD
-			NAFlag,							// Notional Use Flag
-			NA,								// Notional Amount
-
-			NAdditionalHolidays,				// RcvLeg, PayLeg Additional NHolidays Custom(len = 2)
-			AdditionalHolidays,				// RcvLeg, PayLeg Additional Holidays Custom(len = 2)
-			NationFlag,						// RcvLeg, PayLeg Nation Flag 0 : KRW, 1 : USD, ...
-			NumCpnAnn,						// Number Coupon of 1y (len = 2)
-			MaxLossRetRcvPay,				// MaxLossRet of Rcv, Pay Leg (len = 4)
-
-			MultipleRatefixPayoffRcvPay,	// Slope of Fixing And Payoff of Rcv, PayLeg(len = 4)
-			DayCountRcvPay,					// DayCountFraction of Rcv, PayLeg (len = 2)
-			PowerSpreadFlagRcvPay,			// PowerSpreadFlag Rcv, PayLeg (len = 2)
-			RangeMaxMinRcvPay,				// FixingRate Max and Min (len = 4)
-			InfoRefRateRcvPay,				// RefRate NCpnAn, T, T1, T2 of Rcv, PayLeg(len = 8)
-
-			RcvLegFixedRate,					// Receive Leg Fixed Coupon Rate
-			RcvLegRangeCoupon,				// Rcv Leg Range OK FixedCoupon Rate
-			RcvLegStructuredFlag,				// Rcv Leg Structured Coupon Flag
-			PayLegFixedRate,					// Pay Leg Fixed Coupon Rate
-			PayLegRangeCoupon,				// Pay Leg Range OK FixedCoupon Rate
-
-			PayLegStructuredFlag,				// Pay Leg Structured Coupon Flag
-			Phase2UseFlag,						// Phase2UseFlag
-			Phase2Date,						// Phase2Date
-			Phase2RcvLegFixedRate,			// Receive Leg Fixed Coupon Rate
-			Phase2RcvLegRangeCoupon,			// Rcv Leg Range OK FixedCoupon Rate
-
-			Phase2RcvLegStructuredFlag,		// Rcv Leg Structured Coupon Flag
-			Phase2PayLegFixedRate,			// Pay Leg Fixed Coupon Rate
-			Phase2PayLegRangeCoupon,			// Pay Leg Range OK FixedCoupon Rate
-			Phase2PayLegStructuredFlag,		// Pay Leg Structured Coupon Flag
-			NumCpnAnnPhase2RcvPay,			// RcvPay Phase2 NumCpnAnn
-
-			NOption,							// Number of Option
-			OptionDate,						// OptionDateArray As YYYYMMDD
-			OptionPayDate,					// OptionPayDateArray
-			OptionType,						// 0 : Payer have option, 1: Receiver
-			NRcvRateHistory,					// Number of RcvRate History
-
-			RcvRateHistoryDate,				// Rcv FixingRate HistoryDate Array
-			RcvRateHistory,					// Rcv FixingRate History Array
-			NPayRateHistory,					// Number of RcvRate History
-			PayRateHistoryDate,				// Pay FixingRate HistoryDate Array
-			PayRateHistory,					// Pay FixingRate History Array
-
-			NZeroRate,
-			ZeroTerm,
-			ZeroRate,
-			NZeroDiscRate,
-			ZeroDiscTerm,
-
-			ZeroDiscRateUp,
-			HW2FFlag,
-			NHWVol,
-			HWVolTerm,
-			HWVol,
-
-			kappa,
-			FactorCorrelation,
-			RangeAccrualFlagRcvPay,
-			InterestRateRoundingRcvPay,
-			Temp_ResultCpnDateRcv,
-			Temp_ResultCpnDatePay,
-			Temp_ResultFixingRateCpn,
-			TextFlag
-		);
-		Price2 = Temp_ResultFixingRateCpn[0];
-		Greek[i + NZeroRate] = (Price2 - Price);
-
-		ResultCode = IRStructuredSwapFDM(
-			PriceDate,							// PricingDate As YYYYMMDD
-			EffectiveDate,						// EffeciveDate As YYYYMMDD
-			Maturity,							// Maturity As YYYYMMDD
-			NAFlag,							// Notional Use Flag
-			NA,								// Notional Amount
-
-			NAdditionalHolidays,				// RcvLeg, PayLeg Additional NHolidays Custom(len = 2)
-			AdditionalHolidays,				// RcvLeg, PayLeg Additional Holidays Custom(len = 2)
-			NationFlag,						// RcvLeg, PayLeg Nation Flag 0 : KRW, 1 : USD, ...
-			NumCpnAnn,						// Number Coupon of 1y (len = 2)
-			MaxLossRetRcvPay,				// MaxLossRet of Rcv, Pay Leg (len = 4)
-
-			MultipleRatefixPayoffRcvPay,	// Slope of Fixing And Payoff of Rcv, PayLeg(len = 4)
-			DayCountRcvPay,					// DayCountFraction of Rcv, PayLeg (len = 2)
-			PowerSpreadFlagRcvPay,			// PowerSpreadFlag Rcv, PayLeg (len = 2)
-			RangeMaxMinRcvPay,				// FixingRate Max and Min (len = 4)
-			InfoRefRateRcvPay,				// RefRate NCpnAn, T, T1, T2 of Rcv, PayLeg(len = 8)
-
-			RcvLegFixedRate,					// Receive Leg Fixed Coupon Rate
-			RcvLegRangeCoupon,				// Rcv Leg Range OK FixedCoupon Rate
-			RcvLegStructuredFlag,				// Rcv Leg Structured Coupon Flag
-			PayLegFixedRate,					// Pay Leg Fixed Coupon Rate
-			PayLegRangeCoupon,				// Pay Leg Range OK FixedCoupon Rate
-
-			PayLegStructuredFlag,				// Pay Leg Structured Coupon Flag
-			Phase2UseFlag,						// Phase2UseFlag
-			Phase2Date,						// Phase2Date
-			Phase2RcvLegFixedRate,			// Receive Leg Fixed Coupon Rate
-			Phase2RcvLegRangeCoupon,			// Rcv Leg Range OK FixedCoupon Rate
-
-			Phase2RcvLegStructuredFlag,		// Rcv Leg Structured Coupon Flag
-			Phase2PayLegFixedRate,			// Pay Leg Fixed Coupon Rate
-			Phase2PayLegRangeCoupon,			// Pay Leg Range OK FixedCoupon Rate
-			Phase2PayLegStructuredFlag,		// Pay Leg Structured Coupon Flag
-			NumCpnAnnPhase2RcvPay,			// RcvPay Phase2 NumCpnAnn
-
-			NOption,							// Number of Option
-			OptionDate,						// OptionDateArray As YYYYMMDD
-			OptionPayDate,					// OptionPayDateArray
-			OptionType,						// 0 : Payer have option, 1: Receiver
-			NRcvRateHistory,					// Number of RcvRate History
-
-			RcvRateHistoryDate,				// Rcv FixingRate HistoryDate Array
-			RcvRateHistory,					// Rcv FixingRate History Array
-			NPayRateHistory,					// Number of RcvRate History
-			PayRateHistoryDate,				// Pay FixingRate HistoryDate Array
-			PayRateHistory,					// Pay FixingRate History Array
-
-			NZeroRate,
-			ZeroTerm,
-			ZeroRate,
-			NZeroDiscRate,
-			ZeroDiscTerm,
-
 			ZeroDiscRateDn,
 			HW2FFlag,
 			NHWVol,
@@ -4547,243 +4784,9 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 			TextFlag
 		);
 
-		Price3 = Temp_ResultFixingRateCpn[0];
-		Greek[i + (NZeroRate + NZeroDiscRate) + NZeroRate] = (Price2 + Price3 - 2.0 * Price);
-	}
-
-	for (i = 0; i < NHWVol; i++)
-	{
-		for (j = 0; j < NHWVol; j++)
-		{
-			if (i == j) HWVolUp[j] = HWVol[j] + 0.0001;
-			else HWVolUp[j] = HWVol[j];
-		}
-
-		ResultCode = IRStructuredSwapFDM(
-			PriceDate,							// PricingDate As YYYYMMDD
-			EffectiveDate,						// EffeciveDate As YYYYMMDD
-			Maturity,							// Maturity As YYYYMMDD
-			NAFlag,							// Notional Use Flag
-			NA,								// Notional Amount
-
-			NAdditionalHolidays,				// RcvLeg, PayLeg Additional NHolidays Custom(len = 2)
-			AdditionalHolidays,				// RcvLeg, PayLeg Additional Holidays Custom(len = 2)
-			NationFlag,						// RcvLeg, PayLeg Nation Flag 0 : KRW, 1 : USD, ...
-			NumCpnAnn,						// Number Coupon of 1y (len = 2)
-			MaxLossRetRcvPay,				// MaxLossRet of Rcv, Pay Leg (len = 4)
-
-			MultipleRatefixPayoffRcvPay,	// Slope of Fixing And Payoff of Rcv, PayLeg(len = 4)
-			DayCountRcvPay,					// DayCountFraction of Rcv, PayLeg (len = 2)
-			PowerSpreadFlagRcvPay,			// PowerSpreadFlag Rcv, PayLeg (len = 2)
-			RangeMaxMinRcvPay,				// FixingRate Max and Min (len = 4)
-			InfoRefRateRcvPay,				// RefRate NCpnAn, T, T1, T2 of Rcv, PayLeg(len = 8)
-
-			RcvLegFixedRate,					// Receive Leg Fixed Coupon Rate
-			RcvLegRangeCoupon,				// Rcv Leg Range OK FixedCoupon Rate
-			RcvLegStructuredFlag,				// Rcv Leg Structured Coupon Flag
-			PayLegFixedRate,					// Pay Leg Fixed Coupon Rate
-			PayLegRangeCoupon,				// Pay Leg Range OK FixedCoupon Rate
-
-			PayLegStructuredFlag,				// Pay Leg Structured Coupon Flag
-			Phase2UseFlag,						// Phase2UseFlag
-			Phase2Date,						// Phase2Date
-			Phase2RcvLegFixedRate,			// Receive Leg Fixed Coupon Rate
-			Phase2RcvLegRangeCoupon,			// Rcv Leg Range OK FixedCoupon Rate
-
-			Phase2RcvLegStructuredFlag,		// Rcv Leg Structured Coupon Flag
-			Phase2PayLegFixedRate,			// Pay Leg Fixed Coupon Rate
-			Phase2PayLegRangeCoupon,			// Pay Leg Range OK FixedCoupon Rate
-			Phase2PayLegStructuredFlag,		// Pay Leg Structured Coupon Flag
-			NumCpnAnnPhase2RcvPay,			// RcvPay Phase2 NumCpnAnn
-
-			NOption,							// Number of Option
-			OptionDate,						// OptionDateArray As YYYYMMDD
-			OptionPayDate,					// OptionPayDateArray
-			OptionType,						// 0 : Payer have option, 1: Receiver
-			NRcvRateHistory,					// Number of RcvRate History
-
-			RcvRateHistoryDate,				// Rcv FixingRate HistoryDate Array
-			RcvRateHistory,					// Rcv FixingRate History Array
-			NPayRateHistory,					// Number of RcvRate History
-			PayRateHistoryDate,				// Pay FixingRate HistoryDate Array
-			PayRateHistory,					// Pay FixingRate History Array
-
-			NZeroRate,
-			ZeroTerm,
-			ZeroRate,
-			NZeroDiscRate,
-			ZeroDiscTerm,
-
-			ZeroDiscRate,
-			HW2FFlag,
-			NHWVol,
-			HWVolTerm,
-			HWVolUp,
-
-			kappa,
-			FactorCorrelation,
-			RangeAccrualFlagRcvPay,
-			InterestRateRoundingRcvPay,
-			Temp_ResultCpnDateRcv,
-			Temp_ResultCpnDatePay,
-			Temp_ResultFixingRateCpn,
-			TextFlag
-		);
 		Price2 = Temp_ResultFixingRateCpn[0];
-		Greek[i + 2*(NZeroRate + NZeroDiscRate)] = (Price2 - Price);
+		Greek[2 * (NZeroRate + NZeroDiscRate) + NHWVol + 2] = (Price2);
 	}
-
-	for (i = 0; i < NZeroRate; i++) ZeroRateUp[i] = ZeroRate[i] + 0.0011313708499; // FRTB Curvature Up
-	for (i = 0; i < NZeroDiscRate; i++) ZeroDiscRateUp[i] = ZeroDiscRate[i] + 0.0011313708499;
-	for (i = 0; i < NZeroRate; i++) ZeroRateDn[i] = ZeroRate[i] - 0.0011313708499; // FRTB Curvature Dn
-	for (i = 0; i < NZeroDiscRate; i++) ZeroDiscRateDn[i] = ZeroDiscRate[i] - 0.0011313708499;
-	ResultCode = IRStructuredSwapFDM(
-		PriceDate,							// PricingDate As YYYYMMDD
-		EffectiveDate,						// EffeciveDate As YYYYMMDD
-		Maturity,							// Maturity As YYYYMMDD
-		NAFlag,							// Notional Use Flag
-		NA,								// Notional Amount
-
-		NAdditionalHolidays,				// RcvLeg, PayLeg Additional NHolidays Custom(len = 2)
-		AdditionalHolidays,				// RcvLeg, PayLeg Additional Holidays Custom(len = 2)
-		NationFlag,						// RcvLeg, PayLeg Nation Flag 0 : KRW, 1 : USD, ...
-		NumCpnAnn,						// Number Coupon of 1y (len = 2)
-		MaxLossRetRcvPay,				// MaxLossRet of Rcv, Pay Leg (len = 4)
-
-		MultipleRatefixPayoffRcvPay,	// Slope of Fixing And Payoff of Rcv, PayLeg(len = 4)
-		DayCountRcvPay,					// DayCountFraction of Rcv, PayLeg (len = 2)
-		PowerSpreadFlagRcvPay,			// PowerSpreadFlag Rcv, PayLeg (len = 2)
-		RangeMaxMinRcvPay,				// FixingRate Max and Min (len = 4)
-		InfoRefRateRcvPay,				// RefRate NCpnAn, T, T1, T2 of Rcv, PayLeg(len = 8)
-
-		RcvLegFixedRate,					// Receive Leg Fixed Coupon Rate
-		RcvLegRangeCoupon,				// Rcv Leg Range OK FixedCoupon Rate
-		RcvLegStructuredFlag,				// Rcv Leg Structured Coupon Flag
-		PayLegFixedRate,					// Pay Leg Fixed Coupon Rate
-		PayLegRangeCoupon,				// Pay Leg Range OK FixedCoupon Rate
-
-		PayLegStructuredFlag,				// Pay Leg Structured Coupon Flag
-		Phase2UseFlag,						// Phase2UseFlag
-		Phase2Date,						// Phase2Date
-		Phase2RcvLegFixedRate,			// Receive Leg Fixed Coupon Rate
-		Phase2RcvLegRangeCoupon,			// Rcv Leg Range OK FixedCoupon Rate
-
-		Phase2RcvLegStructuredFlag,		// Rcv Leg Structured Coupon Flag
-		Phase2PayLegFixedRate,			// Pay Leg Fixed Coupon Rate
-		Phase2PayLegRangeCoupon,			// Pay Leg Range OK FixedCoupon Rate
-		Phase2PayLegStructuredFlag,		// Pay Leg Structured Coupon Flag
-		NumCpnAnnPhase2RcvPay,			// RcvPay Phase2 NumCpnAnn
-
-		NOption,							// Number of Option
-		OptionDate,						// OptionDateArray As YYYYMMDD
-		OptionPayDate,					// OptionPayDateArray
-		OptionType,						// 0 : Payer have option, 1: Receiver
-		NRcvRateHistory,					// Number of RcvRate History
-
-		RcvRateHistoryDate,				// Rcv FixingRate HistoryDate Array
-		RcvRateHistory,					// Rcv FixingRate History Array
-		NPayRateHistory,					// Number of RcvRate History
-		PayRateHistoryDate,				// Pay FixingRate HistoryDate Array
-		PayRateHistory,					// Pay FixingRate History Array
-
-		NZeroRate,
-		ZeroTerm,
-		ZeroRateUp,
-		NZeroDiscRate,
-		ZeroDiscTerm,
-
-		ZeroDiscRateUp,
-		HW2FFlag,
-		NHWVol,
-		HWVolTerm,
-		HWVol,
-
-		kappa,
-		FactorCorrelation,
-		RangeAccrualFlagRcvPay,
-		InterestRateRoundingRcvPay,
-		Temp_ResultCpnDateRcv,
-		Temp_ResultCpnDatePay,
-		Temp_ResultFixingRateCpn,
-		TextFlag
-	);
-
-	Price2 = Temp_ResultFixingRateCpn[0];
-	Greek[2 * (NZeroRate + NZeroDiscRate) + NHWVol + 1] = (Price2 - Price);
-
-	ResultCode = IRStructuredSwapFDM(
-		PriceDate,							// PricingDate As YYYYMMDD
-		EffectiveDate,						// EffeciveDate As YYYYMMDD
-		Maturity,							// Maturity As YYYYMMDD
-		NAFlag,							// Notional Use Flag
-		NA,								// Notional Amount
-
-		NAdditionalHolidays,				// RcvLeg, PayLeg Additional NHolidays Custom(len = 2)
-		AdditionalHolidays,				// RcvLeg, PayLeg Additional Holidays Custom(len = 2)
-		NationFlag,						// RcvLeg, PayLeg Nation Flag 0 : KRW, 1 : USD, ...
-		NumCpnAnn,						// Number Coupon of 1y (len = 2)
-		MaxLossRetRcvPay,				// MaxLossRet of Rcv, Pay Leg (len = 4)
-
-		MultipleRatefixPayoffRcvPay,	// Slope of Fixing And Payoff of Rcv, PayLeg(len = 4)
-		DayCountRcvPay,					// DayCountFraction of Rcv, PayLeg (len = 2)
-		PowerSpreadFlagRcvPay,			// PowerSpreadFlag Rcv, PayLeg (len = 2)
-		RangeMaxMinRcvPay,				// FixingRate Max and Min (len = 4)
-		InfoRefRateRcvPay,				// RefRate NCpnAn, T, T1, T2 of Rcv, PayLeg(len = 8)
-
-		RcvLegFixedRate,					// Receive Leg Fixed Coupon Rate
-		RcvLegRangeCoupon,				// Rcv Leg Range OK FixedCoupon Rate
-		RcvLegStructuredFlag,				// Rcv Leg Structured Coupon Flag
-		PayLegFixedRate,					// Pay Leg Fixed Coupon Rate
-		PayLegRangeCoupon,				// Pay Leg Range OK FixedCoupon Rate
-
-		PayLegStructuredFlag,				// Pay Leg Structured Coupon Flag
-		Phase2UseFlag,						// Phase2UseFlag
-		Phase2Date,						// Phase2Date
-		Phase2RcvLegFixedRate,			// Receive Leg Fixed Coupon Rate
-		Phase2RcvLegRangeCoupon,			// Rcv Leg Range OK FixedCoupon Rate
-
-		Phase2RcvLegStructuredFlag,		// Rcv Leg Structured Coupon Flag
-		Phase2PayLegFixedRate,			// Pay Leg Fixed Coupon Rate
-		Phase2PayLegRangeCoupon,			// Pay Leg Range OK FixedCoupon Rate
-		Phase2PayLegStructuredFlag,		// Pay Leg Structured Coupon Flag
-		NumCpnAnnPhase2RcvPay,			// RcvPay Phase2 NumCpnAnn
-
-		NOption,							// Number of Option
-		OptionDate,						// OptionDateArray As YYYYMMDD
-		OptionPayDate,					// OptionPayDateArray
-		OptionType,						// 0 : Payer have option, 1: Receiver
-		NRcvRateHistory,					// Number of RcvRate History
-
-		RcvRateHistoryDate,				// Rcv FixingRate HistoryDate Array
-		RcvRateHistory,					// Rcv FixingRate History Array
-		NPayRateHistory,					// Number of RcvRate History
-		PayRateHistoryDate,				// Pay FixingRate HistoryDate Array
-		PayRateHistory,					// Pay FixingRate History Array
-
-		NZeroRate,
-		ZeroTerm,
-		ZeroRateDn,
-		NZeroDiscRate,
-		ZeroDiscTerm,
-
-		ZeroDiscRateDn,
-		HW2FFlag,
-		NHWVol,
-		HWVolTerm,
-		HWVol,
-
-		kappa,
-		FactorCorrelation,
-		RangeAccrualFlagRcvPay,
-		InterestRateRoundingRcvPay,
-		Temp_ResultCpnDateRcv,
-		Temp_ResultCpnDatePay,
-		Temp_ResultFixingRateCpn,
-		TextFlag
-	);
-
-	Price2 = Temp_ResultFixingRateCpn[0];
-	Greek[2 * (NZeroRate + NZeroDiscRate) + NHWVol + 2] = (Price2 - Price);
 
 	if (Temp_ResultCpnDateRcv) free(Temp_ResultCpnDateRcv);
 	if (Temp_ResultCpnDatePay) free(Temp_ResultCpnDatePay);
@@ -4793,6 +4796,177 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 	if (ZeroDiscRateUp) free(ZeroDiscRateUp);
 	if (ZeroDiscRateDn) free(ZeroDiscRateDn);
 	if (HWVolUp) free(HWVolUp);
+	return 1;
+}
+
+DLLEXPORT(long) FRTB_IRDelta_IRStructuredOneCurve(
+	long PriceDate,
+	long NZeroRate,
+	double* ZeroTerm,
+	double* ZeroRate,
+	double* ZeroGreek,
+
+	long NZeroDiscRate,
+	double* ZeroDiscTerm,
+	double* ZeroDiscRate,
+	double* ZeroDiscGreek,
+	
+	long NHWVol,
+	double* HWVolTerm1,
+	double* HWVolTerm2,
+	double* HWVol,
+	double* HWVolGreek,
+	
+	double* AdjZeroTerm_10,
+	double* AdjZeroGreek_10,
+	double* AdjZeroDiscTerm_10,
+	double* AdjZeroDiscGreek_10,
+	double* AdjVegaTerm1_25,
+	double* AdjVegaTerm2_25,
+	double* AdjVega_25
+)
+{
+	long i, j;
+	Preprocessing_TermAndRate(PriceDate, NZeroRate, ZeroTerm, ZeroRate);
+	Preprocessing_TermAndRate(PriceDate, NZeroDiscRate, ZeroDiscTerm, ZeroDiscRate);
+
+	for (i = 0; i < NHWVol; i++) if (HWVol[i] >= 0.2) HWVol[i] /= 100.;
+	AdjZeroTerm_10[0] = 0.25;
+	AdjZeroTerm_10[1] = 0.5;
+	AdjZeroTerm_10[2] = 1.0;
+	AdjZeroTerm_10[3] = 2.0;
+	AdjZeroTerm_10[4] = 3.0;
+	AdjZeroTerm_10[5] = 5.0;
+	AdjZeroTerm_10[6] = 10.0;
+	AdjZeroTerm_10[7] = 15.0;
+	AdjZeroTerm_10[8] = 20.0;
+	AdjZeroTerm_10[9] = 30.0;
+	for (i = 0; i < 10; i++) AdjZeroGreek_10[i] = 0.;
+	for (i = 0; i < NZeroRate; i++)
+	{
+		if (ZeroTerm[i] < 0.259) AdjZeroGreek_10[0] += ZeroGreek[i]/0.0001;
+		else if (ZeroTerm[i] < 0.59) AdjZeroGreek_10[1] += ZeroGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 1.09) AdjZeroGreek_10[2] += ZeroGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 2.09) AdjZeroGreek_10[3] += ZeroGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 3.09) AdjZeroGreek_10[4] += ZeroGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 5.09) AdjZeroGreek_10[5] += ZeroGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 10.09) AdjZeroGreek_10[6] += ZeroGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 15.09) AdjZeroGreek_10[7] += ZeroGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 20.09) AdjZeroGreek_10[8] += ZeroGreek[i] / 0.0001;
+		else AdjZeroGreek_10[9] += ZeroGreek[i] / 0.0001;
+	}
+
+	for (i = 0; i < 10; i++) AdjZeroDiscGreek_10[i] = 0.;
+	for (i = 0; i < NZeroRate; i++)
+	{
+		if (ZeroTerm[i] < 0.259) AdjZeroDiscGreek_10[0] += ZeroDiscGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 0.59) AdjZeroDiscGreek_10[1] += ZeroDiscGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 1.09) AdjZeroDiscGreek_10[2] += ZeroDiscGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 2.09) AdjZeroDiscGreek_10[3] += ZeroDiscGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 3.09) AdjZeroDiscGreek_10[4] += ZeroDiscGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 5.09) AdjZeroDiscGreek_10[5] += ZeroDiscGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 10.09) AdjZeroDiscGreek_10[6] += ZeroDiscGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 15.09) AdjZeroDiscGreek_10[7] += ZeroDiscGreek[i] / 0.0001;
+		else if (ZeroTerm[i] < 20.09) AdjZeroDiscGreek_10[8] += ZeroDiscGreek[i] / 0.0001;
+		else AdjZeroDiscGreek_10[9] += ZeroDiscGreek[i] / 0.0001;
+	}
+
+	for (i = 0; i < 25; i++) AdjVega_25[i] = 0.;
+	for (i = 0; i < NHWVol; i++)
+	{
+		if (HWVolTerm1[i] < 0.59)
+		{
+			if (HWVolTerm2[i] < 0.59) AdjVega_25[0] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 1.09) AdjVega_25[1] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 3.09) AdjVega_25[2] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 5.09) AdjVega_25[3] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else AdjVega_25[4] += HWVolGreek[i] / 0.0001 * HWVol[i];
+		}
+		else if (HWVolTerm1[i] < 1.09)
+		{
+			if (HWVolTerm2[i] < 0.59) AdjVega_25[5] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 1.09) AdjVega_25[6] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 3.09) AdjVega_25[7] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 5.09) AdjVega_25[8] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else AdjVega_25[9] += HWVolGreek[i] / 0.0001 * HWVol[i];
+		}
+		else if (HWVolTerm1[i] < 3.09)
+		{
+			if (HWVolTerm2[i] < 0.59) AdjVega_25[10] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 1.09) AdjVega_25[11] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 3.09) AdjVega_25[12] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 5.09) AdjVega_25[13] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else AdjVega_25[14] += HWVolGreek[i] / 0.0001 * HWVol[i];
+		}
+		else if (HWVolTerm1[i] < 5.09)
+		{
+			if (HWVolTerm2[i] < 0.59) AdjVega_25[15] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 1.09) AdjVega_25[16] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 3.09) AdjVega_25[17] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 5.09) AdjVega_25[18] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else AdjVega_25[19] += HWVolGreek[i] / 0.0001 * HWVol[i];
+		}
+		else
+		{
+			if (HWVolTerm2[i] < 0.59) AdjVega_25[20] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 1.09) AdjVega_25[21] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 3.09) AdjVega_25[22] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else if (HWVolTerm2[i] < 5.09) AdjVega_25[23] += HWVolGreek[i] / 0.0001 * HWVol[i];
+			else AdjVega_25[24] += HWVolGreek[i] / 0.0001 * HWVol[i];
+		}
+	}
+
+	AdjVegaTerm1_25[0] = 0.5;
+	AdjVegaTerm1_25[1] = 0.5;
+	AdjVegaTerm1_25[2] = 0.5;
+	AdjVegaTerm1_25[3] = 0.5;
+	AdjVegaTerm1_25[4] = 0.5;
+	AdjVegaTerm1_25[5] = 1.0;
+	AdjVegaTerm1_25[6] = 1.0;
+	AdjVegaTerm1_25[7] = 1.0;
+	AdjVegaTerm1_25[8] = 1.0;
+	AdjVegaTerm1_25[9] = 1.0;
+	AdjVegaTerm1_25[10] = 3.0;
+	AdjVegaTerm1_25[11] = 3.0;
+	AdjVegaTerm1_25[12] = 3.0;
+	AdjVegaTerm1_25[13] = 3.0;
+	AdjVegaTerm1_25[14] = 3.0;
+	AdjVegaTerm1_25[15] = 5.0;
+	AdjVegaTerm1_25[16] = 5.0;
+	AdjVegaTerm1_25[17] = 5.0;
+	AdjVegaTerm1_25[18] = 5.0;
+	AdjVegaTerm1_25[19] = 5.0;
+	AdjVegaTerm1_25[20] = 10.0;
+	AdjVegaTerm1_25[21] = 10.0;
+	AdjVegaTerm1_25[22] = 10.0;
+	AdjVegaTerm1_25[23] = 10.0;
+	AdjVegaTerm1_25[24] = 10.0;
+
+	AdjVegaTerm2_25[0] = 0.5;
+	AdjVegaTerm2_25[1] = 1.0;
+	AdjVegaTerm2_25[2] = 3.0;
+	AdjVegaTerm2_25[3] = 5.0;
+	AdjVegaTerm2_25[4] = 10.0;
+	AdjVegaTerm2_25[5] = 0.5;
+	AdjVegaTerm2_25[6] = 1.0;
+	AdjVegaTerm2_25[7] = 3.0;
+	AdjVegaTerm2_25[8] = 5.0;
+	AdjVegaTerm2_25[9] = 10.0;
+	AdjVegaTerm2_25[10] = 0.5;
+	AdjVegaTerm2_25[11] = 1.0;
+	AdjVegaTerm2_25[12] = 3.0;
+	AdjVegaTerm2_25[13] = 5.0;
+	AdjVegaTerm2_25[14] = 10.0;
+	AdjVegaTerm2_25[15] = 0.5;
+	AdjVegaTerm2_25[16] = 1.0;
+	AdjVegaTerm2_25[17] = 3.0;
+	AdjVegaTerm2_25[18] = 5.0;
+	AdjVegaTerm2_25[19] = 10.0;
+	AdjVegaTerm2_25[20] = 0.5;
+	AdjVegaTerm2_25[21] = 1.0;
+	AdjVegaTerm2_25[22] = 3.0;
+	AdjVegaTerm2_25[23] = 5.0;
+	AdjVegaTerm2_25[24] = 10.0;
 	return 1;
 }
 

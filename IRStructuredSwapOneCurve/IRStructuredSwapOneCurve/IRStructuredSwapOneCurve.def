@@ -17,3 +17,4 @@ EXPORTS
 	Preprocessing_TermAndRate_MultiCurve						@15
 	Preprocessing_TermAndVol									@16
 	IRStructuredSwapFDM											@17
+	IRStructuredSwapFDM_Greek									@18
