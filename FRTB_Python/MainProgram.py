@@ -3269,6 +3269,8 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
     v_L1FirstFixing = make_variable_interface(center_frame, 'Leg1)최근Fixing금리(%)\n(Fixing이후 평가시 입력)', bold = False, textfont = 11)
     vb_zerocurve = make_listvariable_interface(center_frame, 'ZeroCurve(자동Load)', termratestr(CurveTerm, CurveRate), titleName = "MARKET DATA INFO", titlelable= True, listheight = 15, textfont = 11)
     v_YTMRate = make_variable_interface(center_frame, 'YTM금리(%)\n(YTM평가시 입력)', bold = False, textfont = 11)
+    v_CRRate = make_variable_interface(center_frame, '신용등급\n(FRTB등급 입력)', bold = False, textfont = 11)
+    DRCCRDict = {'AAA' : 0.005, 'AA' : 0.02, 'A' : 0.03,'BBB' : 0.06, 'BB' : 0.15,'B' : 0.30,'CCC' : 0.50,'NR': 0.15} 
 
     Result_frame = tk.Frame(root)
     Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
@@ -3284,7 +3286,9 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
         PrevTreeFlag = MyArrays[0] 
         tree = MyArrays[1] 
         scrollbar = MyArrays[2]
-        scrollbar2 = MyArrays[3]        
+        scrollbar2 = MyArrays[3]      
+        CRRate = str(v_CRRate.get()).replace("+","").replace("-","").replace("1","") if len(str(v_CRRate.get())) > 0 else "NR"
+        DRCRW = DRCCRDict[CRRate.upper()]
         Nominal = float(v_Nominal.get()) if len(str(v_Nominal.get())) > 0 else 10000
         SwapEffectiveDate = int(v_SwapEffectiveDate.get()) if len(str(v_SwapEffectiveDate.get())) > 0 else 20200627
         SwapMaturity = int(v_SwapMaturity.get()) if len(str(v_SwapMaturity.get())) > 0 else (SwapEffectiveDate + 100000)
@@ -3313,6 +3317,8 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
         YTMRate = float(v_YTMRate.get())/100 if str(v_YTMRate.get()) else 0.0
         YTMFlag = YTMRate > 0
         T = DayCountFractionAtoB(int(PriceDate),SwapMaturity, L1_DayCount)
+        DRCT = 1.0 if T >= 1.0 else (0.25 if T <= 0.25 else T)
+        DRC = np.round(Nominal * DRCT * DRCRW, 2)
         ErrorFlag, ErrorString = Calc_Schedule_ErrorCheck(Nominal, SwapEffectiveDate, int(PriceDate), SwapMaturity, CurveTerm, 
                               CurveRate, L1_NumCpnOneYear_P1, L1_DayCount)
         AIList = [0]
@@ -3365,7 +3371,7 @@ def PricingBondProgram(HolidayDate = pd.DataFrame([]), currdir = os.getcwd()) :
                 df.index = np.arange(len(df))
                 df.to_csv(currdir + "\\Book\\Bond\\Bond.csv", index = False, encoding = "cp949")    
                 messagebox.showinfo("알림","Booking 완료!!")        
-            output_label.config(text = f"\n결과: {np.round(Value,4)}\nAccrued Interest: \n{np.round(AIList[0],4)}\nLeg1 Payoff: \n{L1ResultPayoff}\nGIRR: \n{GIRRRisk}\nCSR: \n{CSRRisk}\nBooking = {bool(BookFlag)}", font = ("맑은 고딕", 12, 'bold'))
+            output_label.config(text = f"\n결과: {np.round(Value,4)}\nAccrued Interest: \n{np.round(AIList[0],4)}\nLeg1 Payoff: \n{L1ResultPayoff}\nGIRR: \n{GIRRRisk}\nCSR: \n{CSRRisk}\nDRC: \n{DRC}\nBooking = {bool(BookFlag)}", font = ("맑은 고딕", 11, 'bold'))
         else : 
             output_label.config(text = f"\n결과: \n{ErrorString}", font = ("맑은 고딕", 12, 'bold'))
             
