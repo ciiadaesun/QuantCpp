@@ -110,10 +110,10 @@ C:\Users\임대선\Desktop\새 폴더\github5\BondForward\BondForward\BondForwar
 C:\Users\임대선\Desktop\새 폴더\github5\BondForward\BondForward\BondForward.cpp(1398,21): warning C4101: 'Frac_T1' :참조되지 않은 지역 변수입니다.
 C:\Users\임대선\Desktop\새 폴더\github5\BondForward\BondForward\BondForward.cpp(1398,12): warning C4101: 'Frac_T0' :참조되지 않은 지역 변수입니다.
 C:\Users\임대선\Desktop\새 폴더\github5\BondForward\BondForward\BondForward.cpp(1760,30): warning C4101: 'dt' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\BondForward\BondForward\BondForward.cpp(1887,95): warning C4244: '+=': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\BondForward\BondForward\BondForward.cpp(2245,12): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
-C:\Users\임대선\Desktop\새 폴더\github5\BondForward\BondForward\BondForward.cpp(2217,16): warning C4101: 'nschd' :참조되지 않은 지역 변수입니다.
-C:\Users\임대선\Desktop\새 폴더\github5\BondForward\BondForward\BondForward.cpp(2217,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
+C:\Users\임대선\Desktop\새 폴더\github5\BondForward\BondForward\BondForward.cpp(1888,95): warning C4244: '+=': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\임대선\Desktop\새 폴더\github5\BondForward\BondForward\BondForward.cpp(2296,12): warning C4244: '초기화 중': 'double'에서 'long'(으)로 변환하면서 데이터가 손실될 수 있습니다.
+C:\Users\임대선\Desktop\새 폴더\github5\BondForward\BondForward\BondForward.cpp(2267,16): warning C4101: 'nschd' :참조되지 않은 지역 변수입니다.
+C:\Users\임대선\Desktop\새 폴더\github5\BondForward\BondForward\BondForward.cpp(2267,13): warning C4101: 'j' :참조되지 않은 지역 변수입니다.
      C:\Users\임대선\Desktop\새 폴더\github5\BondForward\x64\Release\BondForward.lib 라이브러리 및 C:\Users\임대선\Desktop\새 폴더\github5\BondForward\x64\Release\BondForward.exp 개체를 생성하고 있습니다.
   코드를 생성하고 있습니다.
   Previous IPDB not found, fall back to full compilation.

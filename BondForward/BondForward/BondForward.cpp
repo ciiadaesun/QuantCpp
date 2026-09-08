@@ -1847,6 +1847,7 @@ double BondForwardPricing(
     double& BondPriceOnForwardDate,
     double& ResultBondPrice,
     long TextFlag,
+    long AccruedInterestFlag,
     char *CalcFunctionName,
     char *SaveFileName
 )
@@ -1897,8 +1898,55 @@ double BondForwardPricing(
     if (BondMarketPriceFlag == 0) ForwardPrice = (BondPrice - InterestBeforeForwardMaturity) / DF_t_IRS;
     else ForwardPrice = (BondMarketPrice - InterestBeforeForwardMaturity) / DF_t_IRS;
     
+    double AI = 0.;
+    double AIPercent = 0.;
+    if (AccruedInterestFlag)
+    {
+        if (isin(ForwardMaturityDate, BondSchd->ForwardEnd_C, BondSchd->NCF))
+        {
+            AI = 0.;
+        }
+        else
+        {
+            for (i = 0; i < BondSchd->NCF; i++)
+            {
+                if (BondSchd->ForwardStart_C[i] < ForwardMaturityDate && ForwardMaturityDate < BondSchd->ForwardEnd_C[i])
+                {
+                    AIPercent = ((double)DayCountAtoB(BondSchd->ForwardStart_C[i], ForwardMaturityDate))/ ((double)DayCountAtoB(BondSchd->ForwardStart_C[i], BondSchd->ForwardEnd_C[i]));
+                    AI = ResultCPN[i] * AIPercent;
+                    ForwardPrice -= AI;
+                    break;
+                }
+            }
+        }
+    }
+
     BondPriceOnForwardDate = fbondv / DF_t_Bond;
+    double BondAI = 0.;
+    double BondAIPercent = 0.;
+    if (AccruedInterestFlag)
+    {
+        if (isin(PriceDate, BondSchd->ForwardEnd_C, BondSchd->NCF))
+        {
+            BondAI = 0.;
+        }
+        else
+        {
+            for (i = 0; i < BondSchd->NCF; i++)
+            {
+                if (BondSchd->ForwardStart_C[i] < PriceDate && PriceDate < BondSchd->ForwardEnd_C[i])
+                {
+                    BondAIPercent = ((double)DayCountAtoB(BondSchd->ForwardStart_C[i], PriceDate)) / ((double)DayCountAtoB(BondSchd->ForwardStart_C[i], BondSchd->ForwardEnd_C[i]));
+                    BondAI = ResultCPN[i] * AIPercent;
+                    BondPrice -= BondAI;
+                    break;
+                }
+            }
+        }
+    }
+
     ResultBondPrice = BondPrice;
+
     return ForwardPrice;
 }
 
@@ -1937,6 +1985,7 @@ DLLEXPORT(long) Calc_BondForward(
     long GreekFlag,
     long TextFlag,
     long NMaxResultSchedule,
+    long AccruedInterestFlag,
     double* ResultPriceArray,           // Len = 6
 
     double* ResultSchedule,             // Len = NMaxResultSchedule * 4
@@ -2072,8 +2121,8 @@ DLLEXPORT(long) Calc_BondForward(
                                             BondZeroCurveRate, BondYTMFlag, BondMarketPriceFlag, BondMarketPrice, NRiskfreeCurveTerm,
                                             RiskfreeCurveTerm, RiskfreeCurveRate, NFX > 0, NFX, FXTerm,
                                             FXRate, ResultRefRate, ResultDiscCF, ResultCPN, ResultDF, ResultCpnBeforeFMaturity,
-                                            ResultDiscCpnBeforeFMaturity, BondPriceOnForwardDate, BondPrice, TextFlag, CalcFunctionName, SaveFileName);
-    
+                                            ResultDiscCpnBeforeFMaturity, BondPriceOnForwardDate, BondPrice, TextFlag, AccruedInterestFlag, CalcFunctionName, SaveFileName);
+
     double t = ((double)DayCountAtoB(PriceDate, ForwardMaturityDate)) / 365.;
     double value = (ForwardPrice - ForwardExercisePrice) * exp(-Interpolate_Linear(RiskfreeCurveTerm, RiskfreeCurveRate, NRiskfreeCurveTerm, t));
     double value2 = BondPriceOnForwardDate * exp(-Interpolate_Linear(RiskfreeCurveTerm, RiskfreeCurveRate, NRiskfreeCurveTerm, t)) - ForwardExercisePrice * exp(-Interpolate_Linear(BondZeroCurveTerm, BondZeroCurveRate, NBondZeroCurveTerm, t));
@@ -2114,12 +2163,12 @@ DLLEXPORT(long) Calc_BondForward(
                 BondZeroCurveRateUp, BondYTMFlag, BondMarketPriceFlag, BondMarketPrice, NRiskfreeCurveTerm,
                 RiskfreeCurveTerm, RiskfreeCurveRate, NFX > 0, NFX, FXTerm,
                 FXRate, ResultRefRate, ResultDiscCF, ResultCPN, ResultDF, ResultCpnBeforeFMaturity,
-                ResultDiscCpnBeforeFMaturity, BondPriceOnForwardDate, BondPrice, 0, CalcFunctionName, SaveFileName);
+                ResultDiscCpnBeforeFMaturity, BondPriceOnForwardDate, BondPrice, 0, AccruedInterestFlag, CalcFunctionName, SaveFileName);
             Pd = BondForwardPricing(PriceDate, ForwardMaturityDate, BNDSchedule, NBondZeroCurveTerm, BondZeroCurveTerm,
                 BondZeroCurveRateDn, BondYTMFlag, BondMarketPriceFlag, BondMarketPrice, NRiskfreeCurveTerm,
                 RiskfreeCurveTerm, RiskfreeCurveRate, NFX > 0, NFX, FXTerm,
                 FXRate, ResultRefRate, ResultDiscCF, ResultCPN, ResultDF, ResultCpnBeforeFMaturity,
-                ResultDiscCpnBeforeFMaturity, BondPriceOnForwardDate, BondPrice, 0, CalcFunctionName, SaveFileName);
+                ResultDiscCpnBeforeFMaturity, BondPriceOnForwardDate, BondPrice, 0, AccruedInterestFlag, CalcFunctionName, SaveFileName);
             ResultGreek[i] = (Pu - ForwardPrice);
             ResultGreek[i + NBondZeroCurveTerm] = (Pu + Pd - 2.0 * ForwardPrice);
         }
@@ -2143,12 +2192,12 @@ DLLEXPORT(long) Calc_BondForward(
                 BondZeroCurveRate, BondYTMFlag, BondMarketPriceFlag, BondMarketPrice, NRiskfreeCurveTerm,
                 RiskfreeCurveTerm, RiskfreeCurveRateUp, NFX > 0, NFX, FXTerm,
                 FXRate, ResultRefRate, ResultDiscCF, ResultCPN, ResultDF, ResultCpnBeforeFMaturity,
-                ResultDiscCpnBeforeFMaturity, BondPriceOnForwardDate, BondPrice, 0, CalcFunctionName, SaveFileName);
+                ResultDiscCpnBeforeFMaturity, BondPriceOnForwardDate, BondPrice, 0, AccruedInterestFlag, CalcFunctionName, SaveFileName);
             Pd = BondForwardPricing(PriceDate, ForwardMaturityDate, BNDSchedule, NBondZeroCurveTerm, BondZeroCurveTerm,
                 BondZeroCurveRate, BondYTMFlag, BondMarketPriceFlag, BondMarketPrice, NRiskfreeCurveTerm,
                 RiskfreeCurveTerm, RiskfreeCurveRateDn, NFX > 0, NFX, FXTerm,
                 FXRate, ResultRefRate, ResultDiscCF, ResultCPN, ResultDF, ResultCpnBeforeFMaturity,
-                ResultDiscCpnBeforeFMaturity, BondPriceOnForwardDate, BondPrice, 0, CalcFunctionName, SaveFileName);
+                ResultDiscCpnBeforeFMaturity, BondPriceOnForwardDate, BondPrice, 0, AccruedInterestFlag, CalcFunctionName, SaveFileName);
             ResultGreek[i + 2 * NBondZeroCurveTerm] = (Pu - ForwardPrice);
             ResultGreek[i + NRiskfreeCurveTerm + 2 * NBondZeroCurveTerm] = (Pu + Pd - 2.0 * ForwardPrice);
         }
@@ -2209,6 +2258,7 @@ DLLEXPORT(long) BondOptionPricing(
     long Call0Put1,
     long TextFlag,
     long NMaxResultSchedule,
+    long AccruedInterestFlag,
     double* ResultPriceArray,           // Len = 6
     double* ResultSchedule,             // Len = NMaxResultSchedule * 4
     double* ResultGreek                 // Len = NBondZeroCurveTerm * 2 + NRiskfreeCurveTerm * 2
@@ -2241,7 +2291,8 @@ DLLEXPORT(long) BondOptionPricing(
         BondZeroCurveTerm, BondZeroCurveRate, BondYTMFlag, BondMarketPriceFlag, BondMarketPrice,
         ExercisePrice, NRiskfreeCurveTerm, RiskfreeCurveTerm, RiskfreeCurveRate, NFXTemp,
         &FXTermTemp, &FXRateTemp, DayCountFlag, FixingRateFloatLeg, NHolidays,
-        Holidays, 1, 0, 500, Temp, Temp2, Temp3);
+        Holidays, 1, 0, 500, AccruedInterestFlag, Temp, Temp2, Temp3);
+
     long n = min(500, Temp[4]);
     for (i = 0; i < n; i++) 
     {
@@ -2322,13 +2373,14 @@ int main()
     double ResultPriceArray[100];
     double ResultSchedule[100];
     double ResultGreek[100];
+    long AccruedInterestFlag = 0;
     Calc_BondForward(Nominal, Fix0Flo1Flag, PriceDate, RefBondEffectiveDate, RefBondMaturityDate,
         RefBondNumCpnOneYear, RefBondCpnRate, NDayFromBondEndToPay, ForwardMaturityDate, NBondZeroCurveTerm,
         BondZeroCurveTerm, BondZeroCurveRate, BondYTMFlag, BondMarketPriceFlag, BondMarketPrice,
         ForwardExercisePrice, NRiskfreeCurveTerm, RiskfreeCurveTerm, RiskfreeCurveRate, NFX,
         NULL, NULL, DayCountFlag, FixingRateFloatLeg, NHolidays,
-        Holidays, GreekFlag, TextFlag, NMaxResultSchedule, ResultPriceArray,
-        ResultSchedule, ResultGreek);
+        Holidays, GreekFlag, TextFlag, NMaxResultSchedule, AccruedInterestFlag, 
+        ResultPriceArray, ResultSchedule, ResultGreek);
         _CrtDumpMemoryLeaks();
     return 0;
 }
