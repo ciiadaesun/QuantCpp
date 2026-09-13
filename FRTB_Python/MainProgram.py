@@ -508,6 +508,7 @@ def HullWhiteCalibrationProgram(CurveDirectory, PriceDate, CurveTerm, CurveRate,
 
     PrevTreeFlag, tree, scrollbar, scrollbar2, tree2, tree3 = 0, None, None, None, None, None
     MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2, Result, tree2, tree3]
+    exitgui = lambda : root.destroy()
     def run_function(MyArrays) :     
 
         PrevTreeFlag = MyArrays[0] 
@@ -606,6 +607,8 @@ def HullWhiteCalibrationProgram(CurveDirectory, PriceDate, CurveTerm, CurveRate,
             tree = ttk.Treeview(root)
             tree2 = ttk.Treeview(root)
             tree3 = ttk.Treeview(root)
+            tk.Button(Result_frame, text = 'Cali완료\nPricing실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = exitgui, width = 15).pack()
+
         else : 
             tree.destroy()
             tree2.destroy()
@@ -637,7 +640,7 @@ def HullWhiteCalibrationProgram(CurveDirectory, PriceDate, CurveTerm, CurveRate,
         MyArrays[4] = CalcResult  
         MyArrays[5] = tree2
         MyArrays[6] = tree3
-
+        messagebox.showinfo("알림","Cali 완료!!\n Pricing실행 버튼 클릭")   
     temp_func = lambda : run_function(MyArrays)            
     tk.Button(Result_frame, text = '실행', padx = 20, pady = 20, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
 
@@ -985,7 +988,7 @@ def PricingIRStructuredSwapProgram(HolidayData, currdir) :
                 V["Bucket"] = Curr
                 GIRRVega = Calc_GIRRVega(V, SensitivityColumnName = "VegaSensi")["KB_M"].iloc[0]
             else : 
-                V = pd.DataFrame([[1,0, 1.0, 0.0,'Vega',UsedCurveName,"GIRR",Curr]],columns = ['Tenor1','Tenor2','VegaSensi','Risk_Type','Curve','Risk_Class','Bucket'])
+                V = pd.DataFrame([[1,0, 1.0,'Vega',UsedCurveName,"GIRR",Curr]],columns = ['Tenor1','Tenor2','VegaSensi','Risk_Type','Curve','Risk_Class','Bucket'])
                 GIRRVega = 0
  
         if PrevTreeFlag == 0 : 
@@ -1402,7 +1405,7 @@ def PricingIRStructuredSwapProgram2F(HolidayData, currdir) :
                 V["Bucket"] = "KRW"
                 GIRRVega = Calc_GIRRVega(V, SensitivityColumnName = "VegaSensi")["KB_M"].iloc[0]
             else : 
-                V = pd.DataFrame([[1,0, 1.0, 0.0,'Vega',UsedCurveName,"GIRR",Curr]],columns = ['Tenor1','Tenor2','VegaSensi','Risk_Type','Curve','Risk_Class','Bucket'])
+                V = pd.DataFrame([[1,0, 1.0,'Vega',UsedCurveName,"GIRR",Curr]],columns = ['Tenor1','Tenor2','VegaSensi','Risk_Type','Curve','Risk_Class','Bucket'])
                 GIRRVega = 0
         if PrevTreeFlag == 0 : 
             tree = ttk.Treeview(root)
@@ -1865,7 +1868,7 @@ def PricingIRStructuredSwapProgramDoublePhase(HolidayData, currdir) :
                 V["Bucket"] = "KRW"
                 GIRRVega = Calc_GIRRVega(V, SensitivityColumnName = "VegaSensi")["KB_M"].iloc[0]
             else : 
-                V = pd.DataFrame([[1,0, 1.0, 0.0,'Vega',UsedCurveName,"GIRR",Curr]],columns = ['Tenor1','Tenor2','VegaSensi','Risk_Type','Curve','Risk_Class','Bucket'])
+                V = pd.DataFrame([[1,0, 1.0,'Vega',UsedCurveName,"GIRR",Curr]],columns = ['Tenor1','Tenor2','VegaSensi','Risk_Type','Curve','Risk_Class','Bucket'])
                 GIRRVega = 0
         if PrevTreeFlag == 0 : 
             tree = ttk.Treeview(root)
@@ -2329,7 +2332,7 @@ def PricingIRStructuredSwapProgram2FDoublePhase(HolidayData, currdir) :
                 V["Bucket"] = "KRW"
                 GIRRVega = Calc_GIRRVega(V, SensitivityColumnName = "VegaSensi")["KB_M"].iloc[0]
             else : 
-                V = pd.DataFrame([[1,0, 1.0, 0.0,'Vega',UsedCurveName,"GIRR",Curr]],columns = ['Tenor1','Tenor2','VegaSensi','Risk_Type','Curve','Risk_Class','Bucket'])
+                V = pd.DataFrame([[1,0, 1.0,'Vega',UsedCurveName,"GIRR",Curr]],columns = ['Tenor1','Tenor2','VegaSensi','Risk_Type','Curve','Risk_Class','Bucket'])
                 GIRRVega = 0
 
         if PrevTreeFlag == 0 : 
@@ -5892,19 +5895,7 @@ while True :
 
 
 # %%
-x = np.array([[1.00000,  0.99000,  0.20000,  0.10000],
- [0.99000,  1.00000,  0.10000,  0.01000],
- [0.20000,  0.10000,  1.00000,  0.04000],
- [0.10000,  0.01000,  0.04000,  1.00000]])
-np.linalg.inv(x)
-# %%
-np.random.seed(0)
-B = np.array([100.22, 4.0, -10.0])
-X = np.array([[1, 1300, 2.3],[1, 1350,2.66],[1, 1400,2.11],[1, 1100,4.4], [1,1366, 1.99]])
-e = np.random.normal(0,10,5)
-X.T.dot(Y)
-Y = X.dot(B) + e
-best = np.linalg.inv(X.T.dot(X)).dot(X.T.dot(Y))
+
 # %%
 #Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1 = 0, Call0Put1 = 0, PriceDate = 20240627, AverageStartDate = 20240601, AverageEndDate = 20240927, OptionMaturityDate = 20240927, S = 100, K = 95, PrevAverage = 98, DiscTerm = [1, 2, 3], DiscRate = [0.03, 0.03, 0.03], DivTerm = [1], DivRate = [0.02], QuantoCorr = 0, FXVolTerm = [1], FXVol = [0], VolTerm = [0], VolParity = [0], Vols2D = 0.3, DivTypeFlag = 0, Holidays = KoreaHolidaysFromStartToEnd(2020,2040))
 

@@ -1937,7 +1937,7 @@ double BondForwardPricing(
                 if (BondSchd->ForwardStart_C[i] < PriceDate && PriceDate < BondSchd->ForwardEnd_C[i])
                 {
                     BondAIPercent = ((double)DayCountAtoB(BondSchd->ForwardStart_C[i], PriceDate)) / ((double)DayCountAtoB(BondSchd->ForwardStart_C[i], BondSchd->ForwardEnd_C[i]));
-                    BondAI = ResultCPN[i] * AIPercent;
+                    BondAI = ResultCPN[i] * BondAIPercent;
                     BondPrice -= BondAI;
                     break;
                 }
