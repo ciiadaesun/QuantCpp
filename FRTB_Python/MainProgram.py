@@ -1153,7 +1153,7 @@ def PricingIRStructuredSwapProgram2F(HolidayData, currdir) :
         SwapMaturity = int(v_SwapMaturity.get()) if len(str(v_SwapMaturity.get())) > 0 else (SwapEffectiveDate + 100000)
         L1_NumCpnOneYear_P1 = int(vb_L1_NumCpnOneYear_P1.get(vb_L1_NumCpnOneYear_P1.curselection())) if vb_L1_NumCpnOneYear_P1.curselection() else 4
         if len(str(v_L1_FixedCpnRate_P1.get())) > 0 : 
-            if "%" in str(v_L1_FixedCpnRate_P1.get()) : 
+            if "%" not in str(v_L1_FixedCpnRate_P1.get()) : 
                 L1_FixedCpnRate_P1 = float(v_L1_FixedCpnRate_P1.get())/100
             else : 
                 L1_FixedCpnRate_P1 = float(str(v_L1_FixedCpnRate_P1.get()).replace("%",""))/100
@@ -1204,7 +1204,7 @@ def PricingIRStructuredSwapProgram2F(HolidayData, currdir) :
         
         L2_NumCpnOneYear_P1 = int(vb_L2_NumCpnOneYear_P1.get(vb_L2_NumCpnOneYear_P1.curselection())) if vb_L2_NumCpnOneYear_P1.curselection() else 4
         if len(str(v_L2_FixedCpnRate_P1.get())) > 0 : 
-            if "%" in str(v_L2_FixedCpnRate_P1.get()) : 
+            if "%" not in str(v_L2_FixedCpnRate_P1.get()) : 
                 L2_FixedCpnRate_P1 = float(v_L2_FixedCpnRate_P1.get())/100
             else : 
                 L2_FixedCpnRate_P1 = float(str(v_L2_FixedCpnRate_P1.get()).replace("%",""))/100

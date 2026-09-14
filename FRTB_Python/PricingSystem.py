@@ -666,7 +666,7 @@ def ConvertPythonFormatfromVBAformat(VBAString) :
         else : 
             return c_double_p, resultname
 
-    exec("Targetdll = ct.WinDLL(ReleaseFolder + TargetDllString)")
+    Targetdll = ct.WinDLL(ReleaseFolder + TargetDllString)
     CalcFunc = eval('Targetdll.' + TargetFunctionString)
     CalcFunc.restype = ct.c_long
     VariablesFormat = [SplitVBAVariables(i) for i in StringArray]
@@ -989,10 +989,16 @@ def IRSPricing() :
         #print(GreekFlag)
         
         DiscLeg1 = get_from_sheetinterface(sht_DiscCurveLeg1)
+        DiscLeg1["Term"] = DiscLeg1["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        DiscLeg1["Rate"] = DiscLeg1["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+
         DiscTermLeg1 = DiscLeg1["Term"].values
         Disc_NTerm_Leg1 = len(DiscTermLeg1)
         DiscRateLeg1 = DiscLeg1["Rate"].values if DiscLeg1["Rate"].values.max() < 1.0 else DiscLeg1["Rate"].values/100
         RefLeg1 = get_from_sheetinterface(sht_RefCurveLeg1)
+        RefLeg1["Term"] = RefLeg1["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        RefLeg1["Rate"] = RefLeg1["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+
         RefTermLeg1 = RefLeg1["Term"].values
         Ref_NTerm_Leg1 = len(RefTermLeg1)
         RefRateLeg1 = RefLeg1["Rate"].values if RefLeg1["Rate"].values.max() < 1.0 else RefLeg1["Rate"].values/100
@@ -1371,7 +1377,7 @@ left_frame7 = tk.Frame(main_frame)
 left_frame7.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
 DefaultTermHistory = [TimestampToYYYYMMDD(today + pd.DateOffset(days = -i)) for i in range(200) ][::-1]
 defaultvaluesHistoryLeg12 = (DefaultTermHistory, [3.5115] * len(DefaultTermHistory), [3.5115] * len(DefaultTermHistory))
-RefRateHistory = AddVariableSheet(left_frame7, nindexs = len(DefaultTermHistory), ncolumns= 3,targetcolumns = ["Date","Rate(Leg1)","Rate(Leg2)"], defaultvalues = defaultvaluesHistoryLeg12, VariableName = "기초금리History", myfont = 10, anchor = 'w', padx = 4, pady = 2, sheet_width = 100, sheet_height = 100, MaxHeight=20)
+RefRateHistory = AddVariableSheet(left_frame7, nindexs = len(DefaultTermHistory), ncolumns= 3,targetcolumns = ["Date","Rate(Leg1)","Rate(Leg2)"], defaultvalues = defaultvaluesHistoryLeg12, VariableName = "기초금리픽싱History", myfont = 10, anchor = 'w', padx = 4, pady = 2, sheet_width = 100, sheet_height = 100, MaxHeight=20)
 RefRateHistory.set_all_column_widths(width=85)
 
 left_frame8 = tk.Frame(main_frame)
@@ -1410,6 +1416,188 @@ def run_function(MyArrays) :
     scrollbar2 = MyArrays[3]  
     ResultValue = MyArrays[4]
     ResultValue2 = MyArrays[5]
+    PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else today_YYYYMMDD
+    NominalFlag = int(str(vb_NAFlag.get(vb_NAFlag.curselection())).split(":")[0]) if vb_NAFlag.curselection() else 0
+    Nominal = float(v_Nominal.get()) if len(str(v_Nominal.get())) > 0 else 10000
+    EffectiveDate = int(v_EffectiveDate.get()) if len(str(v_EffectiveDate.get())) > 0 else today_YYYYMMDD
+    MaturityDate = int(v_MaturityDate.get()) if len(str(v_MaturityDate.get())) > 0 else today_YYYYMMDD + 50000
+    Phase2StartDate = int(v_Phase2StartDate.get()) if len(str(v_Phase2StartDate.get())) > 0 else today_YYYYMMDD + 10000
+    Phase2UseFlag = int(str(vb_Phase2UseFlag.get(vb_Phase2UseFlag.curselection())).split(":")[0]) if vb_Phase2UseFlag.curselection() else 0
+    NationFlag = int(str(vb_NationFlag.get(vb_NationFlag.curselection())).split(":")[0]) if vb_NationFlag.curselection() else 0
+
+    L1_NumCpnOneYear_P1 = int(vb_L1_NumCpnOneYear_P1.get(vb_L1_NumCpnOneYear_P1.curselection())) if vb_L1_NumCpnOneYear_P1.curselection() else 4
+    L1_NumCpnOneYear_P2 = int(vb_L1_NumCpnOneYear_P2.get(vb_L1_NumCpnOneYear_P2.curselection())) if vb_L1_NumCpnOneYear_P2.curselection() else 4
+    DayCountLeg1 = int(str(vb_L1_DayCount.get(vb_L1_DayCount.curselection())).split(":")[0]) if vb_L1_DayCount.curselection() else 0    
+    L1_PowerSpreadFlag = 0
+    if len(str(v_L1_RefSwapMaturity_T.get())) > 0 :         
+        if '-' in str(v_L1_RefSwapMaturity_T.get()) : 
+            SplitedStr = str(v_L1_RefSwapMaturity_T.get()).split("-")
+            if 'm' in SplitedStr[0].lower() :
+                L1_RefSwapMaturity_T = float(SplitedStr[0].lower().split("m")[0])/12
+            elif 'y' in SplitedStr[0].lower() : 
+                L1_RefSwapMaturity_T = float(SplitedStr[0].lower().split("y")[0]) 
+            else : 
+                L1_RefSwapMaturity_T = float(SplitedStr[0]) 
+
+            if 'm' in SplitedStr[1].lower() :
+                L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("m")[0])/12
+            elif 'y' in SplitedStr[1].lower() : 
+                L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("y")[0]) 
+            else : 
+                L1_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1]) 
+            L1_PowerSpreadFlag = 1
+        else : 
+            if 'm' in str(v_L1_RefSwapMaturity_T.get()).lower() : 
+                L1_RefSwapMaturity_T = float(str(v_L1_RefSwapMaturity_T.get()).split('m')[0])/12
+            elif 'y' in str(v_L1_RefSwapMaturity_T.get()).lower() :
+                L1_RefSwapMaturity_T = float(str(v_L1_RefSwapMaturity_T.get()).split('y')[0])
+            else :
+                L1_RefSwapMaturity_T = float(v_L1_RefSwapMaturity_T.get()) 
+            L1_RefSwapMaturity_T_PowerSpread = L1_RefSwapMaturity_T
+    else : 
+        L1_RefSwapMaturity_T = 0.25
+        L1_RefSwapMaturity_T_PowerSpread = 0.25
+
+    L1_RefSwapNCPNOneYear_P1 = int(vb_L1_RefSwapNCPNOneYear_P1.get(vb_L1_RefSwapNCPNOneYear_P1.curselection())) if vb_L1_RefSwapNCPNOneYear_P1.curselection() else 4
+    if L1_RefSwapMaturity_T == 0.25 : 
+        L1_RefSwapNCPNOneYear_P1 = 4
+
+    L1_RefRateMultiple_P1 = float(v_L1_RangeMultiple.get()) if len(str(v_L1_RangeMultiple.get())) > 0 else 0
+    L1_DayCount = int(str(vb_L1_DayCount.get(vb_L1_DayCount.curselection())).split(":")[0]) if vb_L1_DayCount.curselection() else (0 if L1_NumCpnOneYear_P1 != 0 else 3)
+    L1_PayoffMultiple_P1 = float(v_L1_PayoffMultiple.get()) if len(str(v_L1_PayoffMultiple.get())) > 0 else 0
+    L1_RCap = float(v_L1_RCap.get())/100 if len(str(v_L1_RCap.get())) > 0 else 0
+    L1_RFloor = float(v_L1_RFloor.get())/100 if len(str(v_L1_RFloor.get())) > 0 else 0
+
+    if len(str(v_L1_FixedCpnRate_P1.get())) > 0 : 
+        if "%" not in str(v_L1_FixedCpnRate_P1.get()) : 
+            L1_FixedCpnRate_P1 = float(v_L1_FixedCpnRate_P1.get())/100
+        else : 
+            L1_FixedCpnRate_P1 = float(str(v_L1_FixedCpnRate_P1.get()).replace("%",""))/100
+    else : 
+        L1_FixedCpnRate_P1 = 0
+
+    if len(str(v_L1_RangeFixedRate_P1.get())) > 0 : 
+        if "%" not in str(v_L1_RangeFixedRate_P1.get()) : 
+            L1_RangeFixedRate_P1 = float(v_L1_RangeFixedRate_P1.get())/100
+        else : 
+            L1_RangeFixedRate_P1 = float(str(v_L1_RangeFixedRate_P1.get()).replace("%",""))/100
+    else : 
+        L1_RangeFixedRate_P1 = 0
+
+    L1_StructuredFlag_P1 = int(str(vb_L1_StructuredFlag_P1.get(vb_L1_StructuredFlag_P1.curselection())).split(":")[0]) if vb_L1_StructuredFlag_P1.curselection() else (0 if L1_NumCpnOneYear_P1 != 0 else 3)
+
+    if len(str(v_L1_FixedCpnRate_P2.get())) > 0 : 
+        if "%" not in str(v_L1_FixedCpnRate_P2.get()) : 
+            L1_FixedCpnRate_P2 = float(v_L1_FixedCpnRate_P2.get())/100
+        else : 
+            L1_FixedCpnRate_P2 = float(str(v_L1_FixedCpnRate_P2.get()).replace("%",""))/100
+    else : 
+        L1_FixedCpnRate_P2 = 0
+
+    if len(str(v_L1_RangeFixedRate_P2.get())) > 0 : 
+        if "%" not in str(v_L1_RangeFixedRate_P2.get()) : 
+            L1_RangeFixedRate_P2 = float(v_L1_RangeFixedRate_P2.get())/100
+        else : 
+            L1_RangeFixedRate_P2 = float(str(v_L1_RangeFixedRate_P2.get()).replace("%",""))/100
+    else : 
+        L1_RangeFixedRate_P2 = 0
+
+    L1_StructuredFlag_P2 = int(str(vb_L1_StructuredFlag_P2.get(vb_L1_StructuredFlag_P2.curselection())).split(":")[0]) if vb_L1_StructuredFlag_P2.curselection() else (0 if L1_NumCpnOneYear_P2 != 0 else 3)
+
+    ##
+    L2_NumCpnOneYear_P1 = int(vb_L2_NumCpnOneYear_P1.get(vb_L2_NumCpnOneYear_P1.curselection())) if vb_L2_NumCpnOneYear_P1.curselection() else 4
+    DayCountLeg2 = int(str(vb_L2_DayCount.get(vb_L2_DayCount.curselection())).split(":")[0]) if vb_L2_DayCount.curselection() else 0    
+    L2_PowerSpreadFlag = 0
+    if len(str(v_L2_RefSwapMaturity_T.get())) > 0 :         
+        if '-' in str(v_L2_RefSwapMaturity_T.get()) : 
+            SplitedStr = str(v_L2_RefSwapMaturity_T.get()).split("-")
+            if 'm' in SplitedStr[0].lower() :
+                L2_RefSwapMaturity_T = float(SplitedStr[0].lower().split("m")[0])/12
+            elif 'y' in SplitedStr[0].lower() : 
+                L2_RefSwapMaturity_T = float(SplitedStr[0].lower().split("y")[0]) 
+            else : 
+                L2_RefSwapMaturity_T = float(SplitedStr[0]) 
+
+            if 'm' in SplitedStr[1].lower() :
+                L2_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("m")[0])/12
+            elif 'y' in SplitedStr[1].lower() : 
+                L2_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1].lower().split("y")[0]) 
+            else : 
+                L2_RefSwapMaturity_T_PowerSpread = float(SplitedStr[1]) 
+            L2_PowerSpreadFlag = 1
+        else : 
+            if 'm' in str(v_L2_RefSwapMaturity_T.get()).lower() : 
+                L2_RefSwapMaturity_T = float(str(v_L2_RefSwapMaturity_T.get()).split('m')[0])/12
+            elif 'y' in str(v_L2_RefSwapMaturity_T.get()).lower() :
+                L2_RefSwapMaturity_T = float(str(v_L2_RefSwapMaturity_T.get()).split('y')[0])
+            else :
+                L2_RefSwapMaturity_T = float(v_L2_RefSwapMaturity_T.get()) 
+            L2_RefSwapMaturity_T_PowerSpread = L2_RefSwapMaturity_T
+    else : 
+        L2_RefSwapMaturity_T = 0.25
+        L2_RefSwapMaturity_T_PowerSpread = 0.25
+
+    L2_RefSwapNCPNOneYear_P1 = int(vb_L2_RefSwapNCPNOneYear_P1.get(vb_L2_RefSwapNCPNOneYear_P1.curselection())) if vb_L2_RefSwapNCPNOneYear_P1.curselection() else 4
+    if L2_RefSwapMaturity_T == 0.25 : 
+        L2_RefSwapNCPNOneYear_P1 = 4
+
+    L2_RefRateMultiple_P1 = float(v_L2_RangeMultiple.get()) if len(str(v_L2_RangeMultiple.get())) > 0 else 0
+    L2_DayCount = int(str(vb_L2_DayCount.get(vb_L2_DayCount.curselection())).split(":")[0]) if vb_L2_DayCount.curselection() else (0 if L2_NumCpnOneYear_P1 != 0 else 3)
+    L2_PayoffMultiple_P1 = float(v_L2_PayoffMultiple.get()) if len(str(v_L2_PayoffMultiple.get())) > 0 else 0
+    L2_RCap = float(v_L2_RCap.get())/100 if len(str(v_L2_RCap.get())) > 0 else 0
+    L2_RFloor = float(v_L2_RFloor.get())/100 if len(str(v_L2_RFloor.get())) > 0 else 0
+
+    if len(str(v_L2_FixedCpnRate_P1.get())) > 0 : 
+        if "%" not in str(v_L2_FixedCpnRate_P1.get()) : 
+            L2_FixedCpnRate_P1 = float(v_L2_FixedCpnRate_P1.get())/100
+        else : 
+            L2_FixedCpnRate_P1 = float(str(v_L2_FixedCpnRate_P1.get()).replace("%",""))/100
+    else : 
+        L2_FixedCpnRate_P1 = 0
+
+    if len(str(v_L2_RangeFixedRate_P1.get())) > 0 : 
+        if "%" not in str(v_L2_RangeFixedRate_P1.get()) : 
+            L2_RangeFixedRate_P1 = float(v_L2_RangeFixedRate_P1.get())/100
+        else : 
+            L2_RangeFixedRate_P1 = float(str(v_L2_RangeFixedRate_P1.get()).replace("%",""))/100
+    else : 
+        L2_RangeFixedRate_P1 = 0
+
+    L2_StructuredFlag_P1 = int(str(vb_L2_StructuredFlag_P1.get(vb_L2_StructuredFlag_P1.curselection())).split(":")[0]) if vb_L2_StructuredFlag_P1.curselection() else (0 if L2_NumCpnOneYear_P1 != 0 else 3)
+
+    if len(str(v_L2_FixedCpnRate_P2.get())) > 0 : 
+        if "%" not in str(v_L2_FixedCpnRate_P2.get()) : 
+            L2_FixedCpnRate_P2 = float(v_L2_FixedCpnRate_P2.get())/100
+        else : 
+            L2_FixedCpnRate_P2 = float(str(v_L2_FixedCpnRate_P2.get()).replace("%",""))/100
+    else : 
+        L2_FixedCpnRate_P2 = 0
+
+    if len(str(v_L2_RangeFixedRate_P2.get())) > 0 : 
+        if "%" not in str(v_L2_RangeFixedRate_P2.get()) : 
+            L2_RangeFixedRate_P2 = float(v_L2_RangeFixedRate_P2.get())/100
+        else : 
+            L2_RangeFixedRate_P2 = float(str(v_L2_RangeFixedRate_P2.get()).replace("%",""))/100
+    else : 
+        L2_RangeFixedRate_P2 = 0
+
+    L2_StructuredFlag_P2 = int(str(vb_L2_StructuredFlag_P2.get(vb_L2_StructuredFlag_P2.curselection())).split(":")[0]) if vb_L2_StructuredFlag_P2.curselection() else (0 if L2_NumCpnOneYear_P2 != 0 else 3)
+    Holiday = get_from_sheetinterface(sht_Holiday)
+    Holiday["Holidays"] = Holiday["Holidays"].apply(lambda x : str(x).replace("-",""))
+    Holidays = np.array(list(Holiday["Holidays"].values.astype(np.int64)), dtype = np.int64)
+    NHolidays = len(Holidays)
+    RefRateHistoryData = get_from_sheetinterface(RefRateHistory)
+    RefRateHistoryDate_L1 = list(RefRateHistoryData["Date"].apply(lambda x : str(x).replace("-","")).astype(np.int64).values)
+    RefRateHistory_L1 = list(RefRateHistoryData["Rate(Leg1)"].apply(lambda x : str(x).replace("-","") if len(str(x)) > 0 else '0').astype(np.float64).values/100)
+    RefRateHistoryDate_L2 = list(RefRateHistoryData["Date"].apply(lambda x : str(x).replace("-","")).astype(np.int64).values)
+    RefRateHistory_L2 = list(RefRateHistoryData["Rate(Leg2)"].apply(lambda x : str(x).replace("-","") if len(str(x)) > 0 else '0').astype(np.float64).values/100)
+
+    OptionFlag = int(str(vb_OptionFlag.get(vb_OptionFlag.curselection())).split(":")[0]) if vb_OptionFlag.curselection() else 0    
+    OptSchd = get_from_sheetinterface(sht_OptScheduleInfo)
+    OptSchd["옵션 선언일"] = OptSchd["옵션 선언일"].apply(lambda x : str(x).replace("-",""))
+    OptSchd["옵션 행사일"] = OptSchd["옵션 행사일"].apply(lambda x : str(x).replace("-",""))
+    OptionStartDate = np.array(list(OptSchd["옵션 선언일"].values.astype(np.int64)), dtype = np.int64)
+    OptionPayDate = np.array(list(OptSchd["옵션 행사일"].values.astype(np.int64)), dtype = np.int64)
     MyArrays[0] = PrevTreeFlag 
     MyArrays[1] = tree 
     MyArrays[2] = scrollbar
