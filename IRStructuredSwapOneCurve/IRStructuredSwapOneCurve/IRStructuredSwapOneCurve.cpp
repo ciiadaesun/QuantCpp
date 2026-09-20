@@ -4788,10 +4788,10 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 		Price2 = Temp_ResultFixingRateCpn[0];
 		Greek[2 * (NZeroRate + NZeroDiscRate) + NHWVol + 2] = (Price2);
 
-		for (i = 0; i < NZeroRate; i++) ZeroRateUp[i] = ZeroRate[i] + 0.05; // FRTB Curvature Up
-		for (i = 0; i < NZeroDiscRate; i++) ZeroDiscRateUp[i] = ZeroDiscRate[i] + 0.05;
-		for (i = 0; i < NZeroRate; i++) ZeroRateDn[i] = ZeroRate[i] - 0.05; // FRTB Curvature Dn
-		for (i = 0; i < NZeroDiscRate; i++) ZeroDiscRateDn[i] = ZeroDiscRate[i] - 0.05;
+		for (i = 0; i < NZeroRate; i++) ZeroRateUp[i] = ZeroRate[i] + CSR_up; // FRTB Curvature Up
+		for (i = 0; i < NZeroDiscRate; i++) ZeroDiscRateUp[i] = ZeroDiscRate[i] + CSR_up;
+		for (i = 0; i < NZeroRate; i++) ZeroRateDn[i] = ZeroRate[i] - CSR_up; // FRTB Curvature Dn
+		for (i = 0; i < NZeroDiscRate; i++) ZeroDiscRateDn[i] = ZeroDiscRate[i] - CSR_up;
 
 		ResultCode = IRStructuredSwapFDM(
 			PriceDate,							// PricingDate As YYYYMMDD
