@@ -3530,8 +3530,7 @@ void make_Jacov_HJMSwaption_2F(
 }
 
 
-
-void Gradient_Decent_HJM_2FCalib(
+long Gradient_Decent_HJM_2FCalib(
     long NParams,
     double* Params,
     long NZero,
@@ -3708,6 +3707,7 @@ void Gradient_Decent_HJM_2FCalib(
     free(PrevResidual);
     free(firstprice);
     free(firstparam);
+    return n;
 }
 
 long Gradientdecent_HJM2F_Calibration_Swaption_ForKDBMurex(
@@ -3795,7 +3795,8 @@ long Gradientdecent_HJM2F_Calibration_Swaption_ForKDBMurex(
     double firstlambda = lambda[0];
     double lambdaup[1] = { 0.5 };
     double lambdadn[1] = { 0.05 };
-    Gradient_Decent_HJM_2FCalib(nparams, params, NZero, ZeroTerm, ZeroRate,
+
+    n = Gradient_Decent_HJM_2FCalib(nparams, params, NZero, ZeroTerm, ZeroRate,
         NResidual, BSSwaptionPrice, Strike, HWSwaptionPrice, ResidualArray,
         Term_SwapMat, T_OptMaturity, P0_at_OptMaturityDates, OptMaturityDates, nDates,
         dates, termdates, TempC, PT, paramsup,
@@ -3873,7 +3874,7 @@ long Gradientdecent_HJM2F_Calibration_Swaption_ForKDBMurex(
     free(paramsdn);                 //14
     for (i = 0; i < NResidual; i++) free(tempjacov[i]);
     free(tempjacov);                //15
-    return 1;
+    return n;
 }
 
 long HW_LevMarq_Calibration_Swaption_ForKDBMurex(

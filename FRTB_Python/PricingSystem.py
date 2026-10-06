@@ -55,6 +55,8 @@ HWCapHWSwaptionCalib1F.argtypes = [ct.c_long, c_double_p, c_double_p, ct.c_long,
                                     c_double_p, c_double_p, ct.c_long, ct.c_double, ct.c_long,
                                     c_double_p, c_double_p, c_double_p]
 
+
+
 CSRRW = [ 0.005, 0.01, 0.05, 0.03, 0.03, 0.02, 0.015, 0.025, 0.02, 0.04, 0.12, 0.07, 0.085, 0.055, 0.05, 0.12, 0.015, 0.05]
 
 def LeapCheck(Year) : 
@@ -257,7 +259,7 @@ def Preprocessing_Term(Term, PriceDate) :
             for i in range(len(Term)) : 
                 Term[i] = ((Term[i] - ExcelPriceDate)/365)
 
-def Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate, CompareNumber = 0.6) : 
+def Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate, CompareNumber = 0.5) : 
     if len(ZeroTerm) > 0 : 
         istermtype_ZeroTerm = istermtype(ZeroTerm)
         if istermtype_ZeroTerm == "YYYYMMDD" : 
@@ -639,7 +641,7 @@ def ConvertPythonFormatfromVBAformat(VBAString) :
     def SplitVBAVariables(x) : 
         x = str(x)
         resultmeasure = 'scalar' if 'byval ' in x.lower() else 'vector'
-        resulttype = 'long' if 'double' not in x.lower() else 'double'
+        resulttype = 'long' if 'long' in x.lower() else ('double' if 'string' not in x.lower() else 'string')
         resultname = ''
         if resultmeasure == 'scalar' and resulttype == 'long' : 
             startidx = x.lower().index('byval') + 6
@@ -653,6 +655,14 @@ def ConvertPythonFormatfromVBAformat(VBAString) :
             startidx = x.lower().index('byref') + 6
             endidx = x.lower().index('as long')
             resultname = x[startidx:endidx].replace(" ","")
+        elif resultmeasure == 'vector' and resulttype == 'double' : 
+            startidx = x.lower().index('byref') + 6
+            endidx = x.lower().index('as double')
+            resultname = x[startidx:endidx].replace(" ","")
+        elif resultmeasure == 'scalar' and resulttype == 'string' : 
+            startidx = x.lower().index('byval') + 6
+            endidx = x.lower().index('as string')
+            resultname = x[startidx:endidx].replace(" ","")
         else : 
             startidx = x.lower().index('byref') + 6
             endidx = x.lower().index('as double')
@@ -664,12 +674,17 @@ def ConvertPythonFormatfromVBAformat(VBAString) :
             return ct.c_double, resultname
         elif resultmeasure + "_" +  resulttype == 'vector_long' :
             return c_long_p, resultname
+        elif resultmeasure + "_" + resulttype == 'vector_double' :
+            return c_double_p, resultname
+        elif resultmeasure + "_" +  resulttype == 'scalar_string' :
+            return ct.POINTER(ct.c_char), resultname
         else : 
             return c_double_p, resultname
 
     Targetdll = ct.WinDLL(ReleaseFolder + TargetDllString)
     CalcFunc = eval('Targetdll.' + TargetFunctionString)
     CalcFunc.restype = ct.c_long
+
     VariablesFormat = [SplitVBAVariables(i) for i in StringArray]
     CalcFunc.argtypes = [v[0] for v in VariablesFormat]
     VariableNames = [v[1] for v in VariablesFormat]
@@ -1861,12 +1876,1232 @@ def IRS_Callable() :
     output_label.pack(padx = 5, pady = 2)
     root.mainloop() 
     return MyArrays[5]
+
+def HullWhite12FactorCalibration(DefaultZeroUse = False, 
+                                 DefaultZeroTerm = [TimestampToYYYYMMDD(today + pd.DateOffset(months = i)) for i in (np.array([0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0]) * 12).astype(np.int64)], 
+                                 DefaultZeroRate = [3.5115,3.5124,3.7926,3.8730,3.9021,3.9204,3.9239,3.9116,3.8993,3.9023,3.9025,3.9081,3.9138,3.9223,3.9337], 
+                                 name = 'HW Calibration') : 
+
+    VBAString1F = '''
+    Public Declare PtrSafe Function HWCapHWSwaptionCalibrationForKDB Lib "IRPhaseStructuredSwap.dll" ( _
+        ByVal NZero As Long, ByRef ZeroTerm As Double, ByRef ZeroRate As Double, ByVal NSwaption As Long, ByRef T_OptMaturity As Double, _
+        ByRef Term_SwapMat As Double, ByRef SwaptionVol As Double, ByVal FreqMonthSwaption As Double, ByVal NHW_initial As Long, ByRef HWTerm_initial As Double, _
+        ByRef HWVol_initial As Double, ByRef initial_kappa As Double, ByVal FixedKappaFlag As Long, ByVal Fixedkappa As Double, ByVal lognormalvol0normalvol1 As Long, _
+        ByRef ResultBlackPrice As Double, ByRef ResultHWPrice As Double, ByRef ResultError As Double _
+    ) As Long
+    '''
+
+    VBAString2F = '''
+    Public Declare PtrSafe Function HJM2FCalibrationForKDB Lib "IRPhaseStructuredSwap.dll" ( _
+        ByVal NZero As Long, ByRef ZeroTerm As Double, ByRef ZeroRate As Double, ByVal NSwaption As Long, ByRef T_OptMaturity As Double, _
+        ByRef Term_SwapMat As Double, ByRef SwaptionVol As Double, ByVal FreqMonthSwaption As Double, ByRef HWVol_initial As Double, ByRef HWVol_initial2 As Double, _
+        ByRef initial_kappa As Double, ByRef initial_kappa2 As Double, ByRef rho As Double, ByVal lognormalvol0normalvol1 As Long, ByRef ResultBlackPrice As Double, _
+        ByRef ResultHWPrice As Double, ByRef ResultError As Double _
+    ) As Long
+    '''
+
+    CalcFunc1F, VariablesFormat1F, VariableNames1F = ConvertPythonFormatfromVBAformat(VBAString1F)
+    CalcFunc2F, VariablesFormat2F, VariableNames2F = ConvertPythonFormatfromVBAformat(VBAString2F)
+
+    root, v_scroll, h_scroll, canvas, main_frame, canvas_window = interface_basic_settings(name)
+    left_frame = tk.Frame(main_frame)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+
+    v_PriceDate = make_variable_interface(left_frame, 'PriceDate', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = today_YYYYMMDD)
+    vb_OneFactorFlag = make_listvariable_interface(left_frame, '1F/2F', ["0 : 1F 추정","1 : 2F 추정"], listheight = 2, textfont = 11, defaultflag = True, defaultvalue=0, bold = True)
+    vb_FixedKappaFlag = make_listvariable_interface(left_frame, 'FixedKappa Flag', ["0 : kappa 추정","1 : kappa 고정"], listheight = 2, textfont = 11, defaultflag = True, defaultvalue=1, bold = True)
+    v_FixedKappa = make_variable_interface(left_frame, 'FixedKappa', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = 0.01)
+    NMonths = (np.array([0.25, 0.5, 0.75, 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 10.0, 15.0, 20.0, 25.0, 30.0]) * 12).astype(np.int64)
+    if DefaultZeroUse == False : 
+        DefaultTerm = [TimestampToYYYYMMDD(today + pd.DateOffset(months = i)) for i in NMonths ]
+        defaultvalues = (DefaultTerm + ['']* 10, [3.5115,3.5124,3.7926,3.8730,3.9021,3.9204,3.9239,3.9116,3.8993,3.9023,3.9025,3.9081,3.9138,3.9223,3.9337]+ ['']* 10)
+    else : 
+        DefaultTerm = DefaultZeroTerm
+        defaultvalues = (list(DefaultTerm) + ['']* 10, list(DefaultZeroRate)+ ['']* 10)
+
+    targetcolumns = ["Term", "Rate"]
+
+    nindexs = 7
+    ncolumns = 2
+    sht_DiscCurveLeg = AddVariableSheet(left_frame, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = targetcolumns, defaultvalues = defaultvalues, VariableName = "ZeroCurve", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 88, sheet_height = 30, MaxHeight=18)
+    sht_DiscCurveLeg.set_all_column_widths(width=60)
+
+    center_frame = tk.Frame(main_frame)
+    center_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    vb_VolFlag = make_listvariable_interface(center_frame, 'Vol Flag', ["0 : Black Vol","1 : Normal Vol"], listheight = 2, textfont = 11, defaultflag = True, defaultvalue=1, bold = True)
+    vb_SwaptionFreq = make_listvariable_interface(center_frame, 'Payment Frequency', ["0 : 3","1 :6","2: 12"], listheight = 2, textfont = 11, defaultflag = True, defaultvalue=0, bold = True)
+
+    defaultvalues2 = ([0.25, 0.50, 0.75, 1.0, 2.0, 3.0, 5.0] + [""] * 10, [1.0, 2.0, 3.0, 4.0, 5.0, 7.0, 10.0] + [""] * 10, [0.9189,0.9372,0.9486,0.9636,0.8618,0.7529,0.6824] + [""] * 10)
+
+    targetcolumns2 = ["OptMat", "SwapMat",'SwaptionVol%']
+    sht_Swptn = AddVariableSheet(center_frame, nindexs = nindexs, ncolumns= 3,targetcolumns = targetcolumns2, defaultvalues = defaultvalues2, VariableName = "Swaption Vol %", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 115, sheet_height = 30, MaxHeight=40)
+    sht_Swptn.set_all_column_widths(width=105)
+
+    right_frame = tk.Frame(main_frame)
+    right_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    targetcolumns3 = ["Term", "initvol(%)"]
+    v_initkappa = make_variable_interface(right_frame, 'InitialKappa', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = 0.01, titlelable= True, titleName= "HW Initial Param")
+    initvalues = ([0.25, 0.50, 0.75, 1.0, 2.0, 3.0, 5.0] + [""] * 10, [0.9,0.9,0.9,0.9,0.9,0.9,0.9] + [""] * 10)
+
+    sht_HW_InitialVol = AddVariableSheet(right_frame, nindexs = len(initvalues[0]), ncolumns= len(initvalues),targetcolumns = targetcolumns3, defaultvalues = initvalues, VariableName = "initial HWVol", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 120, sheet_height = 30, MaxHeight=18)
+    sht_HW_InitialVol.set_all_column_widths(width=98)
+    right_frame2 = tk.Frame(main_frame)
+    right_frame2.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_initkappa2F = make_variable_interface(right_frame2, 'InitialKappa2F', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = 0.01, titlelable= True, titleName= "HW Initial Param")
+    v_rho12F = make_variable_interface(right_frame2, 'Corr12F', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = -0.30, titlelable= True, titleName= "HW Factor Corr")
+
+    Result_frame = tk.Frame(main_frame)
+    Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+
+    PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
+    ResultValue = []
+    ResultValue2 = pd.DataFrame(defaultvalues2, index = ['OptMat','SwapMat','SwaptionVol%']).T.applymap(lambda x : np.nan if str(x) == '' else x).dropna()
+    ResultValue2['HWVol'] = ResultValue2['SwaptionVol%'].astype(np.float64)/100
+    ResultValue2['HWKappa'] = 0.01
+    ResultValue2['HWKappa2F'] = 0.00001
+    ResultValue2['HWVol2F'] = 0.0000
+    ResultValue2['Rho'] = 0.
+    ResultValue2['PriceDate'] = today_YYYYMMDD
+
+    DefaultZeroDF = pd.DataFrame(defaultvalues, index = ['ZeroTerm','ZeroRate']).T.applymap(lambda x : np.nan if str(x) == '' else x).dropna()
+    ZeroTermList, ZeroRateList = list(DefaultZeroDF["ZeroTerm"].values), list(DefaultZeroDF["ZeroRate"].values)
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2, ResultValue, ResultValue2,ZeroTermList, ZeroRateList]
+    exitgui = lambda : root.destroy()
+
+    def run_function(MyArrays) : 
+        PrevTreeFlag = MyArrays[0] 
+        tree = MyArrays[1] 
+        scrollbar = MyArrays[2]
+        scrollbar2 = MyArrays[3]  
+        ResultValue = MyArrays[4]
+        ResultValue2 = MyArrays[5]
+        ZeroTermList = MyArrays[6]
+        ZeroRateList = MyArrays[7]
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else today_YYYYMMDD
+        OneFactorFlag = int(str(vb_OneFactorFlag.get(vb_OneFactorFlag.curselection())).split(":")[0]) if vb_OneFactorFlag.curselection() else 0
+        FixedKappaFlag = int(str(vb_FixedKappaFlag.get(vb_FixedKappaFlag.curselection())).split(":")[0]) if vb_FixedKappaFlag.curselection() else 1
+        FixedKappa = float(v_FixedKappa.get()) if len(str(v_FixedKappa.get())) > 0 else 0.01
+
+        print(PriceDate)
+        print(FixedKappaFlag)
+        print(FixedKappa)
+
+        DiscLeg = get_from_sheetinterface(sht_DiscCurveLeg)
+        DiscLeg["Term"] = DiscLeg["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        DiscLeg["Rate"] = DiscLeg["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        ZeroTerm = list(DiscLeg["Term"].values)
+        NZero = len(ZeroTerm)
+        ZeroRate = list(DiscLeg["Rate"].values)
+        Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate)
+        print(ZeroTerm)
+        print(ZeroRate)
+
+        lognormalvol0normalvol1 = int(str(vb_VolFlag.get(vb_VolFlag.curselection())).split(":")[0]) if vb_VolFlag.curselection() else 1
+        FreqMonthSwaption = float(str(vb_SwaptionFreq.get(vb_SwaptionFreq.curselection())).split(":")[1]) if vb_SwaptionFreq.curselection() else 3.0
+        print(lognormalvol0normalvol1)
+        print(FreqMonthSwaption)
+
+        Swptn = get_from_sheetinterface(sht_Swptn)
+        Swptn["OptMat"] = Swptn["OptMat"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        Swptn["SwaptionVol%"] = Swptn["SwaptionVol%"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+
+        T_OptMaturity = Swptn["OptMat"].values.astype(np.float64)
+        quotient = (T_OptMaturity // 0.25).astype(np.int64)
+        myary = quotient * 0.25
+        T_OptMaturity = np.r_[myary[myary < 0.25] * 0 + 0.25, myary[myary >= 0.25]]
+        Term_SwapMat = Swptn["SwapMat"].values.astype(np.float64)
+        SwaptionVol = Swptn["SwaptionVol%"].values.astype(np.float64) if Swptn["SwaptionVol%"].values.astype(np.float64).max() < 0.45 else Swptn["SwaptionVol%"].values.astype(np.float64)/100
+        NSwaption = len(SwaptionVol)
+        Preprocessing_Term(T_OptMaturity, PriceDate)
+        Preprocessing_Term(Term_SwapMat, PriceDate)
+        print(T_OptMaturity)
+        print(Term_SwapMat)
+        print(SwaptionVol)
+
+        initial_kappa = np.array([float(v_initkappa.get()) if len(str(v_initkappa.get())) > 0 else 0.01], dtype = np.float64)
+        initial_kappa2F = np.array([float(v_initkappa2F.get()) if len(str(v_initkappa2F.get())) > 0 else 0.01], dtype = np.float64)
+        rho12F = np.array([float(v_rho12F.get())]) if len(str(v_rho12F.get())) > 0 else np.array([-0.1])
+
+        HW_InitialVol = get_from_sheetinterface(sht_HW_InitialVol)
+        HW_InitialVol["Term"] = HW_InitialVol["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        HW_InitialVol["initvol(%)"] = HW_InitialVol["initvol(%)"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+
+        HWTerm_initial = HW_InitialVol['Term'].values.astype(np.float64)
+        Preprocessing_Term(HWTerm_initial, PriceDate)
+        HWVol_initial = HW_InitialVol['initvol(%)'].values.astype(np.float64) if HW_InitialVol['initvol(%)'].values.astype(np.float64).max() < 0.25 else HW_InitialVol['initvol(%)'].values.astype(np.float64)/100
+        NHW_initial = len(HWTerm_initial)
+        HWVol_initial2F = np.array([0.0], dtype = np.float64)
+        print(HWTerm_initial)
+        print('초기볼1',HWVol_initial)
+        ResultBlackPrice = np.zeros(len(SwaptionVol), dtype = np.float64)
+        ResultHWPrice = np.zeros(len(SwaptionVol), dtype = np.float64)
+        ResultError = np.zeros(len(SwaptionVol), dtype = np.float64)
+
+        NZero_c = ct.c_long(NZero)
+        ZeroTerm_np, ZeroTerm_c = arr_double(ZeroTerm)
+        ZeroRate_np, ZeroRate_c = arr_double(ZeroRate)
+        NSwaption_c = ct.c_long(NSwaption)
+        T_OptMaturity_np, T_OptMaturity_c = arr_double(T_OptMaturity)
+
+        Term_SwapMat_np, Term_SwapMat_c = arr_double(Term_SwapMat)
+        SwaptionVol_np, SwaptionVol_c = arr_double(SwaptionVol)
+        FreqMonthSwaption_c = ct.c_double(FreqMonthSwaption)
+        NHW_initial_c = ct.c_long(NHW_initial)
+        HWTerm_initial_np, HWTerm_initial_c = arr_double(HWTerm_initial)
+        OneFactorFlag_c = ct.c_long(OneFactorFlag)
+
+        HWVol_initial_np, HWVol_initial_c = arr_double(HWVol_initial)
+        HWVol_initial2F_np, HWVol_initial2F_c = arr_double(HWVol_initial2F)
+        initial_kappa_np, initial_kappa_c = arr_double(initial_kappa)
+        initial_kappa2F_np, initial_kappa2F_c = arr_double(initial_kappa2F)
+        FixedKappaFlag_c = ct.c_long(FixedKappaFlag)
+        FixedKappa_c = ct.c_double(FixedKappa)
+        lognormalvol0normalvol1_c = ct.c_long(lognormalvol0normalvol1)
+        rho12F_np, rho12F_c = arr_double(rho12F)
+        ResultBlackPrice_np, ResultBlackPrice_c = arr_double(ResultBlackPrice)
+        ResultHWPrice_np, ResultHWPrice_c = arr_double(ResultHWPrice)
+        ResultError_np, ResultError_c = arr_double(ResultError)
+        print("변수print")
+        print(NZero, ZeroTerm_np, ZeroRate_np)
+        print(NSwaption, T_OptMaturity_np, Term_SwapMat_np, SwaptionVol_np)    
+        print(FreqMonthSwaption, NHW_initial, HWTerm_initial, HWVol_initial)    
+        print(initial_kappa_np, FixedKappaFlag, FixedKappa, lognormalvol0normalvol1)    
+        if OneFactorFlag == 0 :         
+            ret = CalcFunc1F(NZero_c, ZeroTerm_c, ZeroRate_c, NSwaption_c,T_OptMaturity_c,
+                            Term_SwapMat_c, SwaptionVol_c, FreqMonthSwaption_c, NHW_initial_c, HWTerm_initial_c,
+                            HWVol_initial_c, initial_kappa_c, FixedKappaFlag_c, FixedKappa_c, lognormalvol0normalvol1_c,
+                            ResultBlackPrice_c, ResultHWPrice_c, ResultError_c)    
+        else : 
+            ret = CalcFunc1F(NZero_c, ZeroTerm_c, ZeroRate_c, NSwaption_c,T_OptMaturity_c,
+                            Term_SwapMat_c, SwaptionVol_c, FreqMonthSwaption_c, NHW_initial_c, HWTerm_initial_c,
+                            HWVol_initial_c, initial_kappa_c, ct.c_long(0), FixedKappa_c, lognormalvol0normalvol1_c,
+                            ResultBlackPrice_c, ResultHWPrice_c, ResultError_c)    
+            print("2Factor")
+            ret = CalcFunc2F(NZero_c, ZeroTerm_c, ZeroRate_c, NSwaption_c,T_OptMaturity_c,
+                             Term_SwapMat_c, SwaptionVol_c, FreqMonthSwaption_c, HWVol_initial_c, HWVol_initial2F_c,
+                             initial_kappa_c, initial_kappa2F_c, rho12F_c, lognormalvol0normalvol1_c, ResultBlackPrice_c, 
+                             ResultHWPrice_c, ResultError_c)
+        
+        ResultBlack = np.ctypeslib.as_array(ResultBlackPrice_c[:NSwaption], shape = (NSwaption, ))
+        ResultHW = np.ctypeslib.as_array(ResultHWPrice_c[:NSwaption], shape = (NSwaption, ))
+        ResultError = np.ctypeslib.as_array(ResultError_c[:NSwaption], shape = (NSwaption, ))
+        if OneFactorFlag == 0 : 
+            ResultHWVol = np.ctypeslib.as_array(HWVol_initial_c[:NSwaption], shape = (NSwaption, ))
+            ResultFrame = Swptn
+            ResultFrame["BlackPrice"] = ResultBlack
+            ResultFrame["HWPrice"] = ResultHW
+            ResultFrame["Error"] = ResultError
+            ResultFrame["HWVol"] = ResultHWVol
+            ResultFrame["HWKappa"] = initial_kappa_c[0]
+            ResultFrame["HWKappa2F"] = 0.00001
+            ResultFrame["HWVol2F"] = 0.0
+            ResultFrame["Rho"] = 0.
+        else : 
+
+            ResultHWVol = np.ones(NSwaption, dtype =np.float64) * HWVol_initial_c[0] 
+            ResultHWVol2F = np.ones(NSwaption, dtype =np.float64) * HWVol_initial2F_c[0] 
+            ResultFrame = Swptn
+            ResultFrame["BlackPrice"] = ResultBlack
+            ResultFrame["HWPrice"] = ResultHW
+            ResultFrame["Error"] = ResultError
+            ResultFrame["HWVol"] = ResultHWVol
+            ResultFrame["HWVol2F"] = ResultHWVol2F
+            ResultFrame["HWKappa"] = initial_kappa_c[0]
+            ResultFrame["HWKappa2F"] = initial_kappa2F_c[0]
+            ResultFrame["Rho"] = rho12F_c[0]
+            ResultFrame["반복수"] = ret
+        ResultFrame["PriceDate"] = PriceDate
+
+        if PrevTreeFlag == 0 : 
+            tree = ttk.Treeview(main_frame)
+            tk.Button(Result_frame, text = 'Cali완료\nPricing실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = exitgui, width = 15).pack()
+
+        else : 
+            tree.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
+            tree = ttk.Treeview(main_frame)
+
+        tree.pack(padx=5, pady=5, fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(main_frame, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")    
+
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, ResultFrame.reset_index(), width = 100)
+        MyArrays[0] = PrevTreeFlag 
+        MyArrays[1] = tree 
+        MyArrays[2] = scrollbar
+        MyArrays[3] = scrollbar2      
+        #MyArrays[4] = [NZero, ZeroTerm_np, ZeroRate_np, NSwaption, T_OptMaturity, Term_SwapMat, SwaptionVol,FreqMonthSwaption, lognormalvol0normalvol1]
+        MyArrays[4] = [NZero_c, ZeroTerm_c, ZeroRate_c, NSwaption_c,T_OptMaturity_c,
+                                    Term_SwapMat_c, SwaptionVol_c, FreqMonthSwaption_c, NHW_initial_c, HWTerm_initial_c,
+                                    HWVol_initial_c, initial_kappa_c, FixedKappaFlag_c, FixedKappa_c, lognormalvol0normalvol1_c,
+                                    ResultBlackPrice_c, ResultHWPrice_c, ResultError_c]
+        MyArrays[5] = ResultFrame
+        MyArrays[6] = ZeroTerm
+        MyArrays[7] = ZeroRate
+        messagebox.showinfo("알림","Cali 완료!!\n Pricing실행 버튼 클릭")   
+
+    temp_func = lambda : run_function(MyArrays)
+    tk.Button(Result_frame, text = '실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+    output_label = tk.Label(Result_frame, text = "", anchor = "n")
+    output_label.pack(padx = 5, pady = 2)    
+    root.mainloop()   
+    return MyArrays[5], MyArrays[6], MyArrays[7]
+
+def IRPhaseStructuredSwap() : 
+    numc = MainViewer(Title = 'Calibration Curve', MyText = '사용 커브 개수', MyList = ["1: 1개 커브 사용","2: 2개 커브 사용","3: 3개 커브 사용"], size = "800x450+30+30", splitby = ":", listheight = 8, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = [], width = 95, expand = True)
+
+    TempSchedule =[TimestampToYYYYMMDD(i) for i in MakeSchedule(today_YYYYMMDD - 10000, today_YYYYMMDD + 100000, 3)]
+    StartSchedule = TempSchedule[:-1]
+    EndSchedule = TempSchedule[1:]
+    Multiple = [1] * len(StartSchedule)
+    Multiple2 = [0] * len(StartSchedule)
+    FixedCpnRate = [3.5] * len(StartSchedule)
+    FixedCpnRate2 = [0] * len(StartSchedule)
+    FixedRate = [0.0] * len(StartSchedule)
+    
+    ResultDataList = []
+    ZeroTermList = []
+    ZeroRateList = []
+    for i in range(numc) : 
+        if i == 1 : 
+            ResultData, ZeroTerm, ZeroRate = HullWhite12FactorCalibration(DefaultZeroUse = True, DefaultZeroRate = [3.956,3.998,4.04,4.0755,4.111,4.188,4.298,4.456,4.804,4.934,5.037,5.151,5.264,5.669,5.625],name = str(i+1) + '번째 커브 Calibration')                                  
+        else : 
+            ResultData, ZeroTerm, ZeroRate = HullWhite12FactorCalibration(name = str(i+1) + '번째 커브 Calibration')
+        
+        Preprocessing_Term(ZeroTerm, int(ResultData['PriceDate'].iloc[0]))
+        ResultDataList.append(ResultData)
+        ZeroTermList.append(ZeroTerm)
+        ZeroRateList.append(ZeroRate)
+    PowerSpreadFlag_L1 = [0, 0, 0]
+    PowerSpreadMaturity_L1 = [0.25, 0.25, 0.25, 0.25, 0.25, 0.25]
+    PowerSpreadFlag_L2 = [0, 0, 0]
+    PowerSpreadMaturity_L2 = [0.25, 0.25, 0.25, 0.25, 0.25, 0.25]
+    NCPNRefRate_L1 = [4, 4, 4]
+    NCPNRefRate_L2 = [4, 4, 4]
+    RefRateCurveNum_L1 = [1, -1, -1]
+    RefRateCurveNum_L2 = [1, -1, -1]
+    DiscCurveIdx_L1 = [0]
+    DiscCurveIdx_L2 = [0]
+    CurveCorr = ([1.0, 0.0, 0.0],[0.0, 1.0, 0.0], [0.0, 0.0, 1.0])
+    CurveCorrArr = np.identity(3)
+    QuantoUseFlag = [0,0,0]
+    QuantoCorr = [0.0,0.0,0.0]
+    QuantoFXVol = [0.0,0.0,0.0]
+    def open_powerspread_window(root, PowerSpreadFlag, PowerSpreadMaturity, DiscCurveIdx, NCPNRefRate, RefRateCurveNum, RefRateNum = 1):     
+        
+        # 새로운 결과창
+        result_window = tk.Toplevel(root)
+
+        nindexs = 7
+        ncolumns = 3
+        result_window.title("ReferenceRate" + " Leg" + str(RefRateNum))
+        result_window.geometry("1500x750+5+5")
+        result_window.resizable(False, False)
+
+        left_frame = tk.Frame(result_window)
+        left_frame.pack(side = 'left', padx = 2, pady = 5, anchor = 'n')        
+        vb_PSFlag1 = make_listvariable_interface(left_frame, 'PowerSpread\n적용여부', ["0: 파워스프레드 적용안함","1: 파워스프레드 적용함"], bold = True, listheight = 3, textfont = 11, titlelable=True, titleName = "\n커브1\n기초금리1", defaultflag = True, defaultvalue = 0, pady = 1)
+        vb_RefSwapNCPNOneYear1 = make_listvariable_interface(left_frame, '기초금리 연 쿠폰지급수', ["1","2","4","6"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue=2, pady = 1)
+        vb_Rate1_RefSwapMaturity_T1 = make_listvariable_interface(left_frame, '기초금리1 만기1(년)', np.vectorize(lambda y : str(y))(np.arange(1, 201) * 0.25), listheight = 7, textfont = 11, titlelable=False, titleName = "\n커브1\n기초금리1",defaultflag = True, defaultvalue=3, bold = False, pady = 1)
+        vb_Rate1_RefSwapMaturity_T2 = make_listvariable_interface(left_frame, '(PowerSpread금리)\n기초금리1 만기2(년)', np.vectorize(lambda y : str(y))(np.arange(1, 201) * 0.25), listheight = 7, textfont = 11,defaultflag = True, defaultvalue=0, bold = False, pady = 1)
+
+        left_frame2 = tk.Frame(result_window)
+        left_frame2.pack(side = 'left', padx = 2, pady = 5, anchor = 'n')        
+        sht_DiscCurve1 = AddVariableSheet(left_frame2, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = (list(ZeroTermList[0]) + ['']* 10, list(ZeroRateList[0]) + ['']* 10), VariableName = "ZeroCurve1", myfont = 12, anchor = 'w', padx = 5, pady = 1, sheet_width = 80, sheet_height = 30, titlelable= True, titleName = "\n커브1", MaxHeight=10)
+        sht_DiscCurve1.set_all_column_widths(width=50)
+        vb_RefRateUseFlag1 = make_listvariable_interface(left_frame2, '해당커브를 \n 기초금리로 사용', ["0: 사용안함","1: 사용"], bold = True, listheight = 3, textfont = 11, titlelable=False, titleName = "\n커브1\n기초금리1", defaultflag = True, defaultvalue = 1, pady = 1)
+
+        left_frame3 = tk.Frame(result_window)
+        left_frame3.pack(side = 'left', padx = 2, pady = 5, anchor = 'n')        
+        left_frame4 = tk.Frame(result_window)
+        left_frame4.pack(side = 'left', padx = 2, pady = 5, anchor = 'n')        
+        left_frame5 = tk.Frame(result_window)
+        left_frame5.pack(side = 'left', padx = 2, pady = 5, anchor = 'n')        
+        left_frame6 = tk.Frame(result_window)
+        left_frame6.pack(side = 'left', padx = 2, pady = 5, anchor = 'n')        
+        left_frame7 = tk.Frame(result_window)
+        left_frame7.pack(side = 'left', padx = 2, pady = 5, anchor = 'n')        
+         
+        vb_DiscCvNum = make_listvariable_interface(left_frame7, '할인금리커브번호', [str(i+1) + ": 커브" + str(i+1) for i in range(numc)], bold = True, listheight = 3, textfont = 11, titlelable=True, titleName = "\n할인커브선택", defaultflag = True, defaultvalue = 0, pady = 1)
+
+        if numc > 1 : 
+            vb_PSFlag2 = make_listvariable_interface(left_frame3, 'PowerSpread\n적용여부', ["0: 파워스프레드 적용안함","1: 파워스프레드 적용함"], bold = True, listheight = 3, textfont = 11, titlelable=True, titleName = "\n커브2\n기초금리2", defaultflag = True, defaultvalue = 0, pady = 1)
+            vb_RefSwapNCPNOneYear2 = make_listvariable_interface(left_frame3, '기초금리 연 쿠폰지급수', ["1","2","4","6"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue=2, pady = 1)
+            vb_Rate2_RefSwapMaturity_T1 = make_listvariable_interface(left_frame3, '기초금리2 만기1(년)', np.vectorize(lambda y : str(y))(np.arange(1, 201) * 0.25), listheight = 7, textfont = 11, titlelable=False, titleName = "\n커브2\n기초금리2",defaultflag = True, defaultvalue=19, bold = False, pady = 1)
+            vb_Rate2_RefSwapMaturity_T2 = make_listvariable_interface(left_frame3, '(PowerSpread금리)\n기초금리2 만기2(년)', np.vectorize(lambda y : str(y))(np.arange(1, 201) * 0.25), listheight = 7, textfont = 11,defaultflag = True, defaultvalue=0, bold = False, pady = 1)
+            sht_DiscCurve2 = AddVariableSheet(left_frame4, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = (list(ZeroTermList[1] if numc > 1 else ['']*10) + ['']* 10, list(ZeroRateList[1] if numc > 1 else ['']*10) + ['']* 10), VariableName = "ZeroCurve2", myfont = 12, anchor = 'w', padx = 5, pady = 1, sheet_width = 80, sheet_height = 30, titlelable= True, titleName = "\n커브2", MaxHeight=10)
+            sht_DiscCurve2.set_all_column_widths(width=50)
+            vb_RefRateUseFlag2 = make_listvariable_interface(left_frame4, '해당커브를 \n 기초금리로 사용', ["0: 사용안함","1: 사용"], bold = True, listheight = 3, textfont = 11, titlelable=False, titleName = "\n커브2\n기초금리2", defaultflag = True, defaultvalue = 0, pady = 1)
+        else : 
+            vb_Rate2_RefSwapMaturity_T1 = vb_Rate2_RefSwapMaturity_T2 = vb_PSFlag2 = sht_DiscCurve2 = None
+            vb_RefSwapNCPNOneYear2 = None
+            vb_RefRateUseFlag2 = None
+
+        if numc > 2 : 
+            vb_PSFlag3 = make_listvariable_interface(left_frame5, 'PowerSpread\n적용여부', ["0: 파워스프레드 적용안함","1: 파워스프레드 적용함"], bold = True, listheight = 3, textfont = 11, titlelable=True, titleName = "\n커브3\n기초금리3", defaultflag = True, defaultvalue = 0, pady = 1)
+            vb_RefSwapNCPNOneYear3 = make_listvariable_interface(left_frame5, '기초금리 연 쿠폰지급수', ["1","2","4","6"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue=2, pady = 1)
+            vb_Rate3_RefSwapMaturity_T1 = make_listvariable_interface(left_frame5, '기초금리3 만기1(년)', np.vectorize(lambda y : str(y))(np.arange(1, 201) * 0.25), listheight = 7, textfont = 11, titlelable=False, titleName = "\n커브3\n기초금리3",defaultflag = True, defaultvalue=19, bold = False, pady = 1)
+            vb_Rate3_RefSwapMaturity_T2 = make_listvariable_interface(left_frame5, '(PowerSpread금리)\n기초금리3 만기3(년)', np.vectorize(lambda y : str(y))(np.arange(1, 201) * 0.25), listheight = 7, textfont = 11,defaultflag = True, defaultvalue=0, bold = False, pady = 1)
+            sht_DiscCurve3 = AddVariableSheet(left_frame6, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = (list(ZeroTermList[2] if numc > 2 else ['']*10) + ['']* 10, list(ZeroRateList[2] if numc > 2 else ['']*10) + ['']* 10), VariableName = "ZeroCurve3", myfont = 12, anchor = 'w', padx = 5, pady = 1, sheet_width = 80, sheet_height = 30, titlelable= True, titleName = "\n커브3", MaxHeight=10)
+            sht_DiscCurve3.set_all_column_widths(width=50)
+            vb_RefRateUseFlag3 = make_listvariable_interface(left_frame6, '해당커브를 \n 기초금리로 사용', ["0: 사용안함","1: 사용"], bold = True, listheight = 3, textfont = 11, titlelable=False, titleName = "\n커브3\n기초금리3", defaultflag = True, defaultvalue = 0, pady = 1)
+
+        else : 
+            vb_Rate3_RefSwapMaturity_T1 = vb_Rate3_RefSwapMaturity_T2 = vb_PSFlag3 = sht_DiscCurve3 = None
+            vb_RefSwapNCPNOneYear3 = None
+            vb_RefRateUseFlag3 = None
+
+        def run_func() : 
+            PSFlag1 = int(str(vb_PSFlag1.get(vb_PSFlag1.curselection())).split(":")[0]) if vb_PSFlag1.curselection() else 0
+            DiscCvNum = int(str(vb_DiscCvNum.get(vb_DiscCvNum.curselection())).split(":")[0]) if vb_DiscCvNum.curselection() else 1
+            RefSwapNCPNOneYear1 = int(str(vb_RefSwapNCPNOneYear1.get(vb_RefSwapNCPNOneYear1.curselection()))) if vb_RefSwapNCPNOneYear1.curselection() else 4
+            RefRateUseFlag1 = int(str(vb_RefRateUseFlag1.get(vb_RefRateUseFlag1.curselection())).split(":")[0]) if vb_RefRateUseFlag1.curselection() else 1
+
+            DiscCurveIdx[0] = DiscCvNum
+            Rate1_RefSwapMaturity_T1 = float((vb_Rate1_RefSwapMaturity_T1.get(vb_Rate1_RefSwapMaturity_T1.curselection()))) if vb_Rate1_RefSwapMaturity_T1.curselection() else 0.25
+            Rate1_RefSwapMaturity_T2 = float((vb_Rate1_RefSwapMaturity_T2.get(vb_Rate1_RefSwapMaturity_T2.curselection()))) if vb_Rate1_RefSwapMaturity_T2.curselection() else 0.25
+            if numc > 1 : 
+                PSFlag2 = int(str(vb_PSFlag2.get(vb_PSFlag2.curselection())).split(":")[0]) if vb_PSFlag2.curselection() else 0
+                RefSwapNCPNOneYear2 = int(str(vb_RefSwapNCPNOneYear2.get(vb_RefSwapNCPNOneYear2.curselection()))) if vb_RefSwapNCPNOneYear2.curselection() else 4
+                RefRateUseFlag2 = int(str(vb_RefRateUseFlag2.get(vb_RefRateUseFlag2.curselection())).split(":")[0]) if vb_RefRateUseFlag2.curselection() else 0
+                Rate2_RefSwapMaturity_T1 = float((vb_Rate2_RefSwapMaturity_T1.get(vb_Rate2_RefSwapMaturity_T1.curselection()))) if vb_Rate2_RefSwapMaturity_T1.curselection() else 0.25
+                Rate2_RefSwapMaturity_T2 = float((vb_Rate2_RefSwapMaturity_T2.get(vb_Rate2_RefSwapMaturity_T2.curselection()))) if vb_Rate2_RefSwapMaturity_T2.curselection() else 0.25
+            else : 
+                PSFlag2 = 0
+                Rate2_RefSwapMaturity_T1 = 0.25
+                Rate2_RefSwapMaturity_T2 = 0.25
+                RefSwapNCPNOneYear2 = 4
+                RefRateUseFlag2 = 0
+
+            if numc > 2 : 
+                PSFlag3 = int(str(vb_PSFlag3.get(vb_PSFlag3.curselection())).split(":")[0]) if vb_PSFlag3.curselection() else 0
+                RefSwapNCPNOneYear3 = int(str(vb_RefSwapNCPNOneYear3.get(vb_RefSwapNCPNOneYear3.curselection()))) if vb_RefSwapNCPNOneYear3.curselection() else 4
+                RefRateUseFlag3 = int(str(vb_RefRateUseFlag3.get(vb_RefRateUseFlag3.curselection())).split(":")[0]) if vb_RefRateUseFlag3.curselection() else 0
+                Rate3_RefSwapMaturity_T1 = float((vb_Rate3_RefSwapMaturity_T1.get(vb_Rate3_RefSwapMaturity_T1.curselection()))) if vb_Rate3_RefSwapMaturity_T1.curselection() else 0.25
+                Rate3_RefSwapMaturity_T2 = float((vb_Rate3_RefSwapMaturity_T2.get(vb_Rate3_RefSwapMaturity_T2.curselection()))) if vb_Rate3_RefSwapMaturity_T2.curselection() else 0.25
+            else : 
+                PSFlag3 = 0
+                Rate3_RefSwapMaturity_T1 = 0.25
+                Rate3_RefSwapMaturity_T2 = 0.25
+                RefSwapNCPNOneYear3 = 4
+                RefRateUseFlag3 = 0
+            NCPNRefRate[0] = RefSwapNCPNOneYear1
+            NCPNRefRate[1] = RefSwapNCPNOneYear2
+            NCPNRefRate[2] = RefSwapNCPNOneYear3
+            PowerSpreadFlag[0] = PSFlag1
+            PowerSpreadFlag[1] = PSFlag2
+            PowerSpreadFlag[2] = PSFlag3
+            PowerSpreadMaturity[0] = Rate1_RefSwapMaturity_T1
+            PowerSpreadMaturity[1] = Rate1_RefSwapMaturity_T2
+            PowerSpreadMaturity[2] = Rate2_RefSwapMaturity_T1
+            PowerSpreadMaturity[3] = Rate2_RefSwapMaturity_T2
+            PowerSpreadMaturity[4] = Rate3_RefSwapMaturity_T1
+            PowerSpreadMaturity[5] = Rate3_RefSwapMaturity_T2
+            if RefRateUseFlag1 == 0 and RefRateUseFlag2 == 0 and RefRateUseFlag1 == 0 : 
+                RefRateCurveNum[1] = RefRateCurveNum[2] = RefRateCurveNum[3]
+            else : 
+                RefRateCurveNum[0] = 1 if RefRateUseFlag1 > 0 else -1
+                RefRateCurveNum[1] = 2 if RefRateUseFlag2 > 0 else -1
+                RefRateCurveNum[2] = 3 if RefRateUseFlag3 > 0 else -1
+
+            result_window.destroy()
+        tk.Button(left_frame, text = '레퍼런스금리 적용', padx = 10, pady = 10, font = ("맑은 고딕",12,'bold'), command = run_func, width = 15).pack()
+
+    def open_result_window(root):
+        # 새로운 결과창
+        result_window = tk.Toplevel(root)
+        result_window.title("MarketData")
+        result_window.geometry("1520x700+5+5")
+        result_window.resizable(False, False)
+
+        # ==========================================
+        # Scrollbar
+        # ==========================================
+
+        v_scroll = tk.Scrollbar(
+            result_window,
+            orient="vertical",
+            width=20
+        )
+        v_scroll.pack(side="right", fill="y")
+
+        h_scroll = tk.Scrollbar(
+            result_window,
+            orient="horizontal",
+            width=20
+        )
+        h_scroll.pack(side="bottom", fill="x")
+
+        canvas = tk.Canvas(
+            result_window,
+            yscrollcommand=v_scroll.set,
+            xscrollcommand=h_scroll.set
+        )
+
+        canvas.pack(
+            side="left",
+            fill="both",
+            expand=True
+        )
+
+        v_scroll.config(command=canvas.yview)
+        h_scroll.config(command=canvas.xview)
+
+        main_frame = tk.Frame(canvas)
+
+        canvas_window = canvas.create_window(
+            (0, 0),
+            window=main_frame,
+            anchor="nw"
+        )
+
+        # Frame 크기 변경 시 scroll 영역 갱신
+        def on_frame_configure(event):
+            canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+
+        main_frame.bind(
+            "<Configure>",
+            on_frame_configure
+        )
+
+        nindexs = 7
+        ncolumns = 3
+
+        left_frame = tk.Frame(main_frame)
+        left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
+        sht_DiscCurve1 = AddVariableSheet(left_frame, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = (list(ZeroTermList[0]) + ['']* 10, list(ZeroRateList[0]) + ['']* 10), VariableName = "ZeroCurve1", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 80, sheet_height = 30, titlelable= True, titleName = "MarketData1", MaxHeight=10)
+        sht_DiscCurve1.set_all_column_widths(width=50)
+
+        left_frame2 = tk.Frame(main_frame)
+        left_frame2.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
+        v_Kappa1 = make_variable_interface(left_frame2, 'kappa', bold = True, textfont = 11, defaultflag = True, defaultvalue=ResultDataList[0]["HWKappa"].iloc[0], titlelable= True, titleName = "MarketData1")
+        sht_HWVol1 = AddVariableSheet(left_frame2, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','HWVol','HWVol2F'], defaultvalues = (list(ResultDataList[0]["OptMat"].values) + ['']* 10, list(ResultDataList[0]["HWVol"].values) + ['']* 10, list(ResultDataList[0]["HWVol2F"].values) + ['']* 10), VariableName = "HWVol", myfont = 9, anchor = 'w', padx = 2, pady = 2, sheet_width = 85, sheet_height = 25, MaxHeight=10)
+        sht_HWVol1.set_all_column_widths(width=65)
+        v_Kappa1_2F = make_variable_interface(left_frame2, 'kappa2F', bold = True, textfont = 11, defaultflag = True, defaultvalue=ResultDataList[0]["HWKappa2F"].iloc[0])
+        v_Rho1 = make_variable_interface(left_frame2, 'Rho12F', bold = True, textfont = 11, defaultflag = True, defaultvalue=ResultDataList[0]["Rho"].iloc[0])
+        vb_QuantoUse1 = make_listvariable_interface(left_frame2, 'QuantoFlag', ["0: Quanto아님","1: Quanto맞음"], bold = True, listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 0)
+        v_Quanto1 = make_variable_interface(left_frame2, 'QuantoCorr', bold = True, textfont = 11, defaultflag = True, defaultvalue=0)
+        v_VXV1 = make_variable_interface(left_frame2, 'FXVol', bold = True, textfont = 11, defaultflag = True, defaultvalue=0.0)
+
+        left_frame3 = tk.Frame(main_frame)
+        left_frame3.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
+        sht_DiscCurve2 = AddVariableSheet(left_frame3, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = (list(ZeroTermList[1] if numc > 1 else ['']*10) + ['']* 10, list(ZeroRateList[1] if numc > 1 else ['']*10) + ['']* 10), VariableName = "ZeroCurve2", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 80, sheet_height = 30, titlelable= True, titleName = "MarketData2", MaxHeight=10)
+        sht_DiscCurve2.set_all_column_widths(width=50)
+
+        left_frame4 = tk.Frame(main_frame)
+        left_frame4.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
+        v_Kappa2 = make_variable_interface(left_frame4, 'kappa', bold = True, textfont = 11, defaultflag = True, defaultvalue=ResultDataList[1]["HWKappa"].iloc[0] if numc > 1 else 0.01, titlelable= True, titleName = "MarketData2")
+        sht_HWVol2 = AddVariableSheet(left_frame4, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','HWVol','HWVol2F'], defaultvalues = (list(ResultDataList[1]["OptMat"].values if numc > 1 else [''] * 10) + ['']* 10, list(ResultDataList[1]["HWVol"].values if numc > 1 else [''] * 10) + ['']* 10, list(ResultDataList[1]["HWVol2F"].values if numc > 1 else [''] * 10) + ['']* 10), VariableName = "HWVol", myfont = 9, anchor = 'w', padx = 2, pady = 2, sheet_width = 85, sheet_height = 25, MaxHeight=10)
+        sht_HWVol2.set_all_column_widths(width=65)
+        v_Kappa2_2F = make_variable_interface(left_frame4, 'kappa2F', bold = True, textfont = 11, defaultflag = True, defaultvalue=ResultDataList[1]["HWKappa2F"].iloc[0] if numc > 1 else 0.01)
+        v_Rho2 = make_variable_interface(left_frame4, 'Rho12F', bold = True, textfont = 11, defaultflag = True, defaultvalue=ResultDataList[1]["Rho"].iloc[0] if numc > 1 else 0.0)
+        vb_QuantoUse2 = make_listvariable_interface(left_frame4, 'QuantoFlag', ["0: Quanto아님","1: Quanto맞음"], bold = True, listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 0)
+        v_Quanto2 = make_variable_interface(left_frame4, 'QuantoCorr', bold = True, textfont = 11, defaultflag = True, defaultvalue=0.0)
+        v_VXV2 = make_variable_interface(left_frame4, 'FXVol', bold = True, textfont = 11, defaultflag = True, defaultvalue=0.0)
+
+        left_frame5 = tk.Frame(main_frame)
+        left_frame5.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
+        sht_DiscCurve3 = AddVariableSheet(left_frame5, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = (list(ZeroTermList[2] if numc > 2 else ['']*10) + ['']* 10, list(ZeroRateList[2] if numc > 2 else ['']*10) + ['']* 10), VariableName = "ZeroCurve3", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 80, sheet_height = 30, titlelable= True, titleName = "MarketData3", MaxHeight=10)
+        sht_DiscCurve3.set_all_column_widths(width=50)
+
+        left_frame6 = tk.Frame(main_frame)
+        left_frame6.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
+        v_Kappa3 = make_variable_interface(left_frame6, 'kappa', bold = True, textfont = 11, defaultflag = True, defaultvalue=ResultDataList[2]["HWKappa"].iloc[0] if numc > 2 else 0.01, titlelable= True, titleName = "MarketData3")
+        sht_HWVol3 = AddVariableSheet(left_frame6, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','HWVol',"HWVol2F"], defaultvalues = (list(ResultDataList[2]["OptMat"].values if numc > 2 else [''] * 10) + ['']* 10, list(ResultDataList[2]["HWVol"].values if numc > 2 else [''] * 10) + ['']* 10, list(ResultDataList[2]["HWVol2F"].values if numc > 2 else [''] * 10) + ['']* 10), VariableName = "HWVol", myfont = 9, anchor = 'w', padx = 2, pady = 2, sheet_width = 85, sheet_height = 25, MaxHeight=10)
+        sht_HWVol3.set_all_column_widths(width=65)
+        v_Kappa3_2F = make_variable_interface(left_frame6, 'kappa', bold = True, textfont = 11, defaultflag = True, defaultvalue=ResultDataList[2]["HWKappa2F"].iloc[0] if numc > 2 else 0.01)
+        v_Rho3 = make_variable_interface(left_frame6, 'Rho12F', bold = True, textfont = 11, defaultflag = True, defaultvalue=ResultDataList[2]["Rho"].iloc[0] if numc > 2 else 0.0)
+        vb_QuantoUse3 = make_listvariable_interface(left_frame6, 'QuantoFlag', ["0: Quanto아님","1: Quanto맞음"], bold = True, listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 0)
+        v_Quanto3 = make_variable_interface(left_frame6, 'QuantoCorr', bold = True, textfont = 11, defaultflag = True, defaultvalue=0)
+        v_VXV3 = make_variable_interface(left_frame6, 'FXVol', bold = True, textfont = 11, defaultflag = True, defaultvalue=0.0)
+
+        left_frame7 = tk.Frame(main_frame)
+        left_frame7.pack(side = 'left', padx = 2, pady = 5, anchor = 'n')        
+        sht_CurveCorr = AddVariableSheet(left_frame7, nindexs = 3, ncolumns= 3,targetcolumns = ['커브1','커브2','커브3'], defaultvalues = CurveCorr, VariableName = "CurveCorr", myfont = 10, anchor = 'w', padx = 5, pady = 2, sheet_width = 80, sheet_height = 60, titlelable= True, titleName = "CurveCorr", MaxHeight=10)
+        sht_CurveCorr.set_all_column_widths(width=45)
+
+        ResultFrame = tk.Frame(main_frame)
+        ResultFrame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
+        def run_func() : 
+            HWV1 = HWV2 = HWV3 = pd.DataFrame([])
+            DiscCurve1 = get_from_sheetinterface(sht_DiscCurve1)
+            DiscCurve1["Term"] = DiscCurve1["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+            DiscCurve1["Rate"] = DiscCurve1["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+            ZeroTerm1 = list(DiscCurve1["Term"].values)
+
+            Curve_Correlation = get_from_sheetinterface(sht_CurveCorr)
+            
+            for i1 in range(3) : 
+                for i2 in range(3) : 
+                    if i1 != i2 : 
+                        vstr = Curve_Correlation.values[i1][i2]
+                        CurveCorrArr[i1][i2] = float(vstr)
+
+            QuantoUse1 = int(str(vb_QuantoUse1.get(vb_QuantoUse1.curselection())).split(":")[0]) if vb_QuantoUse1.curselection() else 0
+            QuantoUse2 = int(str(vb_QuantoUse2.get(vb_QuantoUse2.curselection())).split(":")[0]) if vb_QuantoUse2.curselection() else 0
+            QuantoUse3 = int(str(vb_QuantoUse3.get(vb_QuantoUse3.curselection())).split(":")[0]) if vb_QuantoUse3.curselection() else 0
+            QuantoUseFlag[0] = QuantoUse1
+            QuantoUseFlag[1] = QuantoUse2
+            QuantoUseFlag[2] = QuantoUse3
+            Quanto1 = float(v_Quanto1.get()) if len(str(v_Quanto1.get())) > 0 else 0.0
+            Quanto2 = float(v_Quanto2.get()) if len(str(v_Quanto2.get())) > 0 else 0.0
+            Quanto3 = float(v_Quanto3.get()) if len(str(v_Quanto3.get())) > 0 else 0.0
+            QuantoCorr[0] = Quanto1
+            QuantoCorr[1] = Quanto2
+            QuantoCorr[2] = Quanto3
+            QuantoVol1 = float(v_VXV1.get()) if len(str(v_VXV1.get())) > 0 else 0.0
+            QuantoVol2 = float(v_VXV2.get()) if len(str(v_VXV2.get())) > 0 else 0.0
+            QuantoVol3 = float(v_VXV3.get()) if len(str(v_VXV3.get())) > 0 else 0.0
+            QuantoFXVol[0] = QuantoVol1
+            QuantoFXVol[1] = QuantoVol2
+            QuantoFXVol[2] = QuantoVol3
+
+            mx1 = np.abs(DiscCurve1["Rate"].values).max()
+            ZeroRate1 = list(DiscCurve1["Rate"].values/100 if mx1 > 0.3 else DiscCurve1["Rate"].values)
+            Kappa1 = float(v_Kappa1.get()) if len(str(v_Kappa1.get())) > 0 else 0.01
+            Kappa1_2F = float(v_Kappa1_2F.get()) if len(str(v_Kappa1_2F.get())) > 0 else 0.01
+            Rho1 = float(v_Rho1.get()) if len(str(v_Rho1.get())) > 0 else 0.0
+            ZeroTermList[0] = ZeroTerm1
+            ZeroRateList[0] = ZeroRate1
+            HWV1 = get_from_sheetinterface(sht_HWVol1)
+            HWV1["OptMat"] = HWV1["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+            HWV1["HWVol"] = HWV1["HWVol"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+            HWV1["HWVol2F"] = HWV1["HWVol2F"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+            HWVAvg = HWV1["HWVol"].values.mean()
+            if HWVAvg > 0.2 : 
+                HWV1["HWVol"] = HWV1["HWVol"].values.astype(np.float64)/100
+                HWV1["HWVol2F"] = HWV1["HWVol2F"].values.astype(np.float64)/100
+            else : 
+                HWV1["HWVol"] = HWV1["HWVol"].values.astype(np.float64)
+                HWV1["HWVol2F"] = HWV1["HWVol2F"].values.astype(np.float64)
+            HWV1['HWKappa'] = Kappa1
+            HWV1['HWKappa2F'] = Kappa1_2F
+            HWV1['Rho'] = Rho1
+            ResultDataList[0] = HWV1
+
+            if numc > 1 : 
+                DiscCurve2 = get_from_sheetinterface(sht_DiscCurve2)
+                DiscCurve2["Term"] = DiscCurve2["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+                DiscCurve2["Rate"] = DiscCurve2["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+                ZeroTerm2 = list(DiscCurve2["Term"].values)
+                mx2 = np.abs(DiscCurve2["Rate"].values).max()
+                ZeroRate2 = list(DiscCurve2["Rate"].values/100 if mx2 > 0.3 else DiscCurve2["Rate"].values)
+                Kappa2 = float(v_Kappa2.get()) if len(str(v_Kappa2.get())) > 0 else 0.01
+                Kappa2_2F = float(v_Kappa2_2F.get()) if len(str(v_Kappa2_2F.get())) > 0 else 0.01
+                Rho2 = float(v_Rho2.get()) if len(str(v_Rho2.get())) > 0 else 0.0
+                ZeroTermList[1] = ZeroTerm2
+                ZeroRateList[1] = ZeroRate2
+                HWV2 = get_from_sheetinterface(sht_HWVol2)
+                HWV2["OptMat"] = HWV2["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+                HWV2["HWVol"] = HWV2["HWVol"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+                HWV2["HWVol2F"] = HWV2["HWVol2F"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+                HWVAvg = HWV2["HWVol"].values.mean()
+                if HWVAvg > 0.2 : 
+                    HWV2["HWVol"] = HWV2["HWVol"].values.astype(np.float64)/100
+                    HWV2["HWVol2F"] = HWV2["HWVol2F"].values.astype(np.float64)/100
+                else : 
+                    HWV2["HWVol"] = HWV2["HWVol"].values.astype(np.float64)
+                    HWV2["HWVol2F"] = HWV2["HWVol2F"].values.astype(np.float64)
+                HWV2['HWKappa'] = Kappa2
+                HWV2['HWKappa2F'] = Kappa2_2F
+                HWV2['Rho'] = Rho2            
+                ResultDataList[1] = HWV2
+
+            if numc > 2 : 
+                DiscCurve3 = get_from_sheetinterface(sht_DiscCurve3)
+                DiscCurve3["Term"] = DiscCurve3["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+                DiscCurve3["Rate"] = DiscCurve3["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+                ZeroTerm3 = list(DiscCurve3["Term"].values)
+                mx3 = np.abs(DiscCurve3["Rate"].values).max()
+                ZeroRate3 = list(DiscCurve3["Rate"].values/100 if mx3 > 0.3 else DiscCurve3["Rate"].values)
+                Kappa3 = float(v_Kappa3.get()) if len(str(v_Kappa3.get())) > 0 else 0.01
+                Kappa3_2F = float(v_Kappa3_2F.get()) if len(str(v_Kappa3_2F.get())) > 0 else 0.01
+                Rho3 = float(v_Rho3.get()) if len(str(v_Rho3.get())) > 0 else 0.0
+                ZeroTermList[2] = ZeroTerm3
+                ZeroRateList[2] = ZeroRate3
+                HWV3 = get_from_sheetinterface(sht_HWVol3)
+                HWV3["OptMat"] = HWV3["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+                HWV3["HWVol"] = HWV3["HWVol"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+                HWV3["HWVol2F"] = HWV3["HWVol2F"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+                HWVAvg = HWV3["HWVol"].values.mean()
+                if HWVAvg > 0.2 : 
+                    HWV3["HWVol"] = HWV3["HWVol"].values.astype(np.float64)/100
+                    HWV3["HWVol2F"] = HWV3["HWVol2F"].values.astype(np.float64)/100
+                else : 
+                    HWV3["HWVol"] = HWV3["HWVol"].values.astype(np.float64)
+                    HWV3["HWVol2F"] = HWV3["HWVol2F"].values.astype(np.float64)
+                HWV3['HWKappa'] = Kappa3
+                HWV3['HWKappa2F'] = Kappa3_2F
+                HWV3['Rho'] = Rho3            
+                ResultDataList[2] = HWV3
+            result_window.destroy()
+        tk.Button(left_frame, text = '마켓데이터 적용', padx = 10, pady = 10, font = ("맑은 고딕",12,'bold'), command = run_func, width = 15).pack()
+                                
+    RefRateMultipleList = [str(n) + ' : R x ' + str(i) + '배 페이오프' for n, i in enumerate(np.arange(0,50,0.25))] + [str(-n) + ' : R x ' + str(-i) + '배 페이오프' for n, i in enumerate(np.arange(0,50,0.25))][1:]
+
+    VBAString = '''
+                Public Declare PtrSafe Function Pricing_IRPhaseStructuredSwap Lib "IRPhaseStructuredSwap.dll" ( _
+                    ByVal PriceDateExcel As Long, ByVal NAFlag As Long, ByVal Notional As Double, ByRef PayoffStructure As Long, ByRef HolidayFlagCount As Long, ByRef Holidays_Excel As Long, _
+                    ByRef RcvFlag As Long, ByRef RcvMaxLossReturn As Double, ByRef RcvRefCurveNumber As Long, ByRef RcvRefRateType As Long, ByRef RcvSwapInfo As Double, ByRef RcvDayCountFlag As Long, ByRef RcvRefCondMultiple As Double, ByRef RcvRefPowerSpreadFlag As Long, ByRef RcvRefPowerSpreadMat As Double, ByRef RcvRefRange As Double, ByRef RcvPayoffMultiple As Double, ByVal NRcvCashFlow As Long, ByRef RcvCashFlowScheduleExcelDate As Long, ByRef RcvCouponFixRate As Double, _
+                    ByRef PayFlag As Long, ByRef PayMaxLossReturn As Double, ByRef PayRefCurveNumber As Long, ByRef PayRefRateType As Long, ByRef PaySwapInfo As Double, ByRef PayDayCountFlag As Long, ByRef PayRefCondMultiple As Double, ByRef PayRefPowerSpreadFlag As Long, ByRef PayRefPowerSpreadMat As Double, ByRef PayRefRange As Double, ByRef PayPayoffMultiple As Double, ByVal NPayCashFlow As Long, ByRef PayCashFlowScheduleExcelDate As Long, ByRef PayCouponFixRate As Double, _
+                    ByRef NHWVolCount As Long, ByRef HWVolTermArray As Double, ByRef HWVolArray As Double, ByRef HWKappaArray As Double, ByRef NZeroRate As Long, ByRef ZeroTerm As Double, ByRef ZeroRate As Double, _
+                    ByRef Corr As Double, ByRef NDayHistRcv As Long, ByRefRateHistDateRcv As Long, ByRef RateHistRcv As Double, ByRef NDayHistPay As Long, ByRef RateHistDatePay As Long, ByRef RateHistPay As Double, _
+                    ByVal NSimul As Long, ByRef GreekTextFlag As Long, ByVal NOption As Long, ByRef OptionDateAndFlag As Long, ByRef OptionKAndRange As Double, ByRef ResultPrice As Double, ByRef ResultRcv As Double, _
+                    ByRef ResultPay As Double, ByVal HWFactorFlag As Long, ByRef HWVolArray2 As Double, ByRef HWQuantoInfo As Double, ByVal Error As String _
+                ) As Long    
+                '''
+    CalcFunc, VariablesFormat, VariableNames = ConvertPythonFormatfromVBAformat(VBAString)
+    #pd.DataFrame(VariablesFormat).to_excel("변수.xlsx")
+    root, v_scroll, h_scroll, canvas, main_frame, canvas_window = interface_basic_settings('Structured Swap HW Simulation')
+    YYYY = int(today_YYYYMMDD) // 10000
+
+    left_frame = tk.Frame(main_frame)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_Nominal = make_variable_interface(left_frame, 'Nominal Amount', bold = True, textfont = 11, defaultflag = True, defaultvalue=10000)
+    v_PriceDate = make_variable_interface(left_frame, 'PriceDate', bold = True, textfont = 11, defaultflag = True, defaultvalue=today_YYYYMMDD)
+    vb_NAFlag = make_listvariable_interface(left_frame, 'NA/BOND Flag', ["0: NA교환안함","1: NA교환함"], bold = True, listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0)
+
+    left_frame1 = tk.Frame(main_frame)
+    left_frame1.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
+    sht_Leg1ScheduleInfo = AddVariableSheet(left_frame1, nindexs = 10, ncolumns= 8,targetcolumns = ["Reset Start","Reset End","기산일","기말일","지급일","고정쿠폰(%)","구조화금리적용","RangeCpn"], defaultvalues = (StartSchedule + ['']* 50, EndSchedule+ ['']* 50, StartSchedule+ ['']* 50, EndSchedule+ ['']* 50, EndSchedule+ ['']* 50, FixedCpnRate2+ ['']* 50,Multiple+ ['']* 50, [''] * len(Multiple2) + ['']* 50), VariableName = "Leg1 스케줄", myfont = 11, anchor = 'w', padx = 5, pady = 2, sheet_width = 95, sheet_height = 40, MaxHeight=20, headerfont= 9)
+    sht_Leg1ScheduleInfo.set_all_column_widths(width=90)
+
+    left_frame2 = tk.Frame(main_frame)
+    left_frame2.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
+
+    vb_L1_DayCount = make_listvariable_interface(left_frame2, 'DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360","5: Cmp ACT/365","6: Cmp ACT/360","7: Cmp ACT/ACT","8: Cmp 30/360"], listheight = 3, textfont = 11, titlelable=True, titleName="Leg1 Information",defaultflag = True, defaultvalue=0, pady = 1)
+    vb_L1_RAFlag = make_listvariable_interface(left_frame2, 'RangeAccrual Flag', ["0: 미사용","1: RangeAccrual","-1: Average금리"], bold = True, listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0)
+
+    run_button2 = tk.Button(
+        left_frame2,
+        text="레퍼런스 금리 \n 선택 및 입력",
+        command=lambda: open_powerspread_window(root, PowerSpreadFlag_L1, PowerSpreadMaturity_L1, DiscCurveIdx_L1, NCPNRefRate_L1, RefRateCurveNum_L1, RefRateNum = 1),
+        font = ("맑은 고딕",12,'bold')
+    )
+        
+    v_L1_RCap = make_variable_interface(left_frame2, '기초금리RangeCap(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =100, pady = 1)
+    v_L1_RFloor = make_variable_interface(left_frame2, '기초금리RangeFloor(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =-100, pady = 1)
+    v_L1_RangeMultiple = make_variable_interface(left_frame2, '금리Range조건Multiple', bold = False, textfont = 11, defaultflag = True, defaultvalue =0, pady = 1)
+    v_L1_PayoffMultiple = make_listvariable_interface(left_frame2, '금리PayoffMultiple', RefRateMultipleList, listheight = 5, textfont = 11,defaultflag = True, defaultvalue=4, bold = False, pady = 1, width= 23)
+
+    #
+    left_frame4 = tk.Frame(main_frame)
+    left_frame4.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
+    sht_Leg2ScheduleInfo = AddVariableSheet(left_frame4, nindexs = 10, ncolumns= 8,targetcolumns = ["Reset Start","Reset End","기산일","기말일","지급일","고정쿠폰(%)","구조화금리적용","RangeCpn"], defaultvalues = (StartSchedule + ['']* 50, EndSchedule+ ['']* 50, StartSchedule+ ['']* 50, EndSchedule+ ['']* 50, EndSchedule+ ['']* 50, FixedCpnRate+ ['']* 50,Multiple2+ ['']* 50, [''] * len(Multiple2) + ['']* 50), VariableName = "Leg2 스케줄", myfont = 11, anchor = 'w', padx = 5, pady = 2, sheet_width = 95, sheet_height = 40, MaxHeight=20, headerfont= 9)
+    sht_Leg2ScheduleInfo.set_all_column_widths(width=90)
+
+    left_frame5 = tk.Frame(main_frame)
+    left_frame5.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
+    vb_L2_DayCount = make_listvariable_interface(left_frame5, 'DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360","5: Cmp ACT/365","6: Cmp ACT/360","7: Cmp ACT/ACT","8: Cmp 30/360"], listheight = 3, textfont = 11, titlelable=True, titleName="Leg2 Information", defaultflag = True, defaultvalue=0, pady = 1)
+    vb_L2_RAFlag = make_listvariable_interface(left_frame5, 'RangeAccrual Flag', ["0: 미사용","1: RangeAccrual","-1: Average금리"], bold = True, listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0)
+
+    run_button3 = tk.Button(
+        left_frame5,
+        text="레퍼런스 금리 \n 선택 및 입력",
+        command=lambda: open_powerspread_window(root, PowerSpreadFlag_L2, PowerSpreadMaturity_L2, DiscCurveIdx_L2, NCPNRefRate_L2, RefRateCurveNum_L2, RefRateNum = 2),
+        font = ("맑은 고딕",12,'bold')
+    )    
+
+    v_L2_RCap = make_variable_interface(left_frame5, '기초금리RangeCap(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =100, pady = 1)
+    v_L2_RFloor = make_variable_interface(left_frame5, '기초금리RangeFloor(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =-100, pady = 1)
+    v_L2_RangeMultiple = make_variable_interface(left_frame5, '금리Range조건Multiple', bold = False, textfont = 11, defaultflag = True, defaultvalue =1, pady = 1)
+    v_L2_PayoffMultiple = make_listvariable_interface(left_frame5, '금리PayoffMultiple', RefRateMultipleList, listheight = 5, textfont = 11,defaultflag = True, defaultvalue=0, bold = False, pady = 1, width= 23)
+
+    left_frame8 = tk.Frame(main_frame)
+    left_frame8.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
+    DefaultTermHistory = [TimestampToYYYYMMDD(today + pd.DateOffset(days = -i)) for i in range(200) ][::-1]
+    mycol = ["Date","Rate(Leg1)","Rate(Leg2)"] if numc == 1 else (["Date","Rate1(Leg1)","Rate1(Leg2)","Rate2(Leg1)","Rate2(Leg2)"] if numc == 2 else ["Date","Rate1(Leg1)","Rate1(Leg2)","Rate2(Leg1)","Rate2(Leg2)","Rate3(Leg1)","Rate3(Leg2)"])
+    defaultvaluesHistoryLeg12 = (DefaultTermHistory, [3.5115] * len(DefaultTermHistory), [3.5115] * len(DefaultTermHistory)) if numc == 1 else ((DefaultTermHistory, [3.5115] * len(DefaultTermHistory), [3.5115] * len(DefaultTermHistory), [3.5115] * len(DefaultTermHistory), [3.5115] * len(DefaultTermHistory)) if numc == 2 else (DefaultTermHistory, [3.5115] * len(DefaultTermHistory), [3.5115] * len(DefaultTermHistory), [3.5115] * len(DefaultTermHistory), [3.5115] * len(DefaultTermHistory), [3.5115] * len(DefaultTermHistory), [3.5115] * len(DefaultTermHistory)))
+    
+    RefRateHistory = AddVariableSheet(left_frame8, nindexs = len(DefaultTermHistory), ncolumns= 3,targetcolumns = mycol, defaultvalues = defaultvaluesHistoryLeg12, VariableName = "기초금리픽싱History", myfont = 9, anchor = 'w', padx = 4, pady = 2, sheet_width = 100, sheet_height = 100, MaxHeight=20)
+    RefRateHistory.set_all_column_widths(width=85)
+
+    left_frame9 = tk.Frame(main_frame)
+    left_frame9.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
+    OptStartDate =[TimestampToYYYYMMDD(i) for i in MakeSchedule(today_YYYYMMDD, today_YYYYMMDD + 40000, 12)[1:]]
+
+    vb_OptionFlag = make_listvariable_interface(left_frame9, '옵션보유자', ["0 : Leg1이 옵션보유"," 1: Leg2이 옵션보유"], listheight = 2, textfont = 11, defaultflag = True, defaultvalue=0, pady = 1)
+    sht_OptScheduleInfo = AddVariableSheet(left_frame9, nindexs = len(OptStartDate) + 50, ncolumns= 1,targetcolumns = ["옵션행사일"], defaultvalues = (OptStartDate + ['']* 50, ), VariableName = "OptionDate", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 120, sheet_height = 40, MaxHeight=20, headerfont= 9)
+    sht_OptScheduleInfo.set_all_column_widths(width=90)
+
+    Result_frame = tk.Frame(main_frame)
+    Result_frame.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
+    vb_HW2FFlag = make_listvariable_interface(Result_frame, 'HW2F Flag', ["0: 1F","1: 2F"], bold = True, listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 0)
+    vb_GreekFlag = make_listvariable_interface(Result_frame, 'Greek 산출여부', ["0: Greek산출안함","1: Greek산출"], bold = True, listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 1)
+    vb_TextFlag = make_listvariable_interface(Result_frame, 'LOGGING 산출여부', ["0: Logging안함","1: Logging"], bold = True, listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 0)
+
+    PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
+    ResultValue = pd.DataFrame([])
+    ResultValue2 = pd.DataFrame([])
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2, ResultValue, ResultValue2]
+    PayoffStructure = np.array([0,0], dtype = np.int64)
+    def run_function(MyArrays) : 
+        PrevTreeFlag = MyArrays[0] 
+        tree = MyArrays[1] 
+        scrollbar = MyArrays[2]
+        scrollbar2 = MyArrays[3]  
+        ResultValue = MyArrays[4]
+        ResultValue2 = MyArrays[5]
+        CorrMatrix = np.identity(4, dtype = np.float64)
+        for iy in range(CurveCorrArr.shape[0]) : 
+            for ix in range(CurveCorrArr.shape[1]) : 
+                CorrMatrix[iy][ix] = CurveCorrArr[iy][ix]
+        CorrMatrixReshaped = CorrMatrix.reshape(-1)
+        splitfunc = lambda mystr : float(mystr[mystr.index('x')+1:mystr.index('배')].replace(" ",""))        
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else today_YYYYMMDD
+        NominalFlag = int(str(vb_NAFlag.get(vb_NAFlag.curselection())).split(":")[0]) if vb_NAFlag.curselection() else 0
+        GreekFlag = int(str(vb_GreekFlag.get(vb_GreekFlag.curselection())).split(":")[0]) if vb_GreekFlag.curselection() else 0
+        TextFlag = int(str(vb_TextFlag.get(vb_TextFlag.curselection())).split(":")[0]) if vb_TextFlag.curselection() else 0
+        Nominal = float(v_Nominal.get()) if len(str(v_Nominal.get())) > 0 else 10000
+        HW2FFlag = int(str(vb_HW2FFlag.get(vb_HW2FFlag.curselection())).split(":")[0]) if vb_HW2FFlag.curselection() else 0
+
+        HolidayFlagCount = np.array([0,0,0,0,0,0,
+                                     1,1,1,1,1,1], dtype = np.int64)
+        NHolidays = 6
+        Holidays = np.array([19000101,19000101,19000101,19000101,19000101,19000101], dtype = np.int64)
+
+        #L1, Leg1
+        L1_RangeAccrualFlag = int(str(vb_L1_RAFlag.get(vb_L1_RAFlag.curselection())).split(":")[0]) if vb_L1_RAFlag.curselection() else 0
+        L1_DayCount = int(str(vb_L1_DayCount.get(vb_L1_DayCount.curselection())).split(":")[0]) if vb_L1_DayCount.curselection() else 0
+        
+        L1_RCap = float(v_L1_RCap.get()) if len(str(v_L1_RCap.get())) > 0 else 10000
+        L1_RFloor = float(v_L1_RFloor.get()) if len(str(v_L1_RFloor.get())) > 0 else -10000
+        L1_RangeMultiple = float(v_L1_RangeMultiple.get()) if len(str(v_L1_RangeMultiple.get())) > 0 else 0
+        L1_PayoffMultiple = splitfunc(str(v_L1_PayoffMultiple.get(v_L1_PayoffMultiple.curselection())).split(":")[1]) if v_L1_PayoffMultiple.curselection() else 0
+
+        ScheduleDF_Leg1 = get_from_sheetinterface(sht_Leg1ScheduleInfo)
+        if ScheduleDF_Leg1['기산일'].apply(lambda x : x == '').sum() == len(ScheduleDF_Leg1) : 
+            ScheduleDF_Leg1['기산일'] = ScheduleDF_Leg1['Reset Start']
+        if ScheduleDF_Leg1['기말일'].apply(lambda x : x == '').sum() == len(ScheduleDF_Leg1) : 
+            ScheduleDF_Leg1['기말일'] = ScheduleDF_Leg1['Reset End']
+        ScheduleDF_Leg1["고정쿠폰(%)"] = ScheduleDF_Leg1["고정쿠폰(%)"].apply(lambda x : 0 if str(x) == '' or 'nan' in str(x).lower() else x)
+        ScheduleDF_Leg1["구조화금리적용"] = ScheduleDF_Leg1["구조화금리적용"].apply(lambda x : 0 if str(x) == '' or 'nan' in str(x).lower() else x)
+        ScheduleDF_Leg1["RangeCpn"] = ScheduleDF_Leg1["RangeCpn"].apply(lambda x : 0 if str(x) == '' or 'nan' in str(x).lower() else x)
+
+        ScheduleData_Leg1 = ScheduleDF_Leg1[["Reset Start","Reset End","기산일","기말일","지급일"]]
+        PaymentDate_Leg1 = ScheduleData_Leg1['지급일'].values
+        NCF_Leg1 = len(ScheduleData_Leg1)
+        Schedule_Leg1 = ScheduleData_Leg1.T.values.astype(np.int64).reshape(-1)
+        CPN_Leg1 = ScheduleDF_Leg1["고정쿠폰(%)"].astype(np.float64).values/100
+        StructuredSlope_Leg1 = ScheduleDF_Leg1["구조화금리적용"].astype(np.float64).values
+        RangeCpn_Leg1 = ScheduleDF_Leg1["RangeCpn"].astype(np.float64).values/100
+        CouponFixRate_Leg1 = np.array(list(CPN_Leg1) + list(StructuredSlope_Leg1) + list(RangeCpn_Leg1), dtype = np.float64)
+        L1_UsingCurveNum = np.array(RefRateCurveNum_L1)[np.array(RefRateCurveNum_L1) > 0 ]
+        L1_NRefRateCurve = len(L1_UsingCurveNum)
+        L1_FloatFlag = (ScheduleDF_Leg1["구조화금리적용"].astype(np.float64).values != 0).sum() > 0
+        L1_MaxLoss = 100
+        L1_MaxRet = 100
+        L1_Flag_Ary = np.array([L1_NRefRateCurve, L1_FloatFlag, L1_RangeAccrualFlag, 0], dtype = np.int64)
+        L1_MaxLossReturn_Ary = np.array([L1_MaxLoss, L1_MaxRet], dtype = np.float64)
+        L1_RefCurveNumber_List = []
+        L1_RefRateType_List = []
+        L1_SwapInfo_List = []
+        L1_DayCount_Ary = np.array([L1_DayCount, L1_DayCount, L1_DayCount, L1_DayCount],dtype = np.int64)
+        L1_RefCondMultiple_Ary = np.array([L1_RangeMultiple, L1_RangeMultiple, L1_RangeMultiple], dtype = np.float64)
+        L1_RefPowerSpreadFlag_List = []
+        L1_RefPowerSpreadMat_List = []
+        L1_RefRange_Ary = np.array([L1_RCap, L1_RFloor, L1_RCap, L1_RFloor, L1_RCap, L1_RFloor], dtype = np.float64)
+        L1_PayoffMultiple_Ary = np.array([L1_PayoffMultiple, L1_PayoffMultiple, L1_PayoffMultiple])
+        for i in range(4) :
+            L1_RefRateType_List.append(1)
+            if i > len(L1_UsingCurveNum) - 1 : 
+                L1_RefCurveNumber_List.append(L1_RefCurveNumber_List[i-1])
+            else : 
+                L1_RefCurveNumber_List.append(L1_UsingCurveNum[i])
+            if i == 3 : 
+                L1_RefCurveNumber_List.append(DiscCurveIdx_L1[0])
+        L1_RefCurveNumber = np.array(L1_RefCurveNumber_List, dtype = np.int64)        
+        
+        for i in range(3) : 
+            idx = int(L1_RefCurveNumber[i]-1)
+            NCPN = NCPNRefRate_L1[idx]
+            T1 = PowerSpreadMaturity_L1[idx * i]
+            T2 = PowerSpreadMaturity_L1[idx * i + 1]
+            PS01 = PowerSpreadFlag_L1[idx]
+            L1_SwapInfo_List.append(NCPN)
+            L1_SwapInfo_List.append(T1)
+            L1_RefPowerSpreadFlag_List.append(PS01)
+            L1_RefPowerSpreadMat_List.append(T1)
+            L1_RefPowerSpreadMat_List.append(T2)
+
+        #L2, Leg2
+        L2_RangeAccrualFlag = int(str(vb_L2_RAFlag.get(vb_L2_RAFlag.curselection())).split(":")[0]) if vb_L2_RAFlag.curselection() else 0
+        L2_DayCount = int(str(vb_L2_DayCount.get(vb_L2_DayCount.curselection())).split(":")[0]) if vb_L2_DayCount.curselection() else 0
+        
+        L2_RCap = float(v_L2_RCap.get()) if len(str(v_L2_RCap.get())) > 0 else 10000
+        L2_RFloor = float(v_L2_RFloor.get()) if len(str(v_L2_RFloor.get())) > 0 else -10000
+        L2_RangeMultiple = float(v_L2_RangeMultiple.get()) if len(str(v_L2_RangeMultiple.get())) > 0 else 0
+        L2_PayoffMultiple = splitfunc(str(v_L2_PayoffMultiple.get(v_L2_PayoffMultiple.curselection())).split(":")[1]) if v_L2_PayoffMultiple.curselection() else 0
+
+        ScheduleDF_Leg2 = get_from_sheetinterface(sht_Leg2ScheduleInfo)
+        if ScheduleDF_Leg2['기산일'].apply(lambda x : x == '').sum() == len(ScheduleDF_Leg2) : 
+            ScheduleDF_Leg2['기산일'] = ScheduleDF_Leg2['Reset Start']
+        if ScheduleDF_Leg2['기말일'].apply(lambda x : x == '').sum() == len(ScheduleDF_Leg2) : 
+            ScheduleDF_Leg2['기말일'] = ScheduleDF_Leg2['Reset End']
+        ScheduleDF_Leg2["고정쿠폰(%)"] = ScheduleDF_Leg2["고정쿠폰(%)"].apply(lambda x : 0 if str(x) == '' or 'nan' in str(x).lower() else x)
+        ScheduleDF_Leg2["구조화금리적용"] = ScheduleDF_Leg2["구조화금리적용"].apply(lambda x : 0 if str(x) == '' or 'nan' in str(x).lower() else x)
+        ScheduleDF_Leg2["RangeCpn"] = ScheduleDF_Leg2["RangeCpn"].apply(lambda x : 0 if str(x) == '' or 'nan' in str(x).lower() else x)
+
+        ScheduleData_Leg2 = ScheduleDF_Leg2[["Reset Start","Reset End","기산일","기말일","지급일"]]
+        PaymentDate_Leg2 = ScheduleData_Leg2['지급일'].values
+        NCF_Leg2 = len(ScheduleData_Leg2)
+        Schedule_Leg2 = ScheduleData_Leg2.T.values.astype(np.int64).reshape(-1)
+        CPN_Leg2 = ScheduleDF_Leg2["고정쿠폰(%)"].astype(np.float64).values/100
+        StructuredSlope_Leg2 = ScheduleDF_Leg2["구조화금리적용"].astype(np.float64).values
+        RangeCpn_Leg2 = ScheduleDF_Leg2["RangeCpn"].astype(np.float64).values/100
+        CouponFixRate_Leg2 = np.array(list(CPN_Leg2) + list(StructuredSlope_Leg2) + list(RangeCpn_Leg2), dtype = np.float64)
+        L2_UsingCurveNum = np.array(RefRateCurveNum_L2)[np.array(RefRateCurveNum_L2) > 0 ]
+        L2_NRefRateCurve = len(L2_UsingCurveNum)
+        L2_FloatFlag = (ScheduleDF_Leg2["구조화금리적용"].astype(np.float64).values != 0).sum() > 0
+        L2_MaxLoss = 100
+        L2_MaxRet = 100
+        L2_Flag_Ary = np.array([L2_NRefRateCurve, L2_FloatFlag, L2_RangeAccrualFlag, 0], dtype = np.int64)
+        L2_MaxLossReturn_Ary = np.array([L2_MaxLoss, L2_MaxRet], dtype = np.float64)
+        L2_RefCurveNumber_List = []
+        L2_RefRateType_List = []
+        L2_SwapInfo_List = []
+        L2_DayCount_Ary = np.array([L2_DayCount, L2_DayCount, L2_DayCount, L2_DayCount],dtype = np.int64)
+        L2_RefCondMultiple_Ary = np.array([L2_RangeMultiple, L2_RangeMultiple, L2_RangeMultiple], dtype = np.float64)
+        L2_RefPowerSpreadFlag_List = []
+        L2_RefPowerSpreadMat_List = []
+        L2_RefRange_Ary = np.array([L2_RCap, L2_RFloor, L2_RCap, L2_RFloor, L2_RCap, L2_RFloor], dtype = np.float64)
+        L2_PayoffMultiple_Ary = np.array([L2_PayoffMultiple, L2_PayoffMultiple, L2_PayoffMultiple])
+        for i in range(4) :
+            L2_RefRateType_List.append(1)
+            if i > len(L2_UsingCurveNum) - 1 : 
+                L2_RefCurveNumber_List.append(L2_RefCurveNumber_List[i-1])
+            else : 
+                L2_RefCurveNumber_List.append(L2_UsingCurveNum[i])
+            if i == 3 : 
+                L2_RefCurveNumber_List.append(DiscCurveIdx_L2[0])
+
+        L2_RefCurveNumber = np.array(L2_RefCurveNumber_List, dtype = np.int64)        
+        
+        for i in range(3) : 
+            idx = int(L2_RefCurveNumber[i]-1)
+            NCPN = NCPNRefRate_L2[idx]
+            T1 = PowerSpreadMaturity_L2[idx * i]
+            T2 = PowerSpreadMaturity_L2[idx * i + 1]
+            PS01 = PowerSpreadFlag_L2[idx]
+            L2_SwapInfo_List.append(NCPN)
+            L2_SwapInfo_List.append(T1)
+            L2_RefPowerSpreadFlag_List.append(PS01)
+            L2_RefPowerSpreadMat_List.append(T1)
+            L2_RefPowerSpreadMat_List.append(T2)
+
+        NHWVolCountList = []
+        HWVolTermList = []
+        HWVolList = []
+        HWVolList2 = []
+        NZeroRate = []
+        ZeroTerm = []
+        ZeroRate = []
+        HWKappaArray = np.ones(17, dtype = np.float64) * 0.01
+        HWQuantoInfo = np.ones(17, dtype = np.float64) * 0
+        for i in range(4) :
+            df = ResultDataList[min(i,len(ResultDataList) - 1)].applymap(lambda x : np.nan if str(x) == '' else x).dropna(axis = 0, how = 'all')
+            n = len(df)
+            Term = list(df["Term"].astype(np.float64).values) if "OptMat" not in df.columns else list(df["OptMat"].astype(np.float64).values)
+            Preprocessing_Term(Term, PriceDate)
+            NHWVolCountList.append(n)
+            HWVolTermList += Term
+            HWVolList += list(df["HWVol"].astype(np.float64).values)
+            HWVolList2 += list(df["HWVol2F"].astype(np.float64).values)
+            HWKappaArray[i] = float(df['HWKappa'].iloc[0])
+            HWKappaArray[i + 4] = float(df['HWKappa2F'].iloc[0])
+            HWKappaArray[i + 8] = float(df['Rho'].iloc[0])
+            HWQuantoInfo[i] = QuantoUseFlag[min(i, len(QuantoUseFlag) - 1)]
+            HWQuantoInfo[i + 4] = QuantoCorr[min(i, len(QuantoCorr) - 1)]
+            HWQuantoInfo[i + 8] = QuantoFXVol[min(i, len(QuantoFXVol) - 1)]
+            nz = len(ZeroTermList)
+            NZeroRate.append(nz)
+            ZeroTerm += list(ZeroTermList[min(nz-1,i)])
+            ZeroRate += list(ZeroRateList[min(nz-1,i)])
+
+        OptionFlag = int(str(vb_OptionFlag.get(vb_OptionFlag.curselection())).split(":")[0]) if vb_OptionFlag.curselection() else 0    
+        OptSchd = get_from_sheetinterface(sht_OptScheduleInfo)
+        OptSchd["옵션 행사일"] = OptSchd["옵션 행사일"].apply(lambda x : str(x).replace("-","").replace(".0",""))
+        OptionPayDate = np.array(list(OptSchd["옵션 행사일"].values.astype(np.int64)), dtype = np.int64)
+        NOption = len(OptionPayDate)
+        OptionDateAndFlag = list(OptionPayDate) + [2] + [1 if OptionFlag == 0 else 0] + [0]
+        OptionKAndRange = np.ones(7 * NOption)
+        OptionKAndRange[NOption * 2 : NOption * 3] = 0
+        OptionKAndRange[NOption * 4 : NOption * 5] = 0
+        OptionKAndRange[NOption * 6 : NOption * 7] = 0
+        RefRateHistoryData = get_from_sheetinterface(RefRateHistory)
+        nhist = len(RefRateHistoryData)
+        NDayHist_L1 = np.array([nhist,nhist,nhist], dtype = np.int64)
+        NDayHist_L2 = np.array([nhist,nhist,nhist], dtype = np.int64)
+
+        RateHistDate_L1 = list(RefRateHistoryData["Date"].apply(lambda x : str(x).replace("-","")).astype(np.int64).values) * 3
+        RateHistDate_L2 = list(RefRateHistoryData["Date"].apply(lambda x : str(x).replace("-","")).astype(np.int64).values) * 3
+        if numc <= 1 :             
+            RateHist_L1 = list(RefRateHistoryData["Rate(Leg1)"].apply(lambda x : str(x).replace("-","") if len(str(x)) > 0 else '0').astype(np.float64).values/100) * 3
+            RateHist_L2 = list(RefRateHistoryData["Rate(Leg2)"].apply(lambda x : str(x).replace("-","") if len(str(x)) > 0 else '0').astype(np.float64).values/100) * 3
+        else : 
+            RateHist_L1_1 = list(RefRateHistoryData["Rate1(Leg1)"].apply(lambda x : str(x).replace("-","") if len(str(x)) > 0 else '0').astype(np.float64).values/100)
+            RateHist_L2_1 = list(RefRateHistoryData["Rate1(Leg2)"].apply(lambda x : str(x).replace("-","") if len(str(x)) > 0 else '0').astype(np.float64).values/100)
+            RateHist_L1_2 = list(RefRateHistoryData["Rate2(Leg1)"].apply(lambda x : str(x).replace("-","") if len(str(x)) > 0 else '0').astype(np.float64).values/100)
+            RateHist_L2_2 = list(RefRateHistoryData["Rate2(Leg2)"].apply(lambda x : str(x).replace("-","") if len(str(x)) > 0 else '0').astype(np.float64).values/100)
+            RateHist_L1_3 = list(RefRateHistoryData["Rate3(Leg1)"].apply(lambda x : str(x).replace("-","") if len(str(x)) > 0 else '0').astype(np.float64).values/100) if numc >= 3 else RateHist_L1_2
+            RateHist_L2_3 = list(RefRateHistoryData["Rate3(Leg2)"].apply(lambda x : str(x).replace("-","") if len(str(x)) > 0 else '0').astype(np.float64).values/100) if numc >= 3 else RateHist_L2_2
+            RateHist_L1 = RateHist_L1_1 + RateHist_L1_2 + RateHist_L1_3
+            RateHist_L2 = RateHist_L2_1 + RateHist_L2_2 + RateHist_L2_3
+
+        NSimul = 10000
+        GreekTextFlag = np.array([GreekFlag, TextFlag], dtype = np.int64)
+        ResultPrice = np.zeros(sum(NZeroRate) * 2 + 32, dtype = np.float64)
+        KeyPV01 = np.zeros(sum(NZeroRate) * 2 + 32, dtype = np.float64)
+        ResultL1 = np.zeros(7 * NCF_Leg1, dtype = np.float64)
+        ResultL2 = np.zeros(7 * NCF_Leg2, dtype = np.float64)
+
+        loggstr = []
+        Error = "00000000000000000000000000000000000000000000000000"
+
+        PriceDate_c = ct.c_long(PriceDate)
+        NAFlag_c = ct.c_long(NominalFlag)
+        Notional_c = ct.c_double(Nominal)
+        PayoffStructure_np, PayoffStructure_c = arr_long(PayoffStructure)
+        HolidayFlagCount_np, HolidayFlagCount_c = arr_long(HolidayFlagCount)
+
+        Holidays_np, Holidays_c = arr_long(Holidays)
+        RcvFlag_np, RcvFlag_c = arr_long(L1_Flag_Ary)
+        RcvMaxLossReturn_np, RcvMaxLossReturn_c = arr_double(L1_MaxLossReturn_Ary)
+        RcvRefCurveNumber_np, RcvRefCurveNumber_c = arr_long(L1_RefCurveNumber)
+        RcvRefRateType_np, RcvRefRateType_c = arr_long(np.array(L1_RefRateType_List, dtype = np.int64))
+
+        RcvSwapInfo_np, RcvSwapInfo_c = arr_double(np.array(L1_SwapInfo_List, dtype = np.float64))        
+        RcvDayCountFlag_np, RcvDayCountFlag_c = arr_long(L1_DayCount_Ary)
+        RcvRefCondMultiple_np, RcvRefCondMultiple_c = arr_double(L1_RefCondMultiple_Ary)
+        RcvRefPowerSpreadFlag_np, RcvRefPowerSpreadFlag_c = arr_long(np.array(L1_RefPowerSpreadFlag_List, dtype = np.int64))
+        RcvRefPowerSpreadMat_np, RcvRefPowerSpreadMat_c = arr_double(np.array(L1_RefPowerSpreadMat_List, dtype = np.float64))
+
+        RcvRefRange_np, RcvRefRange_c = arr_double(L1_RefRange_Ary)
+        RcvPayoffMultiple_np, RcvPayoffMultiple_c = arr_double(L1_PayoffMultiple_Ary)
+        NRcvCashFlow_c = ct.c_long(NCF_Leg1)
+        RcvCashFlowSchedule_np, RcvCashFlowSchedule_c = arr_long(Schedule_Leg1)
+        RcvCouponFixRate_np, RcvCouponFixRate_c = arr_double(CouponFixRate_Leg1)
+
+        PayFlag_np, PayFlag_c = arr_long(L2_Flag_Ary)
+        PayMaxLossReturn_np, PayMaxLossReturn_c = arr_double(L2_MaxLossReturn_Ary)
+        PayRefCurveNumber_np, PayRefCurveNumber_c = arr_long(L2_RefCurveNumber)
+        PayRefRateType_np, PayRefRateType_c = arr_long(np.array(L2_RefRateType_List, dtype = np.int64))
+        PaySwapInfo_np, PaySwapInfo_c = arr_double(np.array(L2_SwapInfo_List, dtype = np.float64))        
+
+        PayDayCountFlag_np, PayDayCountFlag_c = arr_long(L2_DayCount_Ary)
+        PayRefCondMultiple_np, PayRefCondMultiple_c = arr_double(L2_RefCondMultiple_Ary)
+        PayRefPowerSpreadFlag_np, PayRefPowerSpreadFlag_c = arr_long(np.array(L2_RefPowerSpreadFlag_List, dtype = np.int64))
+        PayRefPowerSpreadMat_np, PayRefPowerSpreadMat_c = arr_double(np.array(L2_RefPowerSpreadMat_List, dtype = np.float64))
+        PayRefRange_np, PayRefRange_c = arr_double(L2_RefRange_Ary)
+
+        PayPayoffMultiple_np, PayPayoffMultiple_c = arr_double(L2_PayoffMultiple_Ary)
+        NPayCashFlow_c = ct.c_long(NCF_Leg2)
+        PayCashFlowSchedule_np, PayCashFlowSchedule_c = arr_long(Schedule_Leg2)
+        PayCouponFixRate_np, PayCouponFixRate_c = arr_double(CouponFixRate_Leg2)
+        NHWVolCount_np, NHWVolCount_c = arr_long(np.array(NHWVolCountList, dtype = np.int64))
+
+        HWVolTermArray_np, HWVolTermArray_c = arr_double(np.array(HWVolTermList, dtype = np.float64))                
+        HWVolArray_np, HWVolArray_c = arr_double(np.array(HWVolList, dtype = np.float64))        
+        HWKappaArray_np, HWKappaArray_c = arr_double(HWKappaArray)
+        NZeroRate_np, NZeroRate_c = arr_long(NZeroRate)
+        ZeroTerm_np, ZeroTerm_c = arr_double(np.array(ZeroTerm, dtype = np.float64))
+
+        ZeroRate_np, ZeroRate_c = arr_double(np.array(ZeroRate, dtype = np.float64))
+        Corr_np, Corr_c = arr_double(CorrMatrixReshaped)
+        NDayHistRcv_np, NDayHistRcv_c = arr_long(NDayHist_L1)
+        RateHistDateRcv_np, RateHistDateRcv_c = arr_long(RateHistDate_L1)
+        RateHistRcv_np, RateHistRcv_c = arr_double(RateHist_L1)
+
+        NDayHistPay_np, NDayHistPay_c = arr_long(NDayHist_L2)
+        RateHistDatePay_np, RateHistDatePay_c = arr_long(RateHistDate_L2)
+        RateHistPay_np, RateHistPay_c = arr_double(RateHist_L2)
+        NSimul_c = ct.c_long(NSimul)
+        GreekTextFlag_np, GreekTextFlag_c = arr_long(GreekTextFlag)
+
+        NOption_c = ct.c_long(NOption)
+        OptionDateAndFlag_np, OptionDateAndFlag_c = arr_long(OptionDateAndFlag)
+        OptionKAndRange_np, OptionKAndRange_c = arr_double(OptionKAndRange)
+        ResultPrice_np, ResultPrice_c = arr_double(ResultPrice)
+        ResultRcv_np, ResultRcv_c = arr_double(ResultL1)
+
+        ResultPay_np, ResultPay_c = arr_double(ResultL2)
+        HWFactorFlag_c = ct.c_long(HW2FFlag)        
+        HWVolArray2_np, HWVolArray2_c = arr_double(np.array(HWVolList2, dtype = np.float64))        
+        HWQuantoInfo_np, HWQuantoInfo_c = arr_double(HWQuantoInfo)
+        Error_c = ct.create_string_buffer(60)
+
+        if TextFlag > 0 : 
+            loggstr.append(str(PriceDate))
+            loggstr.append(str(NominalFlag))
+            loggstr.append(str(Nominal))
+            loggstr.append(str(PayoffStructure))
+            loggstr.append(str(HolidayFlagCount))
+
+            loggstr.append(str(Holidays))
+            loggstr.append(str(L1_Flag_Ary))
+            loggstr.append(str(L1_MaxLossReturn_Ary))
+            loggstr.append(str(L1_RefCurveNumber))
+            loggstr.append(str(L1_RefRateType_List))
+
+            loggstr.append(str(L1_SwapInfo_List))
+            loggstr.append(str(L1_DayCount_Ary))
+            loggstr.append(str(L1_RefCondMultiple_Ary))
+            loggstr.append(str(L1_RefPowerSpreadFlag_List))
+            loggstr.append(str(L1_RefPowerSpreadMat_List))
+
+            loggstr.append(str(L1_RefRange_Ary))
+            loggstr.append(str(L1_PayoffMultiple_Ary))
+            loggstr.append(str(NCF_Leg1))
+            loggstr.append(str(Schedule_Leg1))
+            loggstr.append(str(CouponFixRate_Leg1))
+
+            loggstr.append(str(L2_Flag_Ary))
+            loggstr.append(str(L2_MaxLossReturn_Ary))
+            loggstr.append(str(L2_RefCurveNumber))
+            loggstr.append(str(L2_RefRateType_List))
+            loggstr.append(str(L2_SwapInfo_List))
+
+            loggstr.append(str(L2_DayCount_Ary))
+            loggstr.append(str(L2_RefCondMultiple_Ary))
+            loggstr.append(str(L2_RefPowerSpreadFlag_List))
+            loggstr.append(str(L2_RefPowerSpreadMat_List))
+            loggstr.append(str(L2_RefRange_Ary))
+
+            loggstr.append(str(L2_PayoffMultiple_Ary))
+            loggstr.append(str(NCF_Leg2))
+            loggstr.append(str(Schedule_Leg2))
+            loggstr.append(str(CouponFixRate_Leg2))
+            loggstr.append(str(NHWVolCountList))
+
+            loggstr.append(str(HWVolTermList))
+            loggstr.append(str(HWVolList))
+            loggstr.append(str(HWKappaArray))
+            loggstr.append(str(NZeroRate))
+            loggstr.append(str(ZeroTerm))
+
+            loggstr.append(str(ZeroRate))
+            loggstr.append(str(CorrMatrixReshaped))
+            loggstr.append(str(NDayHist_L1))
+            loggstr.append(str(RateHistDate_L1))
+            loggstr.append(str(RateHist_L1))
+
+            loggstr.append(str(NDayHist_L2))
+            loggstr.append(str(RateHistDate_L2))
+            loggstr.append(str(RateHist_L2))
+            loggstr.append(str(NSimul))
+            loggstr.append(str(GreekTextFlag))
+
+            loggstr.append(str(NOption))
+            loggstr.append(str(OptionDateAndFlag))
+            loggstr.append(str(OptionKAndRange))
+            loggstr.append(str(ResultPrice))
+            loggstr.append(str(ResultL1))
+
+            loggstr.append(str(ResultL2))
+            loggstr.append(str(HW2FFlag))
+            loggstr.append(str(HWVolList2))
+            loggstr.append(str(HWQuantoInfo))
+            loggstr.append(str(Error))
+            pd.DataFrame(loggstr).to_excel("IRPhaseStructuredSwap.xlsx")
+        Res = CalcFunc(PriceDate_c,NAFlag_c,Notional_c,PayoffStructure_c,HolidayFlagCount_c,
+                       Holidays_c,RcvFlag_c,RcvMaxLossReturn_c,RcvRefCurveNumber_c,RcvRefRateType_c,
+                       RcvSwapInfo_c,RcvDayCountFlag_c,RcvRefCondMultiple_c,RcvRefPowerSpreadFlag_c,RcvRefPowerSpreadMat_c,
+                       RcvRefRange_c,RcvPayoffMultiple_c,NRcvCashFlow_c,RcvCashFlowSchedule_c,RcvCouponFixRate_c,
+                       PayFlag_c,PayMaxLossReturn_c,PayRefCurveNumber_c,PayRefRateType_c,PaySwapInfo_c,
+                       PayDayCountFlag_c,PayRefCondMultiple_c,PayRefPowerSpreadFlag_c,PayRefPowerSpreadMat_c,PayRefRange_c,
+                       PayPayoffMultiple_c,NPayCashFlow_c,PayCashFlowSchedule_c,PayCouponFixRate_c,NHWVolCount_c,
+                       HWVolTermArray_c,HWVolArray_c,HWKappaArray_c,NZeroRate_c,ZeroTerm_c,
+                       ZeroRate_c,Corr_c,NDayHistRcv_c,RateHistDateRcv_c,RateHistRcv_c,
+                       NDayHistPay_c,RateHistDatePay_c,RateHistPay_c,NSimul_c,GreekTextFlag_c,
+                       NOption_c,OptionDateAndFlag_c,OptionKAndRange_c,ResultPrice_c,ResultRcv_c,
+                       ResultPay_c,HWFactorFlag_c,HWVolArray2_c,HWQuantoInfo_c,Error_c)        
+        Rcv = np.round(ResultPrice_c[0], 2)
+        Pay = np.round(ResultPrice_c[1], 2)
+        MTM = np.round(ResultPrice_c[2], 2)
+        Opt = np.round(ResultPrice_c[3], 2)
+        Res_L1 = pd.DataFrame(np.ctypeslib.as_array(ResultRcv_c, shape = (6 * NCF_Leg1, )).reshape(6, -1).T, columns = ['금리1','금리2','금리3','E(Accraul)','E(지급쿠폰)','E(DF)'])
+        Res_L1['지급일'] = PaymentDate_Leg1
+        Res_L1 = Res_L1[['지급일','금리1','금리2','금리3','E(Accraul)','E(지급쿠폰)','E(DF)']]
+        Res_L1.columns = [['Leg1'] * len(Res_L1.columns), Res_L1.columns]
+        Res_L2 = pd.DataFrame(np.ctypeslib.as_array(ResultPay_c, shape = (6 * NCF_Leg2, )).reshape(6, -1).T, columns = ['금리1','금리2','금리3','E(Accraul)','E(지급쿠폰)','E(DF)'])
+        Res_L2['지급일'] = PaymentDate_Leg2
+        Res_L2 = Res_L2[['지급일','금리1','금리2','금리3','E(Accraul)','E(지급쿠폰)','E(DF)']]
+        Res_L2.columns = [['Leg2'] * len(Res_L2.columns), Res_L2.columns]
+        ResultData = pd.concat([Res_L1, Res_L2],axis = 1)
+        output_label.config(text = f"산출결과: 에러여부 : \n{Error_c.value.decode("utf-8")}\nRcv : \n{Rcv}\nPay : \n{Pay}\nNetValue : \n{MTM}\nOption : \n{Opt}", font = ("맑은 고딕", 12, 'bold'))                       
+        Res = pd.DataFrame([])
+        if PrevTreeFlag == 0 : 
+            tree = ttk.Treeview(main_frame)
+        else : 
+            tree.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
+            tree = ttk.Treeview(main_frame)
+
+        tree.pack(padx=5, pady=5, fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(main_frame, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")    
+
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, ResultData, width = 100)
+
+        MyArrays[0] = PrevTreeFlag 
+        MyArrays[1] = tree 
+        MyArrays[2] = scrollbar
+        MyArrays[3] = scrollbar2      
+        MyArrays[4] = Res_L1
+        MyArrays[5] = Res
+        #df.to_excel("ResultExcel.xlsx",index = False, header=False)
+    temp_func = lambda : run_function(MyArrays)
+    tk.Button(Result_frame, text = '실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+    output_label = tk.Label(Result_frame, text = "", anchor = "n")
+    output_label.pack(padx = 5, pady = 2)
+    run_button = tk.Button(
+        left_frame,
+        text="MarketData확인",
+        command=lambda: open_result_window(root),
+        font = ("맑은 고딕",12,'bold')
+    )
+
+    #run_button2 = tk.Button(
+    #    left_frame2,
+    #    text="PowerSpread 사용",
+    #    command=lambda: open_powerspread_window(root, PowerSpreadFlag_L1, PowerSpreadMaturity_L1),
+    #    font = ("맑은 고딕",12,'bold')
+    #)
+
+    #run_button3 = tk.Button(
+    #    left_frame5,
+    #    text="PowerSpread 사용",
+    #    command=lambda: open_powerspread_window(root, PowerSpreadFlag_L2, PowerSpreadMaturity_L2),
+    #    font = ("맑은 고딕",12,'bold')
+    #)    
+
+    run_button.pack()
+    run_button2.pack()
+    run_button3.pack()
+
+    root.mainloop() 
+    return MyArrays[5]
+
 if __name__ == '__main__' : 
-    n = MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: IRStructured Swap","2: IRS"], size = "800x450+30+30", splitby = ":", listheight = 8, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = [], width = 95, expand = True)
+    n = MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: IRStructured Swap","2: IRS", "3: Structured Swap HWSimul"], size = "800x450+30+30", splitby = ":", listheight = 8, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = [], width = 95, expand = True)
     if n == 1 : 
         IRS_Callable()
     elif n == 2 : 
         IRSPricing()
+    elif n == 3 : 
+        IRPhaseStructuredSwap()
 # %%frame = left_frame 
 
 VBAString = '''
