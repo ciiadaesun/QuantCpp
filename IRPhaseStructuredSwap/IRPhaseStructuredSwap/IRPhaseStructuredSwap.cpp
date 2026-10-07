@@ -3635,6 +3635,9 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
     long TextFlag = GreekTextFlag[1];
     double* ResultPV01 = ResultPrice + 4;
     double* ResultKeyPV01 = ResultPV01 + 8;
+    long nz = 0;
+    for (i = 0; i < 4; i++) nz += NZeroRate[i];
+    double* ResultVega = ResultPrice + 12 + 2 * nz;
 
     char CalcFunctionName[] = "Pricing_IRStructuredSwap_Excel";
     char SaveFileName[100];
@@ -4426,6 +4429,41 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
     }
 
     ResultCode = IRStructuredSwap(PriceDate, NAFlag, Notional, RcvLeg, PayLeg, Simul, GreekFlag, ResultPrice, ResultRcv, ResultPay);
+    double RcvValue, PayValue, MTMValue;
+    RcvValue = ResultPrice[0];
+    PayValue = ResultPrice[1];
+    MTMValue = ResultPrice[2];
+    double TempResultPrice[5] = { 0.0, 0.0,0.0,0.0 };
+    double* TempResultRcv = (double*)malloc(sizeof(double) * (NRcvCashFlow * 7));
+    double* TempResultPay = (double*)malloc(sizeof(double) * (NPayCashFlow * 7));
+    if (GreekFlag == 1)
+    {
+        long nhwv = 0;
+        double defaultv = 0.;
+        double defaultv2 = 0.;
+        k = 0;
+        for (i = 1; i < N_Curve_Max + 1; i++)
+        {
+            if (isin(i, Simul->SimulCurveIdx, Simul->NAsset))
+            {
+                for (j = 0; j < NHWVolCount[i-1]; j++)
+                {
+                    defaultv = HWVolMatrix[k][j];
+                    defaultv2 = HWVolMatrix2[k][j];
+                    HWVolMatrix[k][j] = defaultv + 0.0001;
+                    HWVolMatrix2[k][j] = defaultv2 + 0.0001;
+                    ResultCode = IRStructuredSwap(PriceDate, NAFlag, Notional, RcvLeg, PayLeg, Simul, 0, TempResultPrice, TempResultRcv, TempResultPay);
+                    HWVolMatrix[k][j] = defaultv;
+                    HWVolMatrix2[k][j] = defaultv2;
+                    ResultVega[nhwv + j] = TempResultPrice[2] - MTMValue;
+                }
+                k += 1;
+            }
+            
+            nhwv += NHWVolCount[i - 1];
+        }
+    }
+
 
     if (GreekFlag == 1)
     {
@@ -4437,15 +4475,13 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
         long PointerZero[5] = { 0,0,0,0,0 };
         long idxstart, idxend;
         long UselessTermFlag = 0;
-        double RcvValue, PayValue;
+        
         double PV01Rcv, PV01Pay;
-        double TempResultPrice[5] = { 0.0, 0.0,0.0,0.0 };
-        double* TempResultRcv = (double*)malloc(sizeof(double) * (NRcvCashFlow * 7));
-        double* TempResultPay = (double*)malloc(sizeof(double) * (NPayCashFlow * 7));
+        
+
         double* KeyPV01Rcv;
         double* KeyPV01Pay;
-        RcvValue = ResultPrice[0];
-        PayValue = ResultPrice[1];
+
         for (i = 0; i < N_Curve_Max; i++)
         {
             NTotalZeroRate += NZeroRate[i];
@@ -4454,6 +4490,7 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
 
         double* ZeroRateParallelUp = (double*)malloc(sizeof(double) * NTotalZeroRate);
         double* ZeroRateKeyUp = (double*)malloc(sizeof(double) * NTotalZeroRate);
+
         double** ZeroRateMatrixParralelUp = (double**)malloc(sizeof(double*) * N_Curve_Max);
         n = 0;
         for (i = 0; i < N_Curve_Max; i++)
@@ -4581,8 +4618,6 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
             }
         }
 
-        free(TempResultRcv);
-        free(TempResultPay);
         free(ZeroRateParallelUp);
         free(ZeroRateKeyUp);
         free(ZeroRateMatrixParralelUp);
@@ -4594,6 +4629,8 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
     //////////////////
     // 할당 해제
     //////////////////
+    free(TempResultRcv);
+    free(TempResultPay);
     free(FloatingFlagRcv);
     free(FloatingFlagPay);
 
