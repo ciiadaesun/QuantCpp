@@ -737,7 +737,7 @@ def HullWhite1FactorCalibration() :
     ResultValue2['HWKappa'] = 0.01
 
     DefaultZeroDF = pd.DataFrame(defaultvalues, index = ['ZeroTerm','ZeroRate']).T.applymap(lambda x : np.nan if str(x) == '' else x).dropna()
-    ZeroTermList, ZeroRateList = list(DefaultZeroDF["ZeroTerm"].values), list(DefaultZeroDF["ZeroRate"].values)
+    ZeroTermList, ZeroRateList = list(DefaultZeroDF["ZeroTerm"].values), list(DefaultZeroDF["ZeroRate"].values.astype(np.float64)/100)
     MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2, ResultValue, ResultValue2,ZeroTermList, ZeroRateList]
     exitgui = lambda : root.destroy()
 
@@ -919,9 +919,9 @@ def IRSPricing() :
 
     center_frame = tk.Frame(main_frame)
     center_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
-    sht_DiscCurveLeg1 = AddVariableSheet(center_frame, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = targetcolumns, defaultvalues = defaultvalues, VariableName = "DiscZeroCurve(Leg1)", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 70, sheet_height = 30, titlelable= True, titleName = "Leg1 MarketData", MaxHeight=10)
+    sht_DiscCurveLeg1 = AddVariableSheet(center_frame, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = targetcolumns, defaultvalues = defaultvalues, VariableName = "DiscZeroCurve(Leg1)", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 80, sheet_height = 30, titlelable= True, titleName = "Leg1 MarketData", MaxHeight=10)
     sht_DiscCurveLeg1.set_all_column_widths(width=50)
-    sht_RefCurveLeg1 = AddVariableSheet(center_frame, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = targetcolumns, defaultvalues = defaultvalues, VariableName = "EstZeroCurve(Leg1)", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 70, sheet_height = 30, MaxHeight=10)
+    sht_RefCurveLeg1 = AddVariableSheet(center_frame, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = targetcolumns, defaultvalues = defaultvalues, VariableName = "EstZeroCurve(Leg1)", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 80, sheet_height = 30, MaxHeight=10)
     sht_RefCurveLeg1.set_all_column_widths(width=50)
 
     #mysheet2 = AddVariableSheet(center_frame, ["index","Holidays"], nindexs, 1, defaultvalues = (), VariableName = "TempVariables2", myfont = 12, anchor = 'w', padx = 5, pady = 2)
@@ -943,9 +943,9 @@ def IRSPricing() :
 
     center_frame_Leg2 = tk.Frame(main_frame)
     center_frame_Leg2.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
-    sht_DiscCurveLeg2 = AddVariableSheet(center_frame_Leg2, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = targetcolumns, defaultvalues = defaultvalues, VariableName = "DiscZeroCurve(Leg2)", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 70, sheet_height = 30, titlelable= True, titleName = "Leg1 MarketData", MaxHeight=10)
+    sht_DiscCurveLeg2 = AddVariableSheet(center_frame_Leg2, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = targetcolumns, defaultvalues = defaultvalues, VariableName = "DiscZeroCurve(Leg2)", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 80, sheet_height = 30, titlelable= True, titleName = "Leg1 MarketData", MaxHeight=10)
     sht_DiscCurveLeg2.set_all_column_widths(width=50)
-    sht_RefCurveLeg2 = AddVariableSheet(center_frame_Leg2, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = targetcolumns, defaultvalues = defaultvalues, VariableName = "EstZeroCurve(Leg2)", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 70, sheet_height = 30, MaxHeight=10)
+    sht_RefCurveLeg2 = AddVariableSheet(center_frame_Leg2, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = targetcolumns, defaultvalues = defaultvalues, VariableName = "EstZeroCurve(Leg2)", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 80, sheet_height = 30, MaxHeight=10)
     sht_RefCurveLeg2.set_all_column_widths(width=50)
 
     Right_frame1Leg2 = tk.Frame(main_frame)
@@ -971,6 +971,10 @@ def IRSPricing() :
 
     Result_frame = tk.Frame(main_frame)
     Result_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_cvname_dscL1 = make_variable_interface(Result_frame, 'Leg1 할인커브명', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = 'KRW IRS')
+    v_cvname_estL1 = make_variable_interface(Result_frame, 'Leg1 추정커브명', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = 'KRW IRS')
+    v_cvname_dscL2 = make_variable_interface(Result_frame, 'Leg2 할인커브명', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = 'KRW IRS')
+    v_cvname_estL2 = make_variable_interface(Result_frame, 'Leg2 추정커브명', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = 'KRW IRS')
 
     PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
     ResultValue = pd.DataFrame([])
@@ -983,6 +987,11 @@ def IRSPricing() :
         scrollbar2 = MyArrays[3]  
         ResultValue = MyArrays[4]
         ResultValue2 = MyArrays[5]
+
+        cvname_dscL1 = str(v_cvname_dscL1.get()) if len(str(v_cvname_dscL1.get())) > 0 else 'KRW IRS'
+        cvname_estL1 = str(v_cvname_estL1.get()) if len(str(v_cvname_estL1.get())) > 0 else 'KRW IRS'
+        cvname_dscL2 = str(v_cvname_dscL2.get()) if len(str(v_cvname_dscL2.get())) > 0 else 'KRW IRS'
+        cvname_estL2 = str(v_cvname_estL2.get()) if len(str(v_cvname_estL2.get())) > 0 else 'KRW IRS'
 
         PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else today_YYYYMMDD
         NominalFlag = int(str(vb_NominalFlag.get(vb_NominalFlag.curselection())).split(":")[0]) if vb_NominalFlag.curselection() else 0
@@ -1257,19 +1266,30 @@ def IRSPricing() :
         if Leg1_SameCurveFlag == 0 : 
             #Result2_Leg1 = pd.DataFrame([])
             PV01_Disc_Leg1 = pd.DataFrame(DiscTermLeg1_np, columns = ["Leg1 Disc Curve Term"])
+            PV01_Disc_Leg1['Leg1CvNameDisc'] = [cvname_dscL1] * len(DiscTermLeg1_np)
             PV01_Disc_Leg1["Leg1 Disc PV01"] = np.ctypeslib.as_array(KeyRateLeg1PV01[:ngreek_leg1_Disc], shape = (ngreek_leg1_Disc, ))
+            PV01_Disc_Leg1 = PV01_Disc_Leg1[['Leg1CvNameDisc','Leg1 Disc Curve Term','Leg1 Disc PV01']]
             PV01_Ref_Leg1 = pd.DataFrame(RefTermLeg1_np, columns = ["Leg1 Ref Curve Term"])
+            PV01_Ref_Leg1['Leg1CvNameRef'] = [cvname_estL1] * len(RefTermLeg1_np)
             PV01_Ref_Leg1["Leg1 Ref PV01"] = np.ctypeslib.as_array(KeyRateLeg1PV01[ngreek_leg1_Disc :ngreek_leg1_Disc + ngreek_leg1_Ref], shape = (ngreek_leg1_Ref, ))
+            PV01_Ref_Leg1 = PV01_Ref_Leg1[['Leg1CvNameRef',"Leg1 Ref Curve Term","Leg1 Ref PV01"]]
             Result2_Leg1 = pd.concat([PV01_Disc_Leg1, PV01_Ref_Leg1], axis = 1)
+            Result2_Leg1['Leg1 Disc&Ref CvName'] = ''
             Result2_Leg1["Leg1 Disc&Ref Curve Term"] = 0
             Result2_Leg1["Leg1 Disc&Ref PV01"] = 0
         else : 
             PV01_Disc_Leg1 = pd.DataFrame(DiscTermLeg1_np, columns = ["Leg1 Disc Curve Term"])
+            PV01_Disc_Leg1['Leg1CvNameDisc'] = [cvname_dscL1] * len(DiscTermLeg1_np)
             PV01_Disc_Leg1["Leg1 Disc PV01"] = [0] * ngreek_leg1_Disc
+            PV01_Disc_Leg1 = PV01_Disc_Leg1[['Leg1CvNameDisc','Leg1 Disc Curve Term','Leg1 Disc PV01']]
             PV01_Ref_Leg1 = pd.DataFrame(RefTermLeg1_np, columns = ["Leg1 Ref Curve Term"])
+            PV01_Ref_Leg1['Leg1CvNameRef'] = [cvname_estL1] * len(RefTermLeg1_np)
             PV01_Ref_Leg1["Leg1 Ref PV01"] = [0] * ngreek_leg1_Ref
+            PV01_Ref_Leg1 = PV01_Ref_Leg1[['Leg1CvNameRef',"Leg1 Ref Curve Term","Leg1 Ref PV01"]]
             PV01_DiscRef_Leg1 = pd.DataFrame(DiscTermLeg1_np, columns = ["Leg1 Disc&Ref Curve Term"])
+            PV01_DiscRef_Leg1['Leg1 Disc&Ref CvName'] = cvname_estL1
             PV01_DiscRef_Leg1["Leg1 Disc&Ref PV01"] = np.ctypeslib.as_array(KeyRateLeg1PV01[2 * ngreek_leg1_Disc :3 * ngreek_leg1_Disc], shape = (ngreek_leg1_Ref, ))
+            PV01_DiscRef_Leg1 = PV01_DiscRef_Leg1[['Leg1 Disc&Ref CvName',"Leg1 Disc&Ref Curve Term","Leg1 Disc&Ref PV01"]]
             Result2_Leg1 = pd.concat([PV01_Disc_Leg1, PV01_Ref_Leg1, PV01_DiscRef_Leg1], axis = 1)
 
         ngreek_leg2_Disc = int(Disc_NTerm_Leg2.value)
@@ -1282,19 +1302,30 @@ def IRSPricing() :
         if Leg2_SameCurveFlag == 0 : 
             #Result2_Leg2 = pd.DataFrame([])
             PV01_Disc_Leg2 = pd.DataFrame(DiscTermLeg2_np, columns = ["Leg2 Disc Curve Term"])
+            PV01_Disc_Leg2['Leg2CvNameDisc'] = [cvname_dscL2] * len(DiscTermLeg2_np)
             PV01_Disc_Leg2["Leg2 Disc PV01"] = np.ctypeslib.as_array(KeyRateLeg2PV01[:ngreek_leg2_Disc], shape = (ngreek_leg2_Disc, ))
+            PV01_Disc_Leg2 = PV01_Disc_Leg2[['Leg2CvNameDisc','Leg2 Disc Curve Term','Leg2 Disc PV01']]
             PV01_Ref_Leg2 = pd.DataFrame(RefTermLeg2_np, columns = ["Leg2 Ref Curve Term"])
+            PV01_Ref_Leg2['Leg2CvNameRef'] = [cvname_estL2] * len(RefTermLeg2_np)
             PV01_Ref_Leg2["Leg2 Ref PV01"] = np.ctypeslib.as_array(KeyRateLeg2PV01[ngreek_leg2_Disc :ngreek_leg2_Disc + ngreek_leg2_Ref], shape = (ngreek_leg2_Ref, ))
+            PV01_Ref_Leg2 = PV01_Ref_Leg2[['Leg2CvNameRef',"Leg2 Ref Curve Term","Leg2 Ref PV01"]]
             Result2_Leg2 = pd.concat([PV01_Disc_Leg2, PV01_Ref_Leg2], axis = 1)
+            Result2_Leg2['Leg2 Disc&Ref CvName'] = ''
             Result2_Leg2["Leg2 Disc&Ref Curve Term"] = 0
             Result2_Leg2["Leg2 Disc&Ref PV01"] = 0
         else : 
             PV01_Disc_Leg2 = pd.DataFrame(DiscTermLeg2_np, columns = ["Leg2 Disc Curve Term"])
+            PV01_Disc_Leg2['Leg2CvNameDisc'] = [cvname_dscL2] * len(DiscTermLeg2_np)
             PV01_Disc_Leg2["Leg2 Disc PV01"] = [0] * ngreek_leg2_Disc
+            PV01_Disc_Leg2 = PV01_Disc_Leg2[['Leg2CvNameDisc','Leg2 Disc Curve Term','Leg2 Disc PV01']]
             PV01_Ref_Leg2 = pd.DataFrame(RefTermLeg2_np, columns = ["Leg2 Ref Curve Term"])
+            PV01_Ref_Leg2['Leg2CvNameRef'] = [cvname_estL2] * len(RefTermLeg2_np)
             PV01_Ref_Leg2["Leg2 Ref PV01"] = [0] * ngreek_leg2_Ref
+            PV01_Ref_Leg2 = PV01_Ref_Leg2[['Leg2CvNameRef',"Leg2 Ref Curve Term","Leg2 Ref PV01"]]
             PV01_DiscRef_Leg2 = pd.DataFrame(DiscTermLeg2_np, columns = ["Leg2 Disc&Ref Curve Term"])
+            PV01_DiscRef_Leg2['Leg2 Disc&Ref CvName'] = cvname_estL2
             PV01_DiscRef_Leg2["Leg2 Disc&Ref PV01"] = np.ctypeslib.as_array(KeyRateLeg2PV01[2 * ngreek_leg2_Disc :3 * ngreek_leg2_Disc], shape = (ngreek_leg2_Ref, ))
+            PV01_DiscRef_Leg2 = PV01_DiscRef_Leg2[['Leg2 Disc&Ref CvName',"Leg2 Disc&Ref Curve Term","Leg2 Disc&Ref PV01"]]
             Result2_Leg2 = pd.concat([PV01_Disc_Leg2, PV01_Ref_Leg2, PV01_DiscRef_Leg2], axis = 1)
         Leg1Sensi = (PV01_Disc_Leg1["Leg1 Disc PV01"].apply(lambda x : float(x) if str(x) != '' else 0).sum() + 
                      PV01_Ref_Leg1["Leg1 Ref PV01"].apply(lambda x : float(x) if str(x) != '' else 0).sum() +
@@ -1324,6 +1355,8 @@ def IRSPricing() :
         MyArrays[3] = scrollbar2      
         MyArrays[4] = Result
         MyArrays[5] = pd.DataFrame(Result)
+        if LoggingFlag > 0 : 
+            Result.to_excel("IRS_PriceResult.xlsx")
         #df.to_excel("ResultExcel.xlsx",index = False, header=False)
     temp_func = lambda : run_function(MyArrays)
     tk.Button(Result_frame, text = '실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
@@ -1367,8 +1400,6 @@ def IRS_Callable() :
     vb_Phase2UseFlag = make_listvariable_interface(left_frame, 'Phase2Use Flag', ["0: Phase2 사용안함","1: Phase2 사용"], bold = True, listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 0)
     v_Phase2StartDate = make_variable_interface(left_frame, 'Phase2StartDate', bold = True, textfont = 11, defaultflag = True, defaultvalue=today_YYYYMMDD + 20000)
     vb_NationFlag = make_listvariable_interface(left_frame, '국가(Holiday용)', ["0: 한국","1: 미국","2: 영국","3: NYMEX","4: NYSE","-1: 그 외"], bold = True, listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 0)
-    vb_GreekFlag = make_listvariable_interface(left_frame, 'Greek 산출여부', ["0: Greek산출안함","1: Greek산출"], bold = True, listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 1)
-    vb_TextFlag = make_listvariable_interface(left_frame, 'LOGGING 산출여부', ["0: Logging안함","1: Logging"], bold = True, listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0)
 
     left_frame2 = tk.Frame(main_frame)
     left_frame2.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
@@ -1389,10 +1420,10 @@ def IRS_Callable() :
     v_L1_RangeFixedRate_P1 = make_variable_interface(left_frame3, 'Range충족시금리(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =0, pady = 1)
     vb_L1_StructuredFlag_P1 = make_listvariable_interface(left_frame3, '구조화금리사용Flag', ["0: 구조화Payoff미사용","1: 구조화Payoff사용"], bold = False, listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 0)
 
-    v_L1_FixedCpnRate_P2 = make_variable_interface(left_frame3, '고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, titlelable=True, titleName='Leg1 Phase2',defaultvalue =3.19, pady = 1)
+    vb_L1_NumCpnOneYear_P2 = make_listvariable_interface(left_frame3, 'PH2 연간 쿠폰지급수\n(CD3M = 4)', ["0","1","2","4","6"], listheight = 4, textfont = 11, defaultflag = True, titlelable=True, titleName='Leg1 Phase2', defaultvalue=3, pady = 1)
+    v_L1_FixedCpnRate_P2 = make_variable_interface(left_frame3, '고정쿠폰(%)', bold = False, textfont = 11, defaultflag = False, titlelable=True, titleName='Leg1 Phase2',defaultvalue =3.19, pady = 1)
     v_L1_RangeFixedRate_P2 = make_variable_interface(left_frame3, 'Range충족시금리(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =0, pady = 1)
     vb_L1_StructuredFlag_P2 = make_listvariable_interface(left_frame3, '구조화금리사용Flag', ["0: 구조화Payoff미사용","1: 구조화Payoff사용"], bold = False, listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 0)
-    vb_L1_NumCpnOneYear_P2 = make_listvariable_interface(left_frame3, 'PH2 연간 쿠폰지급수\n(CD3M = 4)', ["0","1","2","4","6"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=3, pady = 1)
 
     #
     left_frame4 = tk.Frame(main_frame)
@@ -1414,14 +1445,14 @@ def IRS_Callable() :
     v_L2_RangeFixedRate_P1 = make_variable_interface(left_frame5, 'Range충족시금리(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =0, pady = 1)
     vb_L2_StructuredFlag_P1 = make_listvariable_interface(left_frame5, '구조화금리사용Flag', ["0: 구조화Payoff미사용","1: 구조화Payoff사용"], bold = False, listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 1)
 
-    v_L2_FixedCpnRate_P2 = make_variable_interface(left_frame5, '고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, titlelable=True, titleName='Leg2 Phase2',defaultvalue =0.0, pady = 1)
+    vb_L2_NumCpnOneYear_P2 = make_listvariable_interface(left_frame5, 'PH2 연간 쿠폰지급수\n(CD3M = 4)', ["0","1","2","4","6"], listheight = 4, textfont = 11, titlelable=True, titleName='Leg2 Phase2', defaultflag = True, defaultvalue=3, pady = 1)
+    v_L2_FixedCpnRate_P2 = make_variable_interface(left_frame5, '고정쿠폰(%)', bold = False, textfont = 11, defaultflag = True, titlelable=False, titleName='Leg2 Phase2',defaultvalue =0.0, pady = 1)
     v_L2_RangeFixedRate_P2 = make_variable_interface(left_frame5, 'Range충족시금리(%)', bold = False, textfont = 11, defaultflag = True, defaultvalue =0, pady = 1)
     vb_L2_StructuredFlag_P2 = make_listvariable_interface(left_frame5, '구조화금리사용Flag', ["0: 구조화Payoff미사용","1: 구조화Payoff사용"], bold = False, listheight = 2, textfont = 11, defaultflag = True, defaultvalue = 1)
-    vb_L2_NumCpnOneYear_P2 = make_listvariable_interface(left_frame5, 'PH2 연간 쿠폰지급수\n(CD3M = 4)', ["0","1","2","4","6"], listheight = 4, textfont = 11, defaultflag = True, defaultvalue=3, pady = 1)
 
-    left_frame6 = tk.Frame(main_frame)
-    left_frame6.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
-    sht_Holiday = AddVariableSheet(left_frame6, nindexs = 1000, ncolumns= 1,targetcolumns = ["Holidays"], defaultvalues = (), VariableName = "Leg1 Holidays", myfont = 11, anchor = 'w', padx = 5, pady = 2, sheet_width = 150, sheet_height = 300, MaxHeight=20)
+    #left_frame6 = tk.Frame(main_frame)
+    #left_frame6.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
+    #sht_Holiday = AddVariableSheet(left_frame6, nindexs = 1000, ncolumns= 1,targetcolumns = ["Holidays"], defaultvalues = (), VariableName = "Leg1 Holidays", myfont = 11, anchor = 'w', padx = 5, pady = 2, sheet_width = 150, sheet_height = 300, MaxHeight=20)
 
     left_frame7 = tk.Frame(main_frame)
     left_frame7.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
@@ -1439,29 +1470,164 @@ def IRS_Callable() :
     sht_OptScheduleInfo = AddVariableSheet(left_frame8, nindexs = len(OptStartDate) + 50, ncolumns= 2,targetcolumns = ["옵션 선언일","옵션행사일"], defaultvalues = (OptStartDate + ['']* 50, OptPayDate+ ['']* 50), VariableName = "OptionDate", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 115, sheet_height = 40, MaxHeight=20, headerfont= 9)
     sht_OptScheduleInfo.set_all_column_widths(width=87)
 
-    left_frame9 = tk.Frame(main_frame)
-    left_frame9.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
+    #left_frame9 = tk.Frame(main_frame)
+    #left_frame9.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
     nindexs = 7
     ncolumns = 2
-    TargetRate = list(np.array(ZeroRate) * 100) if np.abs(np.array(ZeroRate)).max() < 0.2 else ZeroRate
-    defaultvalues = (ZeroTerm + ['']* 10, TargetRate + ['']* 10)
+    defaultvalues = (ZeroTerm + ['']* 10, ZeroRate + ['']* 10)
     targetcolumns = ["Term", "Rate"]
-    sht_DiscCurve = AddVariableSheet(left_frame9, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = defaultvalues, VariableName = "DiscZeroCurve", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 70, sheet_height = 30, titlelable= True, titleName = "MarketData", MaxHeight=10)
-    sht_DiscCurve.set_all_column_widths(width=50)
-    sht_RefCurve = AddVariableSheet(left_frame9, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = defaultvalues, VariableName = "RefZeroCurve", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 70, sheet_height = 30, MaxHeight=10)
-    sht_RefCurve.set_all_column_widths(width=50)
+    DiscCurveTermList = [ZeroTerm]
+    DiscCurveRateList = [ZeroRate]
+    EstCurveTermList = [ZeroTerm]
+    EstCurveRateList = [ZeroRate]
+    HWKappaList = [ResultData["HWKappa"].iloc[0]]
+    HWKappa2FList = [ResultData["HWKappa"].iloc[0]]
+    DiscCurveName = ['KRW IRS']
+    EstCurveName = ['KRW IRS']
 
-    left_frame10 = tk.Frame(main_frame)
-    left_frame10.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
-    v_Kappa = make_variable_interface(left_frame10, 'kappa', bold = True, textfont = 11, defaultflag = True, defaultvalue=ResultData["HWKappa"].iloc[0])
-    HWTerm = list(ResultData["OptMat"].values)
-    HWVol = list(ResultData["HWVol"].values)
-    defaultvalues2 = (HWTerm + ['']* 10, HWVol + ['']* 10)
-    sht_HWVol = AddVariableSheet(left_frame10, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','HWVol'], defaultvalues = defaultvalues2, VariableName = "HWVol", myfont = 10, anchor = 'w', padx = 5, pady = 2, sheet_width = 70, sheet_height = 30, MaxHeight=10)
-    sht_HWVol.set_all_column_widths(width=50)
+    HWVolTermList = [list(ResultData["OptMat"].values)]
+    HWVolList = [list(ResultData["HWVol"].values)]
+    HWVol2FList = [[0.0] * len(list(ResultData["HWVol"].values))]
+    def open_result_window(root, DiscCurveTermList, DiscCurveRateList, EstCurveTermList, EstCurveRateList, HWKappaList, HWVolTermList, HWVolList, DiscCurveName, EstCurveName):
+        defaultvalues = (DiscCurveTermList[0] + ['']* 10, list(np.array(DiscCurveRateList[0], dtype = np.float64) * 100) + ['']* 10)
+        defaultvalues2 = (HWVolTermList[0] + ['']* 10, list(np.array(HWVolList[0], dtype = np.float64) * 100) + ['']* 10)
+    
+        # 새로운 결과창
+        result_window = tk.Toplevel(root)
+        result_window.title("MarketData")
+        result_window.geometry("1520x700+5+5")
+        result_window.resizable(False, False)
+
+        # ==========================================
+        # Scrollbar
+        # ==========================================
+
+        v_scroll = tk.Scrollbar(
+            result_window,
+            orient="vertical",
+            width=20
+        )
+        v_scroll.pack(side="right", fill="y")
+
+        h_scroll = tk.Scrollbar(
+            result_window,
+            orient="horizontal",
+            width=20
+        )
+        h_scroll.pack(side="bottom", fill="x")
+
+        canvas = tk.Canvas(
+            result_window,
+            yscrollcommand=v_scroll.set,
+            xscrollcommand=h_scroll.set
+        )
+
+        canvas.pack(
+            side="left",
+            fill="both",
+            expand=True
+        )
+
+        v_scroll.config(command=canvas.yview)
+        h_scroll.config(command=canvas.xview)
+
+        main_frame = tk.Frame(canvas)
+
+        canvas_window = canvas.create_window(
+            (0, 0),
+            window=main_frame,
+            anchor="nw"
+        )
+
+        # Frame 크기 변경 시 scroll 영역 갱신
+        def on_frame_configure(event):
+            canvas.configure(
+                scrollregion=canvas.bbox("all")
+            )
+
+        main_frame.bind(
+            "<Configure>",
+            on_frame_configure
+        )
+
+        nindexs = 7
+        ncolumns = 3
+
+        left_frame = tk.Frame(main_frame)
+        left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
+        sht_DiscCurve = AddVariableSheet(left_frame, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = defaultvalues, VariableName = "DiscZeroCurve", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 90, sheet_height = 30, titlelable= True, titleName = "ZeroCurve1", MaxHeight=10)
+        sht_DiscCurve.set_all_column_widths(width=50)
+        cvnm = make_variable_interface(left_frame, '할인커브명', bold = True, textfont = 11, defaultflag = True, defaultvalue=DiscCurveName[0])
+
+        left_frame2 = tk.Frame(main_frame)
+        left_frame2.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
+        sht_RefCurve = AddVariableSheet(left_frame2, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = defaultvalues, VariableName = "RefZeroCurve", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 90, sheet_height = 30, titlelable= True, titleName = "ZeroCurve2", MaxHeight=10)
+        sht_RefCurve.set_all_column_widths(width=50)
+        cvnm2 = make_variable_interface(left_frame2, '할인커브명', bold = True, textfont = 11, defaultflag = True, defaultvalue=EstCurveName[0])
+
+        left_frame3 = tk.Frame(main_frame)
+        left_frame3.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
+        v_Kappa = make_variable_interface(left_frame3, 'kappa', bold = True, textfont = 11, defaultflag = True, titlelable= True, titleName = "HW Pararm", defaultvalue=HWKappaList[0])
+
+        sht_HWVol = AddVariableSheet(left_frame3, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','HWVol'], defaultvalues = defaultvalues2, VariableName = "HWVol", myfont = 10, anchor = 'w', padx = 5, pady = 2, sheet_width = 85, sheet_height = 30, MaxHeight=10)
+        sht_HWVol.set_all_column_widths(width=60)
+        ResultFrame = tk.Frame(main_frame)
+        ResultFrame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
+        def run_func() : 
+            HWV1 = HWV2 = HWV3 = pd.DataFrame([])
+            DiscCurve = get_from_sheetinterface(sht_DiscCurve)
+            DiscCurve["Term"] = DiscCurve["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+            DiscCurve["Rate"] = DiscCurve["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+            DiscCurveTerm = list(DiscCurve["Term"].values)
+            DiscCurveRate = list(DiscCurve["Rate"].values)
+            DiscCurveTermList[0] = DiscCurveTerm
+            DiscCurveRateList[0] = list(np.array(DiscCurveRate)/100)
+            
+            RefCurve = get_from_sheetinterface(sht_RefCurve)
+            RefCurve["Term"] = RefCurve["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+            RefCurve["Rate"] = RefCurve["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+            RefCurveTerm = list(RefCurve["Term"].values)
+            RefCurveRate = list(RefCurve["Rate"].values)
+            EstCurveTermList[0] = RefCurveTerm
+            EstCurveRateList[0] = list(np.array(RefCurveRate)/100)
+
+            Kappa1 = float(v_Kappa.get()) if len(str(v_Kappa.get())) > 0 else 0.01
+            cvname1 = str(cvnm.get()) if len(str(cvnm.get())) > 0 else 'KRW IRS'
+            cvname2 = str(cvnm2.get()) if len(str(cvnm2.get())) > 0 else 'KRW IRS'
+
+            HWV1 = get_from_sheetinterface(sht_HWVol)
+            HWV1["Term"] = HWV1["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+            HWV1["HWVol"] = HWV1["HWVol"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+            HWVT = list(HWV1["Term"].values)
+            HWV = list(HWV1["HWVol"].values.astype(np.float64)/100)
+            DiscCurveName[0] = cvname1
+            EstCurveName[0] = cvname2
+            
+            HWVolTermList[0] = HWVT
+            HWVolList[0] = HWV
+            result_window.destroy()
+        tk.Button(left_frame, text = '마켓데이터 적용', padx = 10, pady = 10, font = ("맑은 고딕",12,'bold'), command = run_func, width = 15).pack()
+
+    #left_frame10 = tk.Frame(main_frame)
+    #left_frame10.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
+    #v_Kappa = make_variable_interface(left_frame10, 'kappa', bold = True, textfont = 11, defaultflag = True, defaultvalue=ResultData["HWKappa"].iloc[0])
+    #HWTerm = list(ResultData["OptMat"].values)
+    #HWVol = list(ResultData["HWVol"].values)
+    #defaultvalues2 = (HWTerm + ['']* 10, HWVol + ['']* 10)
+    #sht_HWVol = AddVariableSheet(left_frame10, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','HWVol'], defaultvalues = defaultvalues2, VariableName = "HWVol", myfont = 10, anchor = 'w', padx = 5, pady = 2, sheet_width = 85, sheet_height = 30, MaxHeight=10)
+    #sht_HWVol.set_all_column_widths(width=60)
+
+
+    left_frame11 = tk.Frame(main_frame)
+    left_frame11.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
+    vb_GreekFlag = make_listvariable_interface(left_frame11, 'Greek 산출여부', ["0: Greek산출안함","1: Greek산출"], bold = True, listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 1, pady = 2)
+    vb_CSRBucket = make_listvariable_interface(left_frame11, 'CSRBucket\n(Callable Bond평가시)', ["1: 정부,중앙은행","2: 지방정부, 공공행정","3: 금융","4: 원자재","5: 소비재","6: 기술통신"], listheight = 4, textfont = 11, pady = 10, defaultflag=True, defaultvalue=0)
+    vb_DRCFlag = make_listvariable_interface(left_frame11, 'DRC산출여부', ["0: 산출안함","1: 산출함"], bold = True, listheight = 3, textfont = 11, titlelable=False, titleName = "바스켓CDS여부", defaultflag = True, defaultvalue = 0, pady = 1)
+    v_CRRate = make_variable_interface(left_frame11, '신용등급\n(FRTB등급 입력)', bold = False, textfont = 11, defaultflag = True, defaultvalue='AAA')
+    vb_TextFlag = make_listvariable_interface(left_frame11, 'LOGGING 산출여부', ["0: Logging안함","1: Logging"], bold = True, listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0, pady = 2)
 
     Result_frame = tk.Frame(main_frame)
-    Result_frame.pack(side = 'left', padx = 3, pady = 5, anchor = 'n')
+    Result_frame.pack(side = 'left', padx = 3, pady = 2, anchor = 'n')
     PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
     ResultValue = pd.DataFrame([])
     ResultValue2 = pd.DataFrame([])
@@ -1473,6 +1639,11 @@ def IRS_Callable() :
         scrollbar2 = MyArrays[3]  
         ResultValue = MyArrays[4]
         ResultValue2 = MyArrays[5]
+
+        CRRate = str(v_CRRate.get()).replace("+","").replace("-","").replace("1","") if len(str(v_CRRate.get())) > 0 else "NR"
+        DRCFlag = int(str(vb_DRCFlag.get(vb_DRCFlag.curselection())).split(":")[0]) if vb_DRCFlag.curselection() else 1                
+        DRCCRDict = {'AAA' : 0.005, 'AA' : 0.02, 'A' : 0.03,'BBB' : 0.06, 'BB' : 0.15,'B' : 0.30,'CCC' : 0.50,'NR': 0.15} 
+        DRCRW = 0 if DRCFlag == 0 else DRCCRDict[CRRate.upper()]
         PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else today_YYYYMMDD
         NominalFlag = int(str(vb_NAFlag.get(vb_NAFlag.curselection())).split(":")[0]) if vb_NAFlag.curselection() else 0
         GreekFlag = int(str(vb_GreekFlag.get(vb_GreekFlag.curselection())).split(":")[0]) if vb_GreekFlag.curselection() else 0
@@ -1483,6 +1654,9 @@ def IRS_Callable() :
         Phase2StartDate = int(v_Phase2StartDate.get()) if len(str(v_Phase2StartDate.get())) > 0 else today_YYYYMMDD + 10000
         Phase2UseFlag = int(str(vb_Phase2UseFlag.get(vb_Phase2UseFlag.curselection())).split(":")[0]) if vb_Phase2UseFlag.curselection() else 0
         NationFlag = int(str(vb_NationFlag.get(vb_NationFlag.curselection())).split(":")[0]) if vb_NationFlag.curselection() else 0
+
+        CSRBucket= int(str(vb_CSRBucket.get(vb_CSRBucket.curselection())).split(":")[0]) if vb_CSRBucket.curselection() else 1
+        rw_csr = CSRRW[CSRBucket-1] if NominalFlag < 0 else 0
 
         L1_NumCpnOneYear_P1 = int(vb_L1_NumCpnOneYear_P1.get(vb_L1_NumCpnOneYear_P1.curselection())) if vb_L1_NumCpnOneYear_P1.curselection() else 4
         L1_NumCpnOneYear_P2 = int(vb_L1_NumCpnOneYear_P2.get(vb_L1_NumCpnOneYear_P2.curselection())) if vb_L1_NumCpnOneYear_P2.curselection() else 4
@@ -1644,10 +1818,10 @@ def IRS_Callable() :
             L2_RangeFixedRate_P2 = 0
 
         L2_StructuredFlag_P2 = int(str(vb_L2_StructuredFlag_P2.get(vb_L2_StructuredFlag_P2.curselection())).split(":")[0]) if vb_L2_StructuredFlag_P2.curselection() else (0 if L2_NumCpnOneYear_P1 != 0 else 3)
-        Holiday = get_from_sheetinterface(sht_Holiday)
-        Holiday["Holidays"] = Holiday["Holidays"].apply(lambda x : str(x).replace("-",""))
-        Holidays = np.array(list(Holiday["Holidays"].values.astype(np.int64)), dtype = np.int64)
-        NHolidays = len(Holidays)
+        #Holiday = get_from_sheetinterface(sht_Holiday)
+        #Holiday["Holidays"] = Holiday["Holidays"].apply(lambda x : str(x).replace("-",""))
+        Holidays = np.array([19000101], dtype = np.int64) #np.array(list(Holiday["Holidays"].values.astype(np.int64)), dtype = np.int64)
+        NHolidays = 1#len(Holidays)
         RefRateHistoryData = get_from_sheetinterface(RefRateHistory)
         RefRateHistoryDate_L1 = list(RefRateHistoryData["Date"].apply(lambda x : str(x).replace("-","")).astype(np.int64).values)
         RefRateHistory_L1 = list(RefRateHistoryData["Rate(Leg1)"].apply(lambda x : str(x).replace("-","") if len(str(x)) > 0 else '0').astype(np.float64).values/100)
@@ -1661,37 +1835,33 @@ def IRS_Callable() :
         OptionStartDate = np.array(list(OptSchd["옵션 선언일"].values.astype(np.int64)), dtype = np.int64)
         OptionPayDate = np.array(list(OptSchd["옵션행사일"].values.astype(np.int64)), dtype = np.int64)
 
-        DiscLeg = get_from_sheetinterface(sht_DiscCurve)
-        DiscLeg["Term"] = DiscLeg["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
-        DiscLeg["Rate"] = DiscLeg["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
-        ZeroTerm = list(DiscLeg["Term"].values)
+        #DiscLeg = get_from_sheetinterface(sht_DiscCurve)
+        #DiscLeg["Term"] = DiscLeg["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        #DiscLeg["Rate"] = DiscLeg["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        ZeroTerm = DiscCurveTermList[0]#list(DiscLeg["Term"].values)
         NZero = len(ZeroTerm)
-        ZeroRate = list(DiscLeg["Rate"].values)
+        ZeroRate = DiscCurveRateList[0]#list(DiscLeg["Rate"].values)
         Preprocessing_ZeroTermAndRate(ZeroTerm, ZeroRate, PriceDate)
-        Kappa = float(v_Kappa.get()) if len(str(v_Kappa.get())) > 0 else 0.01
+        Kappa = HWKappaList[0]
 
-        RefCurveLeg = get_from_sheetinterface(sht_RefCurve)
-        RefCurveLeg["Term"] = RefCurveLeg["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
-        RefCurveLeg["Rate"] = RefCurveLeg["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
-        EstZeroTerm = list(RefCurveLeg["Term"].values)
+        #RefCurveLeg = get_from_sheetinterface(sht_RefCurve)
+        #RefCurveLeg["Term"] = RefCurveLeg["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        #RefCurveLeg["Rate"] = RefCurveLeg["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        EstZeroTerm = EstCurveTermList[0]#list(RefCurveLeg["Term"].values)
         NEstZero = len(EstZeroTerm)
-        EstZeroRate = list(RefCurveLeg["Rate"].values)
+        EstZeroRate = EstCurveRateList[0]#list(RefCurveLeg["Rate"].values)
         Preprocessing_ZeroTermAndRate(EstZeroTerm, EstZeroRate, PriceDate)
 
-        HWV = get_from_sheetinterface(sht_HWVol)
-        HWV["Term"] = HWV["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
-        HWV["HWVol"] = HWV["HWVol"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
-        HWVAvg = HWV["HWVol"].values.mean()
-        NHWVol = len(HWV)
-        HWVolTerm = HWV["Term"].values.astype(np.float64)
-        if HWVAvg > 0.2 : 
-            HWVol1 = HWV["HWVol"].values.astype(np.float64)/100
-            HWVol2 = HWV["HWVol"].values.astype(np.float64) * 0
-            HWVol = list(HWVol1) + list(HWVol2)
-        else : 
-            HWVol1 = HWV["HWVol"].values.astype(np.float64)
-            HWVol2 = HWV["HWVol"].values.astype(np.float64) * 0
-            HWVol = list(HWVol1) + list(HWVol2)
+        #HWV = get_from_sheetinterface(sht_HWVol)
+        #HWV["Term"] = HWV["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        #HWV["HWVol"] = HWV["HWVol"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        #HWVAvg = HWV["HWVol"].values.mean()
+        #NHWVol = len(HWV)
+        HWVolTerm = HWVolTermList[0] #HWV["Term"].values.astype(np.float64)
+        NHWVol = len(HWVolTerm)
+        HWVol1 = list(HWVolList[0])#HWV["HWVol"].values.astype(np.float64)/100
+        HWVol2 = list(HWVol2FList[0]) #HWV["HWVol"].values.astype(np.float64) * 0
+        HWVol = list(HWVol1) + list(HWVol2)
 
         NumCpnAnn = np.array([L1_NumCpnOneYear_P1, L2_NumCpnOneYear_P1], dtype = np.int64)
         NumCpnAnnPhase2RcvPay = np.array([L1_NumCpnOneYear_P2, L2_NumCpnOneYear_P2], dtype = np.int64)
@@ -1773,6 +1943,8 @@ def IRS_Callable() :
         ResultCpnDatePay_np, ResultCpnDatePay_c = arr_long(np.zeros(700, dtype = np.int64))
         ResultFixingRateCpn_np, ResultFixingRateCpn_c = arr_double(np.zeros(1000, dtype = np.float64))
         Greek_np, Greek_c = arr_double(np.zeros(2 * (NZero + NEstZero) + NHWVol + 40, dtype = np.float64))
+        if CSRBucket > 0 and GreekFlag > 0 : 
+            GreekFlag = CSRBucket
         GreekFlag_c = ct.c_long(GreekFlag)
         TextFlag_c = ct.c_long(TextFlag)
         #VariableNames[50:60]
@@ -1790,7 +1962,6 @@ def IRS_Callable() :
                     ResultCpnDatePay_c, ResultFixingRateCpn_c, Greek_c, GreekFlag_c, TextFlag_c)
         
         TTM = DayCountAtoB(PriceDate, MaturityDate)/365
-        NDefHWTerm = len(HWTerm)
         v = float(ResultFixingRateCpn_c[0])
         ConditionL1 = '\n\n금리결정조건(Leg1) : \n' + str(np.round(L1_RFloor, 2)) + '<=' + str(np.round(L1_RefRateMultiple_P1,2)) + 'xRate(' + str(np.round(L1_RefSwapMaturity_T, 2)) + ')<=' + str(np.round(L1_RCap, 2))
         PayoffConditionL1P1 = '\n\n페이오프(Leg1, Phase1) : \n' + str(np.round(L1_PayoffMultiple_P1 if L1_StructuredFlag_P1 > 0 else 0,2)) + 'xR(' + str(np.round(L1_RefSwapMaturity_T,2)) + ')+' + str(np.round(L1_RangeFixedRate_P1 * 100,2)) + '%(RangeCpn)+' + str(np.round(L1_FixedCpnRate_P1 * 100,2)) + '%(고정)'
@@ -1806,8 +1977,10 @@ def IRS_Callable() :
         Greek_Gamma01Est = np.ctypeslib.as_array(Greek_c[NEstZero + NZero:2*NEstZero + NZero], shape = (NEstZero, ))
         Greek_PV01Disc = np.ctypeslib.as_array(Greek_c[NEstZero:NEstZero + NZero], shape = (NZero, ))
         Greek_Gamma01Disc = np.ctypeslib.as_array(Greek_c[2 * NEstZero + NZero : 2 * NEstZero + 2 * NZero], shape = (NZero, ))
-        pv1 = pd.DataFrame([ZeroTerm_np, Greek_PV01Est, Greek_Gamma01Est], index = ['EstTerm','PV01EstCrv','GammaEstCrv']).T
-        pv2 = pd.DataFrame([ZeroDiscTerm_np, Greek_PV01Disc, Greek_Gamma01Disc], index = ['DiscTerm','PV01DiscCrv','GammaDiscCrv']).T
+        nm1 = list([EstCurveName[0]]) * len(ZeroTerm_np)
+        nm2 = list([DiscCurveName[0]]) * len(ZeroDiscTerm_np)                
+        pv1 = pd.DataFrame([nm1, ZeroTerm_np, Greek_PV01Est, Greek_Gamma01Est], index = ['EstCvName','EstTerm','PV01EstCrv','GammaEstCrv']).T
+        pv2 = pd.DataFrame([nm2, ZeroDiscTerm_np, Greek_PV01Disc, Greek_Gamma01Disc], index = ['DiscCvName','DiscTerm','PV01DiscCrv','GammaDiscCrv']).T
         N1 = int(len(Result123_L1[Result123_L1 != 0])/3)
         N2 = int(len(Result123_L2[Result123_L2 != 0])/3)
 
@@ -1827,25 +2000,26 @@ def IRS_Callable() :
         Res_L2 = pd.DataFrame([FixingDate_L2, EndDate_L2,PayDate_L2,FixingRate_L2,FixingCoupon_L2], index = ['PayFixingDate','PayEndDate','PayPayDate','PayE[FixingRate]','PayE[Coupon]']).T
 
         HWVega = np.ctypeslib.as_array(Greek_c[2 * NEstZero + 2 * NZero:2 * NEstZero + 2 * NZero + NHWVol], shape = (NHWVol, ))
-        RW_GIRR = 0.012020815 
-        RW_CSR = CSRRW[GreekFlag - 1] if NominalFlag >= 0 else 0
+        RW_GIRR = 0.016/np.sqrt(2)
         Sensi = (pv1['PV01EstCrv'].astype(np.float64).sum() + pv2['PV01DiscCrv'].astype(np.float64).sum())/0.0001
         GIRRRWSensi = Sensi * RW_GIRR
-        CSRRWSensi = Sensi * RW_CSR
+        CSRRWSensi = Sensi * rw_csr if NominalFlag < 0 else 0
         GIRRCvcVu = -(float(Greek_c[NHWVol + 2 * NEstZero + 2 * NZero + 1]) - v - GIRRRWSensi)
         GIRRCvcVd = -(float(Greek_c[NHWVol + 2 * NEstZero + 2 * NZero + 2]) - v + GIRRRWSensi)
         GIRRCVR = max(0,max(GIRRCvcVu,GIRRCvcVd))
         CSRCvcVu = -(float(Greek_c[NHWVol + 2 * NEstZero + 2 * NZero + 3]) - v - CSRRWSensi)
         CSRCvcVd = -(float(Greek_c[NHWVol + 2 * NEstZero + 2 * NZero + 4]) - v + CSRRWSensi)
-        CSRCVR = max(0,max(CSRCvcVu,CSRCvcVd)) if NominalFlag >= 0 else 0
+        CSRCVR = max(0,max(CSRCvcVu,CSRCvcVd)) if NominalFlag < 0 else 0
         GIRRVega = (np.array(HWVega)/0.0001 * HWVol_np[:NHWVol]).sum() * 0.85
         GIRRCVRDF = pd.DataFrame([GIRRCvcVu, GIRRCvcVd], columns = ['GIRRCVR'])
         CSRCVRDF = pd.DataFrame([CSRCvcVu, CSRCvcVd], columns = ['CSRCVR'])
-        RWA = np.round((abs(GIRRRWSensi) + GIRRCVR + GIRRCVR + CSRCVR + GIRRVega) * 12.5, 2)
+        DRC = np.round(DRCRW * Nominal * 0.75 , 2) if DRCFlag > 0 else 0
+                
+        RWA = np.round((abs(GIRRRWSensi) + CSRRWSensi + GIRRCVR + GIRRCVR + CSRCVR + GIRRVega + DRC) * 12.5, 2)
         RWA_Pct = np.round(RWA/Nominal, 4)
-        output_label.config(text = f"산출결과: {ConditionL1} {PayoffConditionL1P1} {PayoffConditionL1P2} {ConditionL2} {PayoffConditionL2P1} {PayoffConditionL2P2}\n\n가격 : \n{np.round(ResultFixingRateCpn_c[0],2)}\n Leg1 Price : \n{str(np.round(ResultFixingRateCpn_c[1],2))}\n Leg2 Price : \n{np.round(ResultFixingRateCpn_c[2],2)}\nGIRR 델타 : \n{np.round(abs(GIRRRWSensi),2)}\nGIRR, CSR 커버쳐\n{np.round(GIRRCVR, 2)}, {np.round(CSRCVR, 2)}\n GIRR Vega : \n{np.round(GIRRVega, 2)}\n RWA : \n{RWA}({RWA_Pct* 100})%", font = ("맑은 고딕", 11, 'bold'))
+        output_label.config(text = f"산출결과: {ConditionL1} {PayoffConditionL1P1} {PayoffConditionL1P2} {ConditionL2} {PayoffConditionL2P1} {PayoffConditionL2P2}\n\n가격 : \n{np.round(ResultFixingRateCpn_c[0],2)}\n Leg1 Price : \n{str(np.round(ResultFixingRateCpn_c[1],2))}\n Leg2 Price : \n{np.round(ResultFixingRateCpn_c[2],2)}\nGIRR, CSR 델타 : \n{np.round(abs(GIRRRWSensi),2)},{np.round(abs(CSRRWSensi),2)}\nGIRR, CSR 커버쳐\n{np.round(GIRRCVR, 2)}, {np.round(CSRCVR, 2)}\n GIRR Vega : \n{np.round(GIRRVega, 2)}\n DRC : \n{DRC}\nRWA : \n{RWA}({RWA_Pct* 100})%", font = ("맑은 고딕", 11, 'bold'))
 
-        if NDefHWTerm == NHWVol : 
+        if len(ResultData) == NHWVol : 
             Tenor1 = list(ResultData["OptMat"].values)
             Tenor2 = list(ResultData["SwapMat"].values)
         else : 
@@ -1870,7 +2044,8 @@ def IRS_Callable() :
         tree.configure(xscrollcommand=scrollbar2.set)
         scrollbar.pack(side="right", fill="y")    
         scrollbar2.pack(side="bottom", fill="x")    
-
+        if TextFlag > 0 : 
+            Res.to_excel("IRS_Callable_SaveFile.xlsx")
         PrevTreeFlag = insert_dataframe_to_treeview(tree, Res, width = 100)
 
         MyArrays[0] = PrevTreeFlag 
@@ -1882,6 +2057,13 @@ def IRS_Callable() :
         #df.to_excel("ResultExcel.xlsx",index = False, header=False)
     temp_func = lambda : run_function(MyArrays)
     tk.Button(Result_frame, text = '실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+    run_button = tk.Button(
+        left_frame,
+        text="MarketData확인",
+        command=lambda: open_result_window(root, DiscCurveTermList, DiscCurveRateList, EstCurveTermList, EstCurveRateList, HWKappaList, HWVolTermList, HWVolList, DiscCurveName, EstCurveName),
+        font = ("맑은 고딕",12,'bold')
+    )
+    run_button.pack()
     output_label = tk.Label(Result_frame, text = "", anchor = "n")
     output_label.pack(padx = 5, pady = 2)
     root.mainloop() 
@@ -2817,6 +2999,7 @@ def IRPhaseStructuredSwap() :
     QuantoUseFlag = [0,0,0]
     QuantoCorr = [0.0,0.0,0.0]
     QuantoFXVol = [0.0,0.0,0.0]
+    CvName = ['KRW IRS','커브명','커브명']
     def open_powerspread_window(root, PowerSpreadFlag, PowerSpreadMaturity, DiscCurveIdx, NCPNRefRate, RefRateCurveNum, RefRateNum = 1):     
         
         # 새로운 결과창
@@ -3003,6 +3186,7 @@ def IRPhaseStructuredSwap() :
         left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
         sht_DiscCurve1 = AddVariableSheet(left_frame, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = (list(ZeroTermList[0]) + ['']* 10, list(ZeroRateList[0]) + ['']* 10), VariableName = "ZeroCurve1", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 80, sheet_height = 30, titlelable= True, titleName = "MarketData1", MaxHeight=10)
         sht_DiscCurve1.set_all_column_widths(width=50)
+        v_cvnm1 = make_variable_interface(left_frame, '커브명', bold = True, textfont = 11, defaultflag = CvName[0])
 
         left_frame2 = tk.Frame(main_frame)
         left_frame2.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
@@ -3019,6 +3203,7 @@ def IRPhaseStructuredSwap() :
         left_frame3.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
         sht_DiscCurve2 = AddVariableSheet(left_frame3, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = (list(ZeroTermList[1] if numc > 1 else ['']*10) + ['']* 10, list(ZeroRateList[1] if numc > 1 else ['']*10) + ['']* 10), VariableName = "ZeroCurve2", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 80, sheet_height = 30, titlelable= True, titleName = "MarketData2", MaxHeight=10)
         sht_DiscCurve2.set_all_column_widths(width=50)
+        v_cvnm2 = make_variable_interface(left_frame3, '커브명', bold = True, textfont = 11, defaultflag = CvName[1])
 
         left_frame4 = tk.Frame(main_frame)
         left_frame4.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
@@ -3035,6 +3220,7 @@ def IRPhaseStructuredSwap() :
         left_frame5.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
         sht_DiscCurve3 = AddVariableSheet(left_frame5, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = (list(ZeroTermList[2] if numc > 2 else ['']*10) + ['']* 10, list(ZeroRateList[2] if numc > 2 else ['']*10) + ['']* 10), VariableName = "ZeroCurve3", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 80, sheet_height = 30, titlelable= True, titleName = "MarketData3", MaxHeight=10)
         sht_DiscCurve3.set_all_column_widths(width=50)
+        v_cvnm3 = make_variable_interface(left_frame5, '커브명', bold = True, textfont = 11, defaultflag = CvName[2])
 
         left_frame6 = tk.Frame(main_frame)
         left_frame6.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')        
@@ -3057,10 +3243,17 @@ def IRPhaseStructuredSwap() :
         def run_func() : 
             HWV1 = HWV2 = HWV3 = pd.DataFrame([])
             DiscCurve1 = get_from_sheetinterface(sht_DiscCurve1)
-            DiscCurve1["Term"] = DiscCurve1["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+            DiscCurve1["Term"] = DiscCurve1["Term"].apply(lambda x : str(x).replace("-","").replace(".0","")).astype(np.float64)
             DiscCurve1["Rate"] = DiscCurve1["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
             ZeroTerm1 = list(DiscCurve1["Term"].values)
 
+            cvnm1 = str(v_cvnm1.get()) if len(str(v_cvnm1.get())) > 0 else 'KRW IRS'
+            cvnm2 = str(v_cvnm2.get()) if len(str(v_cvnm2.get())) > 0 else 'KRW IRS'
+            cvnm3 = str(v_cvnm3.get()) if len(str(v_cvnm3.get())) > 0 else 'KRW IRS'
+            CvName[0] = cvnm1
+            CvName[1] = cvnm2
+            CvName[2] = cvnm3
+                        
             Curve_Correlation = get_from_sheetinterface(sht_CurveCorr)
             
             for i1 in range(3) : 
@@ -3113,7 +3306,7 @@ def IRPhaseStructuredSwap() :
 
             if numc > 1 : 
                 DiscCurve2 = get_from_sheetinterface(sht_DiscCurve2)
-                DiscCurve2["Term"] = DiscCurve2["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+                DiscCurve2["Term"] = DiscCurve2["Term"].apply(lambda x : str(x).replace("-","").replace(".0","")).astype(np.float64)
                 DiscCurve2["Rate"] = DiscCurve2["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
                 ZeroTerm2 = list(DiscCurve2["Term"].values)
                 mx2 = np.abs(DiscCurve2["Rate"].values).max()
@@ -3637,7 +3830,7 @@ def IRPhaseStructuredSwap() :
             loggstr.append(str(HWVolList2))
             loggstr.append(str(HWQuantoInfo))
             loggstr.append(str(Error))
-            pd.DataFrame(loggstr).to_excel("IRPhaseStructuredSwap.xlsx")
+            pd.DataFrame(loggstr).to_excel("IRPhaseStructuredSwap_Variables.xlsx")
         Res = CalcFunc(PriceDate_c,NAFlag_c,Notional_c,PayoffStructure_c,HolidayFlagCount_c,
                        Holidays_c,RcvFlag_c,RcvMaxLossReturn_c,RcvRefCurveNumber_c,RcvRefRateType_c,
                        RcvSwapInfo_c,RcvDayCountFlag_c,RcvRefCondMultiple_c,RcvRefPowerSpreadFlag_c,RcvRefPowerSpreadMat_c,
@@ -3655,8 +3848,15 @@ def IRPhaseStructuredSwap() :
         MTM = np.round(ResultPrice_c[2], 2)
         Opt = np.round(ResultPrice_c[3], 2)
         NRf = sum(NZeroRate)
+        nmlst = []
+        for i in range(len(NZeroRate)) : 
+            nmlst += [CvName[min(len(CvName)-1,i)]] * NZeroRate[i]
+
         KeyRcvPV01 = np.ctypeslib.as_array(ResultPrice[12:12 + NRf], shape = (NRf))
         KeyPayPV01 = np.ctypeslib.as_array(ResultPrice[12 + NRf:12 + 2*NRf], shape = (NRf)) * -1        
+        greek = pd.DataFrame([nmlst,ZeroTerm_np, KeyRcvPV01 + KeyPayPV01], index = ['커브명','테너','민감도']).T
+        if TextFlag == 1 : 
+            greek.to_excel("IRPhaseStructuredSwap_민감도산출데이터.xlsx")        
         HWVega = np.ctypeslib.as_array(ResultPrice[12 + 2*NRf:12 + 2*NRf + sum(NHWVolCountList)], shape = (sum(NHWVolCountList), ))
         RW_GIRR = 0.012020815 
         RW_CSR = 0#CSRRW[GreekFlag - 1] 
@@ -3736,7 +3936,7 @@ def IRPhaseStructuredSwap() :
 
 if __name__ == '__main__' : 
     for i in range(10) : 
-        n = MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: IRStructured Swap","2: IRS", "3: Structured Swap HWSimul", "4: CDS Pricing"], size = "800x450+30+30", splitby = ":", listheight = 8, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = [], width = 95, expand = True)
+        n = MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: IRStructured Swap(Callable Bond)","2: IRS", "3: Structured Swap HWSimul", "4: CDS Pricing"], size = "800x450+30+30", splitby = ":", listheight = 8, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = [], width = 95, expand = True)
         if n == 1 : 
             IRS_Callable()
         elif n == 2 : 

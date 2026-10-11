@@ -4315,7 +4315,7 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 				Temp_ResultCpnDateRcv,
 				Temp_ResultCpnDatePay,
 				Temp_ResultFixingRateCpn,
-				TextFlag
+				0
 			);
 			Price2 = Temp_ResultFixingRateCpn[0];
 			Greek[i] = (Price2 - Price);
@@ -4388,7 +4388,7 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 				Temp_ResultCpnDateRcv,
 				Temp_ResultCpnDatePay,
 				Temp_ResultFixingRateCpn,
-				TextFlag
+				0
 			);
 			Price3 = Temp_ResultFixingRateCpn[0];
 			Greek[i + (NZeroRate + NZeroDiscRate)] = (Price2 + Price3 - 2.0 * Price);
@@ -4474,7 +4474,7 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 				Temp_ResultCpnDateRcv,
 				Temp_ResultCpnDatePay,
 				Temp_ResultFixingRateCpn,
-				TextFlag
+				0
 			);
 			Price2 = Temp_ResultFixingRateCpn[0];
 			Greek[i + NZeroRate] = (Price2 - Price);
@@ -4547,7 +4547,7 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 				Temp_ResultCpnDateRcv,
 				Temp_ResultCpnDatePay,
 				Temp_ResultFixingRateCpn,
-				TextFlag
+				0
 			);
 
 			Price3 = Temp_ResultFixingRateCpn[0];
@@ -4630,7 +4630,7 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 				Temp_ResultCpnDateRcv,
 				Temp_ResultCpnDatePay,
 				Temp_ResultFixingRateCpn,
-				TextFlag
+				0
 			);
 			Price2 = Temp_ResultFixingRateCpn[0];
 			Greek[i + 2 * (NZeroRate + NZeroDiscRate)] = (Price2 - Price);
@@ -4708,7 +4708,7 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 			Temp_ResultCpnDateRcv,
 			Temp_ResultCpnDatePay,
 			Temp_ResultFixingRateCpn,
-			TextFlag
+			0
 		);
 
 		Price2 = Temp_ResultFixingRateCpn[0];
@@ -4782,7 +4782,7 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 			Temp_ResultCpnDateRcv,
 			Temp_ResultCpnDatePay,
 			Temp_ResultFixingRateCpn,
-			TextFlag
+			0
 		);
 
 		Price2 = Temp_ResultFixingRateCpn[0];
@@ -4861,7 +4861,7 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 			Temp_ResultCpnDateRcv,
 			Temp_ResultCpnDatePay,
 			Temp_ResultFixingRateCpn,
-			TextFlag
+			0
 		);
 
 		Price2 = Temp_ResultFixingRateCpn[0];
@@ -4935,7 +4935,7 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 			Temp_ResultCpnDateRcv,
 			Temp_ResultCpnDatePay,
 			Temp_ResultFixingRateCpn,
-			TextFlag
+			0
 		);
 
 		Price2 = Temp_ResultFixingRateCpn[0];
