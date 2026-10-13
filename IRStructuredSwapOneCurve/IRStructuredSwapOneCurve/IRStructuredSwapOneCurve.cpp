@@ -4636,10 +4636,45 @@ DLLEXPORT(long) IRStructuredSwapFDM_Greek(
 			Greek[i + 2 * (NZeroRate + NZeroDiscRate)] = (Price2 - Price);
 		}
 
-		for (i = 0; i < NZeroRate; i++) ZeroRateUp[i] = ZeroRate[i] + 0.012020815; // FRTB Curvature Up
-		for (i = 0; i < NZeroDiscRate; i++) ZeroDiscRateUp[i] = ZeroDiscRate[i] + 0.012020815;
-		for (i = 0; i < NZeroRate; i++) ZeroRateDn[i] = ZeroRate[i] - 0.012020815; // FRTB Curvature Dn
-		for (i = 0; i < NZeroDiscRate; i++) ZeroDiscRateDn[i] = ZeroDiscRate[i] - 0.012020815;
+		for (i = 0; i < NZeroRate; i++)
+		{
+			if (ZeroTerm[i] <= 0.51) ZeroRateUp[i] = ZeroRate[i] + 0.012020815;
+			else if (ZeroTerm[i] <= 1.01) ZeroRateUp[i] = ZeroRate[i] + 0.011314;
+			else if (ZeroTerm[i] <= 2.01) ZeroRateUp[i] = ZeroRate[i] + 0.009192;
+			else if (ZeroTerm[i] <= 3.01) ZeroRateUp[i] = ZeroRate[i] + 0.008485;
+			else ZeroRateUp[i] = ZeroRate[i] + 0.007778;
+		}
+
+		for (i = 0; i < NZeroDiscRate; i++)
+		{
+			if (ZeroTerm[i] <= 0.51) ZeroDiscRateUp[i] = ZeroDiscRate[i] + 0.012020815;
+			else if (ZeroTerm[i] <= 1.01) ZeroDiscRateUp[i] = ZeroDiscRate[i] + 0.011314;
+			else if (ZeroTerm[i] <= 2.01) ZeroDiscRateUp[i] = ZeroDiscRate[i] + 0.009192;
+			else if (ZeroTerm[i] <= 3.01) ZeroDiscRateUp[i] = ZeroDiscRate[i] + 0.008485;
+			else ZeroDiscRateUp[i] = ZeroDiscRate[i] + 0.007778;
+		}
+
+		for (i = 0; i < NZeroRate; i++)
+		{
+			if (ZeroTerm[i] <= 0.51) ZeroRateDn[i] = ZeroRate[i] - 0.012020815;
+			else if (ZeroTerm[i] <= 1.01) ZeroRateDn[i] = ZeroRate[i] - 0.011314;
+			else if (ZeroTerm[i] <= 2.01) ZeroRateDn[i] = ZeroRate[i] - 0.009192;
+			else if (ZeroTerm[i] <= 3.01) ZeroRateDn[i] = ZeroRate[i] - 0.008485;
+			else ZeroRateDn[i] = ZeroRate[i] - 0.007778;
+		}
+
+		for (i = 0; i < NZeroDiscRate; i++)
+		{
+			if (ZeroTerm[i] <= 0.51) ZeroDiscRateDn[i] = ZeroDiscRate[i] - 0.012020815;
+			else if (ZeroTerm[i] <= 1.01) ZeroDiscRateDn[i] = ZeroDiscRate[i] - 0.011314;
+			else if (ZeroTerm[i] <= 2.01) ZeroDiscRateDn[i] = ZeroDiscRate[i] - 0.009192;
+			else if (ZeroTerm[i] <= 3.01) ZeroDiscRateDn[i] = ZeroDiscRate[i] - 0.008485;
+			else ZeroDiscRateDn[i] = ZeroDiscRate[i] - 0.007778;
+		}
+
+
+		//for (i = 0; i < NZeroRate; i++) ZeroRateDn[i] = ZeroRate[i] - 0.012020815; // FRTB Curvature Dn
+		//for (i = 0; i < NZeroDiscRate; i++) ZeroDiscRateDn[i] = ZeroDiscRate[i] - 0.012020815;
 		ResultCode = IRStructuredSwapFDM(
 			PriceDate,							// PricingDate As YYYYMMDD
 			EffectiveDate,						// EffeciveDate As YYYYMMDD
@@ -4981,6 +5016,15 @@ DLLEXPORT(long) FRTB_IRDelta_IRStructuredOneCurve(
 )
 {
 	long i, j;
+	long TextFlag = 0;
+	char CalcFunctionName[] = "FRTBFile";
+	char SaveFileName[100];
+	get_filenameYYYYMMDD(SaveFileName, 100, CalcFunctionName);
+	if (TextFlag > 0)
+	{
+		DumppingTextDataArray(CalcFunctionName, SaveFileName, "HWVolGreek", NHWVol, HWVolGreek);
+	}
+
 	Preprocessing_TermAndRate(PriceDate, NZeroRate, ZeroTerm, ZeroRate);
 	Preprocessing_TermAndRate(PriceDate, NZeroDiscRate, ZeroDiscTerm, ZeroDiscRate);
 
@@ -4995,6 +5039,17 @@ DLLEXPORT(long) FRTB_IRDelta_IRStructuredOneCurve(
 	AdjZeroTerm_10[7] = 15.0;
 	AdjZeroTerm_10[8] = 20.0;
 	AdjZeroTerm_10[9] = 30.0;
+	AdjZeroDiscTerm_10[0] = 0.25;
+	AdjZeroDiscTerm_10[1] = 0.5;
+	AdjZeroDiscTerm_10[2] = 1.0;
+	AdjZeroDiscTerm_10[3] = 2.0;
+	AdjZeroDiscTerm_10[4] = 3.0;
+	AdjZeroDiscTerm_10[5] = 5.0;
+	AdjZeroDiscTerm_10[6] = 10.0;
+	AdjZeroDiscTerm_10[7] = 15.0;
+	AdjZeroDiscTerm_10[8] = 20.0;
+	AdjZeroDiscTerm_10[9] = 30.0;
+
 	for (i = 0; i < 10; i++) AdjZeroGreek_10[i] = 0.;
 	for (i = 0; i < NZeroRate; i++)
 	{

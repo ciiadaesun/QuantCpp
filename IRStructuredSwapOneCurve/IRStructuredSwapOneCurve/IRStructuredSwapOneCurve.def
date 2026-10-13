@@ -18,3 +18,4 @@ EXPORTS
 	Preprocessing_TermAndVol									@16
 	IRStructuredSwapFDM											@17
 	IRStructuredSwapFDM_Greek									@18
+	FRTB_IRDelta_IRStructuredOneCurve							@19
