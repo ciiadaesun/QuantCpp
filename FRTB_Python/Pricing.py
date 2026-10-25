@@ -808,6 +808,37 @@ def BS_Swaption(PriceDate, StartDate, SwapTenorT, NCpnOneYear, Notional, Vol, St
     MyDict = {"Price":Notional * value,"Value":Notional*(value - value_atm), "ForwardSwapRate":ForwardSwapRate,"ExerciseValue":ExerciseValue}
     return MyDict
 
+def LNVolToNormalVol(PriceDate = 20261025, StartDate = 20261125, SwapTenorT = 10, NCpnOneYear = 4, Notional = 100, Vol = 0.26, DayCountFlag = 0, FixedPayer0Receiver1 = 0, Term = [1.0], Rate = [0.035], HolidaysFixing = [], HolidaysPay = []) : 
+    FirstBSP = BS_Swaption(PriceDate, StartDate, SwapTenorT, NCpnOneYear, Notional, Vol, 0.01, Term, Rate, DayCountFracFlag = DayCountFlag, VolFlag = 0, HolidaysFixing = HolidaysFixing, HolidaysPay = HolidaysPay, NBDayFromEndDateToPay = -1, FixedPayer0Receiver1 = FixedPayer0Receiver1)
+    StrikePrice = FirstBSP['ForwardSwapRate']
+    BSP = BS_Swaption(PriceDate, StartDate, SwapTenorT, NCpnOneYear, Notional, Vol, StrikePrice, Term, Rate, DayCountFracFlag = DayCountFlag, VolFlag = 0, HolidaysFixing = HolidaysFixing, HolidaysPay = HolidaysPay, NBDayFromEndDateToPay = -1, FixedPayer0Receiver1 = FixedPayer0Receiver1)
+    FirstBaseVol = Vol * StrikePrice
+    MaxVol = FirstBaseVol + 0.05
+    MinVol = max(0.0001, FirstBaseVol - 0.05)
+    TargetVol = MaxVol
+
+    for i in range(100) : 
+        NMP = BS_Swaption(PriceDate, StartDate, SwapTenorT, NCpnOneYear, Notional, TargetVol, StrikePrice, Term, Rate, DayCountFracFlag = DayCountFlag, VolFlag = 1, HolidaysFixing = HolidaysFixing, HolidaysPay = HolidaysPay, NBDayFromEndDateToPay = -1, FixedPayer0Receiver1 = FixedPayer0Receiver1)
+        Err = NMP['Price'] - BSP['Price']
+        if abs(Err)/abs(Notional) < 0.00001 : 
+            break
+
+        if Err > 0 : 
+            MaxVol = TargetVol
+            TargetVol = (TargetVol + MinVol) / 2 
+        else : 
+            MinVol = TargetVol
+            TargetVol = (TargetVol + MaxVol) / 2
+
+    CalibFlag = 0
+    if i == 100 : 
+        ResultVol = FirstBaseVol
+        CalibFlag = 0
+    else : 
+        ResultVol = TargetVol
+        CalibFlag = 1
+    return {"CalibrationResult" : CalibFlag, "StartDate" : StartDate,"SwapTenor" : SwapTenorT, "LogNormalVol" : Vol,"NormalVol" : ResultVol, "ForwardSwapRate" : StrikePrice, "ImpliedBSPrice" :  BSP['Price'], "ImpliedNMPrice" : NMP["Price"]}
+
 def calc_mu(b, sigma):
     return (b - 0.5 * sigma ** 2) / (sigma ** 2)
 

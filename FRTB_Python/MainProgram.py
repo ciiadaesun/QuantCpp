@@ -13,8 +13,8 @@ from tkinter import messagebox
 from packaging import version
 from Utility import Linterp, Linterp2D, DayCountAtoB, YYYYMMDDToExcelDate, ExcelDateToYYYYMMDD, DayCountFractionAtoB, MappingCouponDates, EDate_YYYYMMDD, malloc_cpn_date_holiday, DayPlus, MonthCountAtoB, KoreaHolidaysFromStartToEnd, USHolidaysFromStartToEnd, BusinessDateArrayFromAtoB, ReadCSV, NBusinessCountFromEndToPay, ParseBusinessDateIfHoliday, NextNthBusinessDate, MapProductType, Calc_ZeroRate_FromDiscFactor, CalcZeroRateFromSwapPoint, Generate_OptionDate
 from RiskModule import MapGIRRDeltaGreeks, MapCSRDeltaGreeks, MapEquityRiskWeight, EQDeltaRWMappingDF, Calc_GIRRDeltaNotCorrelated_FromGreeks, Calc_CSRDeltaNotCorrelated_FromGreeks, Calc_FXRDelta, HighLiquidCurrency, PreProcessingMyData, PreProcessingBankData, AggregatedFRTB_RiskCharge, Calc_GIRRDeltaNotCorrelated_FromGreeks_PreProcessing, GIRR_DeltaRiskWeight, Calc_GIRRVega, MapGIRRVegaGreeks
-from Pricing import Preprocessing_Term, Preprocessing_ZeroTermAndRate, BS_Option, BSBarrierOption, BSDigitalOption, Arithmetic_Asian_Opt_Pricing_Preprocessing, Pricing_CapFloor, BS_Swaption, Calc_Schedule_ErrorCheck, Calc_Bond_PV01, Calc_IRS_PV01, Calc_Value_FXSwap, CalC_CRS_PV01, Calc_CRS, Calc_IRS, FindSwaptionImpliedVolatility, B_s_to_t, Calc_ForwardDiscount_Factor, HullWhiteCalibration1Factor, Pricing_IRCallableSwap_HWFDM, Pricing_IRCallableSwap_HWFDM_Greek, Pricing_RangeAccrualBond, CapFloorToImpliedVol, BS_Price_To_ImpliedVolatility
-from GraphicInterface import make_variable_interface, make_listvariable_interface, make_multilistvariable_interface, insert_dataframe_to_treeview
+from Pricing import Preprocessing_Term, Preprocessing_ZeroTermAndRate, BS_Option, BSBarrierOption, BSDigitalOption, Arithmetic_Asian_Opt_Pricing_Preprocessing, Pricing_CapFloor, BS_Swaption, Calc_Schedule_ErrorCheck, Calc_Bond_PV01, Calc_IRS_PV01, Calc_Value_FXSwap, CalC_CRS_PV01, Calc_CRS, Calc_IRS, FindSwaptionImpliedVolatility, B_s_to_t, Calc_ForwardDiscount_Factor, HullWhiteCalibration1Factor, Pricing_IRCallableSwap_HWFDM, Pricing_IRCallableSwap_HWFDM_Greek, Pricing_RangeAccrualBond, CapFloorToImpliedVol, BS_Price_To_ImpliedVolatility, LNVolToNormalVol
+from GraphicInterface import make_variable_interface, make_listvariable_interface, make_multilistvariable_interface, insert_dataframe_to_treeview, AddVariableSheet, interface_basic_settings, get_from_sheetinterface
 import requests
 # JIT은 쓰지말자
 #from numba import jit
@@ -333,7 +333,7 @@ def ViewFRTB(Data) :
     PrevTreeFlag = insert_dataframe_to_treeview(tree, DataDF, width = 100)
     root.mainloop()    
 
-def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation","5: Cap Floor Implied Vol Calibration",'6: HW Kappa1F VolRatio Calib(미완)','7: 환포지션으로 FXDelta계산'], size = "800x450+30+30", splitby = ":", listheight = 8, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = [], width = 95, expand = True) : 
+def MainViewer(Title = 'Viewer', MyText = '사용하실 기능은?(번호입력)', MyList = ["1: Pricing 및 CSR, GIRR 간이 시뮬레이션","2: FRTB SA Risk Calculation","3: CurveGenerator","4: IR Swaption ImpliedVol Calculation","5: Cap Floor Implied Vol Calibration",'6: HW Kappa1F VolRatio Calib(미완)','7: 환포지션으로 FXDelta계산', '8: BSVol to NormalVol'], size = "800x450+30+30", splitby = ":", listheight = 8, textfont = 13, titlelable = False, titleName = "Name", MultiSelection = False, defaultvalue = 0, addtreeflag = False, treedata = pd.DataFrame([]), DefaultStringList = [], width = 95, expand = True) : 
     root = tk.Tk()
     root.title(Title)
     root.geometry(size)
@@ -5750,6 +5750,111 @@ def EQOptPriceToVolatility(PriceDate, currdir, currency = 'KRW') :
     else :
         print("오류 : " + str(PriceDate) + "자 EQVol, 제로금리가 없습니다.")
 
+def CalcBSVolToNormalVol(currdir = os.getcwd()) : 
+    nindexs = 7
+    ncolumns = 3
+    YYYYMMDD, Name, MyMarketDataList = UsedMarketDataSetToPricing(currdir + '\\MarketData\\outputdata',
+                                                                    namenotin = "vol",
+                                                                    Comments = "IRS Pricing을 위한 커브 번호를 입력하시오.\n(Estimation Curve와 Discount Curve가 다른 경우 1, 2 등 두개 입력)",DefaultStringList = ["IRS"])     
+    curvename = PrintingMarketDataInformation(YYYYMMDD, Name, MyMarketDataList)
+
+    PriceDateDefault = int(YYYYMMDD)
+    Curve = MyMarketDataList[0]
+    ZeroTerm = list(Curve['Term'].values)
+    ZeroRate = list(Curve['Rate'].values)
+
+    defaultvalues = [ZeroTerm + [''] * 10, ZeroRate + [''] * 10]
+    defaultvalues2 = [list(np.repeat([0.5, 1.0, 3.0, 5.0, 10.0],5)), [0.5, 1.0, 3.0, 5.0, 10.0] * 5, ['26.0%']*25]
+    root, v_scroll, h_scroll, canvas, main_frame, canvas_window = interface_basic_settings('Structured Swap HW 1F FDM')
+
+    left_frame = tk.Frame(main_frame)
+    left_frame.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    v_PriceDate = make_variable_interface(left_frame, 'PriceDate', bold = True, textfont = 11, pady = 3, defaultflag = True, defaultvalue = int(PriceDateDefault))
+    vb_RefSwapNCPNOneYear = make_listvariable_interface(left_frame, '연 쿠폰지급수', ["1","2","4","6"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue=2)
+    vb_DayCount = make_listvariable_interface(left_frame, 'DayCount', ["0: ACT/365","1: ACT/360","2: ACT/ACT","3: 30/360"], listheight = 3, textfont = 11, defaultflag = True, defaultvalue = 0)
+    sht_DiscCurve = AddVariableSheet(left_frame, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['Term','Rate'], defaultvalues = defaultvalues, VariableName = "DiscZeroCurve", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 90, sheet_height = 30, titlelable= True, titleName = "ZeroCurve1", MaxHeight=10)
+    sht_DiscCurve.set_all_column_widths(width=50)
+
+    left_frame2 = tk.Frame(main_frame)
+    left_frame2.pack(side = 'left', padx = 5, pady = 5, anchor = 'n')
+    sht_BSVol = AddVariableSheet(left_frame2, nindexs = nindexs, ncolumns= ncolumns,targetcolumns = ['OptT','SwapT','BlackVol'], defaultvalues = defaultvalues2, VariableName = "Black Vol", myfont = 12, anchor = 'w', padx = 5, pady = 2, sheet_width = 90, sheet_height = 30, titlelable= True, titleName = "Black Vol", MaxHeight=10)
+    sht_BSVol.set_all_column_widths(width=70)
+
+    Result_frame = tk.Frame(main_frame)
+    Result_frame.pack(side = 'left', padx = 3, pady = 2, anchor = 'n')
+    PrevTreeFlag, tree, scrollbar, scrollbar2 = 0, None, None, None
+    ResultValue = pd.DataFrame([])
+    ResultValue2 = pd.DataFrame([])
+    MyArrays = [PrevTreeFlag, tree, scrollbar, scrollbar2, ResultValue, ResultValue2]
+    def run_function(MyArrays) : 
+        PrevTreeFlag = MyArrays[0] 
+        tree = MyArrays[1] 
+        scrollbar = MyArrays[2]
+        scrollbar2 = MyArrays[3]  
+        ResultValue = MyArrays[4]
+        ResultValue2 = MyArrays[5]
+        PriceDate = int(v_PriceDate.get()) if len(str(v_PriceDate.get())) > 0 else int(PriceDate)
+        RefSwapNCPNOneYear = int(vb_RefSwapNCPNOneYear.get(vb_RefSwapNCPNOneYear.curselection())) if vb_RefSwapNCPNOneYear.curselection() else 4
+        DayCountFlag = int(str(vb_DayCount.get(vb_DayCount.curselection())).split(":")[0]) if vb_DayCount.curselection() else 0
+
+        DiscLeg = get_from_sheetinterface(sht_DiscCurve)
+        DiscLeg["Term"] = DiscLeg["Term"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        DiscLeg["Rate"] = DiscLeg["Rate"].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        DiscTerm = list(DiscLeg["Term"].values)
+        NDisc = len(DiscTerm)
+        DiscRate = list(DiscLeg["Rate"].values)
+
+        BSV = get_from_sheetinterface(sht_BSVol)
+        BSV['OptT'] = BSV['OptT'].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        BSV['SwapT'] = BSV['SwapT'].apply(lambda x : str(x).replace("-","")).astype(np.float64)
+        BSV['BlackVol'] = BSV['BlackVol'].apply(lambda x : str(x).replace("%","").replace(" ","")).astype(np.float64)/100
+        TermVol1 = list(BSV['OptT'].values)
+        TermVol2 = list(BSV['SwapT'].values)
+        BSVols = list(BSV['BlackVol'].values)
+        #TermVol1 = [0.25, 0.25, 0.25, 1.0, 1.0]
+        #TermVol2 = [20270624, 20270924, 20271224, 2, 3]
+        StartDate = [DayPlus(PriceDate, int(t * 365 + 0.0001)) for t in TermVol1]
+        Tenor = [(((DayCountAtoB(StartDate[n], t)/365) // 0.25) *0.25 if t > 19000100 else t) for n, t in enumerate(TermVol2)]
+        Preprocessing_ZeroTermAndRate(DiscTerm, DiscRate, PriceDate)
+        ResDF = pd.DataFrame([])
+        for i in range(len(TermVol1)) : 
+            res = LNVolToNormalVol(PriceDate = PriceDate, StartDate = StartDate[i], SwapTenorT = Tenor[i], NCpnOneYear = RefSwapNCPNOneYear, Notional = 100, 
+                                Vol = BSVols[i], DayCountFlag = DayCountFlag, FixedPayer0Receiver1 = 0, Term = DiscTerm, Rate = DiscRate, HolidaysFixing = [], HolidaysPay = [])
+            ResDF = pd.concat([ResDF, pd.Series(res)],axis = 1)
+
+        ResDF = ResDF.T
+        if PrevTreeFlag == 0 : 
+            tree = ttk.Treeview(root)
+        else : 
+            tree.destroy()
+            scrollbar.destroy()
+            scrollbar2.destroy()
+            tree = ttk.Treeview(root)
+        ResDF = ResDF.applymap(lambda x : np.round(x, 6) if isinstance(x, float) else x)
+        ResDF.index = np.arange(len(ResDF))
+        tree.pack(padx=5, pady=5, fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(root, orient="vertical", command=tree.yview)
+        scrollbar2 = ttk.Scrollbar(root, orient="horizontal", command=tree.xview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.configure(xscrollcommand=scrollbar2.set)
+        scrollbar.pack(side="right", fill="y")    
+        scrollbar2.pack(side="bottom", fill="x")    
+        
+        PrevTreeFlag = insert_dataframe_to_treeview(tree, ResDF.reset_index(), width = 100)
+
+        MyArrays[0] = PrevTreeFlag 
+        MyArrays[1] = tree 
+        MyArrays[2] = scrollbar
+        MyArrays[3] = scrollbar2
+        MyArrays[4] = ResDF      
+        #df.to_excel("ResultExcel.xlsx",index = False, header=False)
+    temp_func = lambda : run_function(MyArrays)
+    tk.Button(Result_frame, text = '실행', padx = 20, pady = 15, font = ("맑은 고딕",12,'bold'), command = temp_func, width = 15).pack()
+    output_label = tk.Label(Result_frame, text = "", anchor = "n")
+    output_label.pack(padx = 5, pady = 2)
+    root.mainloop() 
+    return MyArrays[4]
+
 ################
 # Main Program #
 ################
@@ -5777,7 +5882,7 @@ if MainFlag :
 
 while True : 
     MainFlag = MainViewer(size = "800x450+50+50")
-    if str(MainFlag) == 0 or len(str(MainFlag)) == 0 or (MainFlag not in [1,2,3,4,5,6,7,'1','2','3','4','5','6','7']) : 
+    if str(MainFlag) == 0 or len(str(MainFlag)) == 0 or (MainFlag not in [1,2,3,4,5,6,7,8,'1','2','3','4','5','6','7','8']) : 
         print("\n###########################\n### 프로그램을 종료합니다.###\n###########################")
         break
     elif MainFlag in [2,'2'] :         
@@ -5887,6 +5992,8 @@ while True :
     elif MainFlag in [7, '7'] :
         FXSpot = PreprocessingFXSpotData(currdir + "\\MarketData\\spot\\FXSpot.csv")        
         CalcFXDeltaProgram_FromFXPosition(FXSpot)
+    elif MainFlag in [8,'8'] : 
+        CalcBSVolToNormalVol(currdir)
 
     MainFlag2 = MainViewer(Title = 'Continue', MyText = '종료하시겠습니까', MyList = ["0: 종료", "1: 계속 다른업무 실행"], size = "800x450+30+30", splitby = ":", listheight = 6, textfont = 13)
     if MainFlag2 == 0:
@@ -5895,9 +6002,12 @@ while True :
 
 
 # %%
+#Res = LNVolToNormalVol(PriceDate = 20261025, StartDate = 20261125, SwapTenorT = 10, NCpnOneYear = 4, Notional = 100, Vol = 0.26, DayCountFlag = 0, FixedPayer0Receiver1 = 0, Term = [1.0], Rate = [0.035], HolidaysFixing = [], HolidaysPay = [])
+#pd.concat([pd.Series(Res),pd.Series(Res)],axis = 1)
 
 # %%
 #Arithmetic_Asian_Opt_Pricing_Preprocessing(Long0Short1 = 0, Call0Put1 = 0, PriceDate = 20240627, AverageStartDate = 20240601, AverageEndDate = 20240927, OptionMaturityDate = 20240927, S = 100, K = 95, PrevAverage = 98, DiscTerm = [1, 2, 3], DiscRate = [0.03, 0.03, 0.03], DivTerm = [1], DivRate = [0.02], QuantoCorr = 0, FXVolTerm = [1], FXVol = [0], VolTerm = [0], VolParity = [0], Vols2D = 0.3, DivTypeFlag = 0, Holidays = KoreaHolidaysFromStartToEnd(2020,2040))
+
 
 
 # %%
