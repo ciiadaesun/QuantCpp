@@ -4429,10 +4429,11 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
     }
 
     ResultCode = IRStructuredSwap(PriceDate, NAFlag, Notional, RcvLeg, PayLeg, Simul, GreekFlag, ResultPrice, ResultRcv, ResultPay);
-    double RcvValue, PayValue, MTMValue;
+    double RcvValue, PayValue, MTMValue, OptPrice;
     RcvValue = ResultPrice[0];
     PayValue = ResultPrice[1];
     MTMValue = ResultPrice[2];
+    OptPrice = ResultPrice[3];
     double TempResultPrice[5] = { 0.0, 0.0,0.0,0.0 };
     double* TempResultRcv = (double*)malloc(sizeof(double) * (NRcvCashFlow * 7));
     double* TempResultPay = (double*)malloc(sizeof(double) * (NPayCashFlow * 7));
@@ -4476,7 +4477,7 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
         long idxstart, idxend;
         long UselessTermFlag = 0;
         
-        double PV01Rcv, PV01Pay;
+        double PV01Rcv, PV01Pay, PV01Opt;
         
 
         double* KeyPV01Rcv;
@@ -4557,6 +4558,15 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
 
                 PV01Rcv = TempResultPrice[0] - RcvValue;
                 PV01Pay = TempResultPrice[1] - PayValue;
+                PV01Opt = TempResultPrice[3] - OptPrice;
+                if (OptionType == 1)
+                {
+                    if (RcvLeg->NOption > 0) PV01Rcv += PV01Opt;
+                }
+                else
+                {
+                    if (RcvLeg->NOption > 0) PV01Pay += PV01Opt;
+                }
                 ResultPV01[i - 1] = PV01Rcv;
                 ResultPV01[i - 1 + 4] = PV01Pay;
                 k = k + 1;
@@ -4610,6 +4620,15 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
 
                         PV01Rcv = TempResultPrice[0] - RcvValue;
                         PV01Pay = TempResultPrice[1] - PayValue;
+                        PV01Opt = TempResultPrice[3] - OptPrice;
+                        if (OptionType == 1)
+                        {
+                            if (RcvLeg->NOption > 0) PV01Rcv += PV01Opt;
+                        }
+                        else
+                        {
+                            if (RcvLeg->NOption > 0) PV01Pay += PV01Opt;
+                        }
                         KeyPV01Rcv[idxtermup - idxstart] = PV01Rcv;
                         KeyPV01Pay[idxtermup - idxstart] = PV01Pay;
                     }
