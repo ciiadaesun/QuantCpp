@@ -4760,3 +4760,1145 @@ for n, s in enumerate(VariableNames) :
 
 
 # %%
+import os
+import re
+import win32com.client as win32
+
+from docx import Document
+from docx.shared import Pt, RGBColor
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+
+
+def clean_text(s):
+    return re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', s)
+
+
+def to_rgb(color):
+    """Word COM 색상 정수값을 RGB로 변환"""
+    if color is None or color < 0:
+        return None
+
+    color = int(color)
+
+    return RGBColor(
+        color & 255,
+        (color >> 8) & 255,
+        (color >> 16) & 255
+    )
+
+
+def set_character_spacing(run, spacing_pt):
+    if spacing_pt is None:
+        return
+
+    rPr = run._r.get_or_add_rPr()
+    spacing = OxmlElement("w:spacing")
+    spacing.set(qn("w:val"), str(round(spacing_pt * 20)))
+    rPr.append(spacing)
+
+
+def set_shading(run, color):
+    rgb = to_rgb(color)
+
+    if rgb is None:
+        return
+
+    rPr = run._r.get_or_add_rPr()
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:fill"), str(rgb))
+    rPr.append(shd)
+
+
+def apply_run_format(run, info):
+    font = run.font
+
+    if info["name"]:
+        font.name = info["name"]
+
+    if info["size"] > 0:
+        font.size = Pt(info["size"])
+
+    font.bold = info["bold"]
+    font.italic = info["italic"]
+    font.underline = info["underline"]
+
+    rgb = to_rgb(info["color"])
+    if rgb is not None:
+        font.color.rgb = rgb
+
+    set_character_spacing(run, info["spacing"])
+    set_shading(run, info["shading"])
+
+def apply_paragraph_format(src_para, dst_para):
+    src_fmt = src_para.Format
+    dst_fmt = dst_para.paragraph_format
+
+    # Word COM은 포인트 단위
+    dst_fmt.left_indent = Pt(src_fmt.LeftIndent)
+    dst_fmt.right_indent = Pt(src_fmt.RightIndent)
+    dst_fmt.first_line_indent = Pt(src_fmt.FirstLineIndent)
+
+    dst_fmt.space_before = Pt(src_fmt.SpaceBefore)
+    dst_fmt.space_after = Pt(src_fmt.SpaceAfter)
+
+    # 줄간격
+    rule = src_fmt.LineSpacingRule
+
+    if rule == 0:       # 한 줄
+        dst_fmt.line_spacing = 1.0
+    elif rule == 1:     # 1.5줄
+        dst_fmt.line_spacing = 1.5
+    elif rule == 2:     # 두 줄
+        dst_fmt.line_spacing = 2.0
+    elif rule in (3, 4):  # 최소값 / 고정값
+        dst_fmt.line_spacing = Pt(src_fmt.LineSpacing)
+    elif rule == 5:     # 배수
+        dst_fmt.line_spacing = src_fmt.LineSpacing / 12
+
+    # 정렬: Word와 python-docx의 기본 정렬값은 대응
+    if src_fmt.Alignment in (0, 1, 2, 3):
+        dst_para.alignment = src_fmt.Alignment
+
+def get_font_info(rng):
+    f = rng.Font
+
+    return {
+        "name": f.Name,
+        "size": f.Size,
+        "bold": True if f.Bold == -1 else (False if f.Bold == 0 else None),
+        "italic": True if f.Italic == -1 else (False if f.Italic == 0 else None),
+        "underline": True if f.Underline == 1 else (False if f.Underline == 0 else None),
+        "color": f.Color,
+        "spacing": f.Spacing,
+        "shading": rng.Shading.BackgroundPatternColor
+    }
+
+def add_formatted_table(new_doc, table_data):
+    """
+    table_data:
+    [
+        [
+            {"text": "항목", "font_size": 10, "shading": "D9EAF7"},
+            {"text": "금액", "font_size": 10, "shading": "D9EAF7"}
+        ],
+        [
+            {"text": "채권", "font_size": 9, "shading": "FFFFFF"},
+            {"text": "100", "font_size": 9, "shading": "FFFFFF"}
+        ]
+    ]
+    """
+
+    rows = len(table_data)
+    cols = max(len(row) for row in table_data)
+
+    table = new_doc.add_table(rows=rows, cols=cols)
+    table.style = "Table Grid"
+
+    for i, row in enumerate(table_data):
+        for j, info in enumerate(row):
+            cell = table.cell(i, j)
+            p = cell.paragraphs[0]
+
+            run = p.add_run(info["text"])
+            run.font.size = Pt(info.get("font_size", 10))
+
+            if info.get("shading"):
+                tcPr = cell._tc.get_or_add_tcPr()
+                shd = OxmlElement("w:shd")
+                shd.set(qn("w:fill"), info["shading"])
+                tcPr.append(shd)
+
+    return table
+
+def copy_word_format(input_path, output_path):
+
+    word = win32.DispatchEx("Word.Application")
+    word.Visible = False
+
+    try:
+        doc = word.Documents.Open(os.path.abspath(input_path))
+        print("표 개수:", doc.Tables.Count)
+
+        for i, table in enumerate(doc.Tables, 1):
+            print(
+                f"표 {i}:",
+                "시작 =", table.Range.Start,
+                "종료 =", table.Range.End
+            )
+
+        new_doc = Document()
+
+        for src_para in doc.Paragraphs:
+
+            dst_para = new_doc.add_paragraph()
+
+            # 문단 서식 복사
+            apply_paragraph_format(src_para, dst_para)
+
+            rng = src_para.Range
+
+            # 글자별 서식 확인
+            prev_info = None
+            buffer = ""
+
+            for i in range(1, rng.Characters.Count + 1):
+
+                char_range = rng.Characters(i)
+                char = clean_text(char_range.Text)
+
+                # 문단 종료 문자 제외
+                if char in ("\r", "\n", ""):
+                    continue
+
+                info = get_font_info(char_range)
+
+                if prev_info is not None and info != prev_info:
+
+                    run = dst_para.add_run(buffer)
+                    apply_run_format(run, prev_info)
+
+                    buffer = ""
+
+                buffer += char
+                prev_info = info
+
+            # 마지막 서식 구간 추가
+            if buffer:
+                run = dst_para.add_run(buffer)
+                apply_run_format(run, prev_info)
+        
+        new_doc.save(output_path)
+
+    finally:
+        if 'doc' in locals():
+            doc.Close(False)
+
+        word.Quit()
+
+copy_word_format("MyWord.doc", "Temp.docx")
+
+#filename = 'MyWord.doc'
+#currdir = os.getcwd()
+#input_path = currdir + '//' + filename
+#word = win32.DispatchEx("Word.Application")
+#word.Visible = False
+#text = ''
+#try : 
+#    doc = word.Documents.Open(input_path)
+#    text = doc.Content.Text
+#    doc.Close(False)
+#finally : 
+#    word.Quit()
+#
+#new_doc = Document()
+#p = new_doc.add_paragraph()
+#
+#
+#for line in text.splitlines() : 
+#    line = line.replace("\x07","")
+#    new_doc.add_paragraph(line)
+#new_doc.save("Temp.doc")
+#%%
+import os
+import re
+import win32com.client as win32
+
+from docx import Document
+from docx.shared import Pt, RGBColor
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from docx.enum.text import WD_TAB_ALIGNMENT
+
+# =========================================================
+# 1. 텍스트 및 색상 처리
+# =========================================================
+
+def clean_text(s):
+    return re.sub(
+        r'[\x00-\x08\x0B\x0C\x0E-\x1F]',
+        '',
+        s
+    )
+
+
+def to_rgb(color):
+    if color is None:
+        return None
+
+    try:
+        color = int(color)
+    except (TypeError, ValueError):
+        return None
+
+    if color < 0 or color > 0xFFFFFF:
+        return None
+
+    return RGBColor(
+        color & 255,
+        (color >> 8) & 255,
+        (color >> 16) & 255
+    )
+
+
+# =========================================================
+# 2. 글자 서식
+# =========================================================
+
+def set_character_spacing(run, spacing_pt):
+
+    if spacing_pt is None:
+        return
+
+    rPr = run._r.get_or_add_rPr()
+
+    spacing = rPr.find(qn("w:spacing"))
+
+    if spacing is None:
+        spacing = OxmlElement("w:spacing")
+        rPr.append(spacing)
+
+    spacing.set(
+        qn("w:val"),
+        str(round(spacing_pt * 20))
+    )
+
+
+def set_shading(run, color):
+
+    rgb = to_rgb(color)
+
+    if rgb is None:
+        return
+
+    rPr = run._r.get_or_add_rPr()
+
+    shd = rPr.find(qn("w:shd"))
+
+    if shd is None:
+        shd = OxmlElement("w:shd")
+        rPr.append(shd)
+
+    shd.set(qn("w:fill"), str(rgb))
+
+
+def get_font_info(rng):
+
+    f = rng.Font
+
+    return {
+        "name": f.Name,
+        "size": f.Size,
+        "bold": f.Bold == -1,
+        "italic": f.Italic == -1,
+        "underline": f.Underline != 0,
+        "color": f.Color,
+        "spacing": f.Spacing,
+        "shading": rng.Shading.BackgroundPatternColor
+    }
+
+
+def apply_run_format(run, info):
+
+    font = run.font
+
+    if info["name"]:
+        font.name = info["name"]
+
+    if info["size"] > 0:
+        font.size = Pt(info["size"])
+
+    if info["bold"] is not None:
+        font.bold = info["bold"]
+
+    if info["italic"] is not None:
+        font.italic = info["italic"]
+
+    if info["underline"] is not None:
+        font.underline = info["underline"]
+
+    rgb = to_rgb(info["color"])
+
+    if rgb is not None:
+        font.color.rgb = rgb
+
+    set_character_spacing(run, info["spacing"])
+    set_shading(run, info["shading"])
+
+
+# =========================================================
+# 용지 크기 및 여백 복사
+# =========================================================
+
+def copy_page_setup(src_doc, dst_doc):
+
+    # 원본 Word의 구역별 용지 설정 복사
+    for i, src_section in enumerate(src_doc.Sections):
+
+        if i == 0:
+            dst_section = dst_doc.sections[0]
+        else:
+            dst_section = dst_doc.add_section()
+
+        setup = src_section.PageSetup
+
+        # 용지 크기
+        dst_section.page_width = Pt(setup.PageWidth)
+        dst_section.page_height = Pt(setup.PageHeight)
+
+        # 상하좌우 여백
+        dst_section.top_margin = Pt(setup.TopMargin)
+        dst_section.bottom_margin = Pt(setup.BottomMargin)
+        dst_section.left_margin = Pt(setup.LeftMargin)
+        dst_section.right_margin = Pt(setup.RightMargin)
+
+        # 머리글 / 바닥글 여백
+        dst_section.header_distance = Pt(setup.HeaderDistance)
+        dst_section.footer_distance = Pt(setup.FooterDistance)
+
+        # 제본 여백
+        dst_section.gutter = Pt(setup.Gutter)
+
+        print(
+            f"구역 {i + 1} 용지 설정 복사 완료"
+        )
+
+# =========================================================
+# 3. 문단 서식
+# =========================================================
+
+def apply_paragraph_format(src_para, dst_para):
+
+    src_fmt = src_para.Format
+    dst_fmt = dst_para.paragraph_format
+
+    dst_fmt.left_indent = Pt(src_fmt.LeftIndent)
+    dst_fmt.right_indent = Pt(src_fmt.RightIndent)
+    dst_fmt.first_line_indent = Pt(
+        src_fmt.FirstLineIndent
+    )
+
+    dst_fmt.space_before = Pt(src_fmt.SpaceBefore)
+    dst_fmt.space_after = Pt(src_fmt.SpaceAfter)
+
+    rule = src_fmt.LineSpacingRule
+
+    if rule == 0:
+        dst_fmt.line_spacing = 1.0
+
+    elif rule == 1:
+        dst_fmt.line_spacing = 1.5
+
+    elif rule == 2:
+        dst_fmt.line_spacing = 2.0
+
+    elif rule in (3, 4):
+        dst_fmt.line_spacing = Pt(
+            src_fmt.LineSpacing
+        )
+
+    elif rule == 5:
+        dst_fmt.line_spacing = (
+            src_fmt.LineSpacing / 12
+        )
+
+    if src_fmt.Alignment in (0, 1, 2, 3):
+        dst_para.alignment = src_fmt.Alignment
+
+
+# =========================================================
+# 4. 문단의 글자별 서식 복사
+# =========================================================
+
+# =========================================================
+# 4. Word 자동 번호 및 글머리기호 복사
+# =========================================================
+
+def create_numbering_definition(
+    new_doc, num_fmt, lvl_text, start=1, font_info=None
+):
+
+    numbering = new_doc.part.numbering_part.element
+
+    abstract_ids = [
+        int(x.get(qn("w:abstractNumId")))
+        for x in numbering.findall(qn("w:abstractNum"))
+    ]
+
+    num_ids = [
+        int(x.get(qn("w:numId")))
+        for x in numbering.findall(qn("w:num"))
+    ]
+
+    abstract_id = max(abstract_ids, default=-1) + 1
+    num_id = max(num_ids, default=0) + 1
+
+    abstract = OxmlElement("w:abstractNum")
+    abstract.set(qn("w:abstractNumId"), str(abstract_id))
+
+    multi = OxmlElement("w:multiLevelType")
+    multi.set(qn("w:val"), "singleLevel")
+    abstract.append(multi)
+
+    lvl = OxmlElement("w:lvl")
+    lvl.set(qn("w:ilvl"), "0")
+
+    for tag, value in [
+        ("start", str(start)),
+        ("numFmt", num_fmt),
+        ("lvlText", lvl_text),
+        ("lvlJc", "left")
+    ]:
+        node = OxmlElement(f"w:{tag}")
+        node.set(qn("w:val"), value)
+        lvl.append(node)
+
+    # 번호 뒤 탭
+    suff = OxmlElement("w:suff")
+    suff.set(qn("w:val"), "tab")
+    lvl.append(suff)
+
+    # ============================================
+    # 글머리기호 / 자동 번호 글꼴 서식
+    # ============================================
+
+    if font_info:
+
+        rPr = OxmlElement("w:rPr")
+
+        # 글꼴 이름
+        name = font_info.get("name")
+
+        if name:
+            rFonts = OxmlElement("w:rFonts")
+            rFonts.set(qn("w:ascii"), str(name))
+            rFonts.set(qn("w:hAnsi"), str(name))
+            rFonts.set(qn("w:eastAsia"), str(name))
+            rPr.append(rFonts)
+
+        # 글자 크기
+        size = font_info.get("size")
+
+        if isinstance(size, (int, float)) and 0 < size < 1000:
+
+            for tag in ("sz", "szCs"):
+                node = OxmlElement(f"w:{tag}")
+                node.set(qn("w:val"), str(round(size * 2)))
+                rPr.append(node)
+
+        if font_info.get("bold") is not None:
+            for tag in ("b", "bCs"):
+                b = OxmlElement(f"w:{tag}")
+                b.set(
+                    qn("w:val"),
+                    "1" if font_info["bold"] else "0"
+                )
+                rPr.append(b)
+
+        # Italic
+        if font_info.get("italic") is not None:
+            i = OxmlElement("w:i")
+            i.set(
+                qn("w:val"),
+                "1" if font_info["italic"] else "0"
+            )
+            rPr.append(i)
+
+        # 밑줄
+        if font_info.get("underline") is not None:
+            u = OxmlElement("w:u")
+            u.set(
+                qn("w:val"),
+                "single" if font_info["underline"] else "none"
+            )
+            rPr.append(u)
+
+        # 글자 색상
+        rgb = to_rgb(font_info.get("color"))
+
+        if rgb is not None:
+            color = OxmlElement("w:color")
+            color.set(qn("w:val"), str(rgb))
+            rPr.append(color)
+
+        # 자간
+        spacing = font_info.get("spacing")
+
+        if isinstance(spacing, (int, float)) and -100 < spacing < 100:
+
+            node = OxmlElement("w:spacing")
+            node.set(
+                qn("w:val"),
+                str(round(spacing * 20))
+            )
+            rPr.append(node)
+
+        lvl.append(rPr)
+
+    abstract.append(lvl)
+
+    # abstractNum을 num보다 앞에 삽입
+    first_num = numbering.find(qn("w:num"))
+
+    if first_num is not None:
+        first_num.addprevious(abstract)
+    else:
+        numbering.append(abstract)
+
+    num = OxmlElement("w:num")
+    num.set(qn("w:numId"), str(num_id))
+
+    abstract_ref = OxmlElement("w:abstractNumId")
+    abstract_ref.set(qn("w:val"), str(abstract_id))
+    num.append(abstract_ref)
+
+    numbering.append(num)
+
+    return num_id
+
+
+def apply_list_format(src_para, dst_para, new_doc, list_state):
+
+    try:
+        lf = src_para.Range.ListFormat
+
+        if int(lf.ListType) == 0:
+            return
+
+        marker = str(lf.ListString or "").strip()
+
+        if not marker:
+            return
+
+        match = re.fullmatch(r"(\d+)([.)])", marker)
+
+        if match:
+            num_fmt = "decimal"
+            lvl_text = "%1" + match.group(2)
+            start = int(match.group(1))
+            key = ("number", lvl_text)
+        else:
+            num_fmt = "bullet"
+            lvl_text = marker
+            start = 1
+            key = ("bullet", marker)
+
+        # 원본 목록 기호 글꼴 정보
+        font_info = None
+
+        try:
+            level = int(lf.ListLevelNumber)
+            src_font = lf.ListTemplate.ListLevels(level).Font
+
+            # 원본 문단의 첫 번째 실제 글자 서식
+            para_font = src_para.Range.Characters(1).Font
+
+            # 목록 자체의 Bold가 명시되어 있으면 우선 사용
+            # 그렇지 않으면 문단 글꼴의 Bold 사용
+            list_bold = int(src_font.Bold)
+            para_bold = int(para_font.Bold)
+
+            if list_bold == -1:
+                bold = True
+            elif list_bold == 0:
+                bold = False
+            else:
+                bold = (para_bold == -1)
+
+            font_info = {
+                "name": src_font.Name or para_font.Name,
+                "size": (
+                    src_font.Size
+                    if 0 < src_font.Size < 1000
+                    else para_font.Size
+                ),
+                "bold": bold,
+                "italic": True if src_font.Italic == -1 else None,
+                "underline": None,
+                "color": None,
+                "spacing": None
+            }
+
+        except Exception as e:
+            print("목록 글꼴 정보 읽기 실패:", e)
+
+        # 목록 기호 서식까지 구분
+        if font_info:
+            key = (
+                key,
+                font_info.get("name"),
+                font_info.get("size"),
+                font_info.get("bold"),
+                font_info.get("italic"),
+                font_info.get("underline"),
+                font_info.get("color"),
+                font_info.get("spacing")
+            )
+
+        if key not in list_state:
+            list_state[key] = create_numbering_definition(
+                new_doc,
+                num_fmt,
+                lvl_text,
+                start=start,
+                font_info=font_info
+            )
+
+        num_id = list_state[key]
+
+        # Word 자동 번호 속성
+        pPr = dst_para._p.get_or_add_pPr()
+
+        numPr = pPr.find(qn("w:numPr"))
+
+        if numPr is None:
+            numPr = OxmlElement("w:numPr")
+            pPr.append(numPr)
+
+        ilvl = OxmlElement("w:ilvl")
+        ilvl.set(qn("w:val"), "0")
+
+        numId = OxmlElement("w:numId")
+        numId.set(qn("w:val"), str(num_id))
+
+        numPr.append(ilvl)
+        numPr.append(numId)
+
+        # 원본 들여쓰기 및 내어쓰기
+        fmt = src_para.Format
+
+        dst_para.paragraph_format.left_indent = Pt(
+            float(fmt.LeftIndent)
+        )
+
+        dst_para.paragraph_format.first_line_indent = Pt(
+            float(fmt.FirstLineIndent)
+        )
+
+    except Exception as e:
+        print("목록 서식 복사 실패:", e)
+
+def copy_paragraph_format(src_para, new_doc, list_state):
+
+    dst_para = new_doc.add_paragraph()
+
+    apply_paragraph_format(
+        src_para,
+        dst_para
+    )
+
+    # 추가: 자동 번호 및 글머리기호
+    apply_list_format(
+    src_para,
+    dst_para,
+    new_doc,
+    list_state
+)
+
+    rng = src_para.Range
+
+    prev_info = None
+    buffer = ""
+
+    for i in range(
+        1,
+        rng.Characters.Count + 1
+    ):
+
+        char_range = rng.Characters(i)
+        char = clean_text(char_range.Text)
+
+        if char in ("\r", "\n", ""):
+            continue
+
+        info = get_font_info(char_range)
+
+        if prev_info is not None and info != prev_info:
+
+            run = dst_para.add_run(buffer)
+            apply_run_format(run, prev_info)
+
+            buffer = ""
+
+        buffer += char
+        prev_info = info
+
+    if buffer:
+        run = dst_para.add_run(buffer)
+        apply_run_format(run, prev_info)
+
+# =========================================================
+# 5. Word COM 표 복사
+# =========================================================
+
+def set_cell_shading(cell, color):
+    rgb = to_rgb(color)
+
+    if rgb is None:
+        return
+
+    tcPr = cell._tc.get_or_add_tcPr()
+
+    shd = tcPr.find(qn("w:shd"))
+
+    if shd is None:
+        shd = OxmlElement("w:shd")
+        tcPr.append(shd)
+
+    shd.set(qn("w:fill"), str(rgb))
+
+# =========================================================
+# 셀 테두리 복사
+# =========================================================
+
+def set_cell_border(cell, border_info):
+
+    tcPr = cell._tc.get_or_add_tcPr()
+
+    tcBorders = tcPr.find(qn("w:tcBorders"))
+
+    if tcBorders is None:
+        tcBorders = OxmlElement("w:tcBorders")
+        tcPr.append(tcBorders)
+
+    for edge, info in border_info.items():
+
+        tag = qn(f"w:{edge}")
+
+        border = tcBorders.find(tag)
+
+        if border is None:
+            border = OxmlElement(f"w:{edge}")
+            tcBorders.append(border)
+
+        border.set(qn("w:val"), info["val"])
+        border.set(qn("w:sz"), str(info["sz"]))
+        border.set(qn("w:color"), info["color"])
+
+
+def get_cell_borders(src_cell):
+
+    # Word COM WdBorderType
+    border_types = {
+        "top": -1,
+        "left": -2,
+        "bottom": -3,
+        "right": -4
+    }
+
+    # Word COM 선 종류 → OOXML 선 종류
+    line_styles = {
+        0: "nil",
+        1: "single",
+        2: "dot",
+        3: "dash",
+        4: "dashDot",
+        5: "dashDotDot",
+        6: "double",
+        7: "triple",
+        8: "thinThickSmallGap",
+        9: "thickThinSmallGap",
+        10: "thinThickThinSmallGap",
+        11: "thinThickMediumGap",
+        12: "thickThinMediumGap",
+        13: "thinThickThinMediumGap",
+        14: "thinThickLargeGap",
+        15: "thickThinLargeGap",
+        16: "thinThickThinLargeGap",
+        20: "wave",
+        21: "doubleWave",
+        22: "dashSmallGap",
+        23: "dashDotStroked",
+        24: "threeDEmboss",
+        25: "threeDEngrave"
+    }
+
+    result = {}
+
+    for edge, border_type in border_types.items():
+
+        try:
+            src_border = src_cell.Borders(border_type)
+
+            style = int(src_border.LineStyle)
+
+            # 원본에 테두리가 없는 경우
+            if style == 0:
+                result[edge] = {
+                    "val": "nil",
+                    "sz": 0,
+                    "color": "auto"
+                }
+                continue
+
+            # 선 종류
+            line_style = line_styles.get(
+                style,
+                "single"
+            )
+
+            # 선 굵기: Word COM LineWidth는 1/8pt 단위
+            try:
+                line_width = int(src_border.LineWidth)
+                line_width = max(2, line_width)
+            except Exception:
+                line_width = 4
+
+            # 선 색상
+            rgb = to_rgb(src_border.Color)
+
+            color = (
+                str(rgb)
+                if rgb is not None
+                else "auto"
+            )
+
+            result[edge] = {
+                "val": line_style,
+                "sz": line_width,
+                "color": color
+            }
+
+        except Exception as e:
+            print(f"셀 테두리 {edge} 처리 오류: {e}")
+
+    return result
+
+def copy_table_format(src_table, new_doc):
+
+    # 원본 표의 행·열 개수
+    rows = src_table.Rows.Count
+    cols = src_table.Columns.Count
+
+    dst_table = new_doc.add_table(
+        rows=rows,
+        cols=cols
+    )
+
+    dst_table.style = "Table Grid"
+
+    # 셀별 내용 및 서식 복사
+    for i in range(1, rows + 1):
+
+        for j in range(1, cols + 1):
+
+            try:
+                src_cell = src_table.Cell(i, j)
+            except Exception:
+                # 병합 셀 등으로 해당 좌표에 셀이 없는 경우
+                continue
+
+            dst_cell = dst_table.cell(i - 1, j - 1)
+
+            # Word 셀 끝의 제어문자 제거
+            cell_text = src_cell.Range.Text
+            cell_text = cell_text.rstrip("\r\x07")
+            cell_text = clean_text(cell_text)
+
+            # 셀 내용
+            dst_cell.text = cell_text
+
+            # 셀 내부 첫 문단 서식
+            try:
+                src_para = src_cell.Range.Paragraphs(1)
+                dst_para = dst_cell.paragraphs[0]
+
+                apply_paragraph_format(
+                    src_para,
+                    dst_para
+                )
+            except Exception:
+                pass
+
+            # 글꼴 서식
+            try:
+                info = get_font_info(src_cell.Range)
+
+                for para in dst_cell.paragraphs:
+                    for run in para.runs:
+                        apply_run_format(run, info)
+
+            except Exception:
+                pass
+
+            # ============================================
+            # 셀 음영
+            # ============================================
+
+            try:
+                color = src_cell.Shading.BackgroundPatternColor
+
+                set_cell_shading(
+                    dst_cell,
+                    color
+                )
+
+            except Exception as e:
+                print(f"셀 음영 처리 실패 ({i},{j}): {e}")
+
+            # ============================================
+            # 셀 테두리
+            # ============================================
+
+            try:
+                border_info = get_cell_borders(src_cell)
+
+                set_cell_border(
+                    dst_cell,
+                    border_info
+                )
+
+            except Exception as e:
+                print(f"셀 테두리 처리 실패 ({i},{j}): {e}")
+
+            # 셀 너비
+            try:
+                if src_cell.Width > 0:
+                    dst_cell.width = Pt(src_cell.Width)
+            except Exception:
+                pass
+
+    return dst_table
+
+
+# =========================================================
+# 6. 문단 및 표 위치 수집
+# =========================================================
+
+def collect_elements(doc):
+
+    elements = []
+    table_ranges = []
+
+    # 표 위치
+    for table in doc.Tables:
+
+        start = table.Range.Start
+        end = table.Range.End
+
+        table_ranges.append(
+            (start, end)
+        )
+
+        elements.append({
+            "type": "table",
+            "start": start,
+            "end": end,
+            "object": table
+        })
+
+    # 문단 위치
+    for para in doc.Paragraphs:
+
+        start = para.Range.Start
+
+        # 표 내부 문단 제외
+        in_table = any(
+            s <= start < e
+            for s, e in table_ranges
+        )
+
+        if in_table:
+            continue
+
+        elements.append({
+            "type": "paragraph",
+            "start": start,
+            "end": para.Range.End,
+            "object": para
+        })
+
+    # 원본 문서 순서대로 정렬
+    elements.sort(
+        key=lambda x: x["start"]
+    )
+
+    return elements
+
+
+# =========================================================
+# 7. Word 문서 처리
+# =========================================================
+
+def copy_word_format(
+    input_path,
+    output_path
+):
+
+    word = win32.DispatchEx(
+        "Word.Application"
+    )
+
+    word.Visible = False
+    doc = None
+
+    try:
+
+        doc = word.Documents.Open(
+            os.path.abspath(input_path)
+        )
+        print("표 개수:", doc.Tables.Count)
+
+        for i, table in enumerate(doc.Tables, 1):
+            print(
+                f"표 {i}:",
+                "시작 =", table.Range.Start,
+                "종료 =", table.Range.End
+            )
+        new_doc = Document()
+
+        # 추가: 원본 용지 크기 및 여백 복사
+        copy_page_setup(doc, new_doc)
+
+        elements = collect_elements(doc)
+        # 번호 및 글머리기호 정의 관리
+        list_state = {}
+        table_index = 0
+
+        for element in elements:
+
+            if element["type"] == "paragraph":
+                src_para = element["object"]
+
+                copy_paragraph_format(
+                    src_para,
+                    new_doc,
+                    list_state
+                )
+
+            elif element["type"] == "table":
+
+                table_index += 1
+
+                src_table = element["object"]
+
+                try:
+                    copy_table_format(
+                        src_table,
+                        new_doc
+                    )
+
+                    print(f"표 {table_index} 복사 완료")
+
+                except Exception as e:
+                    print(f"표 {table_index} 복사 실패: {e}")
+
+        new_doc.save(output_path)
+        print("저장 완료:", output_path)
+
+    finally:
+
+        if doc is not None:
+            doc.Close(False)
+
+        word.Quit()
+
+# =========================================================
+# 8. 실행
+# =========================================================
+
+copy_word_format(
+    "Validation Manager 이력서2.docx",
+    "Temp.docx"
+)
+#%%

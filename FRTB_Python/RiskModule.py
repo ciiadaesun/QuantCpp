@@ -75,7 +75,7 @@ COMM_Delta_RWMapping = pd.Series([0.3,0.35,0.6,0.8,0.4,0.45,0.2,0.35,0.25,0.35,0
 ########################################### 여기부터 FRTB Module ##############################################  
 ##############################################################################################################
 
-def MapGIRRDeltaGreeks(Greeks, RiskFactor) : 
+def MapGIRRDeltaGreeks(Greeks, RiskFactor = pd.Series([0.25, 0.5, 1, 2, 3, 5, 10, 15, 20, 30], dtype = np.float64)) : 
     ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
     for i in range(len(Greeks)) : 
         if float(Greeks.index[i]) < 0.251 :     
@@ -111,7 +111,7 @@ def MapGIRRVegaGreeks(GreekDf, Tenor1Column : str, Tenor2Column : str, VegaSensi
     Data = Data.groupby(["Depart","Risk_Class","Risk_Type","Portfolio","Bucket", CurveNameColumn,"RiskFactor2","RiskFactor3"])[VegaSensiColumn].sum().reset_index()
     return Data
 
-def MapCSRDeltaGreeks(Greeks, RiskFactor) : 
+def MapCSRDeltaGreeks(Greeks, RiskFactor = pd.Series([0.5, 1, 3, 5, 10], dtype = np.float64)) : 
     ResultSensi = pd.Series(index = RiskFactor).fillna(0.0)
     for i in range(len(Greeks)) : 
         if float(Greeks.index[i]) < 0.51 :     
