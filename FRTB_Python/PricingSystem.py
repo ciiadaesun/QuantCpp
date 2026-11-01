@@ -5015,6 +5015,9 @@ from docx.enum.text import WD_TAB_ALIGNMENT
 # =========================================================
 
 def clean_text(s):
+    if not s:
+        return ""
+
     return re.sub(
         r'[\x00-\x08\x0B\x0C\x0E-\x1F]',
         '',
@@ -5083,29 +5086,37 @@ def set_shading(run, color):
 
 
 def get_font_info(rng):
-
     f = rng.Font
+
+    def safe_value(v):
+        try:
+            v = float(v)
+            return v if 0 < v < 1000 else None
+        except (TypeError, ValueError):
+            return None
 
     return {
         "name": f.Name,
-        "size": f.Size,
-        "bold": f.Bold == -1,
-        "italic": f.Italic == -1,
-        "underline": f.Underline != 0,
-        "color": f.Color,
-        "spacing": f.Spacing,
-        "shading": rng.Shading.BackgroundPatternColor
+        "size": safe_value(f.Size),
+        "bold": True if f.Bold == -1 else (
+            False if f.Bold == 0 else None
+        ),
+        "italic": True if f.Italic == -1 else (
+            False if f.Italic == 0 else None
+        ),
+        "underline": True if f.Underline == 1 else (
+            False if f.Underline == 0 else None
+        ),
+        "color": to_rgb(f.Color)
     }
 
-
 def apply_run_format(run, info):
-
     font = run.font
 
     if info["name"]:
         font.name = info["name"]
 
-    if info["size"] > 0:
+    if info["size"] is not None:
         font.size = Pt(info["size"])
 
     if info["bold"] is not None:
@@ -5117,13 +5128,8 @@ def apply_run_format(run, info):
     if info["underline"] is not None:
         font.underline = info["underline"]
 
-    rgb = to_rgb(info["color"])
-
-    if rgb is not None:
-        font.color.rgb = rgb
-
-    set_character_spacing(run, info["spacing"])
-    set_shading(run, info["shading"])
+    if info["color"] is not None:
+        font.color.rgb = info["color"]
 
 
 # =========================================================
@@ -5478,45 +5484,48 @@ def apply_list_format(src_para, dst_para, new_doc, list_state):
     except Exception as e:
         print("목록 서식 복사 실패:", e)
 
-def copy_paragraph_format(src_para, new_doc, list_state):
+def copy_paragraph_format(src_para, new_doc, list_state, text):
 
     dst_para = new_doc.add_paragraph()
 
-    apply_paragraph_format(
+    # 기존 문단 서식 유지
+    apply_paragraph_format(src_para, dst_para)
+
+    # 기존 자동 번호 및 글머리기호 유지
+    apply_list_format(
         src_para,
-        dst_para
+        dst_para,
+        new_doc,
+        list_state
     )
 
-    # 추가: 자동 번호 및 글머리기호
-    apply_list_format(
-    src_para,
-    dst_para,
-    new_doc,
-    list_state
-)
+    # doc.Content.Text에서 가져온 문자열
+    text = text.rstrip("\r\x07")
 
     rng = src_para.Range
 
     prev_info = None
     buffer = ""
 
-    for i in range(
-        1,
-        rng.Characters.Count + 1
-    ):
+    for i, char in enumerate(text, start=1):
 
-        char_range = rng.Characters(i)
-        char = clean_text(char_range.Text)
-
-        if char in ("\r", "\n", ""):
+        # XML에서 허용하지 않는 문자 제외
+        if not clean_text(char):
             continue
 
-        info = get_font_info(char_range)
+        try:
+            # 텍스트는 사용하지 않고 글꼴 정보만 가져옴
+            char_range = rng.Characters(i)
+            info = get_font_info(char_range)
 
-        if prev_info is not None and info != prev_info:
+        except Exception:
+            info = prev_info
 
+        if info != prev_info and buffer:
             run = dst_para.add_run(buffer)
-            apply_run_format(run, prev_info)
+
+            if prev_info is not None:
+                apply_run_format(run, prev_info)
 
             buffer = ""
 
@@ -5525,7 +5534,11 @@ def copy_paragraph_format(src_para, new_doc, list_state):
 
     if buffer:
         run = dst_para.add_run(buffer)
-        apply_run_format(run, prev_info)
+
+        if prev_info is not None:
+            apply_run_format(run, prev_info)
+
+    return dst_para
 
 # =========================================================
 # 5. Word COM 표 복사
@@ -5851,25 +5864,51 @@ def copy_word_format(
         copy_page_setup(doc, new_doc)
 
         elements = collect_elements(doc)
-        # 번호 및 글머리기호 정의 관리
+
+        # 전체 문서 텍스트를 한 번에 읽기
+        full_text = doc.Content.Text
+
+        # 문단별 텍스트 분리
+        paragraph_texts = full_text.split("\r")
+
+        # 원본 Word의 전체 문단과 텍스트를 대응
+        # 표 내부 문단도 포함해서 순서를 맞춤
+        paragraph_text_map = {}
+
+        for i, para in enumerate(doc.Paragraphs):
+            paragraph_text_map[int(para.Range.Start)] = (
+                paragraph_texts[i]
+                if i < len(paragraph_texts)
+                else ""
+            )
+
+        # 문단 텍스트 위치
+        para_index = 0
+
         list_state = {}
         table_index = 0
 
         for element in elements:
 
             if element["type"] == "paragraph":
+
                 src_para = element["object"]
+
+                # doc.Content.Text에서 문단 텍스트 가져오기
+                text = paragraph_text_map.get(int(src_para.Range.Start),"")
+
+                para_index += 1
 
                 copy_paragraph_format(
                     src_para,
                     new_doc,
-                    list_state
+                    list_state,
+                    text
                 )
 
             elif element["type"] == "table":
 
                 table_index += 1
-
                 src_table = element["object"]
 
                 try:
@@ -5898,7 +5937,7 @@ def copy_word_format(
 # =========================================================
 
 copy_word_format(
-    "Validation Manager 이력서2.docx",
+    "MyWord.doc",
     "Temp.docx"
 )
 #%%
