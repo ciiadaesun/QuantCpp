@@ -12,6 +12,8 @@ from tkinter import ttk
 from tkinter import messagebox
 from tksheet import Sheet
 from packaging import version
+from Utility import MappingCouponDates
+
 import requests
 # JIT은 쓰지말자
 #from numba import jit
@@ -3220,7 +3222,7 @@ def HazardCali(
         ResultHazardTerm_np, ResultHazardTerm_c = arr_double(ResultHazardTerm)                        
         ResultHazard_np, ResultHazard_c = arr_double(ResultHazard)  
         if CalcFlag == 0 :                       
-            ret = CalcHazardFunc(PriceDate, 
+            ret = CalcHazardFunc(PricingDateYYYYMMDD, 
                                 NZero1_c, ZeroTerm1_c, ZeroRate1_c,
                                 NZero2_c, ZeroTerm2_c, ZeroRate2_c,
                                 NCDS_c, CDSTerm_c, CDSRate_c,
@@ -4702,7 +4704,142 @@ if __name__ == '__main__' :
             Callable_Bond()
         else : 
             break
+        
+# %%
+VBAString = f'''
+Public Declare PtrSafe Function Calc_OLD_CDS_Value Lib "CreditDerivatives.dll" ( _
+    ByVal NPremiumCurve As Long, ByRef PremiumCurveTerm As Double, ByRef PremiumCurve As Double, _
+    ByVal NProtectionCurve As Long, ByRef ProtectionCurveTerm As Double, ByRef ProtectionCurve As Double, _
+    ByVal DataFlag As Long, ByVal NHazardRate As Long, ByRef HazardRateTerm As Double, ByRef HazardRate As Double, ByVal CalcQMethod As Long, _
+    ByVal NRefZero As Long, ByRef RefZeroTerm As Double, ByRef ZeroRiskFree As Double, ByRef ZeroRiskyBond As Double, ByVal DefaultRateCalcMethod As Long, _
+    ByVal Recovery As Double, ByVal ScheduleInputFlag As Long, ByVal NCPN_Ann As Long, ByVal Maturity As Double, ByVal NSchedule As Long, ByRef ResetDateYYYYMMDD As Long, ByRef PayDateYYYYMMDD As Long, ByVal PricingDateYYYYMMDD As Long, _
+    ByVal NHoliday As Long, ByRef HolidayYYYYMMDD As Long, ByVal BasketCDSFlag As Long, ByVal BasketNTotalAsset As Long, ByVal BasketNthDefault As Long, _
+    ByVal BasketAssetCorrelation As Double, ByVal OLS_CDS_Spread As Double, ByVal Protection_Position As Long, ByVal TextFlag As Long, ByVal GreekFlag As Long, ByRef Result_Value As Double, ByRef ResultHazardRate As Double, ByRef ResultGreeks As Double, ByRef Premium_Schedule As Double, ByVal NotionalAmount As Double _
+) As Long
+'''
+CalcCDSFunc, VariablesCDSFormat, VariableCDSNames = ConvertPythonFormatfromVBAformat(VBAString)
 
+VBAString2 = f'''
+Public Declare PtrSafe Function Calc_Hazard_Rate_From_CDSCurve Lib "CreditDerivatives.dll" ( _
+    ByVal PricingDateYYYYMMDD As Long, _
+    ByVal NPremiumCurve As Long, ByRef PremiumCurveTerm As Double, ByRef PremiumCurve As Double, _
+    ByVal NProtectionCurve As Long, ByRef ProtectionCurveTerm As Double, ByRef ProtectionCurve As Double, _
+    ByVal NCDSCurve As Long, ByRef CDSCurveTerm As Double, ByRef CDSCurve As Double, _
+    ByVal Recovery As Double, ByVal HazardRateCalcFlag As Long, ByVal NCPN_Ann As Long, _
+    ByVal NHoliday As Long, ByRef HolidayYYYYMMDD As Long, ByRef ResultHazardTerm As Double, ByRef ResultHazard As Double _
+) As Long
+'''
+CalcHazardFunc, VariablesHazardFormat, VariableHazardNames = ConvertPythonFormatfromVBAformat(VBAString2)
+
+df = pd.read_excel('CDSPosition.xlsx')
+i = 0
+data_srs = df.iloc[i].apply(lambda x : None if pd.isna(x) == True else x)
+
+ZeroTerm = [1.0, 2.0, 3.0]
+ZeroCurve = [3.5, 3.6, 3.7]
+NZeroCurve = len(ZeroTerm)
+
+PremiumCurveTerm = [1.0, 2.0, 3.0]
+PremiumCurve = [3.5, 3.6, 3.7]
+NPremiumCurve = len(PremiumCurveTerm)
+ProtectionCurveTerm = [1.0, 2.0, 3.0]
+ProtectionCurve = [3.5, 3.6, 3.7]
+NProtectionCurve = len(ProtectionCurveTerm)
+CDSCurveTerm = [1.0, 2.0, 3.0]
+CDSCurveRate = [0.67, 0.89, 1.02]
+NCDS = len(CDSCurveTerm)
+NCPN_Ann = int(data_srs["NCPNANN"]) if data_srs["NCPNANN"] != None else 4
+PriceDate = int(data_srs["BASE_DT"]) if data_srs["BASE_DT"] != None else today_YYYYMMDD
+PriceDate_c = ct.c_long(PriceDate)
+Preprocessing_Term(PremiumCurveTerm,PriceDate)
+Preprocessing_Term(ProtectionCurveTerm,PriceDate)
+Preprocessing_Term(CDSCurveTerm,PriceDate)
+Holidays = np.array([19000101], dtype = np.int64)
+NHolidays = 1
+HazardRateCalcFlag_c = ct.c_long(0)
+ZeroTerm_np = np.array(ZeroTerm, dtype = np.float64)
+ZeroCurve_np = np.array(ZeroCurve, dtype = np.float64)/100
+CDSCurveTerm_np = np.array(CDSCurveTerm, dtype = np.float64)
+CDSCurveRate_np = np.array(CDSCurveRate, dtype = np.float64)/100
+Recovery = float(data_srs["RECOVERY"]) if data_srs['RECOVERY'] != None else 0
+Recovery_c = ct.c_double(Recovery)
+NCPN_Ann_c = ct.c_long(NCPN_Ann)
+Holidays_np, Holidays_c = arr_long(Holidays)
+NHolidays_c = ct.c_long(NHolidays)
+ResultHazardTerm_c = arr_double(np.zeros(max(100, NCDS), dtype = np.float64))[1]
+ResultHazard_c = arr_double(np.zeros(max(100, NCDS), dtype = np.float64))[1]
+
+PremiumCurveTerm_np, PremiumCurveTerm_c = arr_double(PremiumCurveTerm)
+PremiumCurve_np, PremiumCurve_c = arr_double(np.array(PremiumCurve)/100)
+NPremiumCurve_c = ct.c_long(NPremiumCurve)
+ProtectionCurveTerm_np, ProtectionCurveTerm_c = arr_double(ProtectionCurveTerm)
+ProtectionCurve_np, ProtectionCurve_c = arr_double(np.array(ProtectionCurve)/100)
+NProtectionCurve_c = ct.c_long(NProtectionCurve)
+DataFlag_c = ct.c_long(0)
+
+ret = CalcHazardFunc(PriceDate_c, 
+                    ct.c_long(NZeroCurve), arr_double(ZeroTerm_np)[1], arr_double(ZeroCurve_np)[1],
+                    ct.c_long(NZeroCurve), arr_double(ZeroTerm_np)[1], arr_double(ZeroCurve_np)[1],
+                    ct.c_long(NCDS), arr_double(CDSCurveTerm_np)[1], arr_double(CDSCurveRate_np)[1],
+                    Recovery_c, HazardRateCalcFlag_c, NCPN_Ann_c,
+                    NHolidays_c, Holidays_c, ResultHazardTerm_c,ResultHazard_c)
+
+ResultT = np.ctypeslib.as_array(ResultHazardTerm_c[:NCDS], shape = (NCDS, ))
+ResultH = np.ctypeslib.as_array(ResultHazard_c[:NCDS], shape = (NCDS, ))
+HazardRateTerm_c = ResultHazardTerm_c
+HazardRate_c = ResultHazard_c
+NHazardRate = NCDS
+NHazardRate_c = ct.c_long(NHazardRate)
+CalcQMethod_c = ct.c_long(0)
+NRefZero_c = NPremiumCurve_c
+RefZeroTerm_c = PremiumCurveTerm_c
+ZeroRiskFree_c = PremiumCurve_c
+ZeroRiskyBond_c = ZeroRiskFree_c
+DefaultRateCalcMethod_c = ct.c_long(1)
+ScheduleInputFlag_c = ct.c_long(1)
+StartDate = int(float(data_srs['EFFECTIVEDATE']))
+MaturityDate = int(float(data_srs['MATURITYDATE']))
+Nominal = float(data_srs['NOMINAL'])
+Nominal_c = ct.c_double(Nominal)
+Maturity_c = ct.c_double(((DayCountAtoB(PriceDate, MaturityDate)/365 +0.01)// 0.25)  * 0.25)
+ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD = MappingCouponDates(1, StartDate, MaturityDate, -1, NCPN_Ann, False, Holidays, Holidays, 1)
+NSchedule_c = ct.c_long(len(ResultForwardStart))
+ResetDateYYYYMMDD_np, ResetDateYYYYMMDD_c = arr_long(ResultForwardStart)
+PayDateYYYYMMDD_np, PayDateYYYYMMDD_c = arr_long(ResultForwardEnd)
+BasketCDSFlag_c = ct.c_long(int(data_srs['BASKETFLAG']) if data_srs['BASKETFLAG'] != None else 0)
+BasketNTotalAsset_c = ct.c_long(int(data_srs['BASKETNASSET'])) if data_srs['BASKETNASSET'] != None else 1
+BasketNthDefault_c = ct.c_long(int(data_srs['NTHDEF'])) if data_srs['NTHDEF'] != None else 1
+BasketAssetCorrelation_c = ct.c_double(float(data_srs['BASKETCORR'])) if data_srs['BASKETCORR'] != None else 0
+OLS_CDS_Spread_c = ct.c_double(float(data_srs['CDSPREMIUM'])/100) if data_srs['CDSPREMIUM'] != None else 0
+Protection_Position_c = ct.c_long(1)
+TextFlag_c = ct.c_long(0)
+GreekFlag_c = ct.c_long(1)
+Result_Value = np.zeros(200, dtype = np.float64)
+ResultHazardRate = np.zeros(len(ResultT), dtype = np.float64)
+ResultGreeks = np.zeros(10 + 3 * len(PremiumCurveTerm) + 3 * len(ResultT))
+Premium_Schedule = np.zeros(len(ResultForwardStart), dtype = np.float64)
+Result_Value_np, Result_Value_c = arr_double(Result_Value)
+ResultHazardRate_np, ResultHazardRate_c = arr_double(ResultHazardRate)
+ResultGreeks_np, ResultGreeks_c = arr_double(ResultGreeks)
+Premium_Schedule_np, Premium_Schedule_c = arr_double(Premium_Schedule)
+
+Res = CalcCDSFunc(NPremiumCurve_c,  PremiumCurveTerm_c,  PremiumCurve_c, 
+            NProtectionCurve_c,  ProtectionCurveTerm_c,  ProtectionCurve_c, 
+            DataFlag_c,  NHazardRate_c,  HazardRateTerm_c,  HazardRate_c,  CalcQMethod_c, 
+            NRefZero_c,  RefZeroTerm_c,  ZeroRiskFree_c,  ZeroRiskyBond_c,  DefaultRateCalcMethod_c, 
+            Recovery_c,  ScheduleInputFlag_c,  NCPN_Ann_c,  Maturity_c,  NSchedule_c,  ResetDateYYYYMMDD_c,  PayDateYYYYMMDD_c,  PriceDate_c, 
+            NHolidays_c,  Holidays_c,  BasketCDSFlag_c,  BasketNTotalAsset_c,  BasketNthDefault_c,
+            BasketAssetCorrelation_c,  OLS_CDS_Spread_c,  Protection_Position_c,  TextFlag_c,  GreekFlag_c,  
+            Result_Value_c,  ResultHazardRate_c,  ResultGreeks_c,   Premium_Schedule_c,  Nominal_c)
+Current_CDS_Spread = Result_Value_c[0]     
+Posi = 1 if data_srs['PROTECTIONBUY'] in [1, None] else -1 
+Premium_Value = Result_Value_c[3] * (-Posi)
+Protection_Value = Result_Value_c[4] * (Posi)
+OLD_CDS_Value = Result_Value_c[5] * Posi
+ResultHazard = np.ctypeslib.as_array(ResultHazardRate_c[:NHazardRate], shape = (NHazardRate))
+ResultHazardDF = pd.DataFrame([ResultT, ResultHazard], index = ['Term','DefaultProb']).T
+PremiumSchedule = np.ctypeslib.as_array(Premium_Schedule_c[:len(Premium_Schedule)], shape = (len(Premium_Schedule)))
+ResultScheduleDF = pd.DataFrame([ResultPayDate, PremiumSchedule], index = ['PayDate','E(Premium)xDF']).T
 
 # %%frame = left_frame 
 
@@ -4760,245 +4897,6 @@ for n, s in enumerate(VariableNames) :
 
 
 # %%
-import os
-import re
-import win32com.client as win32
-
-from docx import Document
-from docx.shared import Pt, RGBColor
-from docx.oxml import OxmlElement
-from docx.oxml.ns import qn
-
-
-def clean_text(s):
-    return re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', s)
-
-
-def to_rgb(color):
-    """Word COM 색상 정수값을 RGB로 변환"""
-    if color is None or color < 0:
-        return None
-
-    color = int(color)
-
-    return RGBColor(
-        color & 255,
-        (color >> 8) & 255,
-        (color >> 16) & 255
-    )
-
-
-def set_character_spacing(run, spacing_pt):
-    if spacing_pt is None:
-        return
-
-    rPr = run._r.get_or_add_rPr()
-    spacing = OxmlElement("w:spacing")
-    spacing.set(qn("w:val"), str(round(spacing_pt * 20)))
-    rPr.append(spacing)
-
-
-def set_shading(run, color):
-    rgb = to_rgb(color)
-
-    if rgb is None:
-        return
-
-    rPr = run._r.get_or_add_rPr()
-    shd = OxmlElement("w:shd")
-    shd.set(qn("w:fill"), str(rgb))
-    rPr.append(shd)
-
-
-def apply_run_format(run, info):
-    font = run.font
-
-    if info["name"]:
-        font.name = info["name"]
-
-    if info["size"] > 0:
-        font.size = Pt(info["size"])
-
-    font.bold = info["bold"]
-    font.italic = info["italic"]
-    font.underline = info["underline"]
-
-    rgb = to_rgb(info["color"])
-    if rgb is not None:
-        font.color.rgb = rgb
-
-    set_character_spacing(run, info["spacing"])
-    set_shading(run, info["shading"])
-
-def apply_paragraph_format(src_para, dst_para):
-    src_fmt = src_para.Format
-    dst_fmt = dst_para.paragraph_format
-
-    # Word COM은 포인트 단위
-    dst_fmt.left_indent = Pt(src_fmt.LeftIndent)
-    dst_fmt.right_indent = Pt(src_fmt.RightIndent)
-    dst_fmt.first_line_indent = Pt(src_fmt.FirstLineIndent)
-
-    dst_fmt.space_before = Pt(src_fmt.SpaceBefore)
-    dst_fmt.space_after = Pt(src_fmt.SpaceAfter)
-
-    # 줄간격
-    rule = src_fmt.LineSpacingRule
-
-    if rule == 0:       # 한 줄
-        dst_fmt.line_spacing = 1.0
-    elif rule == 1:     # 1.5줄
-        dst_fmt.line_spacing = 1.5
-    elif rule == 2:     # 두 줄
-        dst_fmt.line_spacing = 2.0
-    elif rule in (3, 4):  # 최소값 / 고정값
-        dst_fmt.line_spacing = Pt(src_fmt.LineSpacing)
-    elif rule == 5:     # 배수
-        dst_fmt.line_spacing = src_fmt.LineSpacing / 12
-
-    # 정렬: Word와 python-docx의 기본 정렬값은 대응
-    if src_fmt.Alignment in (0, 1, 2, 3):
-        dst_para.alignment = src_fmt.Alignment
-
-def get_font_info(rng):
-    f = rng.Font
-
-    return {
-        "name": f.Name,
-        "size": f.Size,
-        "bold": True if f.Bold == -1 else (False if f.Bold == 0 else None),
-        "italic": True if f.Italic == -1 else (False if f.Italic == 0 else None),
-        "underline": True if f.Underline == 1 else (False if f.Underline == 0 else None),
-        "color": f.Color,
-        "spacing": f.Spacing,
-        "shading": rng.Shading.BackgroundPatternColor
-    }
-
-def add_formatted_table(new_doc, table_data):
-    """
-    table_data:
-    [
-        [
-            {"text": "항목", "font_size": 10, "shading": "D9EAF7"},
-            {"text": "금액", "font_size": 10, "shading": "D9EAF7"}
-        ],
-        [
-            {"text": "채권", "font_size": 9, "shading": "FFFFFF"},
-            {"text": "100", "font_size": 9, "shading": "FFFFFF"}
-        ]
-    ]
-    """
-
-    rows = len(table_data)
-    cols = max(len(row) for row in table_data)
-
-    table = new_doc.add_table(rows=rows, cols=cols)
-    table.style = "Table Grid"
-
-    for i, row in enumerate(table_data):
-        for j, info in enumerate(row):
-            cell = table.cell(i, j)
-            p = cell.paragraphs[0]
-
-            run = p.add_run(info["text"])
-            run.font.size = Pt(info.get("font_size", 10))
-
-            if info.get("shading"):
-                tcPr = cell._tc.get_or_add_tcPr()
-                shd = OxmlElement("w:shd")
-                shd.set(qn("w:fill"), info["shading"])
-                tcPr.append(shd)
-
-    return table
-
-def copy_word_format(input_path, output_path):
-
-    word = win32.DispatchEx("Word.Application")
-    word.Visible = False
-
-    try:
-        doc = word.Documents.Open(os.path.abspath(input_path))
-        print("표 개수:", doc.Tables.Count)
-
-        for i, table in enumerate(doc.Tables, 1):
-            print(
-                f"표 {i}:",
-                "시작 =", table.Range.Start,
-                "종료 =", table.Range.End
-            )
-
-        new_doc = Document()
-
-        for src_para in doc.Paragraphs:
-
-            dst_para = new_doc.add_paragraph()
-
-            # 문단 서식 복사
-            apply_paragraph_format(src_para, dst_para)
-
-            rng = src_para.Range
-
-            # 글자별 서식 확인
-            prev_info = None
-            buffer = ""
-
-            for i in range(1, rng.Characters.Count + 1):
-
-                char_range = rng.Characters(i)
-                char = clean_text(char_range.Text)
-
-                # 문단 종료 문자 제외
-                if char in ("\r", "\n", ""):
-                    continue
-
-                info = get_font_info(char_range)
-
-                if prev_info is not None and info != prev_info:
-
-                    run = dst_para.add_run(buffer)
-                    apply_run_format(run, prev_info)
-
-                    buffer = ""
-
-                buffer += char
-                prev_info = info
-
-            # 마지막 서식 구간 추가
-            if buffer:
-                run = dst_para.add_run(buffer)
-                apply_run_format(run, prev_info)
-        
-        new_doc.save(output_path)
-
-    finally:
-        if 'doc' in locals():
-            doc.Close(False)
-
-        word.Quit()
-
-copy_word_format("MyWord.doc", "Temp.docx")
-
-#filename = 'MyWord.doc'
-#currdir = os.getcwd()
-#input_path = currdir + '//' + filename
-#word = win32.DispatchEx("Word.Application")
-#word.Visible = False
-#text = ''
-#try : 
-#    doc = word.Documents.Open(input_path)
-#    text = doc.Content.Text
-#    doc.Close(False)
-#finally : 
-#    word.Quit()
-#
-#new_doc = Document()
-#p = new_doc.add_paragraph()
-#
-#
-#for line in text.splitlines() : 
-#    line = line.replace("\x07","")
-#    new_doc.add_paragraph(line)
-#new_doc.save("Temp.doc")
 #%%
 import os
 import re
@@ -5941,3 +5839,4 @@ copy_word_format(
     "Temp.docx"
 )
 #%%
+# %%

@@ -325,49 +325,48 @@ def PreProcessingBankData(KDBData, dataformat = 'Combined') :
 def PreProcessingMyData(RAWData) : 
     CSR = RAWData[RAWData["Risk_Class"].isin(["CSR","csr","신용스프레드","신용스프레드(CSR)"]) ]
     CSR_Delta = CSR[CSR["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Issuer"})
-    #CSR_Delta["Delta_Sensi" if "Delta_Sensi" in CSR_Delta.columns else "Delta"] = CSR_Delta["Delta_Sensi" if "Delta_Sensi" in CSR_Delta.columns else "Delta"] * 10000
 
     CSR_Curvature = CSR[CSR["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Issuer"})
     CSR_Vega = CSR[CSR["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Issuer"})
-    Result_CSR = pd.concat([CSR_Delta, CSR_Curvature, CSR_Vega],axis = 0)
+    Result_CSR = pd.concat([CSR_Delta, CSR_Curvature if len(CSR_Curvature) > 0 else pd.DataFrame([]), CSR_Vega if len(CSR_Vega) > 0 else pd.DataFrame([])],axis = 0)
     
     CSR_SecuritizedNonCTP = RAWData[RAWData["Risk_Class"].isin(["CSR Securitized Non CTP","유동화(CTP 제외)", "CSR 유동화(CTP 제외)", "신용스프레드 유동화(CTP 제외)"]) ]
     CSR_SecuritizedNonCTPDelta = CSR_SecuritizedNonCTP[CSR_SecuritizedNonCTP["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Tranche"})
     #CSR_SecuritizedNonCTPDelta["Delta_Sensi" if "Delta_Sensi" in CSR_SecuritizedNonCTPDelta.columns else "Delta"] = CSR_SecuritizedNonCTPDelta["Delta_Sensi" if "Delta_Sensi" in CSR_SecuritizedNonCTPDelta.columns else "Delta"] * 10000
     CSR_SecuritizedNonCTPCurvature = CSR_SecuritizedNonCTP[CSR_SecuritizedNonCTP["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Tranche"})
     CSR_SecuritizedNonCTPVega = CSR_SecuritizedNonCTP[CSR_SecuritizedNonCTP["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Tranche"})
-    Result_CSR_SecuritizedNonCTP = pd.concat([CSR_SecuritizedNonCTPDelta, CSR_SecuritizedNonCTPCurvature, CSR_SecuritizedNonCTPVega],axis = 0)
+    Result_CSR_SecuritizedNonCTP = pd.concat([CSR_SecuritizedNonCTPDelta, CSR_SecuritizedNonCTPCurvature if len(CSR_SecuritizedNonCTPCurvature) > 0 else pd.DataFrame([]), CSR_SecuritizedNonCTPVega if len(CSR_SecuritizedNonCTPVega) > 0 else pd.DataFrame([])],axis = 0)
 
     CSR_CTP = RAWData[RAWData["Risk_Class"].isin(["CSR CTP","csr ctp","CSR 유동화(CTP)","신용스프레드 유동화(CTP)"]) ]
     CSR_CTP_Delta = CSR_CTP[CSR_CTP["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Issuer"})
     CSR_CTP_Curvature = CSR_CTP[CSR_CTP["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Issuer"})
     CSR_CTP_Vega = CSR_CTP[CSR_CTP["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Issuer"})
-    Result_CSR_CTP = pd.concat([CSR_CTP_Delta, CSR_CTP_Curvature, CSR_CTP_Vega],axis = 0)
+    Result_CSR_CTP = pd.concat([CSR_CTP_Delta, CSR_CTP_Curvature if len(CSR_CTP_Curvature) > 0 else pd.DataFrame([]), CSR_CTP_Vega if len(CSR_CTP_Vega) > 0 else pd.DataFrame([])],axis = 0)
 
     GIRR = RAWData[RAWData["Risk_Class"].isin(["GIRR","일반금리","일반금리(GIRR)"])]
     GIRR_Delta = GIRR[GIRR["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Type"})
     #GIRR_Delta["Delta_Sensi" if "Delta_Sensi" in GIRR_Delta.columns else "Delta"] = GIRR_Delta["Delta_Sensi" if "Delta_Sensi" in GIRR_Delta.columns else "Delta"] * 10000
     GIRR_Curvature = GIRR[GIRR["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Type"})
     GIRR_Vega = GIRR[GIRR["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor1","RiskFactor3":"Tenor2"})
-    Result_GIRR = pd.concat([GIRR_Delta, GIRR_Curvature, GIRR_Vega],axis = 0)
+    Result_GIRR = pd.concat([GIRR_Delta, GIRR_Curvature if len(GIRR_Curvature) > 0 else pd.DataFrame([]), GIRR_Vega if len(GIRR_Vega) > 0 else pd.DataFrame([])],axis = 0)
 
     FXR = RAWData[RAWData["Risk_Class"].isin(["FXR","외환","외환(FXR)","외환리스크","외환리스크(FXR)"])]
     FXR_Delta = FXR[FXR["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Type"})
     FXR_Curvature = FXR[FXR["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Type"})
     FXR_Vega = FXR[FXR["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Curve","RiskFactor2":"Tenor","RiskFactor3":"Temp_RiskFactor"})
-    Result_FXR = pd.concat([FXR_Delta, FXR_Curvature, FXR_Vega],axis = 0)
+    Result_FXR = pd.concat([FXR_Delta, FXR_Curvature if len(FXR_Curvature) > 0 else pd.DataFrame([]), FXR_Vega if len(FXR_Vega) > 0 else pd.DataFrame([])],axis = 0)
 
     EQR = RAWData[RAWData["Risk_Class"].isin(["EQR","주식","주식(EQR)","주식리스크","주식리스크(EQR)"])]
     EQR_Delta = EQR[EQR["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Type","RiskFactor2":"StockName","RiskFactor3":"Temp_RiskFactor"})
     EQR_Curvature = EQR[EQR["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Type","RiskFactor2":"StockName","RiskFactor3":"Temp_RiskFactor"})
     EQR_Vega = EQR[EQR["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Type","RiskFactor2":"Tenor","RiskFactor3":"StockName"})
-    Result_EQR = pd.concat([EQR_Delta, EQR_Curvature, EQR_Vega],axis = 0)
+    Result_EQR = pd.concat([EQR_Delta, EQR_Curvature if len(EQR_Curvature) > 0 else pd.DataFrame([]), EQR_Vega if len(EQR_Vega) > 0 else pd.DataFrame([])],axis = 0)
 
     COMR = RAWData[RAWData["Risk_Class"].isin(["COMR","일반상품","일반상품리스크","일반상품(COMR)","일반상품리스크(EQR)"])]
     COMR_Delta = COMR[COMR["Risk_Type"].isin(["DELTA","Delta","delta","델타","델타(Delta)"])].rename(columns = {"RiskFactor1":"Underlying","RiskFactor2":"Tenor","RiskFactor3":"Delivery"})
     COMR_Curvature = COMR[COMR["Risk_Type"].isin(["CURVATURE","Curvature","curvature","커버쳐","커버쳐(Curvature)"])].rename(columns = {"RiskFactor1":"Underlying","RiskFactor2":"Tenor","RiskFactor3":"Delivery"})
     COMR_Vega = COMR[COMR["Risk_Type"].isin(["VEGA","Vega","vega","베가","베가(Vega)"])].rename(columns = {"RiskFactor1":"Underlying","RiskFactor2":"Tenor","RiskFactor3":"Delivery"})
-    Result_COMR = pd.concat([COMR_Delta, COMR_Curvature, COMR_Vega],axis = 0)
+    Result_COMR = pd.concat([COMR_Delta, COMR_Curvature if len(COMR_Curvature) > 0 else pd.DataFrame([]), COMR_Vega if len(COMR_Vega) > 0 else pd.DataFrame([])],axis = 0)
     
     DRC = RAWData[RAWData["Risk_Class"].isin(["DRC","부도리스크","부도리스크(DRC)"])]
     DRC = DRC.rename(columns = {"RiskFactor1" : "Rating", "RiskFactor2":"Issuer"})
