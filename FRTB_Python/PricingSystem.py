@@ -60,6 +60,25 @@ HWCapHWSwaptionCalib1F.argtypes = [ct.c_long, c_double_p, c_double_p, ct.c_long,
 
 CSRRW = [ 0.005, 0.01, 0.05, 0.03, 0.03, 0.02, 0.015, 0.025, 0.02, 0.04, 0.12, 0.07, 0.085, 0.055, 0.05, 0.12, 0.015, 0.05]
 
+def Calc_DRC_RiskWeigt(Rate) : 
+    Rate = Rate.upper()
+    if 'AAA' in Rate : 
+        return 0.005
+    elif 'AA' in Rate : 
+        return 0.02
+    elif 'A' in Rate : 
+        return 0.03
+    elif 'BBB' in Rate : 
+        return 0.06
+    elif 'BB' in Rate : 
+        return 0.15
+    elif 'B' in Rate : 
+        return 0.3
+    elif 'C' in Rate : 
+        return 0.6
+    else : 
+        return 0.15
+
 def LeapCheck(Year) : 
     Year = int(Year)
     return 1 if ((Year % 4 == 0 and Year % 100 != 0 ) or Year % 400 == 0) else 0
@@ -731,7 +750,7 @@ def Calc_FRTB_Sensi_FromGreek(PriceDate, ZeroTerm, ZeroGreek, DiscTerm = [], Dis
     if len(DiscTerm) == 0 : 
         DiscTerm_np, DiscTerm_c = arr_double(np.array([1.0],dtype = np.float64))
         NDiscRate_c = ct.c_long(1)
-        DiscRate_np, DiscRate_np = arr_double(np.array([0.0],dtype = np.float64))
+        DiscRate_np, DiscRate_c = arr_double(np.array([0.0],dtype = np.float64))
         DiscGreek_np, DiscGreek_c = arr_double(np.array([0.0],dtype = np.float64))
     else : 
         DiscTerm_np, DiscTerm_c = arr_double(DiscTerm)
@@ -4732,115 +4751,236 @@ Public Declare PtrSafe Function Calc_Hazard_Rate_From_CDSCurve Lib "CreditDeriva
 CalcHazardFunc, VariablesHazardFormat, VariableHazardNames = ConvertPythonFormatfromVBAformat(VBAString2)
 
 df = pd.read_excel('CDSPosition.xlsx')
+ResultGreekDF = pd.DataFrame([])
 i = 0
-data_srs = df.iloc[i].apply(lambda x : None if pd.isna(x) == True else x)
+for i in range(len(df)) : 
+    data_srs = df.iloc[i].apply(lambda x : None if pd.isna(x) == True else x)
+    POSIID = data_srs['PROD_ID'] if data_srs['PROD_ID'] != None else "TEMPPOSI" + str(i+1)
+    Redemp_Priority = data_srs['REDEMPPRIORITY'] if data_srs['REDEMPPRIORITY'] != None else 0
+    ZeroTerm = [1.0, 2.0, 3.0]
+    ZeroCurve = [3.5, 3.6, 3.7]
+    NZeroCurve = len(ZeroTerm)
 
-ZeroTerm = [1.0, 2.0, 3.0]
-ZeroCurve = [3.5, 3.6, 3.7]
-NZeroCurve = len(ZeroTerm)
+    PremiumCurveTerm = [1.0, 2.0, 3.0]
+    PremiumCurve = [3.5, 3.6, 3.7]
+    NPremiumCurve = len(PremiumCurveTerm)
+    ProtectionCurveTerm = [1.0, 2.0, 3.0]
+    ProtectionCurve = [3.5, 3.6, 3.7]
+    NProtectionCurve = len(ProtectionCurveTerm)
+    CDSCurveTerm = [1.0, 2.0, 3.0]
+    CDSCurveRate = [0.67, 0.89, 1.02]
+    NCDS = len(CDSCurveTerm)
+    NCPN_Ann = int(data_srs["NCPNANN"]) if data_srs["NCPNANN"] != None else 4
+    CurveName1 = str(data_srs['PRO_BUYER_TERMNAME']).replace("Term","")
+    CurveName2 = str(data_srs['PRO_SELLER_TERMNAME']).replace("Term","")
+    CDSCurveName = (str(data_srs['CDS_TERMNAME']).replace("Term","") if data_srs['CDS_TERMNAME'] != None else "미매핑거래상대방") + "CDS"
+    Depart = Portname = data_srs['PORT_ID'] if data_srs['PORT_ID'] != None else 'TEMP'
+    CSRBucket = data_srs['CSRBUCKET'] if data_srs['CSRBUCKET'] != None else 16
+    CounterpartyName = data_srs['COUNTERPARTY'] if data_srs['COUNTERPARTY'] != None else '미매핑거래상대방'
+    Currency = data_srs['CURR'] if data_srs['CURR'] != None else 'KRW' 
+    PriceDate = int(data_srs["BASE_DT"]) if data_srs["BASE_DT"] != None else today_YYYYMMDD
+    PriceDate_c = ct.c_long(PriceDate)
+    Preprocessing_Term(PremiumCurveTerm,PriceDate)
+    Preprocessing_Term(ProtectionCurveTerm,PriceDate)
+    Preprocessing_Term(CDSCurveTerm,PriceDate)
+    Holidays = np.array([19000101], dtype = np.int64)
+    NHolidays = 1
+    HazardRateCalcFlag_c = ct.c_long(0)
+    ZeroTerm_np = np.array(ZeroTerm, dtype = np.float64)
+    ZeroCurve_np = np.array(ZeroCurve, dtype = np.float64)/100
+    CDSCurveTerm_np = np.array(CDSCurveTerm, dtype = np.float64)
+    CDSCurveRate_np = np.array(CDSCurveRate, dtype = np.float64)/100
+    Recovery = float(data_srs["RECOVERY"]) if data_srs['RECOVERY'] != None else 0
+    Recovery_c = ct.c_double(Recovery)
+    NCPN_Ann_c = ct.c_long(NCPN_Ann)
+    Holidays_np, Holidays_c = arr_long(Holidays)
+    NHolidays_c = ct.c_long(NHolidays)
+    ResultHazardTerm_c = arr_double(np.zeros(max(100, NCDS), dtype = np.float64))[1]
+    ResultHazard_c = arr_double(np.zeros(max(100, NCDS), dtype = np.float64))[1]
 
-PremiumCurveTerm = [1.0, 2.0, 3.0]
-PremiumCurve = [3.5, 3.6, 3.7]
-NPremiumCurve = len(PremiumCurveTerm)
-ProtectionCurveTerm = [1.0, 2.0, 3.0]
-ProtectionCurve = [3.5, 3.6, 3.7]
-NProtectionCurve = len(ProtectionCurveTerm)
-CDSCurveTerm = [1.0, 2.0, 3.0]
-CDSCurveRate = [0.67, 0.89, 1.02]
-NCDS = len(CDSCurveTerm)
-NCPN_Ann = int(data_srs["NCPNANN"]) if data_srs["NCPNANN"] != None else 4
-PriceDate = int(data_srs["BASE_DT"]) if data_srs["BASE_DT"] != None else today_YYYYMMDD
-PriceDate_c = ct.c_long(PriceDate)
-Preprocessing_Term(PremiumCurveTerm,PriceDate)
-Preprocessing_Term(ProtectionCurveTerm,PriceDate)
-Preprocessing_Term(CDSCurveTerm,PriceDate)
-Holidays = np.array([19000101], dtype = np.int64)
-NHolidays = 1
-HazardRateCalcFlag_c = ct.c_long(0)
-ZeroTerm_np = np.array(ZeroTerm, dtype = np.float64)
-ZeroCurve_np = np.array(ZeroCurve, dtype = np.float64)/100
-CDSCurveTerm_np = np.array(CDSCurveTerm, dtype = np.float64)
-CDSCurveRate_np = np.array(CDSCurveRate, dtype = np.float64)/100
-Recovery = float(data_srs["RECOVERY"]) if data_srs['RECOVERY'] != None else 0
-Recovery_c = ct.c_double(Recovery)
-NCPN_Ann_c = ct.c_long(NCPN_Ann)
-Holidays_np, Holidays_c = arr_long(Holidays)
-NHolidays_c = ct.c_long(NHolidays)
-ResultHazardTerm_c = arr_double(np.zeros(max(100, NCDS), dtype = np.float64))[1]
-ResultHazard_c = arr_double(np.zeros(max(100, NCDS), dtype = np.float64))[1]
+    PremiumCurveTerm_np, PremiumCurveTerm_c = arr_double(PremiumCurveTerm)
+    PremiumCurve_np, PremiumCurve_c = arr_double(np.array(PremiumCurve)/100)
+    NPremiumCurve_c = ct.c_long(NPremiumCurve)
+    ProtectionCurveTerm_np, ProtectionCurveTerm_c = arr_double(ProtectionCurveTerm)
+    ProtectionCurve_np, ProtectionCurve_c = arr_double(np.array(ProtectionCurve)/100)
+    NProtectionCurve_c = ct.c_long(NProtectionCurve)
+    DataFlag_c = ct.c_long(0)
 
-PremiumCurveTerm_np, PremiumCurveTerm_c = arr_double(PremiumCurveTerm)
-PremiumCurve_np, PremiumCurve_c = arr_double(np.array(PremiumCurve)/100)
-NPremiumCurve_c = ct.c_long(NPremiumCurve)
-ProtectionCurveTerm_np, ProtectionCurveTerm_c = arr_double(ProtectionCurveTerm)
-ProtectionCurve_np, ProtectionCurve_c = arr_double(np.array(ProtectionCurve)/100)
-NProtectionCurve_c = ct.c_long(NProtectionCurve)
-DataFlag_c = ct.c_long(0)
+    ret = CalcHazardFunc(PriceDate_c, 
+                        ct.c_long(NZeroCurve), arr_double(ZeroTerm_np)[1], arr_double(ZeroCurve_np)[1],
+                        ct.c_long(NZeroCurve), arr_double(ZeroTerm_np)[1], arr_double(ZeroCurve_np)[1],
+                        ct.c_long(NCDS), arr_double(CDSCurveTerm_np)[1], arr_double(CDSCurveRate_np)[1],
+                        Recovery_c, HazardRateCalcFlag_c, NCPN_Ann_c,
+                        NHolidays_c, Holidays_c, ResultHazardTerm_c,ResultHazard_c)
 
-ret = CalcHazardFunc(PriceDate_c, 
-                    ct.c_long(NZeroCurve), arr_double(ZeroTerm_np)[1], arr_double(ZeroCurve_np)[1],
-                    ct.c_long(NZeroCurve), arr_double(ZeroTerm_np)[1], arr_double(ZeroCurve_np)[1],
-                    ct.c_long(NCDS), arr_double(CDSCurveTerm_np)[1], arr_double(CDSCurveRate_np)[1],
-                    Recovery_c, HazardRateCalcFlag_c, NCPN_Ann_c,
-                    NHolidays_c, Holidays_c, ResultHazardTerm_c,ResultHazard_c)
+    ResultT = np.ctypeslib.as_array(ResultHazardTerm_c[:NCDS], shape = (NCDS, ))
+    ResultH = np.ctypeslib.as_array(ResultHazard_c[:NCDS], shape = (NCDS, ))
+    HazardRateTerm_c = ResultHazardTerm_c
+    HazardRate_c = ResultHazard_c
+    NHazardRate = NCDS
+    NHazardRate_c = ct.c_long(NHazardRate)
+    CalcQMethod_c = ct.c_long(0)
+    NRefZero_c = NPremiumCurve_c
+    RefZeroTerm_c = PremiumCurveTerm_c
+    ZeroRiskFree_c = PremiumCurve_c
+    ZeroRiskyBond_c = ZeroRiskFree_c
+    DefaultRateCalcMethod_c = ct.c_long(1)
+    ScheduleInputFlag_c = ct.c_long(1)
+    StartDate = int(float(data_srs['EFFECTIVEDATE']))
+    MaturityDate = int(float(data_srs['MATURITYDATE']))
+    CreditRate = data_srs['CRRATE'] if data_srs['CRRATE'] != None else 'NR'
+    Nominal = float(data_srs['NOMINAL'])
+    DRCFlag = int(data_srs['DRCFLAG']) if data_srs['DRCFLAG'] != None else 1
+    Nominal_c = ct.c_double(Nominal)
+    Maturity_c = ct.c_double(((DayCountAtoB(PriceDate, MaturityDate)/365 +0.01)// 0.25)  * 0.25)
+    ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD = MappingCouponDates(1, StartDate, MaturityDate, -1, NCPN_Ann, False, Holidays, Holidays, 1)
+    NSchedule_c = ct.c_long(len(ResultForwardStart))
+    ResetDateYYYYMMDD_np, ResetDateYYYYMMDD_c = arr_long(ResultForwardStart)
+    PayDateYYYYMMDD_np, PayDateYYYYMMDD_c = arr_long(ResultForwardEnd)
+    BasketCDSFlag_c = ct.c_long(int(data_srs['BASKETFLAG']) if data_srs['BASKETFLAG'] != None else 0)
+    BasketNTotalAsset_c = ct.c_long(int(data_srs['BASKETNASSET'])) if data_srs['BASKETNASSET'] != None else 1
+    BasketNthDefault_c = ct.c_long(int(data_srs['NTHDEF'])) if data_srs['NTHDEF'] != None else 1
+    BasketAssetCorrelation_c = ct.c_double(float(data_srs['BASKETCORR'])) if data_srs['BASKETCORR'] != None else 0
+    OLS_CDS_Spread_c = ct.c_double(float(data_srs['CDSPREMIUM'])/100) if data_srs['CDSPREMIUM'] != None else 0
+    Protection_Position_c = ct.c_long(1)
+    TextFlag_c = ct.c_long(0)
+    GreekFlag_c = ct.c_long(0)
+    Result_Value = np.zeros(200, dtype = np.float64)
+    ResultHazardRate = np.zeros(len(ResultT), dtype = np.float64)
+    ResultGreeks = np.zeros(10 + 3 * len(PremiumCurveTerm) + 3 * len(ResultT))
+    Premium_Schedule = np.zeros(len(ResultForwardStart), dtype = np.float64)
+    Result_Value_np, Result_Value_c = arr_double(Result_Value)
+    Result_ValueU_np, Result_ValueU_c = arr_double(Result_Value.copy())
 
-ResultT = np.ctypeslib.as_array(ResultHazardTerm_c[:NCDS], shape = (NCDS, ))
-ResultH = np.ctypeslib.as_array(ResultHazard_c[:NCDS], shape = (NCDS, ))
-HazardRateTerm_c = ResultHazardTerm_c
-HazardRate_c = ResultHazard_c
-NHazardRate = NCDS
-NHazardRate_c = ct.c_long(NHazardRate)
-CalcQMethod_c = ct.c_long(0)
-NRefZero_c = NPremiumCurve_c
-RefZeroTerm_c = PremiumCurveTerm_c
-ZeroRiskFree_c = PremiumCurve_c
-ZeroRiskyBond_c = ZeroRiskFree_c
-DefaultRateCalcMethod_c = ct.c_long(1)
-ScheduleInputFlag_c = ct.c_long(1)
-StartDate = int(float(data_srs['EFFECTIVEDATE']))
-MaturityDate = int(float(data_srs['MATURITYDATE']))
-Nominal = float(data_srs['NOMINAL'])
-Nominal_c = ct.c_double(Nominal)
-Maturity_c = ct.c_double(((DayCountAtoB(PriceDate, MaturityDate)/365 +0.01)// 0.25)  * 0.25)
-ResultForwardStart, ResultForwardEnd, ResultPayDate, ResultNBD = MappingCouponDates(1, StartDate, MaturityDate, -1, NCPN_Ann, False, Holidays, Holidays, 1)
-NSchedule_c = ct.c_long(len(ResultForwardStart))
-ResetDateYYYYMMDD_np, ResetDateYYYYMMDD_c = arr_long(ResultForwardStart)
-PayDateYYYYMMDD_np, PayDateYYYYMMDD_c = arr_long(ResultForwardEnd)
-BasketCDSFlag_c = ct.c_long(int(data_srs['BASKETFLAG']) if data_srs['BASKETFLAG'] != None else 0)
-BasketNTotalAsset_c = ct.c_long(int(data_srs['BASKETNASSET'])) if data_srs['BASKETNASSET'] != None else 1
-BasketNthDefault_c = ct.c_long(int(data_srs['NTHDEF'])) if data_srs['NTHDEF'] != None else 1
-BasketAssetCorrelation_c = ct.c_double(float(data_srs['BASKETCORR'])) if data_srs['BASKETCORR'] != None else 0
-OLS_CDS_Spread_c = ct.c_double(float(data_srs['CDSPREMIUM'])/100) if data_srs['CDSPREMIUM'] != None else 0
-Protection_Position_c = ct.c_long(1)
-TextFlag_c = ct.c_long(0)
-GreekFlag_c = ct.c_long(1)
-Result_Value = np.zeros(200, dtype = np.float64)
-ResultHazardRate = np.zeros(len(ResultT), dtype = np.float64)
-ResultGreeks = np.zeros(10 + 3 * len(PremiumCurveTerm) + 3 * len(ResultT))
-Premium_Schedule = np.zeros(len(ResultForwardStart), dtype = np.float64)
-Result_Value_np, Result_Value_c = arr_double(Result_Value)
-ResultHazardRate_np, ResultHazardRate_c = arr_double(ResultHazardRate)
-ResultGreeks_np, ResultGreeks_c = arr_double(ResultGreeks)
-Premium_Schedule_np, Premium_Schedule_c = arr_double(Premium_Schedule)
+    ResultHazardRate_np, ResultHazardRate_c = arr_double(ResultHazardRate)
+    ResultGreeks_np, ResultGreeks_c = arr_double(ResultGreeks)
+    Premium_Schedule_np, Premium_Schedule_c = arr_double(Premium_Schedule)
 
-Res = CalcCDSFunc(NPremiumCurve_c,  PremiumCurveTerm_c,  PremiumCurve_c, 
-            NProtectionCurve_c,  ProtectionCurveTerm_c,  ProtectionCurve_c, 
-            DataFlag_c,  NHazardRate_c,  HazardRateTerm_c,  HazardRate_c,  CalcQMethod_c, 
-            NRefZero_c,  RefZeroTerm_c,  ZeroRiskFree_c,  ZeroRiskyBond_c,  DefaultRateCalcMethod_c, 
-            Recovery_c,  ScheduleInputFlag_c,  NCPN_Ann_c,  Maturity_c,  NSchedule_c,  ResetDateYYYYMMDD_c,  PayDateYYYYMMDD_c,  PriceDate_c, 
-            NHolidays_c,  Holidays_c,  BasketCDSFlag_c,  BasketNTotalAsset_c,  BasketNthDefault_c,
-            BasketAssetCorrelation_c,  OLS_CDS_Spread_c,  Protection_Position_c,  TextFlag_c,  GreekFlag_c,  
-            Result_Value_c,  ResultHazardRate_c,  ResultGreeks_c,   Premium_Schedule_c,  Nominal_c)
-Current_CDS_Spread = Result_Value_c[0]     
-Posi = 1 if data_srs['PROTECTIONBUY'] in [1, None] else -1 
-Premium_Value = Result_Value_c[3] * (-Posi)
-Protection_Value = Result_Value_c[4] * (Posi)
-OLD_CDS_Value = Result_Value_c[5] * Posi
-ResultHazard = np.ctypeslib.as_array(ResultHazardRate_c[:NHazardRate], shape = (NHazardRate))
-ResultHazardDF = pd.DataFrame([ResultT, ResultHazard], index = ['Term','DefaultProb']).T
-PremiumSchedule = np.ctypeslib.as_array(Premium_Schedule_c[:len(Premium_Schedule)], shape = (len(Premium_Schedule)))
-ResultScheduleDF = pd.DataFrame([ResultPayDate, PremiumSchedule], index = ['PayDate','E(Premium)xDF']).T
+    Res = CalcCDSFunc(NPremiumCurve_c,  PremiumCurveTerm_c,  PremiumCurve_c, 
+                NProtectionCurve_c,  ProtectionCurveTerm_c,  ProtectionCurve_c, 
+                DataFlag_c,  NHazardRate_c,  HazardRateTerm_c,  HazardRate_c,  CalcQMethod_c, 
+                NRefZero_c,  RefZeroTerm_c,  ZeroRiskFree_c,  ZeroRiskyBond_c,  DefaultRateCalcMethod_c, 
+                Recovery_c,  ScheduleInputFlag_c,  NCPN_Ann_c,  Maturity_c,  NSchedule_c,  ResetDateYYYYMMDD_c,  PayDateYYYYMMDD_c,  PriceDate_c, 
+                NHolidays_c,  Holidays_c,  BasketCDSFlag_c,  BasketNTotalAsset_c,  BasketNthDefault_c,
+                BasketAssetCorrelation_c,  OLS_CDS_Spread_c,  Protection_Position_c,  TextFlag_c,  GreekFlag_c,  
+                Result_Value_c,  ResultHazardRate_c,  ResultGreeks_c,   Premium_Schedule_c,  Nominal_c)
+    Current_CDS_Spread = Result_Value_c[0]     
+    Posi = 1 if data_srs['PROTECTIONBUY'] in [1, None] else -1 
+    Premium_Value = Result_Value_c[3] * (-Posi)
+    Protection_Value = Result_Value_c[4] * (Posi)
+    OLD_CDS_Value = Result_Value_c[5] * Posi
 
+    ResultHazard = np.ctypeslib.as_array(ResultHazardRate_c[:NHazardRate], shape = (NHazardRate))
+    ResultHazardDF = pd.DataFrame([ResultT, ResultHazard], index = ['Term','DefaultProb']).T
+    PremiumSchedule = np.ctypeslib.as_array(Premium_Schedule_c[:len(Premium_Schedule)], shape = (len(Premium_Schedule)))
+    ResultScheduleDF = pd.DataFrame([ResultPayDate, PremiumSchedule], index = ['PayDate','E(Premium)xDF']).T
+
+    PV01PremiumCurve_list = []
+    for i in range(len(PremiumCurveTerm)) : 
+        PremiumCurveUp = PremiumCurve_np.copy()
+        PremiumCurveUp[i] += 0.0001
+        PremiumCurveUp_np, PremiumCurveUp_c = arr_double(PremiumCurveUp)
+        Res = CalcCDSFunc(NPremiumCurve_c,  PremiumCurveTerm_c,  PremiumCurveUp_c, 
+                    NProtectionCurve_c,  ProtectionCurveTerm_c,  ProtectionCurve_c, 
+                    DataFlag_c,  NHazardRate_c,  HazardRateTerm_c,  HazardRate_c,  CalcQMethod_c, 
+                    NRefZero_c,  RefZeroTerm_c,  ZeroRiskFree_c,  ZeroRiskyBond_c,  DefaultRateCalcMethod_c, 
+                    Recovery_c,  ScheduleInputFlag_c,  NCPN_Ann_c,  Maturity_c,  NSchedule_c,  ResetDateYYYYMMDD_c,  PayDateYYYYMMDD_c,  PriceDate_c, 
+                    NHolidays_c,  Holidays_c,  BasketCDSFlag_c,  BasketNTotalAsset_c,  BasketNthDefault_c,
+                    BasketAssetCorrelation_c,  OLS_CDS_Spread_c,  Protection_Position_c,  ct.c_long(0),  ct.c_long(0),  
+                    Result_ValueU_c,  ResultHazardRate_c,  ResultGreeks_c,   Premium_Schedule_c,  Nominal_c)
+        Premium_Value_U = Result_ValueU_c[3] * (-Posi)
+        Protection_Value_U = Result_ValueU_c[4] * (Posi)
+        OLD_CDS_Value_U = Result_ValueU_c[5] * Posi
+        PV01PremiumCurve_list.append(OLD_CDS_Value_U - OLD_CDS_Value)
+
+    PV01ProtectionCurve_list = []
+    for i in range(len(PremiumCurveTerm)) : 
+        ProtectionCurveUp = ProtectionCurve_np.copy()
+        ProtectionCurveUp[i] += 0.0001
+        ProtectionCurveUp_np, ProtectionCurveUp_c = arr_double(ProtectionCurveUp)
+        Res = CalcCDSFunc(NPremiumCurve_c,  PremiumCurveTerm_c,  PremiumCurve_c, 
+                    NProtectionCurve_c,  ProtectionCurveTerm_c,  ProtectionCurveUp_c, 
+                    DataFlag_c,  NHazardRate_c,  HazardRateTerm_c,  HazardRate_c,  CalcQMethod_c, 
+                    NRefZero_c,  RefZeroTerm_c,  ZeroRiskFree_c,  ZeroRiskyBond_c,  DefaultRateCalcMethod_c, 
+                    Recovery_c,  ScheduleInputFlag_c,  NCPN_Ann_c,  Maturity_c,  NSchedule_c,  ResetDateYYYYMMDD_c,  PayDateYYYYMMDD_c,  PriceDate_c, 
+                    NHolidays_c,  Holidays_c,  BasketCDSFlag_c,  BasketNTotalAsset_c,  BasketNthDefault_c,
+                    BasketAssetCorrelation_c,  OLS_CDS_Spread_c,  Protection_Position_c,  ct.c_long(0),  ct.c_long(0),  
+                    Result_ValueU_c,  ResultHazardRate_c,  ResultGreeks_c,   Premium_Schedule_c,  Nominal_c)
+        Premium_Value_U = Result_ValueU_c[3] * (-Posi)
+        Protection_Value_U = Result_ValueU_c[4] * (Posi)
+        OLD_CDS_Value_U = Result_ValueU_c[5] * Posi
+        PV01ProtectionCurve_list.append(OLD_CDS_Value_U - OLD_CDS_Value)
+
+    PV01HazardCurve_list = []
+    for i in range(len(PremiumCurveTerm)) : 
+        HazardUp = ResultH.copy()
+        HazardUp[i] +=0.0001
+        HazardUp_np, HazardUp_c = arr_double(HazardUp)
+        Res = CalcCDSFunc(NPremiumCurve_c,  PremiumCurveTerm_c,  PremiumCurve_c, 
+                    NProtectionCurve_c,  ProtectionCurveTerm_c,  ProtectionCurve_c, 
+                    DataFlag_c,  NHazardRate_c,  HazardRateTerm_c,  HazardUp_c,  CalcQMethod_c, 
+                    NRefZero_c,  RefZeroTerm_c,  ZeroRiskFree_c,  ZeroRiskyBond_c,  DefaultRateCalcMethod_c, 
+                    Recovery_c,  ScheduleInputFlag_c,  NCPN_Ann_c,  Maturity_c,  NSchedule_c,  ResetDateYYYYMMDD_c,  PayDateYYYYMMDD_c,  PriceDate_c, 
+                    NHolidays_c,  Holidays_c,  BasketCDSFlag_c,  BasketNTotalAsset_c,  BasketNthDefault_c,
+                    BasketAssetCorrelation_c,  OLS_CDS_Spread_c,  Protection_Position_c,  ct.c_long(0),  ct.c_long(0),  
+                    Result_ValueU_c,  ResultHazardRate_c,  ResultGreeks_c,   Premium_Schedule_c,  Nominal_c)
+        Premium_Value_U = Result_ValueU_c[3] * (-Posi)
+        Protection_Value_U = Result_ValueU_c[4] * (Posi)
+        OLD_CDS_Value_U = Result_ValueU_c[5] * Posi
+        PV01HazardCurve_list.append((OLD_CDS_Value_U - OLD_CDS_Value)/(1-Recovery))
+
+    PremiumDeltaSensi = Calc_FRTB_Sensi_FromGreek(PriceDate,PremiumCurveTerm, PV01PremiumCurve_list, CurveName1 = Currency + ' IRS').rename(columns = {'Name' : 'RiskFactor1','Tenor':'RiskFactor2'})
+    PremiumDeltaSensi['Risk_Class'] = 'GIRR'
+    PremiumDeltaSensi['Risk_Type'] = 'Delta'
+    PremiumDeltaSensi['Depart'] = Depart
+    PremiumDeltaSensi['Portfolio'] = Portname
+    PremiumDeltaSensi['Bucket'] = Currency
+    PremiumDeltaSensi['RiskFactor3'] = 'Rate'
+    PremiumDeltaSensi['Value_Up'] = PremiumDeltaSensi['Value_Dn'] = PremiumDeltaSensi['CVR_Plus'] = PremiumDeltaSensi['CVR_Minus'] = PremiumDeltaSensi['Vega_Sensi'] = np.nan
+    PremiumDeltaSensi['Value'] = OLD_CDS_Value
+    PremiumDeltaSensi['PV01Origin'] = PremiumDeltaSensi['Delta_Sensi'] * 0.0001
+
+    ProtectionDeltaSensi = Calc_FRTB_Sensi_FromGreek(PriceDate,ProtectionCurveTerm, PV01ProtectionCurve_list, CurveName1 = Currency + ' IRS').rename(columns = {'Name' : 'RiskFactor1','Tenor':'RiskFactor2'})
+    ProtectionDeltaSensi['Risk_Class'] = 'GIRR'
+    ProtectionDeltaSensi['Risk_Type'] = 'Delta'
+    ProtectionDeltaSensi['Depart'] = Depart
+    ProtectionDeltaSensi['Portfolio'] = Portname
+    ProtectionDeltaSensi['Bucket'] = Currency
+    ProtectionDeltaSensi['RiskFactor3'] = 'Rate'
+    ProtectionDeltaSensi['Value_Up'] = ProtectionDeltaSensi['Value_Dn'] = ProtectionDeltaSensi['CVR_Plus'] = ProtectionDeltaSensi['CVR_Minus'] = ProtectionDeltaSensi['Vega_Sensi'] = np.nan
+    ProtectionDeltaSensi['Value'] = OLD_CDS_Value
+    ProtectionDeltaSensi['PV01Origin'] = ProtectionDeltaSensi['Delta_Sensi'] * 0.0001
+
+    HazardDeltaSensi = Calc_FRTB_Sensi_FromGreek(PriceDate,ResultT, PV01HazardCurve_list, CurveName1 = CDSCurveName).rename(columns = {'Name' : 'RiskFactor1','Tenor':'RiskFactor2'})
+    HazardDeltaSensi['Risk_Class'] = 'CSR'
+    HazardDeltaSensi['Risk_Type'] = 'Delta'
+    HazardDeltaSensi['Depart'] = Depart
+    HazardDeltaSensi['Portfolio'] = Portname
+    HazardDeltaSensi['Bucket'] = int(CSRBucket)
+    HazardDeltaSensi['RiskFactor3'] = CounterpartyName
+    HazardDeltaSensi['Value_Up'] = HazardDeltaSensi['Value_Dn'] = HazardDeltaSensi['CVR_Plus'] = HazardDeltaSensi['CVR_Minus'] = HazardDeltaSensi['Vega_Sensi'] = np.nan
+    HazardDeltaSensi['Value'] = OLD_CDS_Value
+    HazardDeltaSensi['PV01Origin'] = HazardDeltaSensi['Delta_Sensi'] * 0.0001
+
+    DRCDF = pd.DataFrame([], columns = ['Depart','Risk_Class','Risk_Type','Portfolio','Bucket',
+                                                'RiskFactor1','RiskFactor2','RiskFactor3','DRC_RRAO_Nominal','DRC_Position',
+                                                'DRC_LGD','DRC_PL','DRC_RW'])
+    if DRCFlag == 1 : 
+        DRCT = max(0.25, min(1,DayCountAtoB(PriceDate, MaturityDate)/365))
+        DRC_RRAO_Nominal = Nominal * DRCT
+        DRC_PL = OLD_CDS_Value * DRCT
+        DRCRiskWeight = Calc_DRC_RiskWeigt(CreditRate)
+        LGD = 0.75 if Redemp_Priority == 0 else (1.0 if Redemp_Priority else 0.25)
+        DRCDF = pd.DataFrame([[Depart, 'DRC','DRC',Portname,'Corp',
+                            CounterpartyName,CounterpartyName,CounterpartyName,DRC_RRAO_Nominal, Posi,
+                            LGD,DRC_PL, DRCRiskWeight]],
+                            columns = ['Depart','Risk_Class','Risk_Type','Portfolio','Bucket',
+                                            'RiskFactor1','RiskFactor2','RiskFactor3','DRC_RRAO_Nominal','DRC_Position',
+                                            'DRC_LGD','DRC_PL','DRC_RW'])
+    TargetCols = ["Depart","Risk_Class","Risk_Type","Portfolio","Bucket","RiskFactor1","RiskFactor2","RiskFactor3","Delta_Sensi","Value_Up","Value_Dn","Value","CVR_Plus","CVR_Minus","Vega_Sensi","DRC_RRAO_Nominal","DRC_Position","DRC_LGD","DRC_PL","DRC_RW","PV01Origin"]
+    ResultAdd = pd.concat([PremiumDeltaSensi, ProtectionDeltaSensi, HazardDeltaSensi, DRCDF],axis = 0)[TargetCols]
+    ResultAdd['POSIID'] = POSIID
+    ResultGreekDF = pd.concat([ResultGreekDF, ResultAdd],axis = 0)
 # %%frame = left_frame 
 
 VBAString = '''
