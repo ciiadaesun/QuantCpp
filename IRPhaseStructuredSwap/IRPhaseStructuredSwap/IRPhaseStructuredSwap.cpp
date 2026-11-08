@@ -4477,7 +4477,7 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
         long idxstart, idxend;
         long UselessTermFlag = 0;
         
-        double PV01Rcv, PV01Pay, PV01Opt;
+        double PV01Rcv, PV01Pay, PV01Opt, PV01Swap;
         
 
         double* KeyPV01Rcv;
@@ -4558,17 +4558,36 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
 
                 PV01Rcv = TempResultPrice[0] - RcvValue;
                 PV01Pay = TempResultPrice[1] - PayValue;
+                PV01Swap = TempResultPrice[2] - MTMValue;
                 PV01Opt = TempResultPrice[3] - OptPrice;
                 if (OptionType == 1)
                 {
-                    if (RcvLeg->NOption > 0) PV01Rcv += PV01Opt;
+                    if (RcvLeg->NOption > 0)
+                    {
+                        ResultPV01[i - 1] = PV01Swap + PV01Pay;
+                        ResultPV01[i - 1 + 4] = PV01Pay;
+                    }
+                    else
+                    {
+                        ResultPV01[i - 1] = PV01Rcv;
+                        ResultPV01[i - 1 + 4] = PV01Pay;
+                    }
                 }
                 else
                 {
-                    if (RcvLeg->NOption > 0) PV01Pay += PV01Opt;
+                    if (RcvLeg->NOption > 0)
+                    {
+                        ResultPV01[i - 1] = PV01Rcv;
+                        ResultPV01[i - 1 + 4] = -PV01Swap + PV01Rcv;
+                    }
+                    else
+                    {
+                        ResultPV01[i - 1] = PV01Rcv;
+                        ResultPV01[i - 1 + 4] = PV01Pay;
+                    }
                 }
-                ResultPV01[i - 1] = PV01Rcv;
-                ResultPV01[i - 1 + 4] = PV01Pay;
+                //ResultPV01[i - 1] = PV01Rcv;
+                //ResultPV01[i - 1 + 4] = PV01Pay;
                 k = k + 1;
             }
         }
@@ -4620,17 +4639,36 @@ DLLEXPORT(long) Pricing_IRPhaseStructuredSwap(
 
                         PV01Rcv = TempResultPrice[0] - RcvValue;
                         PV01Pay = TempResultPrice[1] - PayValue;
+                        PV01Swap = TempResultPrice[2] - MTMValue;
                         PV01Opt = TempResultPrice[3] - OptPrice;
                         if (OptionType == 1)
                         {
-                            if (RcvLeg->NOption > 0) PV01Rcv += PV01Opt;
+                            if (RcvLeg->NOption > 0)
+                            {
+                                KeyPV01Rcv[idxtermup - idxstart] = PV01Swap + PV01Pay;
+                                KeyPV01Pay[idxtermup - idxstart] = PV01Pay;
+                            }
+                            else
+                            {
+                                KeyPV01Rcv[idxtermup - idxstart] = PV01Rcv;
+                                KeyPV01Pay[idxtermup - idxstart] = PV01Pay;
+                            }
                         }
                         else
                         {
-                            if (RcvLeg->NOption > 0) PV01Pay += PV01Opt;
+                            if (RcvLeg->NOption > 0)
+                            {
+                                KeyPV01Rcv[idxtermup - idxstart] = PV01Rcv;
+                                KeyPV01Pay[idxtermup - idxstart] = -PV01Swap + PV01Rcv;
+                            }
+                            else
+                            {
+                                KeyPV01Rcv[idxtermup - idxstart] = PV01Rcv;
+                                KeyPV01Pay[idxtermup - idxstart] = PV01Pay;
+                            }
                         }
-                        KeyPV01Rcv[idxtermup - idxstart] = PV01Rcv;
-                        KeyPV01Pay[idxtermup - idxstart] = PV01Pay;
+                        //KeyPV01Rcv[idxtermup - idxstart] = PV01Rcv;
+                        //KeyPV01Pay[idxtermup - idxstart] = PV01Pay;
                     }
                     k = k + 1;
                 }

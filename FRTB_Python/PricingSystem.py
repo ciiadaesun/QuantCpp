@@ -4264,7 +4264,7 @@ def IRPhaseStructuredSwap() :
         L1_DayCount = int(str(vb_L1_DayCount.get(vb_L1_DayCount.curselection())).split(":")[0]) if vb_L1_DayCount.curselection() else 0
         
         L1_RCap = float(v_L1_RCap.get())/100 if len(str(v_L1_RCap.get())) > 0 else 10000
-        L1_RFloor = float(v_L1_RFloor.get()) if len(str(v_L1_RFloor.get())) > 0 else -10000
+        L1_RFloor = float(v_L1_RFloor.get())/100 if len(str(v_L1_RFloor.get())) > 0 else -10000
         L1_RangeMultiple = float(v_L1_RangeMultiple.get()) if len(str(v_L1_RangeMultiple.get())) > 0 else 0
         L1_PayoffMultiple = splitfunc(str(v_L1_PayoffMultiple.get(v_L1_PayoffMultiple.curselection())).split(":")[1]) if v_L1_PayoffMultiple.curselection() else 0
 
@@ -4328,7 +4328,7 @@ def IRPhaseStructuredSwap() :
         L2_DayCount = int(str(vb_L2_DayCount.get(vb_L2_DayCount.curselection())).split(":")[0]) if vb_L2_DayCount.curselection() else 0
         
         L2_RCap = float(v_L2_RCap.get())/100 if len(str(v_L2_RCap.get())) > 0 else 10000
-        L2_RFloor = float(v_L2_RFloor.get()) if len(str(v_L2_RFloor.get())) > 0 else -10000
+        L2_RFloor = float(v_L2_RFloor.get())/100 if len(str(v_L2_RFloor.get())) > 0 else -10000
         L2_RangeMultiple = float(v_L2_RangeMultiple.get()) if len(str(v_L2_RangeMultiple.get())) > 0 else 0
         L2_PayoffMultiple = splitfunc(str(v_L2_PayoffMultiple.get(v_L2_PayoffMultiple.curselection())).split(":")[1]) if v_L2_PayoffMultiple.curselection() else 0
 
@@ -4605,6 +4605,7 @@ def IRPhaseStructuredSwap() :
             loggstr.append(str(HWQuantoInfo))
             loggstr.append(str(Error))
             pd.DataFrame(loggstr).to_excel("IRPhaseStructuredSwap_Variables.xlsx")
+            
         Res = CalcFunc(PriceDate_c,NAFlag_c,Notional_c,PayoffStructure_c,HolidayFlagCount_c,
                        Holidays_c,RcvFlag_c,RcvMaxLossReturn_c,RcvRefCurveNumber_c,RcvRefRateType_c,
                        RcvSwapInfo_c,RcvDayCountFlag_c,RcvRefCondMultiple_c,RcvRefPowerSpreadFlag_c,RcvRefPowerSpreadMat_c,

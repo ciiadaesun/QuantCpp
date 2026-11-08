@@ -2173,8 +2173,8 @@ long HiFive_ELS_MC(
 				ParityVol, FixedRandn);
 			Pd = ResultPriceTemp[0];
 
-			Del = (Pu - Pd) / (2.0 * 0.01 * S[i]);
-			Gam = (Pu + Pd - 2.0 * P) / (S[i] * 0.01 * S[i] * 0.01);
+			Del = (Pu - Pd) / (2.0 * 0.01);
+			Gam = (Pu + Pd - 2.0 * P) ;
 			ResultPrice[i + 1] = Del;
 			ResultPrice[NStock + i + 1] = Gam;
 
