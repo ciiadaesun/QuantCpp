@@ -4895,7 +4895,7 @@ for i in range(len(df)) :
         PV01PremiumCurve_list.append(OLD_CDS_Value_U - OLD_CDS_Value)
 
     PV01ProtectionCurve_list = []
-    for i in range(len(PremiumCurveTerm)) : 
+    for i in range(len(ProtectionCurveTerm)) : 
         ProtectionCurveUp = ProtectionCurve_np.copy()
         ProtectionCurveUp[i] += 0.0001
         ProtectionCurveUp_np, ProtectionCurveUp_c = arr_double(ProtectionCurveUp)
@@ -4913,7 +4913,7 @@ for i in range(len(df)) :
         PV01ProtectionCurve_list.append(OLD_CDS_Value_U - OLD_CDS_Value)
 
     PV01HazardCurve_list = []
-    for i in range(len(PremiumCurveTerm)) : 
+    for i in range(len(ResultH)) : 
         HazardUp = ResultH.copy()
         HazardUp[i] +=0.0001
         HazardUp_np, HazardUp_c = arr_double(HazardUp)
@@ -4996,6 +4996,52 @@ Public Declare PtrSafe Function Calc_BondForward Lib "BondForward.dll" ( _
 ) As Long
 '''
 CalcFunc, VariablesFormat, VariableNames = ConvertPythonFormatfromVBAformat(VBAString)
+
+npformatlist = []
+MyContents = ''
+
+for i in range(len(VariablesFormat)) : 
+    if VariablesFormat[i][0] == ct.c_double : 
+        npformatlist.append('float')
+        MyContents += '    ' + VariableNames[i] + '_c = ct.c_double(' + VariableNames[i] + ')\n'
+    elif VariablesFormat[i][0] == ct.c_long :
+        npformatlist.append('int')
+        MyContents += '    ' + VariableNames[i] + '_c = ct.c_long(' + VariableNames[i] + ')\n'
+    elif VariablesFormat[i][0] == c_double_p :
+        npformatlist.append('np.ndarray')
+        MyContents += '    ' + VariableNames[i] + '_c = arr_double(' + VariableNames[i] + ')[1]\n'
+    elif VariablesFormat[i][0] == c_long_p :
+        npformatlist.append('np.ndarray')
+        MyContents += '    ' + VariableNames[i] + '_c = arr_long(' + VariableNames[i] + ')[1]\n'
+    else : 
+        npformatlist.append('str')
+        MyContents += '    ' + VariableNames[i] + 'c_ = ct.create_string_buffer(100)\n'
+ExeStr = '    Res = CalcFunc('
+ReturnStr = '    return {"Res" : Res, '
+FuncStr = 'def CalcPythonFunc('
+for i in range(len(VariableNames)) : 
+    FuncStr += VariableNames[i] + ': ' + str(npformatlist[i])
+    ExeStr += VariableNames[i] + '_c'
+    ReturnStr += '"' + VariableNames[i] + '_c' +'":' + VariableNames[i] + '_c'
+    if i < len(VariableNames) - 1 : 
+        FuncStr += ',\n                   '
+        ExeStr += ','
+        ReturnStr += ', '
+    else : 
+        FuncStr += ') : \n'
+        ExeStr += ')\n'
+        ReturnStr += '}'
+    if i % 5 == 0 and i > 0 : 
+        ReturnStr += '\n            '
+        ExeStr += '\n                   '
+#FuncStr += 'return 0'
+FuncStr += MyContents
+FuncStr += ExeStr
+FuncStr += ReturnStr
+with open("output.txt", "w", encoding="utf-8") as f:
+    f.write(FuncStr)
+VariableNames
+
 TempSchedule =[TimestampToYYYYMMDD(i) for i in MakeSchedule(today_YYYYMMDD, today_YYYYMMDD + 100000, 3)]
 StartSchedule = TempSchedule[:-1]
 EndSchedule = TempSchedule[1:]
